@@ -1,0 +1,34 @@
+{
+  "schemaVersion": 1,
+  "id": "oro_mod_template",
+  "version": "${version}",
+
+  "name": "OroArmor's Mod Template",
+  "description": "This is a template mod for OroArmor.",
+  "authors": [
+    "OroArmor"
+  ],
+  "contact": {
+    "homepage": "https://oroarmor.com/",
+    "sources": "https://github.com/OroArmor/oro-mod-template"
+  },
+
+  "license": "MIT",
+  "icon": "assets/oro_mod_template/icon.png",
+
+  "environment": "*",
+  "entrypoints": {
+    "main": [
+      "com.oroarmor.oro_mod_template.Mod"
+    ]
+  },
+  "mixins": [
+    "oro_mod_template.mixins.json"
+  ],
+
+  "depends": {
+    "fabricloader": ">=0.11.3",
+    "fabric": "*",
+    "minecraft": "1.16.x"
+  }
+}

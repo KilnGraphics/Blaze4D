@@ -1,0 +1,234 @@
+buildscript {
+    repositories {
+        maven {
+            url "https://plugins.gradle.org/m2/"
+        }
+    }
+    dependencies {
+        classpath "gradle.plugin.com.matthewprenger:CurseGradle:1.4.0"
+        classpath "org.kohsuke:github-api:1.114"
+        classpath "gradle.plugin.com.modrinth.minotaur:Minotaur:1.1.0"
+    }
+}
+
+plugins {
+    id 'fabric-loom' version '0.6-SNAPSHOT'
+    id 'maven-publish'
+    id 'org.cadixdev.licenser' version '0.5.0'
+    id "signing"
+    id "maven"
+    id "com.modrinth.minotaur" version "1.1.0"
+    id "com.matthewprenger.cursegradle" version "1.4.0"
+}
+
+sourceCompatibility = JavaVersion.VERSION_1_8
+targetCompatibility = JavaVersion.VERSION_1_8
+
+archivesBaseName = project.archives_base_name
+version = project.mod_version
+group = project.maven_group
+
+repositories {
+    mavenCentral()
+    maven {
+        url "https://jitpack.io"
+    }
+}
+
+ext.changelog = ""
+
+tasks.withType(Sign) {
+    onlyIf { project.hasProperty("sign") }
+}
+
+if (project.hasProperty("sign")) {
+    signing {
+        useGpgCmd()
+        sign configurations.archives
+    }
+}
+
+license {
+    header = rootProject.file("LICENSE")
+}
+
+dependencies {
+    // To change the versions see the gradle.properties file
+    minecraft "com.mojang:minecraft:${project.minecraft_version}"
+    mappings "net.fabricmc:yarn:${project.yarn_mappings}:v2"
+    modImplementation "net.fabricmc:fabric-loader:${project.loader_version}"
+
+    // Fabric API. This is technically optional, but you probably want it anyway.
+    modImplementation "net.fabricmc.fabric-api:fabric-api:${project.fabric_version}"
+
+    modImplementation(include("com.oroarmor:oro-config-fabric:3.1.0"))
+}
+
+processResources {
+    inputs.property "version", project.version
+
+    filesMatching("fabric.mod.json") {
+        expand "version": project.version
+    }
+}
+
+tasks.withType(JavaCompile).configureEach {
+    // ensure that the encoding is set to UTF-8, no matter what the system default is
+    // this fixes some edge cases with special characters not displaying correctly
+    // see http://yodaconditions.net/blog/fix-for-java-file-encoding-problems-with-gradle.html
+    // If Javadoc is generated, this must be specified in that task too.
+    it.options.encoding = "UTF-8"
+
+    // The Minecraft launcher currently installs Java 8 for users, so your mod probably wants to target Java 8 too
+    // JDK 9 introduced a new way of specifying this that will make sure no newer classes or methods are used.
+    // We'll use that if it's available, but otherwise we'll use the older option.
+    def targetVersion = 8
+    if (JavaVersion.current().isJava9Compatible()) {
+        it.options.release = targetVersion
+    }
+}
+
+java {
+    // Loom will automatically attach sourcesJar to a RemapSourcesJar task and to the "build" task
+    // if it is present.
+    // If you remove this line, sources will not be generated.
+    withSourcesJar()
+}
+
+task javadocJar(type: Jar, dependsOn: javadoc) {
+    classifier = 'javadoc'
+    from javadoc.destinationDir
+}
+
+jar {
+    from("LICENSE") {
+        rename { "${it}_${project.archivesBaseName}" }
+    }
+}
+
+artifacts {
+    archives jar, sourcesJar, javadocJar
+}
+
+uploadArchives {
+    repositories {
+        mavenDeployer {
+            def ossrhUsername = "OroArmor"
+            def ossrhPassword = project.hasProperty("ossrhPassword") ? project.property("ossrhPassword") : System.getenv("OSSRH_PASSWORD")
+
+            beforeDeployment {
+                MavenDeployment deployment -> signing.signPom(deployment)
+            }
+
+            repository(url: "https://oss.sonatype.org/service/local/staging/deploy/maven2/") {
+                authentication(userName: ossrhUsername, password: ossrhPassword)
+            }
+
+            snapshotRepository(url: "https://oss.sonatype.org/content/repositories/snapshots/") {
+                authentication(userName: ossrhUsername, password: ossrhPassword)
+            }
+            pom.project {
+                name 'Oro Mod Template'
+                packaging 'jar'
+                // optionally artifactId can be defined here
+                description 'This is a template mod for OroArmor.'
+                url 'http://github.com/OroArmor/oro-mod-template'
+
+                scm {
+                    connection 'scm:git:git://github.com/OroArmor/oro-mod-template.git'
+                    developerConnection 'scm:git:ssh://github.com:OroArmor/oro-mod-template.git'
+                    url 'http://github.com/OroArmor/oro-mod-template'
+                }
+
+                licenses {
+                    license {
+                        name 'MIT'
+                        url 'https://mit-license.org/'
+                    }
+                }
+
+                developers {
+                    developer {
+                        id 'OroArmor'
+                        name 'Eli Orona'
+                        email 'eliorona@live.com'
+                        url "oroarmor.com"
+                    }
+                }
+            }
+        }
+    }
+}
+
+curseforge {
+    if (System.getenv("CURSE_API_KEY") != null) {
+        apiKey = System.getenv("CURSE_API_KEY")
+        project {
+            id = project.curseforge_id
+            releaseType = "release"
+            project.game_versions.split(",").each { String game_version -> addGameVersion game_version }
+            addGameVersion "Fabric"
+
+            changelogType = "html"
+            changelog = project.ext.changelog
+//			relations {
+//				requiredDependency "fabric-api"
+//			}
+            mainArtifact(remapJar.archivePath) {
+                displayName = "Oro Mod Template - $rootProject.mod_version"
+            }
+            afterEvaluate {
+                uploadTask.dependsOn("build")
+            }
+        }
+    }
+    options {
+        forgeGradleIntegration = false
+        javaVersionAutoDetect = false
+    }
+}
+
+import com.modrinth.minotaur.TaskModrinthUpload
+
+task publishToModrinth(type: TaskModrinthUpload) {
+    token = System.getenv("MODRINTH_TOKEN") // Use an environment property!
+    projectId = project.modrinth_id
+    versionNumber = project.version
+    uploadFile = remapJar.archivePath // This is the java jar task
+    changelog = project.ext.changelog
+    project.game_versions.split(",").each { String game_version -> addGameVersion(game_version) }
+    addLoader('fabric')
+}
+
+task github {
+    onlyIf {
+        System.getenv().GITHUB_TOKEN
+    }
+
+    doLast {
+        def github = org.kohsuke.github.GitHub.connectUsingOAuth(System.getenv().GITHUB_TOKEN as String)
+        def repository = github.getRepository("OroArmor/oro-mod-template")
+
+        def releaseBuilder = new org.kohsuke.github.GHReleaseBuilder(repository, project.mod_version)
+        releaseBuilder.name("$project.project_name $project.mod_version for $project.minecraft_version")
+        releaseBuilder.body(project.ext.changelog)
+        releaseBuilder.commitish("master")
+
+        def ghRelease = releaseBuilder.create()
+        ghRelease.uploadAsset(file("${project.rootDir}/build/libs/${archivesBaseName}-${version}.jar"), "application/java-archive");
+    }
+}
+
+task generateChangelog {
+    def changelogFile = file("CHANGELOG.md")
+    def contents = ""
+    changelogFile.withReader { reader ->
+        def line
+        while ((line = reader.readLine()) != null)
+            contents += line + "\n"
+    }
+
+    def changelogs = contents.split("----")
+    project.ext.changelog = changelogs.find { log -> log.contains(project.version) }
+    println project.ext.changelog
+}
