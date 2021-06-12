@@ -1,34 +1,30 @@
 {
   "schemaVersion": 1,
-  "id": "oro_mod_template",
+  "id": "blaze4d",
   "version": "${version}",
 
-  "name": "OroArmor's Mod Template",
-  "description": "This is a template mod for OroArmor.",
+  "name": "Blaze 4D",
+  "description": "Blaze3D But Vulkan.",
   "authors": [
-    "OroArmor"
+    "hydos"
   ],
-  "contact": {
-    "homepage": "https://oroarmor.com/",
-    "sources": "https://github.com/OroArmor/oro-mod-template"
-  },
 
   "license": "MIT",
-  "icon": "assets/oro_mod_template/icon.png",
+  "icon": "assets/blaze4d/icon.png",
 
   "environment": "*",
   "entrypoints": {
     "main": [
-      "com.oroarmor.oro_mod_template.Mod"
+      "me.hydos.blaze4d.Blaze4D"
     ]
   },
   "mixins": [
-    "oro_mod_template.mixins.json"
+    "blaze4d.mixins.json"
   ],
-
+  "accessWidener": "blaze4d.aw",
   "depends": {
     "fabricloader": ">=0.11.3",
     "fabric": "*",
-    "minecraft": "1.16.x"
+    "minecraft": "1.17.x"
   }
 }

@@ -1,0 +1,10 @@
+.idea/
+run/
+out/
+target/
+.gradle/
+build/
+*.log
+*.iml
+*.class
+*.kotlin_module

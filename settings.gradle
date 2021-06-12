@@ -1,9 +1,10 @@
 pluginManagement {
     repositories {
         maven {
-            name = 'Fabric'
-            url = 'https://maven.fabricmc.net/'
+            url = "https://maven.fabricmc.net/"
         }
         gradlePluginPortal()
     }
 }
+
+include("Rosella")

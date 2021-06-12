@@ -1,0 +1,24 @@
+{
+  "required": true,
+  "minVersion": "0.8",
+  "package": "me.hydos.blaze4d.mixin",
+  "compatibilityLevel": "JAVA_8",
+  "mixins": [
+    "AbstractTextureMixin",
+    "FramebufferMixin",
+    "GlDebugMixin",
+    "GLStateManagerMixin",
+    "NativeImageMixin",
+    "TextureUtilMixin",
+    "VideoWarningManagerMixin",
+    "WindowFramebufferMixin",
+    "WindowMixin",
+    "blaze3d.RenderSystemMixin",
+    "blaze3d.platform.TextureUtilMixin"
+  ],
+  "client": [
+  ],
+  "injectors": {
+    "defaultRequire": 1
+  }
+}

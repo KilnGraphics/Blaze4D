@@ -1,37 +1,50 @@
 buildscript {
-    repositories {
-        maven {
-            url "https://plugins.gradle.org/m2/"
-        }
-    }
     dependencies {
-        classpath "gradle.plugin.com.matthewprenger:CurseGradle:1.4.0"
-        classpath "org.kohsuke:github-api:1.114"
-        classpath "gradle.plugin.com.modrinth.minotaur:Minotaur:1.1.0"
+        classpath("org.kohsuke:github-api:1.114")
     }
 }
 
 plugins {
-    id 'fabric-loom' version '0.6-SNAPSHOT'
-    id 'maven-publish'
-    id 'org.cadixdev.licenser' version '0.5.0'
-    id "signing"
-    id "maven"
-    id "com.modrinth.minotaur" version "1.1.0"
-    id "com.matthewprenger.cursegradle" version "1.4.0"
+    id("fabric-loom") version "0.8-SNAPSHOT"
+    id("maven-publish")
+    id("signing")
+    id("com.modrinth.minotaur") version "1.1.0"
+    id("com.matthewprenger.cursegradle") version "1.4.0"
 }
 
-sourceCompatibility = JavaVersion.VERSION_1_8
-targetCompatibility = JavaVersion.VERSION_1_8
+import org.gradle.internal.os.OperatingSystem
 
-archivesBaseName = project.archives_base_name
+project.ext.lwjglVersion = "3.3.0-SNAPSHOT"
+
+switch (OperatingSystem.current()) {
+    case OperatingSystem.LINUX:
+        def osArch = System.getProperty("os.arch")
+        project.ext.lwjglNatives = osArch.startsWith("arm") || osArch.startsWith("aarch64")
+                ? "natives-linux-${osArch.contains("64") || osArch.startsWith("armv8") ? "arm64" : "arm32"}"
+                : "natives-linux"
+        break
+    case OperatingSystem.MAC_OS:
+        project.ext.lwjglNatives = System.getProperty("os.arch").startsWith("aarch64") ? "natives-macos-arm64" : "natives-macos"
+        break
+    case OperatingSystem.WINDOWS:
+        def osArch = System.getProperty("os.arch")
+        project.ext.lwjglNatives = osArch.contains("64")
+                ? "natives-windows${osArch.startsWith("aarch64") ? "-arm64" : ""}"
+                : "natives-windows-x86"
+        break
+}
+
+archives_base_name = project.archives_base_name
 version = project.mod_version
 group = project.maven_group
 
 repositories {
     mavenCentral()
     maven {
-        url "https://jitpack.io"
+        url = "https://jitpack.io"
+    }
+    maven {
+        url = "https://oss.sonatype.org/content/repositories/snapshots/"
     }
 }
 
@@ -48,20 +61,43 @@ if (project.hasProperty("sign")) {
     }
 }
 
-license {
-    header = rootProject.file("LICENSE")
+loom {
+    accessWidener("src/main/resources/blaze4d.aw")
 }
 
 dependencies {
-    // To change the versions see the gradle.properties file
     minecraft "com.mojang:minecraft:${project.minecraft_version}"
     mappings "net.fabricmc:yarn:${project.yarn_mappings}:v2"
     modImplementation "net.fabricmc:fabric-loader:${project.loader_version}"
 
-    // Fabric API. This is technically optional, but you probably want it anyway.
     modImplementation "net.fabricmc.fabric-api:fabric-api:${project.fabric_version}"
 
     modImplementation(include("com.oroarmor:oro-config-fabric:3.1.0"))
+
+    implementation platform("org.lwjgl:lwjgl-bom:$lwjglVersion")
+
+    implementation "org.lwjgl:lwjgl"
+    implementation "org.lwjgl:lwjgl-assimp"
+    implementation "org.lwjgl:lwjgl-glfw"
+    implementation "org.lwjgl:lwjgl-openal"
+    implementation "org.lwjgl:lwjgl-shaderc"
+    implementation "org.lwjgl:lwjgl-stb"
+    implementation "org.lwjgl:lwjgl-vma"
+    implementation "org.lwjgl:lwjgl-vulkan"
+    runtimeOnly "org.lwjgl:lwjgl::$lwjglNatives"
+    runtimeOnly "org.lwjgl:lwjgl-assimp::$lwjglNatives"
+    runtimeOnly "org.lwjgl:lwjgl-glfw::$lwjglNatives"
+    runtimeOnly "org.lwjgl:lwjgl-openal::$lwjglNatives"
+    runtimeOnly "org.lwjgl:lwjgl-shaderc::$lwjglNatives"
+    runtimeOnly "org.lwjgl:lwjgl-stb::$lwjglNatives"
+    runtimeOnly "org.lwjgl:lwjgl-vma::$lwjglNatives"
+    if (lwjglNatives == "natives-macos" || lwjglNatives == "natives-macos-arm64") runtimeOnly "org.lwjgl:lwjgl-vulkan::$lwjglNatives"
+
+    implementation("org.joml:joml:1.10.1")
+    implementation("it.unimi.dsi:fastutil:8.5.4")
+    implementation("com.google.code.gson:gson:2.8.7")
+
+    implementation project(':Rosella')
 }
 
 processResources {
@@ -73,31 +109,15 @@ processResources {
 }
 
 tasks.withType(JavaCompile).configureEach {
-    // ensure that the encoding is set to UTF-8, no matter what the system default is
-    // this fixes some edge cases with special characters not displaying correctly
-    // see http://yodaconditions.net/blog/fix-for-java-file-encoding-problems-with-gradle.html
-    // If Javadoc is generated, this must be specified in that task too.
     it.options.encoding = "UTF-8"
-
-    // The Minecraft launcher currently installs Java 8 for users, so your mod probably wants to target Java 8 too
-    // JDK 9 introduced a new way of specifying this that will make sure no newer classes or methods are used.
-    // We'll use that if it's available, but otherwise we'll use the older option.
-    def targetVersion = 8
-    if (JavaVersion.current().isJava9Compatible()) {
-        it.options.release = targetVersion
-    }
+    it.options.release = 16
 }
 
 java {
-    // Loom will automatically attach sourcesJar to a RemapSourcesJar task and to the "build" task
-    // if it is present.
-    // If you remove this line, sources will not be generated.
     withSourcesJar()
-}
-
-task javadocJar(type: Jar, dependsOn: javadoc) {
-    classifier = 'javadoc'
-    from javadoc.destinationDir
+    withJavadocJar()
+    sourceCompatibility = JavaVersion.VERSION_16
+    targetCompatibility = JavaVersion.VERSION_16
 }
 
 jar {
@@ -108,56 +128,6 @@ jar {
 
 artifacts {
     archives jar, sourcesJar, javadocJar
-}
-
-uploadArchives {
-    repositories {
-        mavenDeployer {
-            def ossrhUsername = "OroArmor"
-            def ossrhPassword = project.hasProperty("ossrhPassword") ? project.property("ossrhPassword") : System.getenv("OSSRH_PASSWORD")
-
-            beforeDeployment {
-                MavenDeployment deployment -> signing.signPom(deployment)
-            }
-
-            repository(url: "https://oss.sonatype.org/service/local/staging/deploy/maven2/") {
-                authentication(userName: ossrhUsername, password: ossrhPassword)
-            }
-
-            snapshotRepository(url: "https://oss.sonatype.org/content/repositories/snapshots/") {
-                authentication(userName: ossrhUsername, password: ossrhPassword)
-            }
-            pom.project {
-                name 'Oro Mod Template'
-                packaging 'jar'
-                // optionally artifactId can be defined here
-                description 'This is a template mod for OroArmor.'
-                url 'http://github.com/OroArmor/oro-mod-template'
-
-                scm {
-                    connection 'scm:git:git://github.com/OroArmor/oro-mod-template.git'
-                    developerConnection 'scm:git:ssh://github.com:OroArmor/oro-mod-template.git'
-                    url 'http://github.com/OroArmor/oro-mod-template'
-                }
-
-                licenses {
-                    license {
-                        name 'MIT'
-                        url 'https://mit-license.org/'
-                    }
-                }
-
-                developers {
-                    developer {
-                        id 'OroArmor'
-                        name 'Eli Orona'
-                        email 'eliorona@live.com'
-                        url "oroarmor.com"
-                    }
-                }
-            }
-        }
-    }
 }
 
 curseforge {
@@ -171,9 +141,6 @@ curseforge {
 
             changelogType = "html"
             changelog = project.ext.changelog
-//			relations {
-//				requiredDependency "fabric-api"
-//			}
             mainArtifact(remapJar.archivePath) {
                 displayName = "Oro Mod Template - $rootProject.mod_version"
             }
@@ -189,6 +156,8 @@ curseforge {
 }
 
 import com.modrinth.minotaur.TaskModrinthUpload
+import org.kohsuke.github.GHReleaseBuilder
+import org.kohsuke.github.GitHub
 
 task publishToModrinth(type: TaskModrinthUpload) {
     token = System.getenv("MODRINTH_TOKEN") // Use an environment property!
@@ -197,7 +166,7 @@ task publishToModrinth(type: TaskModrinthUpload) {
     uploadFile = remapJar.archivePath // This is the java jar task
     changelog = project.ext.changelog
     project.game_versions.split(",").each { String game_version -> addGameVersion(game_version) }
-    addLoader('fabric')
+    addLoader("fabric")
 }
 
 task github {
@@ -206,10 +175,10 @@ task github {
     }
 
     doLast {
-        def github = org.kohsuke.github.GitHub.connectUsingOAuth(System.getenv().GITHUB_TOKEN as String)
+        def github = GitHub.connectUsingOAuth(System.getenv().GITHUB_TOKEN as String)
         def repository = github.getRepository("OroArmor/oro-mod-template")
 
-        def releaseBuilder = new org.kohsuke.github.GHReleaseBuilder(repository, project.mod_version)
+        def releaseBuilder = new GHReleaseBuilder(repository, project.mod_version)
         releaseBuilder.name("$project.project_name $project.mod_version for $project.minecraft_version")
         releaseBuilder.body(project.ext.changelog)
         releaseBuilder.commitish("master")
