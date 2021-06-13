@@ -14,46 +14,77 @@ import org.joml.Vector3fc
 import org.lwjgl.assimp.Assimp
 import org.lwjgl.util.vma.Vma.vmaFreeMemory
 
-
-open class RenderObject(private val model: Resource, val materialIdentifier: Identifier) {
+open class RenderObject(private val model: Resource, val materialIdentifier: Identifier) : Renderable {
 
 	var vertices: ArrayList<Vertex> = ArrayList()
 	var indices: ArrayList<Int> = ArrayList()
+	private var vertexBuffer: Long = 0
+	private var indexBuffer: Long = 0
 
-	var vertexBuffer: Long = 0
-	var indexBuffer: Long = 0
-
-	var descriptorSets: MutableList<Long> = ArrayList()
-
+	private var descSets: MutableList<Long> = ArrayList()
 	var modelTransformMatrix: Matrix4f = Matrix4f()
+	lateinit var uniformBufferObject: Ubo
+	lateinit var mat: Material
 
-	lateinit var ubo: Ubo
-
-	lateinit var material: Material
-
-	open fun load(engine: Rosella) {
+	override fun load(engine: Rosella) {
 		val retrievedMaterial = engine.materials[materialIdentifier]
 			?: error("The material $materialIdentifier couldn't be found. (Are you registering the material?)")
-		material = retrievedMaterial
-		ubo = BasicUbo(engine.device, engine.memory)
-		ubo.create(engine.renderer.swapChain)
+		mat = retrievedMaterial
+		uniformBufferObject = BasicUbo(engine.device, engine.memory)
+		uniformBufferObject.create(engine.renderer.swapChain)
 	}
 
-	fun free(memory: Memory) {
+	override fun free(memory: Memory) {
 		vmaFreeMemory(memory.allocator, vertexBuffer)
 		vmaFreeMemory(memory.allocator, indexBuffer)
-		ubo.free()
+		uniformBufferObject.free()
 	}
 
-	fun create(engine: Rosella) {
+	override fun create(engine: Rosella) {
 		loadModelInfo()
 		vertexBuffer = engine.memory.createVertexBuffer(engine, vertices)
 		indexBuffer = engine.memory.createIndexBuffer(engine, indices)
-		material.shader.raw.createDescriptorSets(engine.renderer.swapChain, this)
+		resize(engine.renderer)
 	}
 
-	fun resize(renderer: Renderer) {
-		material.shader.raw.createDescriptorSets(renderer.swapChain, this)
+	override fun resize(renderer: Renderer) {
+		mat.shader.raw.createDescriptorSets(renderer.swapChain, this)
+	}
+
+	override fun getIndices(): List<Int> {
+		return indices
+	}
+
+	override fun getVertices(): List<Vertex> {
+		return vertices
+	}
+
+	override fun getDescriptorSets(): MutableList<Long> {
+		return descSets
+	}
+
+	override fun setDescriptorSets(descSets: MutableList<Long>) {
+		this.descSets = descSets
+	}
+
+	override fun getMaterial(): Material {
+		return mat
+	}
+
+	override fun getVerticesBuffer(): Long {
+		return vertexBuffer
+	}
+
+	override fun getIndicesBuffer(): Long {
+		return indexBuffer
+	}
+
+	override fun getUbo(): Ubo {
+		return uniformBufferObject
+	}
+
+	override fun getTransformMatrix(): Matrix4f {
+		return modelTransformMatrix
 	}
 
 	open fun loadModelInfo() {

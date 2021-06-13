@@ -7,6 +7,7 @@ import me.hydos.rosella.render.device.Device
 import me.hydos.rosella.render.device.Queues
 import me.hydos.rosella.render.io.Window
 import me.hydos.rosella.render.model.RenderObject
+import me.hydos.rosella.render.model.Renderable
 import me.hydos.rosella.render.shader.ShaderProgram
 import me.hydos.rosella.render.swapchain.DepthBuffer
 import me.hydos.rosella.render.swapchain.Frame
@@ -279,7 +280,7 @@ class Renderer {
 			val beginInfo = createBeginInfo(it)
 			val renderPassInfo = createRenderPassInfo(it, renderPass)
 			val renderArea = createRenderArea(it, 0, 0, swapChain)
-			val clearValues = createClearValues(it, 50 / 255f, 138 / 255f, 201 / 255f, 1.0f, 0)
+			val clearValues = createClearValues(it, 219 / 255f, 31 / 255f, 41 / 255f, 1.0f, 0)
 
 			renderPassInfo.renderArea(renderArea)
 				.pClearValues(clearValues)
@@ -292,8 +293,8 @@ class Renderer {
 				vkCmdBeginRenderPass(commandBuffer, renderPassInfo, VK_SUBPASS_CONTENTS_INLINE)
 				run {
 					for (renderObject in engine.renderObjects.values) {
-						bindModel(renderObject, it, renderObject.descriptorSets[i], commandBuffer)
-						vkCmdDrawIndexed(commandBuffer, renderObject.indices.size, 1, 0, 0, 0)
+						bindModel(renderObject, it, renderObject.getDescriptorSets()[i], commandBuffer)
+						vkCmdDrawIndexed(commandBuffer, renderObject.getIndices().size, 1, 0, 0, 0)
 					}
 				}
 				vkCmdEndRenderPass(commandBuffer)
@@ -303,7 +304,7 @@ class Renderer {
 	}
 
 	private fun bindModel(
-		renderObject: RenderObject,
+		renderObject: Renderable,
 		matrix: MemoryStack,
 		descriptorSet: Long,
 		commandBuffer: VkCommandBuffer
@@ -311,17 +312,17 @@ class Renderer {
 		vkCmdBindPipeline(
 			commandBuffer,
 			VK_PIPELINE_BIND_POINT_GRAPHICS,
-			renderObject.material.graphicsPipeline
+			renderObject.getMaterial().graphicsPipeline
 		)
 
 		val offsets = matrix.longs(0)
-		val vertexBuffers = matrix.longs(renderObject.vertexBuffer)
+		val vertexBuffers = matrix.longs(renderObject.getVerticesBuffer())
 		vkCmdBindVertexBuffers(commandBuffer, 0, vertexBuffers, offsets)
-		vkCmdBindIndexBuffer(commandBuffer, renderObject.indexBuffer, 0, VK_INDEX_TYPE_UINT32)
+		vkCmdBindIndexBuffer(commandBuffer, renderObject.getIndicesBuffer(), 0, VK_INDEX_TYPE_UINT32)
 		vkCmdBindDescriptorSets(
 			commandBuffer,
 			VK_PIPELINE_BIND_POINT_GRAPHICS,
-			renderObject.material.pipelineLayout,
+			renderObject.getMaterial().pipelineLayout,
 			0,
 			matrix.longs(descriptorSet),
 			null

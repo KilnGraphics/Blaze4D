@@ -10,6 +10,7 @@
     "GLStateManagerMixin",
     "NativeImageMixin",
     "TextureUtilMixin",
+    "VertexBufferMixin",
     "VideoWarningManagerMixin",
     "WindowFramebufferMixin",
     "WindowMixin",

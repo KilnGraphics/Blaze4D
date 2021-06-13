@@ -133,12 +133,12 @@ class Memory(val device: Device, private val instance: VkInstance) {
 	/**
 	 * Creates an index buffer from an list of indices
 	 */
-	fun createIndexBuffer(engine: Rosella, indices: ArrayList<Int>): Long {
+	fun createIndexBuffer(engine: Rosella, indices: List<Int>): Long {
 		stackPush().use {
 			val size: Int = (Integer.BYTES * indices.size)
 			val pBuffer = it.mallocLong(1)
 			val stagingBuffer = engine.memory.createStagingBuf(size, pBuffer, it) { data ->
-				memcpy(data.getByteBuffer(0, size), indices)
+				memcpyI(data.getByteBuffer(0, size), indices)
 			}
 			createBuffer(
 				size,
@@ -202,7 +202,7 @@ data class BufferInfo(val buffer: Long, val allocation: Long)
 /**
  * Copies indices into the specified buffer
  */
-fun memcpy(buffer: ByteBuffer, indices: ArrayList<Int>) {
+fun memcpyI(buffer: ByteBuffer, indices: List<Int>) {
 	for (index in indices) {
 		buffer.putInt(index)
 	}

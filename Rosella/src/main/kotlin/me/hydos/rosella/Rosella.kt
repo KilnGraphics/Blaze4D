@@ -5,6 +5,7 @@ import me.hydos.rosella.render.camera.Camera
 import me.hydos.rosella.render.device.Device
 import me.hydos.rosella.render.io.Window
 import me.hydos.rosella.render.material.Material
+import me.hydos.rosella.render.model.Renderable
 import me.hydos.rosella.render.model.RenderObject
 import me.hydos.rosella.render.renderer.Renderer
 import me.hydos.rosella.render.resource.Identifier
@@ -43,7 +44,7 @@ class Rosella(
 
 	var renderer: Renderer = Renderer()
 
-	var renderObjects = HashMap<String, RenderObject>()
+	var renderObjects = HashMap<String, Renderable>()
 	var materials = HashMap<Identifier, Material>()
 	var shaderManager: ShaderManager
 	var textureManager: TextureManager
@@ -224,7 +225,7 @@ class Rosella(
 		}
 	}
 
-	fun addRenderObject(renderObject: RenderObject, name: String) {
+	fun addRenderObject(renderObject: Renderable, name: String) {
 		if(renderObjects.containsKey(name)) {
 			error("An render object already exists with that name!")
 		}

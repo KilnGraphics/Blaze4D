@@ -7,9 +7,7 @@ import me.hydos.rosella.render.shader.ubo.BasicUbo
 import org.joml.Vector2f
 import org.joml.Vector3f
 
-open class GuiRenderObject
-
-	(
+open class GuiRenderObject(
 	materialIdentifier: Identifier,
 	var z: Float = -1f,
 	var colour: Vector3f = Vector3f(0f, 0f, 0f)
@@ -19,7 +17,15 @@ open class GuiRenderObject
 		scale(scaleX, scaleZ)
 	}
 
-	constructor(matId: Identifier, z: Float, colour: Vector3f, scaleX: Float, scaleZ: Float, translateX: Float, translateZ: Float) : this(matId, z, colour, scaleX, scaleZ) {
+	constructor(
+		matId: Identifier,
+		z: Float,
+		colour: Vector3f,
+		scaleX: Float,
+		scaleZ: Float,
+		translateX: Float,
+		translateZ: Float
+	) : this(matId, z, colour, scaleX, scaleZ) {
 		translate(translateX, translateZ)
 	}
 
@@ -43,9 +49,9 @@ open class GuiRenderObject
 	override fun load(engine: Rosella) {
 		val retrievedMaterial = engine.materials[materialIdentifier]
 			?: error("The material $materialIdentifier couldn't be found. (Are you registering the material?)")
-		material = retrievedMaterial
-		ubo = BasicUbo(engine.device, engine.memory)
-		ubo.create(engine.renderer.swapChain)
+		mat = retrievedMaterial
+		uniformBufferObject = BasicUbo(engine.device, engine.memory)
+		uniformBufferObject.create(engine.renderer.swapChain)
 		modelTransformMatrix.translate(0f, 0f, z)
 	}
 

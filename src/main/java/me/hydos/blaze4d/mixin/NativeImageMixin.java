@@ -1,16 +1,11 @@
 package me.hydos.blaze4d.mixin;
 
-import me.hydos.blaze4d.Blaze4D;
 import me.hydos.blaze4d.api.texture.Blaze4DNativeImage;
-import me.hydos.rosella.render.resource.Global;
-import me.hydos.rosella.render.resource.Identifier;
-import me.hydos.rosella.render.resource.Resource;
 import net.minecraft.client.texture.NativeImage;
 import org.jetbrains.annotations.Nullable;
 import org.lwjgl.stb.STBImage;
 import org.lwjgl.system.MemoryStack;
 import org.lwjgl.system.MemoryUtil;
-import org.lwjgl.vulkan.VK10;
 import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.Overwrite;
 import org.spongepowered.asm.mixin.injection.At;
@@ -36,13 +31,13 @@ public class NativeImageMixin implements Blaze4DNativeImage{
         } else if (MemoryUtil.memAddress(byteBuffer) == 0L) {
             throw new IllegalArgumentException("Invalid buffer");
         } else {
-            MemoryStack memoryStack = MemoryStack.stackPush();
+            MemoryStack stack = MemoryStack.stackPush();
 
             NativeImage image;
             try {
-                IntBuffer intBuffer = memoryStack.mallocInt(1);
-                IntBuffer intBuffer2 = memoryStack.mallocInt(1);
-                IntBuffer intBuffer3 = memoryStack.mallocInt(1);
+                IntBuffer intBuffer = stack.mallocInt(1);
+                IntBuffer intBuffer2 = stack.mallocInt(1);
+                IntBuffer intBuffer3 = stack.mallocInt(1);
                 ByteBuffer imageBytes = STBImage.stbi_load_from_memory(byteBuffer, intBuffer, intBuffer2, intBuffer3, format == null ? 0 : format.getChannelCount());
                 if (imageBytes == null) {
                     throw new IOException("Could not load image: " + STBImage.stbi_failure_reason());
@@ -51,21 +46,16 @@ public class NativeImageMixin implements Blaze4DNativeImage{
                 image = new NativeImage(format == null ? NativeImage.Format.getFormat(intBuffer3.get(0)) : format, intBuffer.get(0), intBuffer2.get(0), true, MemoryUtil.memAddress(imageBytes));
                 ((Blaze4DNativeImage) (Object) image).setImageBuf(imageBytes);
             } catch (Throwable e) {
-                if (memoryStack != null) {
-                    try {
-                        memoryStack.close();
-                    } catch (Throwable var8) {
-                        e.addSuppressed(var8);
-                    }
+                try {
+                    stack.close();
+                } catch (Throwable var8) {
+                    e.addSuppressed(var8);
                 }
 
                 throw e;
             }
 
-            if (memoryStack != null) {
-                memoryStack.close();
-            }
-
+            stack.close();
             return image;
         }
     }
