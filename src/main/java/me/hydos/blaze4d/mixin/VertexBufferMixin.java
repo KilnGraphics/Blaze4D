@@ -3,6 +3,7 @@ package me.hydos.blaze4d.mixin;
 import com.mojang.datafixers.util.Pair;
 import me.hydos.blaze4d.Blaze4D;
 import me.hydos.blaze4d.api.Materials;
+import me.hydos.blaze4d.api.VertexResult;
 import me.hydos.rosella.Rosella;
 import me.hydos.rosella.render.material.Material;
 import me.hydos.rosella.render.model.Renderable;
@@ -58,40 +59,12 @@ public class VertexBufferMixin implements Renderable {
 
     @Inject(method = "uploadInternal", at = @At("HEAD"), cancellable = true)
     private void sendToRosella(BufferBuilder buffer, CallbackInfo ci) {
-        ci.cancel();
         Pair<BufferBuilder.DrawArrayParameters, ByteBuffer> pair = buffer.popData();
         if (this.vertexBufferId != 0) {
             BufferRenderer.unbindAll();
             BufferBuilder.DrawArrayParameters draw = pair.getFirst();
             ByteBuffer byteBuffer = pair.getSecond();
-            int max = draw.getLimit();
             VertexFormat format = draw.getVertexFormat();
-
-            if (format.getElements().contains(VertexFormats.POSITION_ELEMENT)) {
-                int index = 0;
-                for (int i = 0; i <= draw.getVertexCount() - 1; i++) {
-                    if (index >= byteBuffer.limit()) {
-                        System.err.println("Managed to exceed byte buff limit somehow. this shouldn't happen! (I was: " + i + " and should of maxed out at " + draw.getVertexCount() + ")");
-                        break;
-                    }
-                    Vec3f pos = readVertex(byteBuffer, index);
-                    System.out.println(pos);
-                    vertices.add(new Vertex(
-                            new Vector3f(pos.getX(), pos.getY(), pos.getZ()),
-                            new Vector3f(1, 0, 0),
-                            new Vector2f(0, 0)
-                    ));
-                    indices.add(indices.size());
-                    index += 12;
-                }
-            }
-
-            System.out.println("================");
-            System.out.println(format);
-            System.out.println(max + " Bytes Total");
-            System.out.println(format.getVertexSize() + " Bytes Per Vertex");
-            System.out.println(draw.getVertexCount() + " Total Vertices");
-            System.out.println("================");
 
             this.vertexCount = draw.getVertexCount();
             this.vertexFormat = draw.getElementFormat();
@@ -99,20 +72,105 @@ public class VertexBufferMixin implements Renderable {
             this.drawMode = draw.getMode();
             this.usesTexture = draw.isTextured();
 
-            Blaze4D.window.queue(() -> {
-                Blaze4D.rosella.addRenderObject(this, toString());
-                Blaze4D.rosella.getRenderer().rebuildCommandBuffers(Blaze4D.rosella.getRenderer().renderPass, Blaze4D.rosella);
-            });
+            int index = 0;
+            for (int i = 0; i <= draw.getVertexCount() - 1; i++) {
+                if (index >= byteBuffer.limit()) {
+                    System.err.println("Managed to exceed byte buff limit somehow. this shouldn't happen! (I was: " + i + " and should of maxed out at " + draw.getVertexCount() + ")");
+                    break;
+                }
+                VertexResult result = readVertex(byteBuffer, elementFormat);
+                index += result.index();
+                vertices.add(result.vertex());
+                indices.add(indices.size());
+                index += 12;
+            }
+
+//            System.out.println("================");
+//            System.out.println(format);
+//            System.out.println(max + " Bytes Total");
+//            System.out.println(format.getVertexSize() + " Bytes Per Vertex");
+//            System.out.println(draw.getVertexCount() + " Total Vertices");
+//            System.out.println("================");
+
+            if (!this.usesTexture) {
+                byteBuffer.limit(draw.getDrawStart());
+//                RenderSystem.glBufferData(34963, byteBuffer, 35044);
+                Blaze4D.window.queue(() -> {
+                    Blaze4D.rosella.addRenderObject(this, toString());
+                    Blaze4D.rosella.getRenderer().rebuildCommandBuffers(Blaze4D.rosella.getRenderer().renderPass, Blaze4D.rosella);
+                });
+            } else {
+                byteBuffer.limit(draw.getDrawStart());
+            }
+            byteBuffer.position(0);
         }
+        ci.cancel();
     }
 
-    private Vec3f readVertex(ByteBuffer byteBuffer, int index) {
-        float x = byteBuffer.order(ByteOrder.LITTLE_ENDIAN).getFloat(index);
-        index += 4;
-        float y = byteBuffer.order(ByteOrder.LITTLE_ENDIAN).getFloat(index);
-        index += 4;
-        float z = byteBuffer.order(ByteOrder.LITTLE_ENDIAN).getFloat(index);
-        return new Vec3f(x, y, z);
+    private VertexResult readVertex(ByteBuffer vertBuf, VertexFormat format) {
+        float x = 0, y = 0, z = 0; // Position
+        float u = 0, v = 0; // UV
+        int colorR = 0, colorG = 255, colorB = 0, colorA = 255; // Color
+        int normalX = 0, normalY = 0, normalZ = 0; // Normal
+        byte lighting = 0; // Padding
+
+        for (VertexFormatElement element : format.getElements()) {
+            switch (element.getType()) {
+                case POSITION -> {
+                    x = vertBuf.getFloat();
+                    y = vertBuf.getFloat();
+                    z = vertBuf.getFloat();
+                }
+
+                case COLOR -> {
+                    colorR = getUnsignedByte(vertBuf);
+                    colorG = getUnsignedByte(vertBuf);
+                    colorB = getUnsignedByte(vertBuf);
+                    colorA = getUnsignedByte(vertBuf);
+                }
+
+                case UV -> {
+                    u = vertBuf.getFloat();
+                    v = vertBuf.getFloat();
+                }
+                
+                case NORMAL -> {
+                    normalX = vertBuf.get();
+                    normalY = vertBuf.get();
+                    normalZ = vertBuf.get();
+                }
+
+                case PADDING -> {
+                    lighting = vertBuf.get();
+                }
+
+                default -> System.out.println("Unknown Type: " + element.getType().getName());
+            }
+        }
+
+        Vertex vertex = new Vertex(
+                new Vector3f(x, y, z),
+                new Vector3f(colorR, colorG, colorB),
+                new Vector2f(u, v)
+        );
+        return new VertexResult(0, vertex);
+    }
+
+
+    /**
+     * Read an unsigned byte from a buffer
+     * @param buffer Buffer containing the bytes
+     * @return The unsigned byte as an int
+     */
+    public int getUnsignedByte(ByteBuffer buffer) {
+        return asUnsignedByte(buffer.get());
+    }
+
+    /**
+     * @return the byte value converted to an unsigned int value
+     */
+    public int asUnsignedByte(byte b) {
+        return b & 0xFF;
     }
 
     @Override

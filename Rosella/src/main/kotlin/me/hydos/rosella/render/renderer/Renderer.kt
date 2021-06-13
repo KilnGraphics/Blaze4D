@@ -137,7 +137,8 @@ class Renderer {
 			val height = stack.ints(0)
 			while (width[0] == 0 && height[0] == 0) {
 				GLFW.glfwGetFramebufferSize(window.windowPtr, width, height)
-				GLFW.glfwWaitEvents()
+//				GLFW.glfwWaitEvents()
+				println("Remember to uncomment this")
 			}
 		}
 
