@@ -3,6 +3,7 @@ package me.hydos.blaze4d.mixin;
 import com.mojang.datafixers.util.Pair;
 import me.hydos.blaze4d.Blaze4D;
 import me.hydos.blaze4d.api.Materials;
+import me.hydos.blaze4d.api.vertex.VertexBuilder;
 import me.hydos.rosella.Rosella;
 import me.hydos.rosella.render.material.Material;
 import me.hydos.rosella.render.model.Renderable;
@@ -20,6 +21,7 @@ import org.jetbrains.annotations.NotNull;
 import org.joml.Matrix4f;
 import org.joml.Vector2f;
 import org.joml.Vector3f;
+import org.joml.Vector4f;
 import org.lwjgl.util.vma.Vma;
 import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.Shadow;
@@ -75,14 +77,13 @@ public class VertexBufferMixin implements Renderable {
             for (int i = 0; i <= draw.getVertexCount() - 1; i++) {
                 List<Vertex> result = readVertex(byteBuffer, elementFormat);
                 vertices.addAll(result);
-                for (Vertex vertex : result) {
+                for (Vertex ignored : result) {
                     indices.add(indices.size());
                 }
             }
 
             if (!this.usesTexture) {
                 byteBuffer.limit(draw.getDrawStart());
-//                RenderSystem.glBufferData(34963, byteBuffer, 35044);
                 Blaze4D.window.queue(() -> {
                     Blaze4D.rosella.addRenderObject(this, toString());
                     Blaze4D.rosella.getRenderer().rebuildCommandBuffers(Blaze4D.rosella.getRenderer().renderPass, Blaze4D.rosella);
@@ -96,102 +97,51 @@ public class VertexBufferMixin implements Renderable {
     }
 
     private List<Vertex> readVertex(ByteBuffer vertBuf, VertexFormat format) {
-        float x = 0, y = 0, z = 0; // Position
-        float u = 0, v = 0; // UV
-        int colorR = 0, colorG = 255, colorB = 0, colorA = 255; // Color
-        int normalX = 0, normalY = 0, normalZ = 0; // Normal
-        byte lighting = 0; // Padding
+        Vector3f position = new Vector3f(); // Position
+        Vector2f uv = new Vector2f(); // UV
+        Vector4f color = new Vector4f(); // Color
+        Vector3f normal = new Vector3f(); // Normal
+        int light = 0; // Padding?
 
         // Special Quad Case
         float x2 = 0, y2 = 0, z2 = 0; // 2nd Triangle's Position
 
-        int originalPos = vertBuf.position();
-
+        VertexBuilder vertexBuilder = new VertexBuilder();
         for (VertexFormatElement element : format.getElements()) {
             switch (element.getType()) {
-                case POSITION -> {
-                    switch (drawMode) {
-                        case TRIANGLE_STRIP, TRIANGLES -> {
-                            x = vertBuf.getFloat();
-                            y = vertBuf.getFloat();
-                            z = vertBuf.getFloat();
-                        }
+                case POSITION -> position = vertexBuilder.vertex(vertBuf, element);
+                case COLOR -> color = vertexBuilder.color(vertBuf, element);
+                case NORMAL -> normal = vertexBuilder.normal(vertBuf, element);
+                case UV -> uv = vertexBuilder.texture(vertBuf, element);
+                case PADDING -> vertexBuilder.padding(vertBuf, element);
 
-                        case QUADS -> {
-                            //  1, 3, 4 // Tri 1
-                            //  1, 4, 2 // Tri 2
-                            //        v1_________________v2
-                            //         / \               /
-                            //        /     \           /
-                            //       /         \       /
-                            //      /             \   /
-                            //    v3-----------------v4
-                            float quadX = vertBuf.getFloat();
-                            float quadY = vertBuf.getFloat();
-                            float quadZ = vertBuf.getFloat();
-                            float quadW = vertBuf.getFloat();
-
-                            // Triangle 1
-                            x = quadX;
-                            y = quadZ;
-                            z = quadW;
-
-                            // Triangle 2
-                            x2 = quadX;
-                            y2 = quadW;
-                            z2 = quadY;
-                        }
-
-                        default -> throw new RuntimeException("Unsupported Draw Mode: " + drawMode);
-                    }
-                }
-
-                case COLOR -> {
-                    colorR = getUnsignedByte(vertBuf);
-                    colorG = getUnsignedByte(vertBuf);
-                    colorB = getUnsignedByte(vertBuf);
-                    colorA = getUnsignedByte(vertBuf);
-                }
-
-                case UV -> {
-                    u = vertBuf.getFloat();
-                    v = vertBuf.getFloat();
-                }
-
-                case NORMAL -> {
-                    normalX = vertBuf.get();
-                    normalY = vertBuf.get();
-                    normalZ = vertBuf.get();
-                }
-
-                case PADDING -> lighting = vertBuf.get();
-
-                default -> System.out.println("Unknown Type: " + element.getType().getName());
+                default -> System.err.println("Unknown Type: " + element.getType().getName());
             }
         }
 
-        int bytesRead = vertBuf.position() - originalPos;
-        if (bytesRead != format.getVertexSize()) {
+        int bytesRead = vertexBuilder.index + 1;
+        if (bytesRead != format.getVertexSize() ) {
             System.err.println("================");
             System.err.println("Vertex Format: " + format);
             System.err.println("Vertex Format Elements: " + format.getElements());
-            System.err.println("================");
             System.err.println("An Underflow was Caught. (Was Meant to read " + format.getVertexSize() + " Bytes but actually read " + bytesRead + ")");
+            System.err.println("================");
         }
+        vertexBuilder.next();
 
         List<Vertex> newVertices = new ArrayList<>();
 
         newVertices.add(new Vertex(
-                new Vector3f(x, y, z),
-                new Vector3f(colorR, colorG, colorB),
-                new Vector2f(u, v)
+                position,
+                new Vector3f(color.x, color.y, color.z),
+                uv
         ));
 
         if (drawMode == VertexFormat.DrawMode.QUADS) {
             newVertices.add(new Vertex(
                     new Vector3f(x2, y2, z2),
-                    new Vector3f(colorR, colorG, colorB),
-                    new Vector2f(u, v)
+                    new Vector3f(color.x, color.y, color.z),
+                    uv
             ));
         }
 
