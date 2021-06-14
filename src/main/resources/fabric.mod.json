@@ -2,16 +2,13 @@
   "schemaVersion": 1,
   "id": "blaze4d",
   "version": "${version}",
-
   "name": "Blaze 4D",
   "description": "Blaze3D But Vulkan.",
   "authors": [
     "hydos"
   ],
-
   "license": "MIT",
   "icon": "assets/blaze4d/icon.png",
-
   "environment": "*",
   "entrypoints": {
     "main": [

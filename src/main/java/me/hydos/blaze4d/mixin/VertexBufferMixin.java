@@ -3,7 +3,6 @@ package me.hydos.blaze4d.mixin;
 import com.mojang.datafixers.util.Pair;
 import me.hydos.blaze4d.Blaze4D;
 import me.hydos.blaze4d.api.Materials;
-import me.hydos.blaze4d.api.VertexResult;
 import me.hydos.rosella.Rosella;
 import me.hydos.rosella.render.material.Material;
 import me.hydos.rosella.render.model.Renderable;
@@ -13,8 +12,10 @@ import me.hydos.rosella.render.shader.ubo.BasicUbo;
 import me.hydos.rosella.render.shader.ubo.Ubo;
 import me.hydos.rosella.render.util.memory.Memory;
 import net.minecraft.client.gl.VertexBuffer;
-import net.minecraft.client.render.*;
-import net.minecraft.util.math.Vec3f;
+import net.minecraft.client.render.BufferBuilder;
+import net.minecraft.client.render.BufferRenderer;
+import net.minecraft.client.render.VertexFormat;
+import net.minecraft.client.render.VertexFormatElement;
 import org.jetbrains.annotations.NotNull;
 import org.joml.Matrix4f;
 import org.joml.Vector2f;
@@ -27,7 +28,6 @@ import org.spongepowered.asm.mixin.injection.Inject;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 
 import java.nio.ByteBuffer;
-import java.nio.ByteOrder;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -72,25 +72,13 @@ public class VertexBufferMixin implements Renderable {
             this.drawMode = draw.getMode();
             this.usesTexture = draw.isTextured();
 
-            int index = 0;
             for (int i = 0; i <= draw.getVertexCount() - 1; i++) {
-                if (index >= byteBuffer.limit()) {
-                    System.err.println("Managed to exceed byte buff limit somehow. this shouldn't happen! (I was: " + i + " and should of maxed out at " + draw.getVertexCount() + ")");
-                    break;
+                List<Vertex> result = readVertex(byteBuffer, elementFormat);
+                vertices.addAll(result);
+                for (Vertex vertex : result) {
+                    indices.add(indices.size());
                 }
-                VertexResult result = readVertex(byteBuffer, elementFormat);
-                index += result.index();
-                vertices.add(result.vertex());
-                indices.add(indices.size());
-                index += 12;
             }
-
-//            System.out.println("================");
-//            System.out.println(format);
-//            System.out.println(max + " Bytes Total");
-//            System.out.println(format.getVertexSize() + " Bytes Per Vertex");
-//            System.out.println(draw.getVertexCount() + " Total Vertices");
-//            System.out.println("================");
 
             if (!this.usesTexture) {
                 byteBuffer.limit(draw.getDrawStart());
@@ -107,19 +95,55 @@ public class VertexBufferMixin implements Renderable {
         ci.cancel();
     }
 
-    private VertexResult readVertex(ByteBuffer vertBuf, VertexFormat format) {
+    private List<Vertex> readVertex(ByteBuffer vertBuf, VertexFormat format) {
         float x = 0, y = 0, z = 0; // Position
         float u = 0, v = 0; // UV
         int colorR = 0, colorG = 255, colorB = 0, colorA = 255; // Color
         int normalX = 0, normalY = 0, normalZ = 0; // Normal
         byte lighting = 0; // Padding
 
+        // Special Quad Case
+        float x2 = 0, y2 = 0, z2 = 0; // 2nd Triangle's Position
+
+        int originalPos = vertBuf.position();
+
         for (VertexFormatElement element : format.getElements()) {
             switch (element.getType()) {
                 case POSITION -> {
-                    x = vertBuf.getFloat();
-                    y = vertBuf.getFloat();
-                    z = vertBuf.getFloat();
+                    switch (drawMode) {
+                        case TRIANGLE_STRIP, TRIANGLES -> {
+                            x = vertBuf.getFloat();
+                            y = vertBuf.getFloat();
+                            z = vertBuf.getFloat();
+                        }
+
+                        case QUADS -> {
+                            //  1, 3, 4 // Tri 1
+                            //  1, 4, 2 // Tri 2
+                            //        v1_________________v2
+                            //         / \               /
+                            //        /     \           /
+                            //       /         \       /
+                            //      /             \   /
+                            //    v3-----------------v4
+                            float quadX = vertBuf.getFloat();
+                            float quadY = vertBuf.getFloat();
+                            float quadZ = vertBuf.getFloat();
+                            float quadW = vertBuf.getFloat();
+
+                            // Triangle 1
+                            x = quadX;
+                            y = quadZ;
+                            z = quadW;
+
+                            // Triangle 2
+                            x2 = quadX;
+                            y2 = quadW;
+                            z2 = quadY;
+                        }
+
+                        default -> throw new RuntimeException("Unsupported Draw Mode: " + drawMode);
+                    }
                 }
 
                 case COLOR -> {
@@ -133,32 +157,51 @@ public class VertexBufferMixin implements Renderable {
                     u = vertBuf.getFloat();
                     v = vertBuf.getFloat();
                 }
-                
+
                 case NORMAL -> {
                     normalX = vertBuf.get();
                     normalY = vertBuf.get();
                     normalZ = vertBuf.get();
                 }
 
-                case PADDING -> {
-                    lighting = vertBuf.get();
-                }
+                case PADDING -> lighting = vertBuf.get();
 
                 default -> System.out.println("Unknown Type: " + element.getType().getName());
             }
         }
 
-        Vertex vertex = new Vertex(
+        int bytesRead = vertBuf.position() - originalPos;
+        if (bytesRead != format.getVertexSize()) {
+            System.err.println("================");
+            System.err.println("Vertex Format: " + format);
+            System.err.println("Vertex Format Elements: " + format.getElements());
+            System.err.println("================");
+            System.err.println("An Underflow was Caught. (Was Meant to read " + format.getVertexSize() + " Bytes but actually read " + bytesRead + ")");
+        }
+
+        List<Vertex> newVertices = new ArrayList<>();
+
+        newVertices.add(new Vertex(
                 new Vector3f(x, y, z),
                 new Vector3f(colorR, colorG, colorB),
                 new Vector2f(u, v)
-        );
-        return new VertexResult(0, vertex);
+        ));
+
+        if (drawMode == VertexFormat.DrawMode.QUADS) {
+            newVertices.add(new Vertex(
+                    new Vector3f(x2, y2, z2),
+                    new Vector3f(colorR, colorG, colorB),
+                    new Vector2f(u, v)
+            ));
+        }
+
+        return newVertices;
     }
 
 
     /**
      * Read an unsigned byte from a buffer
+     *
      * @param buffer Buffer containing the bytes
      * @return The unsigned byte as an int
      */
@@ -175,7 +218,7 @@ public class VertexBufferMixin implements Renderable {
 
     @Override
     public void load(@NotNull Rosella rosella) {
-        material = Materials.SOLID_COLOR;
+        material = drawMode == VertexFormat.DrawMode.TRIANGLE_STRIP ? Materials.SOLID_COLOR_TRIANGLE_STRIP : Materials.SOLID_COLOR_TRIANGLES;
         ubo = new BasicUbo(rosella.getDevice(), rosella.getMemory());
         ubo.create(rosella.getRenderer().swapChain);
     }

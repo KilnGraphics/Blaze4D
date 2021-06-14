@@ -1,6 +1,7 @@
 package me.hydos.rosella.render.material
 
 import me.hydos.rosella.Rosella
+import me.hydos.rosella.render.Topology
 import me.hydos.rosella.render.device.Device
 import me.hydos.rosella.render.model.Vertex
 import me.hydos.rosella.render.resource.Identifier
@@ -26,7 +27,8 @@ class Material(
 	val resource: Resource,
 	private val shaderId: Identifier,
 	private val imgFormat: Int,
-	private val useBlend: Boolean
+	private val useBlend: Boolean,
+	private val topology: Topology
 ) {
 	var pipelineLayout: Long = 0
 	var graphicsPipeline: Long = 0
@@ -91,7 +93,7 @@ class Material(
 			val inputAssembly: VkPipelineInputAssemblyStateCreateInfo =
 				VkPipelineInputAssemblyStateCreateInfo.callocStack(it)
 					.sType(VK_STRUCTURE_TYPE_PIPELINE_INPUT_ASSEMBLY_STATE_CREATE_INFO)
-					.topology(VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST)
+					.topology(topology.vkType)
 					.primitiveRestartEnable(false)
 
 			/**

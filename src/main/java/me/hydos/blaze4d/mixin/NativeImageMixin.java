@@ -17,7 +17,7 @@ import java.nio.ByteBuffer;
 import java.nio.IntBuffer;
 
 @Mixin(NativeImage.class)
-public class NativeImageMixin implements Blaze4DNativeImage{
+public class NativeImageMixin implements Blaze4DNativeImage {
 
     private ByteBuffer imageBytes;
 
@@ -68,7 +68,7 @@ public class NativeImageMixin implements Blaze4DNativeImage{
     @Override
     public void setImageBuf(ByteBuffer imageBytes) {
         this.imageBytes = imageBytes;
-        if(imageBytes != null) {
+        if (imageBytes != null) {
 //            Blaze4D.rosella.getTextureManager().getOrLoadTexture(
 //                    Global.INSTANCE.fromByteBuffer(this.imageBytes, new Identifier("minecraft", this.hashCode() + "")),
 //                    Blaze4D.rosella,

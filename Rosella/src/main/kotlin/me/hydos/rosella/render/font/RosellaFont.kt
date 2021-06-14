@@ -1,6 +1,7 @@
 package me.hydos.rosella.render.font
 
 import me.hydos.rosella.Rosella
+import me.hydos.rosella.render.Topology
 import me.hydos.rosella.render.material.Material
 import me.hydos.rosella.render.model.RenderObject
 import me.hydos.rosella.render.model.ShapeRenderObject
@@ -36,7 +37,8 @@ class RosellaFont(private val font: Font, rosella: Rosella) {
 				Global.fromBufferedImage(BufferedImage(1, 1, BufferedImage.TYPE_3BYTE_BGR), fontMaterial),
 				fontShader,
 				VK10.VK_FORMAT_R8G8B8A8_UNORM,
-				false
+				false,
+				Topology.TRIANGLES
 			)
 		)
 	}

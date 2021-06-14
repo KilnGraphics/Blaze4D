@@ -1,6 +1,7 @@
 package me.hydos.rosella.gui
 
 import me.hydos.rosella.Rosella
+import me.hydos.rosella.render.Topology
 import me.hydos.rosella.render.io.Window
 import me.hydos.rosella.render.material.Material
 import me.hydos.rosella.render.model.GuiRenderObject
@@ -56,7 +57,8 @@ class Canvas(val rosella: Rosella, val window: Window) {
 				Resource.Empty,
 				colourGuiShader,
 				VK10.VK_FORMAT_R8G8B8A8_SRGB,
-				false
+				false,
+				Topology.TRIANGLES
 			)
 		)
 	}
@@ -71,7 +73,8 @@ class Canvas(val rosella: Rosella, val window: Window) {
 			Global.ensureResource(texture),
 			guiShader,
 			textureFormat,
-			blend
+			blend,
+			Topology.TRIANGLES
 		)
 	}
 

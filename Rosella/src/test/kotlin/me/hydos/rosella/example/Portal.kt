@@ -2,6 +2,7 @@ package me.hydos.rosella.example
 
 import me.hydos.rosella.Rosella
 import me.hydos.rosella.audio.SoundManager
+import me.hydos.rosella.render.Topology
 import me.hydos.rosella.render.io.Window
 import me.hydos.rosella.render.material.Material
 import me.hydos.rosella.render.model.GuiRenderObject
@@ -60,7 +61,8 @@ object Portal {
 				Global.ensureResource(Identifier("example", "textures/background/background01.png")),
 				guiShader,
 				VK10.VK_FORMAT_R8G8B8A8_UNORM,
-				false
+				false,
+				Topology.TRIANGLES
 			)
 		)
 		engine.registerMaterial(
@@ -68,7 +70,8 @@ object Portal {
 				Global.ensureResource(Identifier("example", "textures/gui/portal2logo.png")),
 				guiShader,
 				VK10.VK_FORMAT_R8G8B8A8_SRGB,
-				true
+				true,
+				Topology.TRIANGLES
 			)
 		)
 		engine.reloadMaterials()
