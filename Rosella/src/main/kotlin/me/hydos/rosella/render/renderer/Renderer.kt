@@ -281,7 +281,7 @@ class Renderer {
 			val beginInfo = createBeginInfo(it)
 			val renderPassInfo = createRenderPassInfo(it, renderPass)
 			val renderArea = createRenderArea(it, 0, 0, swapChain)
-			val clearValues = createClearValues(it, 219 / 255f, 31 / 255f, 41 / 255f, 1.0f, 0)
+			val clearValues = createClearValues(it, 0 / 255f, 100 / 255f, 100 / 255f, 1.0f, 0)
 
 			renderPassInfo.renderArea(renderArea)
 				.pClearValues(clearValues)
@@ -302,6 +302,7 @@ class Renderer {
 				vkEndCommandBuffer(commandBuffer).ok()
 			}
 		}
+		println("Command Buffers rebuilt! " + engine.renderObjects.size + " objects rendered.")
 	}
 
 	private fun bindModel(

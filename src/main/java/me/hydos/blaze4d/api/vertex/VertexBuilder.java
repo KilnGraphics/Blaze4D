@@ -14,6 +14,7 @@ import java.nio.ByteBuffer;
 public class VertexBuilder implements VertexSupplier {
 
     public int index;
+    private int elementOffset;
 
     @Override
     public Vector3f vertex(ByteBuffer vertexBuffer, VertexFormatElement info) {
@@ -87,7 +88,12 @@ public class VertexBuilder implements VertexSupplier {
         index += 1;
     }
 
-    public void next() {
-        index = 0;
+    public ByteBuffer next(ByteBuffer vertBuffer) {
+        elementOffset = index;
+        return vertBuffer.position(this.elementOffset);
+    }
+
+    public int getElementOffset() {
+        return elementOffset;
     }
 }

@@ -58,6 +58,9 @@ public class VertexBufferMixin implements Renderable {
     public Matrix4f transformationMatrix = new Matrix4f();
     public Ubo ubo;
     public Material material;
+    private VertexBuilder vertexBuilder;
+
+    private static float cccc = 0;
 
     @Inject(method = "uploadInternal", at = @At("HEAD"), cancellable = true)
     private void sendToRosella(BufferBuilder buffer, CallbackInfo ci) {
@@ -73,18 +76,26 @@ public class VertexBufferMixin implements Renderable {
             this.elementFormat = format;
             this.drawMode = draw.getMode();
             this.usesTexture = draw.isTextured();
+            this.vertexBuilder = new VertexBuilder();
 
             for (int i = 0; i <= draw.getVertexCount() - 1; i++) {
-                List<Vertex> result = readVertex(byteBuffer, elementFormat);
-                vertices.addAll(result);
-                for (Vertex ignored : result) {
-                    indices.add(indices.size());
+                try {
+                    List<Vertex> result = readVertex(byteBuffer, elementFormat, vertexBuilder);
+                    vertices.addAll(result);
+                    for (Vertex ignored : result) {
+                        indices.add(indices.size());
+                    }
+                    vertexBuilder.next(byteBuffer);
+                }catch (IndexOutOfBoundsException e) {
+                    break;
                 }
             }
+            cccc++;
 
-            if (!this.usesTexture) {
+            if (true) {
                 byteBuffer.limit(draw.getDrawStart());
                 Blaze4D.window.queue(() -> {
+                    Blaze4D.rosella.getRenderObjects().remove(toString());
                     Blaze4D.rosella.addRenderObject(this, toString());
                     Blaze4D.rosella.getRenderer().rebuildCommandBuffers(Blaze4D.rosella.getRenderer().renderPass, Blaze4D.rosella);
                 });
@@ -96,54 +107,40 @@ public class VertexBufferMixin implements Renderable {
         ci.cancel();
     }
 
-    private List<Vertex> readVertex(ByteBuffer vertBuf, VertexFormat format) {
+    private List<Vertex> readVertex(ByteBuffer vertBuf, VertexFormat format, VertexBuilder vertexBuilder) {
         Vector3f position = new Vector3f(); // Position
         Vector2f uv = new Vector2f(); // UV
         Vector4f color = new Vector4f(); // Color
         Vector3f normal = new Vector3f(); // Normal
         int light = 0; // Padding?
 
-        // Special Quad Case
-        float x2 = 0, y2 = 0, z2 = 0; // 2nd Triangle's Position
-
-        VertexBuilder vertexBuilder = new VertexBuilder();
         for (VertexFormatElement element : format.getElements()) {
             switch (element.getType()) {
                 case POSITION -> position = vertexBuilder.vertex(vertBuf, element);
                 case COLOR -> color = vertexBuilder.color(vertBuf, element);
                 case NORMAL -> normal = vertexBuilder.normal(vertBuf, element);
                 case UV -> uv = vertexBuilder.texture(vertBuf, element);
-                case PADDING -> vertexBuilder.padding(vertBuf, element);
+                case PADDING, GENERIC -> vertexBuilder.padding(vertBuf, element);
 
                 default -> System.err.println("Unknown Type: " + element.getType().getName());
             }
         }
 
-        int bytesRead = vertexBuilder.index + 1;
-        if (bytesRead != format.getVertexSize() ) {
-            System.err.println("================");
-            System.err.println("Vertex Format: " + format);
-            System.err.println("Vertex Format Elements: " + format.getElements());
-            System.err.println("An Underflow was Caught. (Was Meant to read " + format.getVertexSize() + " Bytes but actually read " + bytesRead + ")");
-            System.err.println("================");
-        }
-        vertexBuilder.next();
-
+//        int bytesRead = vertexBuilder.index;
+//        if (bytesRead != format.getVertexSize() ) {
+//            System.err.println("================");
+//            System.err.println("Vertex Format: " + format);
+//            System.err.println("Vertex Format Elements: " + format.getElements());
+//            System.err.println("An Underflow was Caught. (Was Meant to read " + format.getVertexSize() + " Bytes but actually read " + bytesRead + ")");
+//            System.err.println("================");
+//        }
         List<Vertex> newVertices = new ArrayList<>();
 
         newVertices.add(new Vertex(
                 position,
-                new Vector3f(color.x, color.y, color.z),
+                new Vector3f(0, cccc, cccc),
                 uv
         ));
-
-        if (drawMode == VertexFormat.DrawMode.QUADS) {
-            newVertices.add(new Vertex(
-                    new Vector3f(x2, y2, z2),
-                    new Vector3f(color.x, color.y, color.z),
-                    uv
-            ));
-        }
 
         return newVertices;
     }
