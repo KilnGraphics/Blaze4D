@@ -11,6 +11,8 @@ import me.hydos.rosella.render.resource.Resource
 import me.hydos.rosella.render.swapchain.DepthBuffer
 import me.hydos.rosella.render.swapchain.RenderPass
 import me.hydos.rosella.render.swapchain.SwapChain
+import me.hydos.rosella.render.texture.StbiImage
+import me.hydos.rosella.render.texture.UploadableImage
 import me.hydos.rosella.render.util.memory.Memory
 import me.hydos.rosella.render.util.memory.memcpy
 import me.hydos.rosella.render.util.ok
@@ -182,7 +184,7 @@ fun findMemoryType(typeFilter: Int, properties: Int, device: Device): Int {
 	error("Failed to find suitable memory type")
 }
 
-fun createTextureSampler(device: Device, material: Resource): Long {
+fun createTextureSampler(device: Device): Long {
 	MemoryStack.stackPush().use { stack ->
 		val samplerInfo = VkSamplerCreateInfo.callocStack(stack)
 			.sType(VK_STRUCTURE_TYPE_SAMPLER_CREATE_INFO)
@@ -320,42 +322,31 @@ fun transitionImageLayout(
  * A Giant mess of an texture image creator.
  * TODO: clean
  */
-fun createTextureImage(device: Device, resource: Resource, renderer: Renderer, memory: Memory, imgFormat: Int, textureImage: TextureImage) {
+fun createTextureImage(device: Device, image: UploadableImage, renderer: Renderer, memory: Memory, imgFormat: Int, textureImage: TextureImage) {
 	MemoryStack.stackPush().use { stack ->
-		val file = resource.readAllBytes(true)
-		val pWidth = stack.mallocInt(1)
-		val pHeight = stack.mallocInt(1)
-		val pChannels = stack.mallocInt(1)
-		var pixels: ByteBuffer? =
-			STBImage.stbi_load_from_memory(file, pWidth, pHeight, pChannels, STBImage.STBI_rgb_alpha)
-		val width = pWidth[0]
-		val height = pHeight[0]
-		val imageSize = (width * height * 4).toLong()
-		if(imageSize == 0L) {
-			throw RuntimeException("ImageSize is equal to 0")
-		}
-		if (pixels == null) {
-			pixels = ByteBuffer.wrap(resource.openStream().readAllBytes())
-			if (pixels == null) {
-				throw RuntimeException("Failed to load texture image ${resource.identifier}")
-			}
-		}
 
 		val pBuffer = stack.mallocLong(1)
 		val stagingBuf = memory.createStagingBuf(
-			imageSize.toInt(),
+			image.getImageSize(),
 			pBuffer,
 			stack
 		) { data ->
-			memcpy(data.getByteBuffer(0, imageSize.toInt()), pixels, imageSize)
+			try {
+				memcpy(data.getByteBuffer(0, (image.getWidth() * image.getHeight() * 4)), image.getPixels(), (image.getWidth() * image.getHeight() * 4).toLong())
+			} catch (e: Exception) {
+				memcpy(data.getByteBuffer(0, (image.getWidth() * image.getHeight() * 3)), image.getPixels(), (image.getWidth() * image.getHeight() * 3).toLong())
+			}
 		}
-		STBImage.stbi_image_free(pixels)
+
+		if(image is StbiImage) {
+			STBImage.stbi_image_free(image.getPixels())
+		}
 
 
 		val pTextureImage = stack.mallocLong(1)
 		val pTextureImageMemory = stack.mallocLong(1)
 		createImage(
-			pWidth[0], pHeight[0],
+			image.getWidth(), image.getHeight(),
 			imgFormat, VK_IMAGE_TILING_OPTIMAL,
 			VK_IMAGE_USAGE_TRANSFER_DST_BIT or VK_IMAGE_USAGE_SAMPLED_BIT,
 			VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT,
@@ -376,7 +367,7 @@ fun createTextureImage(device: Device, resource: Resource, renderer: Renderer, m
 			renderer.device,
 			renderer
 		)
-		copyBufferToImage(stagingBuf.buffer, textureImage.textureImage, pWidth[0], pHeight[0], device, renderer)
+		copyBufferToImage(stagingBuf.buffer, textureImage.textureImage, image.getWidth(), image.getHeight(), device, renderer)
 		transitionImageLayout(
 			textureImage.textureImage,
 			imgFormat,

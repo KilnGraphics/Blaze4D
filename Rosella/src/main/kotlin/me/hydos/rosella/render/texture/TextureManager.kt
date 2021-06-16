@@ -9,18 +9,33 @@ import me.hydos.rosella.render.resource.Resource
 
 class TextureManager(val device: Device) {
 
-	private val textureMap = HashMap<Resource, Texture>()
+	private val resourceTextureMap = HashMap<Resource, Texture>()
+	private val textureMap = HashMap<UploadableImage, Texture>()
 
+	@Deprecated("Resource Specification is bad")
 	fun getOrLoadTexture(resource: Resource, engine: Rosella, imgFormat: Int): Texture? {
-		if (!textureMap.containsKey(resource)) {
+		if (!resourceTextureMap.containsKey(resource)) {
 			val textureImage = TextureImage(0, 0, 0)
-			createTextureImage(device, resource, engine.renderer, engine.memory, imgFormat, textureImage)
+			createTextureImage(device, StbiImage(resource), engine.renderer, engine.memory, imgFormat, textureImage)
 			textureImage.view = createTextureImageView(device, imgFormat, textureImage.textureImage)
-			val textureSampler = createTextureSampler(device, resource)
+			val textureSampler = createTextureSampler(device)
 
-			textureMap[resource] = Texture(imgFormat, resource, textureImage, textureSampler)
+			resourceTextureMap[resource] = Texture(imgFormat, textureImage, textureSampler)
 		}
 
-		return textureMap[resource]
+		return resourceTextureMap[resource]
+	}
+
+	fun getOrLoadTexture(image: UploadableImage, engine: Rosella, imgFormat: Int): Texture? {
+		if (!textureMap.containsKey(image)) {
+			val textureImage = TextureImage(0, 0, 0)
+			createTextureImage(device, image, engine.renderer, engine.memory, imgFormat, textureImage)
+			textureImage.view = createTextureImageView(device, imgFormat, textureImage.textureImage)
+			val textureSampler = createTextureSampler(device)
+
+			textureMap[image] = Texture(imgFormat, textureImage, textureSampler)
+		}
+
+		return textureMap[image]
 	}
 }

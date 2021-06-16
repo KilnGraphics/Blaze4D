@@ -4,6 +4,7 @@ import org.joml.Matrix4f
 import org.joml.Vector2f
 import org.joml.Vector3f
 import org.joml.Vector4f
+import org.lwjgl.vulkan.EXTDebugReport.VK_ERROR_VALIDATION_FAILED_EXT
 import org.lwjgl.vulkan.KHRSurface
 import org.lwjgl.vulkan.VK10
 import org.lwjgl.vulkan.VK11
@@ -30,6 +31,7 @@ private val errorMap = mutableMapOf<Int, String>().apply {
 	this[VK10.VK_ERROR_FRAGMENTED_POOL] = "VK_ERROR_FRAGMENTED_POOL"
 	this[VK10.VK_ERROR_UNKNOWN] = "VK_ERROR_UNKNOWN"
 	this[KHRSurface.VK_ERROR_NATIVE_WINDOW_IN_USE_KHR] = "VK_ERROR_NATIVE_WINDOW_IN_USE_KHR"
+	this[VK_ERROR_VALIDATION_FAILED_EXT] = "VK_ERROR_VALIDATION_FAILED_EXT"
 }
 
 private val SIZEOF_CACHE = mutableMapOf<Class<*>, Int>().apply {
@@ -66,7 +68,7 @@ fun alignas(offset: Int, alignment: Int): Int {
 
 fun Int.ok(): Int {
 	if (this != VK10.VK_SUCCESS) {
-		throw RuntimeException(errorMap[this] ?: toString(16))
+		throw RuntimeException(errorMap[this] ?: toString())
 	}
 	return this
 }

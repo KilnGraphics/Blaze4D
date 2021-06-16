@@ -1,10 +1,13 @@
 accessWidener   v1  named
 
+# Some Misc Image Stuff
 accessible method net/minecraft/client/texture/NativeImage$Format getFormat (I)Lnet/minecraft/client/texture/NativeImage$Format;
 accessible  method   net/minecraft/client/texture/NativeImage   <init>    (Lnet/minecraft/client/texture/NativeImage$Format;IIZJ)V
 
+# Make Minecraft Shut Up
 accessible class net/minecraft/client/resource/VideoWarningManager$WarningPatternLoader
 
+# Access to Matrix4f so i can convert Minecraft matrices to JOML matrices
 accessible  field   net/minecraft/util/math/Matrix4f   a00   F
 accessible  field   net/minecraft/util/math/Matrix4f   a01   F
 accessible  field   net/minecraft/util/math/Matrix4f   a02   F
@@ -24,3 +27,10 @@ accessible  field   net/minecraft/util/math/Matrix4f   a30   F
 accessible  field   net/minecraft/util/math/Matrix4f   a31   F
 accessible  field   net/minecraft/util/math/Matrix4f   a32   F
 accessible  field   net/minecraft/util/math/Matrix4f   a33   F
+
+# Access To Sprites For Textures
+accessible  field   net/minecraft/client/texture/SpriteAtlasTexture$Data   spriteIds Ljava/util/Set;
+accessible  field   net/minecraft/client/texture/SpriteAtlasTexture$Data   width I
+accessible  field   net/minecraft/client/texture/SpriteAtlasTexture$Data   height I
+accessible  field   net/minecraft/client/texture/SpriteAtlasTexture$Data   maxLevel I
+accessible  field   net/minecraft/client/texture/SpriteAtlasTexture$Data   sprites   Ljava/util/List;

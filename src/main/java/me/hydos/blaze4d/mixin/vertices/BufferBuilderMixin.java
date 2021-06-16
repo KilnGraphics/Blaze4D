@@ -49,14 +49,6 @@ public abstract class BufferBuilderMixin extends FixedColorVertexConsumer implem
                 (float) x, (float) y, (float) z,
                 r, g, b
         ));
-
-        x = 0;
-        y = 0;
-        z = 0;
-
-        r = 0;
-        g = 0;
-        b = 0;
     }
 
     @Override
