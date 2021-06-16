@@ -15,7 +15,11 @@
     "WindowFramebufferMixin",
     "WindowMixin",
     "blaze3d.RenderSystemMixin",
-    "blaze3d.platform.TextureUtilMixin"
+    "blaze3d.platform.TextureUtilMixin",
+    "shader.GlUniformMixin",
+    "shader.ShaderMixin",
+    "vertices.BufferBuilderMixin",
+    "vertices.TessellatorMixin"
   ],
   "client": [
   ],

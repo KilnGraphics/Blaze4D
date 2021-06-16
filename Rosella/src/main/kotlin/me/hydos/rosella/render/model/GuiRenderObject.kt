@@ -3,7 +3,7 @@ package me.hydos.rosella.render.model
 import me.hydos.rosella.Rosella
 import me.hydos.rosella.render.resource.Identifier
 import me.hydos.rosella.render.resource.Resource
-import me.hydos.rosella.render.shader.ubo.BasicUbo
+import me.hydos.rosella.render.shader.ubo.LowLevelUbo
 import org.joml.Vector2f
 import org.joml.Vector3f
 
@@ -50,7 +50,7 @@ open class GuiRenderObject(
 		val retrievedMaterial = engine.materials[materialIdentifier]
 			?: error("The material $materialIdentifier couldn't be found. (Are you registering the material?)")
 		mat = retrievedMaterial
-		uniformBufferObject = BasicUbo(engine.device, engine.memory)
+		uniformBufferObject = LowLevelUbo(engine.device, engine.memory)
 		uniformBufferObject.create(engine.renderer.swapChain)
 		modelTransformMatrix.translate(0f, 0f, z)
 	}

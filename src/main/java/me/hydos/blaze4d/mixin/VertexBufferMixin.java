@@ -3,32 +3,30 @@ package me.hydos.blaze4d.mixin;
 import com.mojang.datafixers.util.Pair;
 import me.hydos.blaze4d.Blaze4D;
 import me.hydos.blaze4d.api.Materials;
-import me.hydos.blaze4d.api.vertex.VertexBuilder;
+import me.hydos.blaze4d.api.shader.MinecraftUbo;
+import me.hydos.blaze4d.api.vertex.Blaze4dVertexStorage;
 import me.hydos.rosella.Rosella;
 import me.hydos.rosella.render.material.Material;
 import me.hydos.rosella.render.model.Renderable;
 import me.hydos.rosella.render.model.Vertex;
 import me.hydos.rosella.render.renderer.Renderer;
-import me.hydos.rosella.render.shader.ubo.BasicUbo;
 import me.hydos.rosella.render.shader.ubo.Ubo;
 import me.hydos.rosella.render.util.memory.Memory;
 import net.minecraft.client.gl.VertexBuffer;
 import net.minecraft.client.render.BufferBuilder;
 import net.minecraft.client.render.BufferRenderer;
 import net.minecraft.client.render.VertexFormat;
-import net.minecraft.client.render.VertexFormatElement;
 import org.jetbrains.annotations.NotNull;
 import org.joml.Matrix4f;
 import org.joml.Vector2f;
 import org.joml.Vector3f;
-import org.joml.Vector4f;
-import org.lwjgl.util.vma.Vma;
 import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.Shadow;
 import org.spongepowered.asm.mixin.injection.At;
 import org.spongepowered.asm.mixin.injection.Inject;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 
+import java.nio.BufferUnderflowException;
 import java.nio.ByteBuffer;
 import java.util.ArrayList;
 import java.util.List;
@@ -58,17 +56,14 @@ public class VertexBufferMixin implements Renderable {
     public Matrix4f transformationMatrix = new Matrix4f();
     public Ubo ubo;
     public Material material;
-    private VertexBuilder vertexBuilder;
-
-    private static float cccc = 0;
 
     @Inject(method = "uploadInternal", at = @At("HEAD"), cancellable = true)
-    private void sendToRosella(BufferBuilder buffer, CallbackInfo ci) {
-        Pair<BufferBuilder.DrawArrayParameters, ByteBuffer> pair = buffer.popData();
+    private void sendToRosella(BufferBuilder builder, CallbackInfo ci) {
+        Pair<BufferBuilder.DrawArrayParameters, ByteBuffer> pair = builder.popData();
         if (this.vertexBufferId != 0) {
             BufferRenderer.unbindAll();
             BufferBuilder.DrawArrayParameters draw = pair.getFirst();
-            ByteBuffer byteBuffer = pair.getSecond();
+            ByteBuffer buffer = pair.getSecond();
             VertexFormat format = draw.getVertexFormat();
 
             this.vertexCount = draw.getVertexCount();
@@ -76,105 +71,88 @@ public class VertexBufferMixin implements Renderable {
             this.elementFormat = format;
             this.drawMode = draw.getMode();
             this.usesTexture = draw.isTextured();
-            this.vertexBuilder = new VertexBuilder();
+            this.vertices.clear();
+            this.indices.clear();
 
-            for (int i = 0; i <= draw.getVertexCount() - 1; i++) {
-                try {
-                    List<Vertex> result = readVertex(byteBuffer, elementFormat, vertexBuilder);
-                    vertices.addAll(result);
-                    for (Vertex ignored : result) {
+            if (!draw.isCameraOffset()) {
+                if (builder instanceof Blaze4dVertexStorage vertexStorage) {
+                    for (Blaze4dVertexStorage.VertexData data : vertexStorage.getVertices()) {
+                        Vertex vertex = new Vertex(
+                                new Vector3f(data.x(), data.y(), data.z()),
+                                new Vector3f(data.r() / 255f, data.g() / 255f, data.b() / 255f),
+                                new Vector2f(0, 0)
+                        );
+                        vertices.add(vertex);
                         indices.add(indices.size());
                     }
-                    vertexBuilder.next(byteBuffer);
-                }catch (IndexOutOfBoundsException e) {
-                    break;
+
+                    if (drawMode == VertexFormat.DrawMode.QUADS) {
+                        // Convert Quads to Triangle Strips
+                        //  0, 1, 2
+                        //  0, 2, 3
+                        //        v0_________________v1
+                        //         / \               /
+                        //        /     \           /
+                        //       /         \       /
+                        //      /             \   /
+                        //    v2-----------------v3
+
+                        indices.clear();
+                        for (int i = 0; i < vertices.size(); i += 4) {
+                            indices.add(i);
+                            indices.add(1 + i);
+                            indices.add(2 + i);
+
+                            indices.add(i);
+                            indices.add(2 + i);
+                            indices.add(3 + i);
+                        }
+                    }
+                } else {
+                    throw new RuntimeException("Builder Cannot be cast to Blaze4dVertexStorage");
                 }
             }
-            cccc++;
 
-            if (true) {
-                byteBuffer.limit(draw.getDrawStart());
-                Blaze4D.window.queue(() -> {
-                    Blaze4D.rosella.getRenderObjects().remove(toString());
-                    Blaze4D.rosella.addRenderObject(this, toString());
-                    Blaze4D.rosella.getRenderer().rebuildCommandBuffers(Blaze4D.rosella.getRenderer().renderPass, Blaze4D.rosella);
-                });
-            } else {
-                byteBuffer.limit(draw.getDrawStart());
-            }
-            byteBuffer.position(0);
+            buffer.limit(draw.getDrawStart());
+//            if (!this.usesTexture) {
+//                // TODO: read vertices from here.
+//                if (drawMode != VertexFormat.DrawMode.QUADS) {
+//                    indices = readIndices(buffer);
+//                }
+//            }
+            buffer.position(0);
+            Blaze4D.window.queue(() -> {
+                Renderable remove = Blaze4D.rosella.getRenderObjects().remove(toString());
+                if (remove != null) {
+                    remove.free(Blaze4D.rosella.getMemory());
+                }
+                Blaze4D.rosella.addRenderObject(this, toString());
+                Blaze4D.rosella.getRenderer().rebuildCommandBuffers(Blaze4D.rosella.getRenderer().renderPass, Blaze4D.rosella);
+            });
         }
         ci.cancel();
     }
 
-    private List<Vertex> readVertex(ByteBuffer vertBuf, VertexFormat format, VertexBuilder vertexBuilder) {
-        Vector3f position = new Vector3f(); // Position
-        Vector2f uv = new Vector2f(); // UV
-        Vector4f color = new Vector4f(); // Color
-        Vector3f normal = new Vector3f(); // Normal
-        int light = 0; // Padding?
-
-        for (VertexFormatElement element : format.getElements()) {
-            switch (element.getType()) {
-                case POSITION -> position = vertexBuilder.vertex(vertBuf, element);
-                case COLOR -> color = vertexBuilder.color(vertBuf, element);
-                case NORMAL -> normal = vertexBuilder.normal(vertBuf, element);
-                case UV -> uv = vertexBuilder.texture(vertBuf, element);
-                case PADDING, GENERIC -> vertexBuilder.padding(vertBuf, element);
-
-                default -> System.err.println("Unknown Type: " + element.getType().getName());
-            }
-        }
-
-//        int bytesRead = vertexBuilder.index;
-//        if (bytesRead != format.getVertexSize() ) {
-//            System.err.println("================");
-//            System.err.println("Vertex Format: " + format);
-//            System.err.println("Vertex Format Elements: " + format.getElements());
-//            System.err.println("An Underflow was Caught. (Was Meant to read " + format.getVertexSize() + " Bytes but actually read " + bytesRead + ")");
-//            System.err.println("================");
-//        }
-        List<Vertex> newVertices = new ArrayList<>();
-
-        newVertices.add(new Vertex(
-                position,
-                new Vector3f(0, cccc, cccc),
-                uv
-        ));
-
-        return newVertices;
-    }
-
-
-    /**
-     * Read an unsigned byte from a buffer
-     *
-     * @param buffer Buffer containing the bytes
-     * @return The unsigned byte as an int
-     */
-    public int getUnsignedByte(ByteBuffer buffer) {
-        return asUnsignedByte(buffer.get());
-    }
-
-    /**
-     * @return the byte value converted to an unsigned int value
-     */
-    public int asUnsignedByte(byte b) {
-        return b & 0xFF;
-    }
-
     @Override
     public void load(@NotNull Rosella rosella) {
-        material = drawMode == VertexFormat.DrawMode.TRIANGLE_STRIP ? Materials.SOLID_COLOR_TRIANGLE_STRIP : Materials.SOLID_COLOR_TRIANGLES;
-        ubo = new BasicUbo(rosella.getDevice(), rosella.getMemory());
+        switch (drawMode) {
+            case TRIANGLES, QUADS -> material = Materials.SOLID_COLOR_TRIANGLES;
+
+            case TRIANGLE_STRIP -> material = Materials.SOLID_COLOR_TRIANGLE_STRIP;
+
+            case TRIANGLE_FAN -> material = Materials.SOLID_COLOR_TRIANGLE_FAN;
+
+            default -> throw new RuntimeException("FUCK " + drawMode);
+        }
+        ubo = new MinecraftUbo(rosella.getDevice(), rosella.getMemory());
         ubo.create(rosella.getRenderer().swapChain);
     }
 
     @Override
     public void free(@NotNull Memory memory) {
-        Vma.vmaFreeMemory(memory.getAllocator(), vertexBuffer);
-        Vma.vmaFreeMemory(memory.getAllocator(), indexBuffer);
-        ubo.free();
+//        Vma.vmaFreeMemory(memory.getAllocator(), vertexBuffer);
+//        Vma.vmaFreeMemory(memory.getAllocator(), indexBuffer);
+//        ubo.free();
     }
 
     @Override

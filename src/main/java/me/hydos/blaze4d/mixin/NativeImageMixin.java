@@ -1,11 +1,15 @@
 package me.hydos.blaze4d.mixin;
 
-import me.hydos.blaze4d.api.texture.Blaze4DNativeImage;
+import me.hydos.blaze4d.Blaze4D;
+import me.hydos.blaze4d.api.texture.Blaze4DImage;
+import me.hydos.rosella.render.resource.Global;
+import me.hydos.rosella.render.resource.Identifier;
 import net.minecraft.client.texture.NativeImage;
 import org.jetbrains.annotations.Nullable;
 import org.lwjgl.stb.STBImage;
 import org.lwjgl.system.MemoryStack;
 import org.lwjgl.system.MemoryUtil;
+import org.lwjgl.vulkan.VK10;
 import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.Overwrite;
 import org.spongepowered.asm.mixin.injection.At;
@@ -17,9 +21,7 @@ import java.nio.ByteBuffer;
 import java.nio.IntBuffer;
 
 @Mixin(NativeImage.class)
-public class NativeImageMixin implements Blaze4DNativeImage {
-
-    private ByteBuffer imageBytes;
+public class NativeImageMixin implements Blaze4DImage {
 
     /**
      * @author Blaze4d
@@ -44,7 +46,7 @@ public class NativeImageMixin implements Blaze4DNativeImage {
                 }
 
                 image = new NativeImage(format == null ? NativeImage.Format.getFormat(intBuffer3.get(0)) : format, intBuffer.get(0), intBuffer2.get(0), true, MemoryUtil.memAddress(imageBytes));
-                ((Blaze4DNativeImage) (Object) image).setImageBuf(imageBytes);
+                ((Blaze4DImage) (Object) image).setImageBuf(byteBuffer);
             } catch (Throwable e) {
                 try {
                     stack.close();
@@ -67,13 +69,11 @@ public class NativeImageMixin implements Blaze4DNativeImage {
 
     @Override
     public void setImageBuf(ByteBuffer imageBytes) {
-        this.imageBytes = imageBytes;
-        if (imageBytes != null) {
-//            Blaze4D.rosella.getTextureManager().getOrLoadTexture(
-//                    Global.INSTANCE.fromByteBuffer(this.imageBytes, new Identifier("minecraft", this.hashCode() + "")),
-//                    Blaze4D.rosella,
-//                    VK10.VK_FORMAT_R8G8B8A8_SINT
-//            );
-        }
+        imageBytes.position(0);
+//        Blaze4D.window.queue(() -> Blaze4D.rosella.getTextureManager().getOrLoadTexture(
+//                Global.INSTANCE.fromByteBuffer(imageBytes, new Identifier("minecraft", this.hashCode() + "")),
+//                Blaze4D.rosella,
+//                VK10.VK_FORMAT_R8G8B8A8_SINT
+//        ));
     }
 }

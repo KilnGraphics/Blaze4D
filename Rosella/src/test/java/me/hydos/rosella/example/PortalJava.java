@@ -10,6 +10,8 @@ import me.hydos.rosella.render.model.GuiRenderObject;
 import me.hydos.rosella.render.resource.Global;
 import me.hydos.rosella.render.resource.Identifier;
 import me.hydos.rosella.render.shader.RawShaderProgram;
+import org.joml.AxisAngle4f;
+import org.joml.Quaternionf;
 import org.joml.Vector3f;
 import org.lwjgl.vulkan.VK10;
 
@@ -110,7 +112,10 @@ public class PortalJava {
 
     private static void doMainLoop() {
         rosella.getRenderer().rebuildCommandBuffers(rosella.getRenderer().renderPass, rosella);
-        window.onMainLoop(() -> rosella.getRenderer().render(rosella));
+        window.onMainLoop(() -> {
+            rosella.getRenderObjects().get("portalLogo").getTransformMatrix().rotate(new AxisAngle4f(0.1f, 0f, 1f, 0f)); // TODO: make this easier somehow
+            rosella.getRenderer().render(rosella);
+        });
         window.start();
     }
 }

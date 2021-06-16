@@ -5,8 +5,8 @@ import me.hydos.rosella.render.*
 import me.hydos.rosella.render.camera.Camera
 import me.hydos.rosella.render.device.Device
 import me.hydos.rosella.render.device.Queues
+import me.hydos.rosella.render.io.JUnit
 import me.hydos.rosella.render.io.Window
-import me.hydos.rosella.render.model.RenderObject
 import me.hydos.rosella.render.model.Renderable
 import me.hydos.rosella.render.shader.ShaderProgram
 import me.hydos.rosella.render.swapchain.DepthBuffer
@@ -42,12 +42,20 @@ class Renderer {
 	var commandPool: Long = 0
 	lateinit var commandBuffers: ArrayList<VkCommandBuffer>
 
+	var safeQueue = ArrayList<JUnit>()
+
 	private fun createSwapChain(engine: Rosella) {
 		this.swapChain = SwapChain(engine, device.device, device.physicalDevice, engine.surface)
 		this.renderPass = RenderPass(device, swapChain, engine)
 		createImgViews(swapChain, device)
 		for (material in engine.materials.values) {
-			material.createPipeline(device, swapChain, renderPass, material.shader.raw.descriptorSetLayout, engine.polygonMode)
+			material.createPipeline(
+				device,
+				swapChain,
+				renderPass,
+				material.shader.raw.descriptorSetLayout,
+				engine.polygonMode
+			)
 		}
 		depthBuffer.createDepthResources(device, swapChain, this)
 		createFrameBuffers()
@@ -75,6 +83,12 @@ class Renderer {
 		MemoryStack.stackPush().use { stack ->
 			val thisFrame = inFlightFrames[currentFrame]
 			vkWaitForFences(device.device, thisFrame.pFence(), true, UINT64_MAX)
+
+			for (jUnit in safeQueue) {
+				jUnit.run()
+			}
+			safeQueue.clear()
+
 			val pImageIndex = stack.mallocInt(1)
 
 			var vkResult: Int = KHRSwapchain.vkAcquireNextImageKHR(

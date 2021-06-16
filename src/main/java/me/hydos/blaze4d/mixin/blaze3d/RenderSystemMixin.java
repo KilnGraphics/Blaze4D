@@ -18,4 +18,10 @@ public class RenderSystemMixin {
     private static void setMaxSupportedTextureSize(CallbackInfoReturnable<Integer> cir) {
         cir.setReturnValue(99999999);
     }
+
+    @Inject(method = "isOnRenderThread", at = @At("HEAD"), cancellable = true)
+    private static void myEngineIsMultithreadedAndSafe(CallbackInfoReturnable<Boolean> cir) {
+        cir.setReturnValue(true);
+        // TODO: if something crashes, point out this was here
+    }
 }

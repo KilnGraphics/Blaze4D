@@ -328,14 +328,18 @@ fun createTextureImage(device: Device, resource: Resource, renderer: Renderer, m
 		val pChannels = stack.mallocInt(1)
 		var pixels: ByteBuffer? =
 			STBImage.stbi_load_from_memory(file, pWidth, pHeight, pChannels, STBImage.STBI_rgb_alpha)
-		val imageSize = (pWidth[0] * pHeight[0] * 4).toLong()
+		val width = pWidth[0]
+		val height = pHeight[0]
+		val imageSize = (width * height * 4).toLong()
+		if(imageSize == 0L) {
+			throw RuntimeException("ImageSize is equal to 0")
+		}
 		if (pixels == null) {
 			pixels = ByteBuffer.wrap(resource.openStream().readAllBytes())
 			if (pixels == null) {
 				throw RuntimeException("Failed to load texture image ${resource.identifier}")
 			}
 		}
-
 
 		val pBuffer = stack.mallocLong(1)
 		val stagingBuf = memory.createStagingBuf(

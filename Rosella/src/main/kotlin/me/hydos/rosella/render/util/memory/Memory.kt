@@ -102,7 +102,10 @@ class Memory(val device: Device, private val instance: VkInstance) {
 				.usage(vmaUsage)
 
 			val pAllocation = it.mallocPointer(1)
-			Vma.vmaCreateBuffer(allocator, vulkanBufferInfo, vmaBufferInfo, pBuffer, pAllocation, null)
+			val result = Vma.vmaCreateBuffer(allocator, vulkanBufferInfo, vmaBufferInfo, pBuffer, pAllocation, null)
+			if (result != 0) {
+				throw RuntimeException("Failed To Create VMA Buffer. Error Code $result")
+			}
 			allocation = pAllocation[0]
 		}
 		return BufferInfo(pBuffer[0], allocation)

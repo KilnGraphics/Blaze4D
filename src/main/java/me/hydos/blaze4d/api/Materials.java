@@ -1,6 +1,7 @@
 package me.hydos.blaze4d.api;
 
 import me.hydos.blaze4d.Blaze4D;
+import me.hydos.blaze4d.api.shader.Shaders;
 import me.hydos.rosella.Rosella;
 import me.hydos.rosella.render.Topology;
 import me.hydos.rosella.render.material.Material;
@@ -17,6 +18,7 @@ public class Materials {
 
     public static final Material SOLID_COLOR_TRIANGLES = register("solid_color_tri", Shaders.POSITION_COLOR, Topology.TRIANGLES);
     public static final Material SOLID_COLOR_TRIANGLE_STRIP = register("solid_color_tri_strip", Shaders.POSITION_COLOR, Topology.TRIANGLE_STRIP);
+    public static final Material SOLID_COLOR_TRIANGLE_FAN = register("solid_color_tri_fan", Shaders.POSITION_COLOR, Topology.TRIANGLE_FAN);
 
     public static Material register(String path, Identifier shaderId, Topology topology) {
         Identifier id = new Identifier("minecraft", path);

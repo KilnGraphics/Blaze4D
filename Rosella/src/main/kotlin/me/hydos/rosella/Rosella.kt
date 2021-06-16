@@ -199,7 +199,7 @@ class Rosella(
 		} else {
 			println(message)
 		}
-		return VK_FALSE
+		return VK_TRUE
 	}
 
 	internal fun asPtrBuffer(validationLayers: Set<String>): PointerBuffer {
