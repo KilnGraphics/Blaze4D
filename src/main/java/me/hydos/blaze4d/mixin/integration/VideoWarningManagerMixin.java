@@ -14,7 +14,6 @@ public class VideoWarningManagerMixin {
 
     @Inject(method = "buildWarning(Ljava/util/List;Ljava/lang/String;)Ljava/lang/String;", at = @At("HEAD"), cancellable = true)
     private static void whatWarningsAreYouTalkinAbout(List<Pattern> warningPattern, String info, CallbackInfoReturnable<String> cir) {
-        System.out.println(info);
         cir.setReturnValue("warning");
     }
 }
