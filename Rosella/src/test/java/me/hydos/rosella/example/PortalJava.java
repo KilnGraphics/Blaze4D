@@ -13,6 +13,8 @@ import me.hydos.rosella.render.shader.RawShaderProgram;
 import org.joml.AxisAngle4f;
 import org.joml.Quaternionf;
 import org.joml.Vector3f;
+import org.lwjgl.glfw.GLFW;
+import org.lwjgl.glfw.GLFWKeyCallback;
 import org.lwjgl.vulkan.VK10;
 
 public class PortalJava {
@@ -112,9 +114,24 @@ public class PortalJava {
 
     private static void doMainLoop() {
         rosella.getRenderer().rebuildCommandBuffers(rosella.getRenderer().renderPass, rosella);
+        GLFW.glfwSetKeyCallback(window.getWindowPtr(), new GLFWKeyCallback() {
+            boolean hasDelet;
+
+            @Override
+            public void invoke(long window, int key, int scancode, int action, int mods) {
+                if(key == GLFW.GLFW_KEY_V && !hasDelet) {
+                    hasDelet = true;
+                    System.out.println("Delet");
+                    rosella.getRenderObjects().remove("portalLogo");
+                    rosella.getRenderer().rebuildCommandBuffers(rosella.getRenderer().renderPass, rosella);
+                }
+            }
+        });
         window.onMainLoop(() -> {
-            rosella.getRenderObjects().get("portalLogo").getTransformMatrix().rotate(new AxisAngle4f(0.1f, 0f, 1f, 0f)); // TODO: make this easier somehow
+//            rosella.getRenderObjects().get("portalLogo").getTransformMatrix().rotate(new AxisAngle4f(0.1f, 0f, 1f, 0f)); // TODO: make this easier somehow
             rosella.getRenderer().render(rosella);
+
+            GLFW.glfwPollEvents();
         });
         window.start();
     }

@@ -1,4 +1,4 @@
-package me.hydos.blaze4d.mixin;
+package me.hydos.blaze4d.mixin.texture;
 
 import com.mojang.blaze3d.platform.TextureUtil;
 import net.minecraft.client.texture.NativeImage;

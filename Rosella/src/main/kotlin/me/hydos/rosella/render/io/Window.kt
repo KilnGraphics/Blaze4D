@@ -24,16 +24,20 @@ class Window(title: String, width: Int, height: Int, windowResizable: Boolean = 
 		glfwSetFramebufferSizeCallback(windowPtr, this::onResize)
 
 		while (!glfwWindowShouldClose(windowPtr)) {
-//			glfwPollEvents()
-			calculateFps()
+			forceMainLoop()
+		}
+	}
 
-			for (callback in loopCallbacks) {
-				callback()
-			}
+	fun forceMainLoop() {
+		//			glfwPollEvents()
+		calculateFps()
 
-			while (queue.size != 0) {
-				queue.removeAt(0).invoke().run()
-			}
+		for (callback in loopCallbacks) {
+			callback()
+		}
+
+		while (queue.size != 0) {
+			queue.removeAt(queue.size - 1).invoke().run()
 		}
 	}
 

@@ -1,4 +1,4 @@
-package me.hydos.blaze4d.mixin;
+package me.hydos.blaze4d.mixin.vertices;
 
 import com.mojang.datafixers.util.Pair;
 import me.hydos.blaze4d.Blaze4D;
@@ -26,7 +26,6 @@ import org.spongepowered.asm.mixin.injection.At;
 import org.spongepowered.asm.mixin.injection.Inject;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 
-import java.nio.BufferUnderflowException;
 import java.nio.ByteBuffer;
 import java.util.ArrayList;
 import java.util.List;
@@ -126,7 +125,10 @@ public class VertexBufferMixin implements Renderable {
                 if (remove != null) {
                     remove.free(Blaze4D.rosella.getMemory());
                 }
-                Blaze4D.rosella.addRenderObject(this, toString());
+
+                if (this.vertices.size() != 0) {
+                    Blaze4D.rosella.addRenderObject(this, toString());
+                }
                 Blaze4D.rosella.getRenderer().rebuildCommandBuffers(Blaze4D.rosella.getRenderer().renderPass, Blaze4D.rosella);
             });
         }
@@ -152,7 +154,7 @@ public class VertexBufferMixin implements Renderable {
     public void free(@NotNull Memory memory) {
 //        Vma.vmaFreeMemory(memory.getAllocator(), vertexBuffer);
 //        Vma.vmaFreeMemory(memory.getAllocator(), indexBuffer);
-//        ubo.free();
+        ubo.free();
     }
 
     @Override

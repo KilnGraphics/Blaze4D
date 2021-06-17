@@ -34,7 +34,7 @@ public class MinecraftUbo extends LowLevelUbo {
             int mat4Size = 16 * java.lang.Float.BYTES;
 
             Matrix4f mcViewMatrix = toJoml(RenderSystem.getModelViewMatrix());
-            Matrix4f mcProjMatrix = toJoml(RenderSystem.getProjectionMatrix());
+            Matrix4f mcProjMatrix = projectionToVulkan(toJoml(RenderSystem.getProjectionMatrix()));
 
             modelMatrix.get(0, buffer);
             mcViewMatrix.get(alignas(mat4Size, alignof(mcViewMatrix)), buffer);
@@ -68,5 +68,23 @@ public class MinecraftUbo extends LowLevelUbo {
         jomlMatrix.m33(mcMatrix.a33);
 
         return jomlMatrix;
+    }
+
+    private Matrix4f projectionToVulkan(Matrix4f glProjMatrix) {
+        Matrix4f vpm = new Matrix4f().set(glProjMatrix);
+
+        /*To Convert A OpenGL Projection Matrix to a Vulkan one, we need to do the following multiplication...
+        | 1   0   0    0   |
+        | 0  -1   0    0   |
+        | 0   0   0.5  0.5 |
+        | 0   0   0    1   |*/
+
+        vpm.m00(vpm.m00() * 1);
+        vpm.m11(vpm.m11() * -1);
+        vpm.m22(vpm.m22() * 0.5f);
+        vpm.m23(vpm.m23() * 0.5f);
+        vpm.m33(vpm.m33() * 1);
+
+        return vpm;
     }
 }

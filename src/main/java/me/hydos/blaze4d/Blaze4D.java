@@ -13,7 +13,6 @@ public class Blaze4D implements ModInitializer {
     public static void finishAndRender() {
         rosella.getRenderer().rebuildCommandBuffers(rosella.getRenderer().renderPass, rosella);
         window.onMainLoop(() -> rosella.getRenderer().render(rosella));
-        new Thread(() -> window.start()).start();
     }
 
     public static void prepare() {
@@ -22,5 +21,6 @@ public class Blaze4D implements ModInitializer {
 
     @Override
     public void onInitialize() {
+        System.loadLibrary("renderdoc");
     }
 }

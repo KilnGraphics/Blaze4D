@@ -92,6 +92,10 @@ class Memory(val device: Device, private val instance: VkInstance) {
 	): BufferInfo {
 		var allocation: Long
 		stackPush().use {
+			if (size == 0) {
+				throw RuntimeException("Failed To Create VMA Buffer Reason: Buffer Is Too Small (0)")
+			}
+
 			val vulkanBufferInfo = VkBufferCreateInfo.callocStack(it)
 				.sType(VK10.VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO)
 				.size(size.toLong())
@@ -114,7 +118,7 @@ class Memory(val device: Device, private val instance: VkInstance) {
 	/**
 	 * Copies a buffer from one place to another. usually used to copy a staging buffer into GPU mem
 	 */
-	fun copyBuffer(srcBuffer: Long, dstBuffer: Long, size: Int, engine: Rosella, device: Device) {
+	private fun copyBuffer(srcBuffer: Long, dstBuffer: Long, size: Int, engine: Rosella, device: Device) {
 		stackPush().use {
 			val pCommandBuffer = it.mallocPointer(1)
 			val commandBuffer = engine.renderer.beginCmdBuffer(it, pCommandBuffer)

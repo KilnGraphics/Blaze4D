@@ -1,6 +1,7 @@
-package me.hydos.blaze4d.mixin;
+package me.hydos.blaze4d.mixin.integration;
 
 import com.mojang.blaze3d.platform.GlStateManager;
+import me.hydos.blaze4d.Blaze4D;
 import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.Overwrite;
 import org.spongepowered.asm.mixin.injection.At;
@@ -30,7 +31,8 @@ public class GLStateManagerMixin {
             "_blendFunc",
             "_blendFuncSeparate",
             "_colorMask",
-            "_depthMask"
+            "_depthMask",
+            "_glBindFramebuffer"
     }, at = @At("HEAD"), cancellable = true)
     private static void clearColor(CallbackInfo ci) {
         //TODO: IMPL
@@ -42,6 +44,9 @@ public class GLStateManagerMixin {
      */
     @Overwrite
     public static void _drawElements(int mode, int first, int type, long indices) {
-
+//        Blaze4D.window.queue(() -> {
+//            Blaze4D.rosella.getRenderObjects().clear();
+//            Blaze4D.rosella.getRenderer().rebuildCommandBuffers(Blaze4D.rosella.getRenderer().renderPass, Blaze4D.rosella);
+//        });
     }
 }

@@ -23,7 +23,7 @@ import java.nio.LongBuffer
  * similar to how unity material's works
  * guaranteed to change once and a while
  */
-class Material(
+open class Material(
 	val resource: Resource,
 	private val shaderId: Identifier,
 	private val imgFormat: Int,
@@ -37,13 +37,13 @@ class Material(
 
 	lateinit var texture: Texture
 
-	fun loadShaders(engine: Rosella) {
+	open fun loadShaders(engine: Rosella) {
 		val retrievedShader = engine.shaderManager.getOrCreateShader(shaderId)
 			?: error("The shader $shaderId couldn't be found. (Are you registering it?)")
 		this.shader = retrievedShader
 	}
 
-	fun loadTextures(engine: Rosella) {
+	open fun loadTextures(engine: Rosella) {
 		if (resource != Resource.Empty) {
 			texture = engine.textureManager.getOrLoadTexture(resource, engine, imgFormat)!!
 		}
@@ -52,7 +52,7 @@ class Material(
 	/**
 	 * The main rendering pipeline of this material
 	 */
-	fun createPipeline(
+	open fun createPipeline(
 		device: Device,
 		swapChain: SwapChain,
 		renderPass: RenderPass,

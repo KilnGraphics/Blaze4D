@@ -1,4 +1,4 @@
-package me.hydos.blaze4d.mixin;
+package me.hydos.blaze4d.mixin.texture;
 
 import me.hydos.blaze4d.Blaze4D;
 import me.hydos.rosella.render.resource.Global;

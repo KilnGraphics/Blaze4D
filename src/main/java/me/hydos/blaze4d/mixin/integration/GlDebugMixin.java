@@ -1,4 +1,4 @@
-package me.hydos.blaze4d.mixin;
+package me.hydos.blaze4d.mixin.integration;
 
 import net.minecraft.client.gl.GlDebug;
 import org.spongepowered.asm.mixin.Mixin;

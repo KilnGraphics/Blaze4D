@@ -334,7 +334,7 @@ fun createTextureImage(device: Device, image: UploadableImage, renderer: Rendere
 			try {
 				memcpy(data.getByteBuffer(0, (image.getWidth() * image.getHeight() * 4)), image.getPixels(), (image.getWidth() * image.getHeight() * 4).toLong())
 			} catch (e: Exception) {
-				memcpy(data.getByteBuffer(0, (image.getWidth() * image.getHeight() * 3)), image.getPixels(), (image.getWidth() * image.getHeight() * 3).toLong())
+				memcpy(data.getByteBuffer(0, image.getPixels().limit()), image.getPixels(), image.getPixels().limit().toLong())
 			}
 		}
 
