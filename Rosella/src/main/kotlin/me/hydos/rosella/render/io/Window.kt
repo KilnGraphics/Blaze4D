@@ -29,16 +29,17 @@ class Window(title: String, width: Int, height: Int, windowResizable: Boolean = 
 	}
 
 	fun forceMainLoop() {
-		//			glfwPollEvents()
+		glfwPollEvents()
 		calculateFps()
 
 		for (callback in loopCallbacks) {
 			callback()
 		}
 
-		while (queue.size != 0) {
-			queue.removeAt(queue.size - 1).invoke().run()
+		for (function in queue) {
+			function.invoke()
 		}
+		queue.clear()
 	}
 
 	private fun calculateFps() {

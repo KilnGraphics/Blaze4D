@@ -31,6 +31,9 @@ class Renderer {
 
 	private var resizeFramebuffer: Boolean = false
 
+	private var r: Float = 0f
+	private var g: Float = 0f
+	private var b: Float = 0f
 
 	lateinit var swapChain: SwapChain
 	lateinit var renderPass: RenderPass
@@ -295,7 +298,7 @@ class Renderer {
 			val beginInfo = createBeginInfo(it)
 			val renderPassInfo = createRenderPassInfo(it, renderPass)
 			val renderArea = createRenderArea(it, 0, 0, swapChain)
-			val clearValues = createClearValues(it, 0 / 255f, 100 / 255f, 100 / 255f, 1.0f, 0)
+			val clearValues = createClearValues(it, r, g, b, 1.0f, 0)
 
 			renderPassInfo.renderArea(renderArea)
 				.pClearValues(clearValues)
@@ -352,6 +355,15 @@ class Renderer {
 		device = engine.device
 		createCmdPool(this, engine.surface)
 		createSwapChain(engine)
+	}
+
+	fun clearColor(red: Float, green: Float, blue: Float, rosella: Rosella) {
+		if (this.r != red || this.g != green || this.b != blue) {
+			this.r = red
+			this.g = green
+			this.b = blue
+			rebuildCommandBuffers(renderPass, rosella)
+		}
 	}
 
 	companion object {
