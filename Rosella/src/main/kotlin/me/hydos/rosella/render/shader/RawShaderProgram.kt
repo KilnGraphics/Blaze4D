@@ -12,8 +12,8 @@ import org.lwjgl.vulkan.*
 import org.lwjgl.vulkan.VK10.*
 
 class RawShaderProgram(
-	val vertexShader: Resource,
-	val fragmentShader: Resource,
+	var vertexShader: Resource?,
+	var fragmentShader: Resource?,
 	val device: Device,
 	val memory: Memory,
 	var maxObjCount: Int,
@@ -21,6 +21,7 @@ class RawShaderProgram(
 ) {
 	var descriptorPool: Long = 0
 	var descriptorSetLayout: Long = 0
+	var attributes = ArrayList<ShaderAttribute>() // TODO: FIXME implement these into the engine
 
 	fun updateUbos(currentImage: Int, swapChain: SwapChain, engine: Rosella) {
 		for (renderObject in engine.renderObjects.values) {

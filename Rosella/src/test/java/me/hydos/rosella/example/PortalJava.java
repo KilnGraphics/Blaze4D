@@ -10,8 +10,6 @@ import me.hydos.rosella.render.model.GuiRenderObject;
 import me.hydos.rosella.render.resource.Global;
 import me.hydos.rosella.render.resource.Identifier;
 import me.hydos.rosella.render.shader.RawShaderProgram;
-import org.joml.AxisAngle4f;
-import org.joml.Quaternionf;
 import org.joml.Vector3f;
 import org.lwjgl.glfw.GLFW;
 import org.lwjgl.glfw.GLFWKeyCallback;
@@ -133,6 +131,7 @@ public class PortalJava {
 
             GLFW.glfwPollEvents();
         });
-        window.start();
+        window.startLoop();
+        window.close();
     }
 }

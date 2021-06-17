@@ -108,6 +108,6 @@ object Portal {
 		screen.onMainLoop {
 			engine.renderer.render(engine)
 		}
-		screen.start()
+		screen.startLoop()
 	}
 }

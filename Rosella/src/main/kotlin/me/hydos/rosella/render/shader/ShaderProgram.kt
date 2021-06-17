@@ -12,8 +12,8 @@ import java.nio.ByteBuffer
 
 class ShaderProgram(val raw: RawShaderProgram, val device: Device) {
 
-	private val fragmentShader by lazy { compileShaderFile(raw.fragmentShader, ShaderType.FRAGMENT_SHADER) }
-	private val vertexShader by lazy { compileShaderFile(raw.vertexShader, ShaderType.VERTEX_SHADER) }
+	private val fragmentShader by lazy { compileShaderFile(raw.fragmentShader!!, ShaderType.FRAGMENT_SHADER) }
+	private val vertexShader by lazy { compileShaderFile(raw.vertexShader!!, ShaderType.VERTEX_SHADER) }
 
 	/**
 	 * Create a Vulkan shader module. used during pipeline creation.

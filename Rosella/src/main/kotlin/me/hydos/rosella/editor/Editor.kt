@@ -22,7 +22,7 @@ object Editor {
 		window.onMainLoop {
 			rosella.renderer.render(rosella)
 		}
-		window.start()
+		window.startLoop()
 	}
 
 	private fun createGui() {

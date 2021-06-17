@@ -20,7 +20,7 @@ class Window(title: String, width: Int, height: Int, windowResizable: Boolean = 
 	private val closeCallbacks: MutableList<() -> Unit> = ObjectArrayList()
 	private val resizeCallbacks: MutableList<(width: Int, height: Int) -> Unit> = ObjectArrayList()
 
-	fun start() {
+	fun startLoop() {
 		glfwSetFramebufferSizeCallback(windowPtr, this::onResize)
 
 		while (!glfwWindowShouldClose(windowPtr)) {
@@ -91,14 +91,14 @@ class Window(title: String, width: Int, height: Int, windowResizable: Boolean = 
 		val videoMode = glfwGetVideoMode(glfwGetPrimaryMonitor()) ?: error("Could not start window")
 		monitorWidth = videoMode.width()
 		monitorHeight = videoMode.height()
+	}
 
-		Runtime.getRuntime().addShutdownHook(Thread {
-			for (callback in closeCallbacks) {
-				callback()
-			}
-			glfwDestroyWindow(windowPtr)
-			glfwTerminate()
-		})
+	fun close() {
+		for (callback in closeCallbacks) {
+			callback()
+		}
+		glfwDestroyWindow(windowPtr)
+		glfwTerminate()
 	}
 }
 

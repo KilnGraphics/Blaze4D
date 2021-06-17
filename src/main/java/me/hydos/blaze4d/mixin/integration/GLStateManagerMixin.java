@@ -38,15 +38,4 @@ public class GLStateManagerMixin {
         //TODO: IMPL
         ci.cancel();
     }
-
-    /**
-     * @author Blaze4D
-     */
-    @Overwrite
-    public static void _drawElements(int mode, int first, int type, long indices) {
-//        Blaze4D.window.queue(() -> {
-//            Blaze4D.rosella.getRenderObjects().clear();
-//            Blaze4D.rosella.getRenderer().rebuildCommandBuffers(Blaze4D.rosella.getRenderer().renderPass, Blaze4D.rosella);
-//        });
-    }
 }
