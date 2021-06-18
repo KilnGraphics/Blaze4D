@@ -1,7 +1,10 @@
 package me.hydos.blaze4d.mixin.texture;
 
 import me.hydos.blaze4d.Blaze4D;
+import me.hydos.blaze4d.api.Materials;
+import me.hydos.blaze4d.api.material.Blaze4dMaterial;
 import me.hydos.blaze4d.api.texture.Blaze4dNativeImage;
+import me.hydos.rosella.render.resource.Identifier;
 import me.hydos.rosella.render.texture.UploadableImage;
 import net.minecraft.client.texture.NativeImage;
 import org.jetbrains.annotations.NotNull;
@@ -115,10 +118,17 @@ public class NativeImageMixin implements UploadableImage, Blaze4dNativeImage {
     @Override
     public void setPixels(ByteBuffer pixels) {
         this.pixels = pixels;
-        Blaze4D.window.queue(() -> Blaze4D.rosella.getTextureManager().getOrLoadTexture(
-                this,
-                Blaze4D.rosella,
-                VK10.VK_FORMAT_R8G8B8A8_SINT
-        ));
+        Blaze4D.window.queue(() -> {
+            Blaze4D.rosella.getTextureManager().getOrLoadTexture(
+                    this,
+                    Blaze4D.rosella,
+                    VK10.VK_FORMAT_R8G8B8A8_SINT
+            );
+
+            Blaze4D.rosella.registerMaterial(
+                    new Identifier(this.hashCode() + "", this.hashCode() + ""),
+                    new Blaze4dMaterial(Materials.SOLID_COLOR_TRIANGLES, this)
+            );
+        });
     }
 }

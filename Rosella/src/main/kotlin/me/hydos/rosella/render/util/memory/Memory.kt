@@ -170,7 +170,10 @@ class Memory(val device: Device, private val instance: VkInstance) {
 				val size: Int = consumer.getVertexSize() * consumer.getVertexCount()
 				val pBuffer = it.mallocLong(1)
 				val stagingBuffer = engine.memory.createStagingBuf(size, pBuffer, it) { data ->
-					data.getByteBuffer(0, size).position(0).put(consumer.bufferData.position(0).limit(size))
+					var dst = data.getByteBuffer(0, size)
+					for (bufConsumer in consumer.bufferConsumerList) {
+						bufConsumer.accept(dst)
+					}
 				}
 				createBuffer(
 					size,

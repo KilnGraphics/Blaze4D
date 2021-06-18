@@ -23,7 +23,7 @@ class ShapeRenderObject(
 	private val steps = 100
 
 	override fun loadModelInfo() {
-		this.consumer = BufferVertexConsumer(VertexFormats.POSITION_COLOR_UV, BufferVertexConsumer.MAX_BUFFER_SIZE)
+		this.consumer = BufferVertexConsumer(VertexFormats.POSITION_COLOR_UV)
 		val iterator = shape.getPathIterator(AffineTransform().apply {
 			val i = shape.bounds2D.run {
 				max(width - x, height - y).toFloat()

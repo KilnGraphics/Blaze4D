@@ -48,7 +48,7 @@ public class VertexBufferMixin implements Renderable {
     @Shadow
     private int vertexBufferId;
 
-    public VertexConsumer consumer = new BufferVertexConsumer(VertexFormats.Companion.getPOSITION_COLOR(), 256);
+    public VertexConsumer consumer = new BufferVertexConsumer(VertexFormats.Companion.getPOSITION_COLOR());
     public List<Integer> indices = new ArrayList<>();
     public Long vertexBuffer = 0L;
     public Long indexBuffer = 0L;

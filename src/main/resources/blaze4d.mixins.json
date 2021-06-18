@@ -16,6 +16,7 @@
     "texture.AbstractTextureMixin",
     "texture.NativeImageMixin",
     "texture.SpriteAtlasTextureMixin",
+    "texture.TextureManagerMixin",
     "texture.TextureUtilMixin",
     "vertices.BufferBuilderMixin",
     "vertices.TessellatorMixin",

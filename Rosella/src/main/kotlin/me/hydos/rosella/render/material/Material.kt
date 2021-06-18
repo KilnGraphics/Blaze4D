@@ -26,11 +26,11 @@ import java.nio.LongBuffer
  */
 open class Material(
 	val resource: Resource,
-	private val shaderId: Identifier,
-	private val imgFormat: Int,
-	private val useBlend: Boolean,
-	private val topology: Topology,
-	private val vertexFormat: VertexFormat
+	val shaderId: Identifier,
+	val imgFormat: Int,
+	val useBlend: Boolean,
+	val topology: Topology,
+	val vertexFormat: VertexFormat
 ) {
 	var pipelineLayout: Long = 0
 	var graphicsPipeline: Long = 0

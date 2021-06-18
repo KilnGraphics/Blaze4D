@@ -36,7 +36,7 @@ class VertexFormat(private val elementMap: Map<Int, Element>) {
 				.inputRate(VK10.VK_VERTEX_INPUT_RATE_VERTEX)
 		}
 
-	private fun getSize(): Int {
+	fun getSize(): Int {
 		var size = 0
 		elements.forEach(Consumer {
 			size += it.byteLength

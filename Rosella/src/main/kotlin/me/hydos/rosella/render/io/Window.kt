@@ -2,6 +2,7 @@ package me.hydos.rosella.render.io
 
 import it.unimi.dsi.fastutil.objects.ObjectArrayList
 import org.lwjgl.glfw.GLFW.*
+import java.util.concurrent.ConcurrentLinkedQueue
 
 /**
  * Represents a window in which Rosella can be attached to
@@ -15,7 +16,7 @@ class Window(title: String, width: Int, height: Int, windowResizable: Boolean = 
 	var frameCount = 0
 
 	val windowPtr: Long
-	private val queue: MutableList<() -> JUnit> = ObjectArrayList()
+	private val queue = ConcurrentLinkedQueue<JUnit>()
 	private val loopCallbacks: MutableList<() -> Unit> = ObjectArrayList()
 	private val closeCallbacks: MutableList<() -> Unit> = ObjectArrayList()
 	private val resizeCallbacks: MutableList<(width: Int, height: Int) -> Unit> = ObjectArrayList()
@@ -36,10 +37,11 @@ class Window(title: String, width: Int, height: Int, windowResizable: Boolean = 
 			callback()
 		}
 
-		for (function in queue) {
-			function.invoke()
+		var queueElement = queue.poll()
+		while (queueElement != null) {
+			queueElement.run()
+			queueElement = queue.poll()
 		}
-		queue.clear()
 	}
 
 	private fun calculateFps() {
@@ -77,7 +79,7 @@ class Window(title: String, width: Int, height: Int, windowResizable: Boolean = 
 	}
 
 	fun queue(unit: JUnit) {
-		queue.add { unit }
+		queue.add(unit)
 	}
 
 	init {
