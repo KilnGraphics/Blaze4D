@@ -3,14 +3,15 @@ package me.hydos.rosella.render.material
 import me.hydos.rosella.Rosella
 import me.hydos.rosella.render.Topology
 import me.hydos.rosella.render.device.Device
-import me.hydos.rosella.render.model.Vertex
 import me.hydos.rosella.render.resource.Identifier
 import me.hydos.rosella.render.resource.Resource
 import me.hydos.rosella.render.shader.ShaderProgram
 import me.hydos.rosella.render.swapchain.RenderPass
 import me.hydos.rosella.render.swapchain.SwapChain
 import me.hydos.rosella.render.texture.Texture
-import me.hydos.rosella.render.util.*
+import me.hydos.rosella.render.util.ok
+import me.hydos.rosella.render.util.sizeof
+import me.hydos.rosella.render.vertex.VertexFormat
 import org.joml.Vector3f
 import org.lwjgl.system.MemoryStack
 import org.lwjgl.vulkan.*
@@ -21,14 +22,15 @@ import java.nio.LongBuffer
 /**
  * A Material is like texture information, normal information, and all of those things which give an object character wrapped into one class.
  * similar to how unity material's works
- * guaranteed to change once and a while
+ * guaranteed to change in the future
  */
 open class Material(
 	val resource: Resource,
 	private val shaderId: Identifier,
 	private val imgFormat: Int,
 	private val useBlend: Boolean,
-	private val topology: Topology
+	private val topology: Topology,
+	private val vertexFormat: VertexFormat
 ) {
 	var pipelineLayout: Long = 0
 	var graphicsPipeline: Long = 0
@@ -84,8 +86,8 @@ open class Material(
 			val vertexInputInfo: VkPipelineVertexInputStateCreateInfo =
 				VkPipelineVertexInputStateCreateInfo.callocStack(it)
 					.sType(VK_STRUCTURE_TYPE_PIPELINE_VERTEX_INPUT_STATE_CREATE_INFO)
-					.pVertexBindingDescriptions(Vertex.bindingDescription)
-					.pVertexAttributeDescriptions(Vertex.attributeDescriptions)
+					.pVertexBindingDescriptions(vertexFormat.vkBindings)
+					.pVertexAttributeDescriptions(vertexFormat.vkAttributes)
 
 			/**
 			 * Assembly

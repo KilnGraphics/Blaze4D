@@ -21,7 +21,6 @@ class RawShaderProgram(
 ) {
 	var descriptorPool: Long = 0
 	var descriptorSetLayout: Long = 0
-	var attributes = ArrayList<ShaderAttribute>() // TODO: FIXME implement these into the engine
 
 	fun updateUbos(currentImage: Int, swapChain: SwapChain, engine: Rosella) {
 		for (renderObject in engine.renderObjects.values) {

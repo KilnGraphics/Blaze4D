@@ -8,6 +8,9 @@ import me.hydos.rosella.render.resource.Resource
 import me.hydos.rosella.render.shader.ubo.LowLevelUbo
 import me.hydos.rosella.render.shader.ubo.Ubo
 import me.hydos.rosella.render.util.memory.Memory
+import me.hydos.rosella.render.vertex.BufferVertexConsumer
+import me.hydos.rosella.render.vertex.VertexConsumer
+import me.hydos.rosella.render.vertex.VertexFormats
 import org.joml.Matrix4f
 import org.joml.Vector3f
 import org.joml.Vector3fc
@@ -16,7 +19,7 @@ import org.lwjgl.util.vma.Vma.vmaFreeMemory
 
 open class RenderObject(private val model: Resource, val materialIdentifier: Identifier) : Renderable {
 
-	var vertices: ArrayList<Vertex> = ArrayList()
+	var consumer = BufferVertexConsumer(VertexFormats.POSITION_COLOR_UV)
 	var indices: ArrayList<Int> = ArrayList()
 	private var vertexBuffer: Long = 0
 	private var indexBuffer: Long = 0
@@ -42,7 +45,7 @@ open class RenderObject(private val model: Resource, val materialIdentifier: Ide
 
 	override fun create(engine: Rosella) {
 		loadModelInfo()
-		vertexBuffer = engine.memory.createVertexBuffer(engine, vertices)
+		vertexBuffer = engine.memory.createVertexBuffer(engine, consumer)
 		indexBuffer = engine.memory.createIndexBuffer(engine, indices)
 		resize(engine.renderer)
 	}
@@ -55,8 +58,8 @@ open class RenderObject(private val model: Resource, val materialIdentifier: Ide
 		return indices
 	}
 
-	override fun getVertices(): List<Vertex> {
-		return vertices
+	override fun render(): VertexConsumer {
+		return consumer
 	}
 
 	override fun getDescriptorSets(): MutableList<Long> {
@@ -92,17 +95,16 @@ open class RenderObject(private val model: Resource, val materialIdentifier: Ide
 			ModelLoader.loadModel(model, Assimp.aiProcess_FlipUVs or Assimp.aiProcess_DropNormals)
 		val vertexCount: Int = model.positions.size
 
-		vertices = ArrayList()
-
+		consumer.clear()
 		val color: Vector3fc = Vector3f(1.0f, 1.0f, 1.0f)
 		for (i in 0 until vertexCount) {
-			vertices.add(
-				Vertex(
-					model.positions[i],
-					color,
-					model.texCoords[i]
-				)
-			)
+			val pos = model.positions[i]
+			val uvs = model.texCoords[i]
+			consumer
+				.pos(pos.x(), pos.y(), pos.z())
+				.color(color.x().toInt(), color.y().toInt(), color.z().toInt())
+				.uv(uvs.x(), uvs.y())
+				.nextVertex()
 		}
 
 		indices = ArrayList(model.indices.size)

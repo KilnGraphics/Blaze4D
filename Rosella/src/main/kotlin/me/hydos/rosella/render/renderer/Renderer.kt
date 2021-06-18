@@ -31,9 +31,9 @@ class Renderer {
 
 	private var resizeFramebuffer: Boolean = false
 
-	private var r: Float = 0f
-	private var g: Float = 0f
-	private var b: Float = 0f
+	private var r: Float = 0.3f
+	private var g: Float = 0.3f
+	private var b: Float = 0.3f
 
 	lateinit var swapChain: SwapChain
 	lateinit var renderPass: RenderPass

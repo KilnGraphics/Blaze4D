@@ -9,6 +9,7 @@ import me.hydos.rosella.render.model.GuiRenderObject
 import me.hydos.rosella.render.resource.Global
 import me.hydos.rosella.render.resource.Identifier
 import me.hydos.rosella.render.shader.RawShaderProgram
+import me.hydos.rosella.render.vertex.VertexFormats.Companion.POSITION_COLOR_UV
 import org.lwjgl.vulkan.VK10
 
 object Portal {
@@ -62,7 +63,8 @@ object Portal {
 				guiShader,
 				VK10.VK_FORMAT_R8G8B8A8_UNORM,
 				false,
-				Topology.TRIANGLES
+				Topology.TRIANGLES,
+				POSITION_COLOR_UV
 			)
 		)
 		engine.registerMaterial(
@@ -71,7 +73,8 @@ object Portal {
 				guiShader,
 				VK10.VK_FORMAT_R8G8B8A8_SRGB,
 				true,
-				Topology.TRIANGLES
+				Topology.TRIANGLES,
+				POSITION_COLOR_UV
 			)
 		)
 		engine.reloadMaterials()

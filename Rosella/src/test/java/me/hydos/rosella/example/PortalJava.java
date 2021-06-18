@@ -10,6 +10,7 @@ import me.hydos.rosella.render.model.GuiRenderObject;
 import me.hydos.rosella.render.resource.Global;
 import me.hydos.rosella.render.resource.Identifier;
 import me.hydos.rosella.render.shader.RawShaderProgram;
+import me.hydos.rosella.render.vertex.VertexFormats;
 import org.joml.Vector3f;
 import org.lwjgl.glfw.GLFW;
 import org.lwjgl.glfw.GLFWKeyCallback;
@@ -56,10 +57,10 @@ public class PortalJava {
                 "portalLogo"
         );
 
-        rosella.addRenderObject(
-                portalFont.createString("The Quick Brown\n Fox Jumped Over\n The Lazy Dog", new Vector3f(255, 255, 255), -0.8f, 0.05f, -4f, 0f),
-                "fontTest"
-        );
+//        rosella.addRenderObject(
+//                portalFont.createString("The Quick Brown\n Fox Jumped Over\n The Lazy Dog", new Vector3f(255, 255, 255), -0.8f, 0.05f, -4f, 0f),
+//                "fontTest"
+//        );
     }
 
     private static void loadMaterials() {
@@ -69,7 +70,8 @@ public class PortalJava {
                         guiShader,
                         VK10.VK_FORMAT_R8G8B8A8_UNORM,
                         false,
-                        Topology.TRIANGLES
+                        Topology.TRIANGLES,
+                        VertexFormats.Companion.getPOSITION_COLOR_UV()
                 )
         );
         rosella.registerMaterial(
@@ -78,7 +80,8 @@ public class PortalJava {
                         guiShader,
                         VK10.VK_FORMAT_R8G8B8A8_SRGB,
                         true,
-                        Topology.TRIANGLES
+                        Topology.TRIANGLES,
+                        VertexFormats.Companion.getPOSITION_COLOR_UV()
                 )
         );
         rosella.reloadMaterials();

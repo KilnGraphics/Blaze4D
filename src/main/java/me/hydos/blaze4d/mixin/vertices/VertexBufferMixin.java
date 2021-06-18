@@ -8,10 +8,12 @@ import me.hydos.blaze4d.api.vertex.Blaze4dVertexStorage;
 import me.hydos.rosella.Rosella;
 import me.hydos.rosella.render.material.Material;
 import me.hydos.rosella.render.model.Renderable;
-import me.hydos.rosella.render.model.Vertex;
 import me.hydos.rosella.render.renderer.Renderer;
 import me.hydos.rosella.render.shader.ubo.Ubo;
 import me.hydos.rosella.render.util.memory.Memory;
+import me.hydos.rosella.render.vertex.BufferVertexConsumer;
+import me.hydos.rosella.render.vertex.VertexConsumer;
+import me.hydos.rosella.render.vertex.VertexFormats;
 import net.minecraft.client.gl.VertexBuffer;
 import net.minecraft.client.render.BufferBuilder;
 import net.minecraft.client.render.BufferRenderer;
@@ -46,7 +48,7 @@ public class VertexBufferMixin implements Renderable {
     @Shadow
     private int vertexBufferId;
 
-    public List<Vertex> vertices = new ArrayList<>();
+    public VertexConsumer consumer = new BufferVertexConsumer(VertexFormats.Companion.getPOSITION_COLOR(), 256);
     public List<Integer> indices = new ArrayList<>();
     public Long vertexBuffer = 0L;
     public Long indexBuffer = 0L;
@@ -70,18 +72,16 @@ public class VertexBufferMixin implements Renderable {
             this.elementFormat = format;
             this.drawMode = draw.getMode();
             this.usesTexture = draw.isTextured();
-            this.vertices.clear();
+            this.consumer.clear();
             this.indices.clear();
 
             if (!draw.isCameraOffset()) {
                 if (builder instanceof Blaze4dVertexStorage vertexStorage) {
                     for (Blaze4dVertexStorage.VertexData data : vertexStorage.getVertices()) {
-                        Vertex vertex = new Vertex(
-                                new Vector3f(data.x(), data.y(), data.z()),
-                                new Vector3f(data.r() / 255f, data.g() / 255f, data.b() / 255f),
-                                new Vector2f(0, 0)
-                        );
-                        vertices.add(vertex);
+                        consumer
+                                .pos(data.x(), data.y(), data.z())
+                                .color(data.r(), data.g(), data.b())
+                                .nextVertex();
                         indices.add(indices.size());
                     }
 
@@ -97,7 +97,7 @@ public class VertexBufferMixin implements Renderable {
                         //    v2-----------------v3
 
                         indices.clear();
-                        for (int i = 0; i < vertices.size(); i += 4) {
+                        for (int i = 0; i < consumer.getVertexCount(); i += 4) {
                             indices.add(i);
                             indices.add(1 + i);
                             indices.add(2 + i);
@@ -126,7 +126,7 @@ public class VertexBufferMixin implements Renderable {
                     remove.free(Blaze4D.rosella.getMemory());
                 }
 
-                if (this.vertices.size() != 0) {
+                if (consumer.getVertexCount() != 0) {
                     Blaze4D.rosella.addRenderObject(this, toString());
                 }
                 Blaze4D.rosella.getRenderer().rebuildCommandBuffers(Blaze4D.rosella.getRenderer().renderPass, Blaze4D.rosella);
@@ -159,7 +159,7 @@ public class VertexBufferMixin implements Renderable {
 
     @Override
     public void create(@NotNull Rosella rosella) {
-        vertexBuffer = rosella.getMemory().createVertexBuffer(rosella, vertices);
+        vertexBuffer = rosella.getMemory().createVertexBuffer(rosella, consumer);
         indexBuffer = rosella.getMemory().createIndexBuffer(rosella, indices);
         resize(rosella.getRenderer());
     }
@@ -173,12 +173,6 @@ public class VertexBufferMixin implements Renderable {
     @Override
     public List<Integer> getIndices() {
         return indices;
-    }
-
-    @NotNull
-    @Override
-    public List<Vertex> getVertices() {
-        return vertices;
     }
 
     @NotNull
@@ -218,5 +212,11 @@ public class VertexBufferMixin implements Renderable {
     @Override
     public Matrix4f getTransformMatrix() {
         return transformationMatrix;
+    }
+
+    @NotNull
+    @Override
+    public VertexConsumer render() {
+        return consumer;
     }
 }

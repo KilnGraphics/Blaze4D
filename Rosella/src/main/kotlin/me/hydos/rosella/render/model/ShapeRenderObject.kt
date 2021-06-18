@@ -1,7 +1,8 @@
 package me.hydos.rosella.render.model
 
 import me.hydos.rosella.render.resource.Identifier
-import org.joml.Vector2f
+import me.hydos.rosella.render.vertex.BufferVertexConsumer
+import me.hydos.rosella.render.vertex.VertexFormats
 import org.joml.Vector3f
 import java.awt.Shape
 import java.awt.geom.AffineTransform
@@ -22,6 +23,7 @@ class ShapeRenderObject(
 	private val steps = 100
 
 	override fun loadModelInfo() {
+		this.consumer = BufferVertexConsumer(VertexFormats.POSITION_COLOR_UV, BufferVertexConsumer.MAX_BUFFER_SIZE)
 		val iterator = shape.getPathIterator(AffineTransform().apply {
 			val i = shape.bounds2D.run {
 				max(width - x, height - y).toFloat()
@@ -114,11 +116,26 @@ class ShapeRenderObject(
 	}
 
 	private fun drawLine(from: Pair<Float, Float>, to: Pair<Float, Float>) {
-		vertices.add(Vertex(Vector3f(from.first + 0.02f, from.second + 0.02f, 0f), colour, Vector2f(0f, 0f)))
-		vertices.add(Vertex(Vector3f(from.first, from.second, 0f), colour, Vector2f(0f, 0f)))
-		vertices.add(Vertex(Vector3f(to.first, to.second, 0f), colour, Vector2f(0f, 0f)))
-		indices.add(vertices.size - 3)
-		indices.add(vertices.size - 2)
-		indices.add(vertices.size - 1)
+		consumer
+			.pos(from.first + 0.02f, from.second + 0.02f, 0f)
+			.color(colour.x().toInt(), colour.y().toInt(), colour.z().toInt())
+			.uv(0f, 0f)
+			.nextVertex()
+
+		consumer
+			.pos(from.first, from.second, 0f)
+			.color(colour.x().toInt(), colour.y().toInt(), colour.z().toInt())
+			.uv(0f, 0f)
+			.nextVertex()
+
+		consumer
+			.pos(to.first, to.second, 0f)
+			.color(colour.x().toInt(), colour.y().toInt(), colour.z().toInt())
+			.uv(0f, 0f)
+			.nextVertex()
+
+		indices.add(consumer.getVertexCount() - 3)
+		indices.add(consumer.getVertexCount() - 2)
+		indices.add(consumer.getVertexCount() - 1)
 	}
 }

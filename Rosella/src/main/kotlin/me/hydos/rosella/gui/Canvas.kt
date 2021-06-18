@@ -9,6 +9,7 @@ import me.hydos.rosella.render.resource.Global
 import me.hydos.rosella.render.resource.Identifier
 import me.hydos.rosella.render.resource.Resource
 import me.hydos.rosella.render.shader.RawShaderProgram
+import me.hydos.rosella.render.vertex.VertexFormats
 import org.joml.Vector3f
 import org.lwjgl.vulkan.VK10
 
@@ -58,7 +59,8 @@ class Canvas(val rosella: Rosella, val window: Window) {
 				colourGuiShader,
 				VK10.VK_FORMAT_R8G8B8A8_SRGB,
 				false,
-				Topology.TRIANGLES
+				Topology.TRIANGLES,
+				VertexFormats.POSITION_COLOR_UV
 			)
 		)
 	}
@@ -74,7 +76,8 @@ class Canvas(val rosella: Rosella, val window: Window) {
 			guiShader,
 			textureFormat,
 			blend,
-			Topology.TRIANGLES
+			Topology.TRIANGLES,
+			VertexFormats.POSITION_COLOR_UV
 		)
 	}
 

@@ -1,6 +1,7 @@
 package me.hydos.blaze4d.mixin.integration;
 
 import com.mojang.blaze3d.platform.GlStateManager;
+import com.mojang.blaze3d.systems.RenderSystem;
 import me.hydos.blaze4d.Blaze4D;
 import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.Overwrite;
@@ -12,7 +13,6 @@ import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 public class GLStateManagerMixin {
 
     @Inject(method = {
-            "_clearColor",
             "_clearDepth",
             "_texParameter(IIF)V",
             "_texParameter(III)V",
@@ -34,8 +34,20 @@ public class GLStateManagerMixin {
             "_depthMask",
             "_glBindFramebuffer"
     }, at = @At("HEAD"), cancellable = true)
-    private static void clearColor(CallbackInfo ci) {
+    private static void unimplementedGlCalls(CallbackInfo ci) {
         //TODO: IMPL
         ci.cancel();
+    }
+
+    /**
+     * @author Blaze4D
+     * @reason Clear Color Integration
+     * <p>
+     * Minecraft may be regarded as having bad code, but sometimes its ok.
+     */
+    @Overwrite
+    public static void _clearColor(float red, float green, float blue, float alpha) {
+        RenderSystem.assertThread(RenderSystem::isOnRenderThreadOrInit);
+        Blaze4D.rosella.getRenderer().clearColor(red, green, blue, Blaze4D.rosella);
     }
 }

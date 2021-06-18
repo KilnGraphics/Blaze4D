@@ -2,8 +2,9 @@ package me.hydos.rosella.render.util.memory
 
 import me.hydos.rosella.Rosella
 import me.hydos.rosella.render.device.Device
-import me.hydos.rosella.render.model.Vertex
 import me.hydos.rosella.render.util.ok
+import me.hydos.rosella.render.vertex.BufferVertexConsumer
+import me.hydos.rosella.render.vertex.VertexConsumer
 import org.lwjgl.PointerBuffer
 import org.lwjgl.system.MemoryStack
 import org.lwjgl.system.MemoryStack.stackPush
@@ -163,23 +164,27 @@ class Memory(val device: Device, private val instance: VkInstance) {
 	/**
 	 * Creates a vertex buffer from an List of Vertices
 	 */
-	fun createVertexBuffer(engine: Rosella, vertices: List<Vertex>): Long {
+	fun createVertexBuffer(engine: Rosella, consumer: VertexConsumer): Long {
 		stackPush().use {
-			val size: Int = Vertex.SIZEOF * vertices.size
-			val pBuffer = it.mallocLong(1)
-			val stagingBuffer = engine.memory.createStagingBuf(size, pBuffer, it) { data ->
-				memcpy(data.getByteBuffer(0, size), vertices)
+			if (consumer is BufferVertexConsumer) {
+				val size: Int = consumer.getVertexSize() * consumer.getVertexCount()
+				val pBuffer = it.mallocLong(1)
+				val stagingBuffer = engine.memory.createStagingBuf(size, pBuffer, it) { data ->
+					data.getByteBuffer(0, size).position(0).put(consumer.bufferData.position(0).limit(size))
+				}
+				createBuffer(
+					size,
+					VK10.VK_BUFFER_USAGE_TRANSFER_DST_BIT or VK10.VK_BUFFER_USAGE_VERTEX_BUFFER_BIT,
+					Vma.VMA_MEMORY_USAGE_CPU_TO_GPU,
+					pBuffer
+				)
+				val vertexBuffer = pBuffer[0]
+				copyBuffer(stagingBuffer.buffer, vertexBuffer, size, engine, device)
+				freeBuffer(stagingBuffer)
+				return vertexBuffer
+			} else {
+				throw RuntimeException("Cannot handle non buffer based Vertex Consumers")
 			}
-			createBuffer(
-				size,
-				VK10.VK_BUFFER_USAGE_TRANSFER_DST_BIT or VK10.VK_BUFFER_USAGE_VERTEX_BUFFER_BIT,
-				Vma.VMA_MEMORY_USAGE_CPU_TO_GPU,
-				pBuffer
-			)
-			val vertexBuffer = pBuffer[0]
-			copyBuffer(stagingBuffer.buffer, vertexBuffer, size, engine, device)
-			freeBuffer(stagingBuffer)
-			return vertexBuffer
 		}
 	}
 
@@ -214,24 +219,6 @@ fun memcpyI(buffer: ByteBuffer, indices: List<Int>) {
 		buffer.putInt(index)
 	}
 	buffer.rewind()
-}
-
-/**
- * Copies an Vertex into the specified buffer
- */
-fun memcpy(buffer: ByteBuffer, vertices: List<Vertex>) {
-	for (vertex in vertices) {
-		buffer.putFloat(vertex.pos.x())
-		buffer.putFloat(vertex.pos.y())
-		buffer.putFloat(vertex.pos.z())
-
-		buffer.putFloat(vertex.color.x())
-		buffer.putFloat(vertex.color.y())
-		buffer.putFloat(vertex.color.z())
-
-		buffer.putFloat(vertex.texCoords.x());
-		buffer.putFloat(vertex.texCoords.y());
-	}
 }
 
 /**

@@ -4,7 +4,6 @@ import me.hydos.rosella.Rosella
 import me.hydos.rosella.render.resource.Identifier
 import me.hydos.rosella.render.resource.Resource
 import me.hydos.rosella.render.shader.ubo.LowLevelUbo
-import org.joml.Vector2f
 import org.joml.Vector3f
 
 open class GuiRenderObject(
@@ -30,13 +29,32 @@ open class GuiRenderObject(
 	}
 
 	override fun loadModelInfo() {
-		vertices = ArrayList()
+		consumer.clear()
 		indices = ArrayList()
 
-		vertices.add(Vertex(Vector3f(-0.5f, -0.5f, 0f), colour, Vector2f(0f, 0f)))
-		vertices.add(Vertex(Vector3f(0.5f, -0.5f, 0f), colour, Vector2f(1f, 0f)))
-		vertices.add(Vertex(Vector3f(0.5f, 0.5f, 0f), colour, Vector2f(1f, 1f)))
-		vertices.add(Vertex(Vector3f(-0.5f, 0.5f, 0f), colour, Vector2f(0f, 1f)))
+		consumer
+			.pos(-0.5f, -0.5f, 0f)
+			.color(colour.x().toInt(), colour.y().toInt(), colour.z().toInt())
+			.uv(0f, 0f)
+			.nextVertex()
+
+		consumer
+			.pos(0.5f, -0.5f, 0f)
+			.color(colour.x().toInt(), colour.y().toInt(), colour.z().toInt())
+			.uv(1f, 0f)
+			.nextVertex()
+
+		consumer
+			.pos(0.5f, 0.5f, 0f)
+			.color(colour.x().toInt(), colour.y().toInt(), colour.z().toInt())
+			.uv(1f, 1f)
+			.nextVertex()
+
+		consumer
+			.pos(-0.5f, 0.5f, 0f)
+			.color(colour.x().toInt(), colour.y().toInt(), colour.z().toInt())
+			.uv(0f, 1f)
+			.nextVertex()
 
 		indices.add(0)
 		indices.add(1)
