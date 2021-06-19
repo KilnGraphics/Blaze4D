@@ -17,38 +17,29 @@ public abstract class BufferBuilderMixin extends FixedColorVertexConsumer implem
     @Shadow
     private VertexFormat format;
 
-    public List<VertexData> elements = new ArrayList<>();
-
-    public double x = 0;
-    public double y = 0;
-    public double z = 0;
-
-    public int r = 0;
-    public int g = 0;
-    public int b = 0;
+    private final me.hydos.rosella.render.vertex.BufferVertexConsumer consumer = new me.hydos.rosella.render.vertex.BufferVertexConsumer(me.hydos.rosella.render.vertex.VertexFormats.Companion.getPOSITION_COLOR_UV());
 
     @Override
     public VertexConsumer vertex(double x, double y, double z) {
-        this.x = x;
-        this.y = y;
-        this.z = z;
-        return BufferVertexConsumer.super.vertex(x, y, z);
+        consumer.pos((float) x, (float) y, (float) z);
+        return this;
     }
 
     @Override
     public VertexConsumer color(int red, int green, int blue, int alpha) {
-        this.r = red;
-        this.g = green;
-        this.b = blue;
-        return BufferVertexConsumer.super.color(red, green, blue, alpha);
+        consumer.color(red, green, blue);
+        return this;
+    }
+
+    @Override
+    public VertexConsumer texture(short u, short v, int index) {
+        consumer.uv(u, v);
+        return this;
     }
 
     @Override
     public void next() {
-        elements.add(new VertexData(
-                (float) x, (float) y, (float) z,
-                r, g, b
-        ));
+        consumer.nextVertex();
     }
 
     @Override
@@ -57,7 +48,7 @@ public abstract class BufferBuilderMixin extends FixedColorVertexConsumer implem
     }
 
     @Override
-    public List<VertexData> getVertices() {
-        return elements;
+    public me.hydos.rosella.render.vertex.BufferVertexConsumer getConsumer() {
+        return consumer;
     }
 }

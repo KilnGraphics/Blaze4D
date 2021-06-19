@@ -10,6 +10,7 @@ import me.hydos.rosella.render.shader.RawShaderProgram;
  */
 public class Shaders {
 
+    public static final Identifier POSITION = register("position", "assets/blaze4d", "shaders/position");
     public static final Identifier POSITION_COLOR = register("position_color", "assets/blaze4d", "shaders/position_color");
 
     public static Identifier register(String name, String assetFolder, String fileLocation) {

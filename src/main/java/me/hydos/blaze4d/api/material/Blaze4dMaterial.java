@@ -12,6 +12,10 @@ public class Blaze4dMaterial extends Material {
     public Blaze4dMaterial(Material old, UploadableImage image) {
         super(EmptyResource.EMPTY, old.getShaderId(), old.getImgFormat(), old.getUseBlend(), old.getTopology(), old.getVertexFormat());
         this.image = image;
+        this.shader = old.shader;
+        if(this.shader == null) {
+            throw new RuntimeException("Shader is Null");
+        }
     }
 
     public void loadTextures(Rosella rosella) {

@@ -146,7 +146,7 @@ class Memory(val device: Device, private val instance: VkInstance) {
 			val size: Int = (Integer.BYTES * indices.size)
 			val pBuffer = it.mallocLong(1)
 			val stagingBuffer = engine.memory.createStagingBuf(size, pBuffer, it) { data ->
-				memcpyI(data.getByteBuffer(0, size), indices)
+				memcpy(data.getByteBuffer(0, size), indices)
 			}
 			createBuffer(
 				size,
@@ -170,7 +170,7 @@ class Memory(val device: Device, private val instance: VkInstance) {
 				val size: Int = consumer.getVertexSize() * consumer.getVertexCount()
 				val pBuffer = it.mallocLong(1)
 				val stagingBuffer = engine.memory.createStagingBuf(size, pBuffer, it) { data ->
-					var dst = data.getByteBuffer(0, size)
+					val dst = data.getByteBuffer(0, size)
 					for (bufConsumer in consumer.bufferConsumerList) {
 						bufConsumer.accept(dst)
 					}
@@ -217,11 +217,10 @@ data class BufferInfo(val buffer: Long, val allocation: Long)
 /**
  * Copies indices into the specified buffer
  */
-fun memcpyI(buffer: ByteBuffer, indices: List<Int>) {
+fun memcpy(buffer: ByteBuffer, indices: List<Int>) {
 	for (index in indices) {
 		buffer.putInt(index)
 	}
-	buffer.rewind()
 }
 
 /**

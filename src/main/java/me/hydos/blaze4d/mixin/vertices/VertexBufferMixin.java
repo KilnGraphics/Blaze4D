@@ -2,6 +2,7 @@ package me.hydos.blaze4d.mixin.vertices;
 
 import com.mojang.datafixers.util.Pair;
 import me.hydos.blaze4d.Blaze4D;
+import me.hydos.blaze4d.api.Constants;
 import me.hydos.blaze4d.api.Materials;
 import me.hydos.blaze4d.api.shader.MinecraftUbo;
 import me.hydos.blaze4d.api.vertex.Blaze4dVertexStorage;
@@ -20,8 +21,6 @@ import net.minecraft.client.render.BufferRenderer;
 import net.minecraft.client.render.VertexFormat;
 import org.jetbrains.annotations.NotNull;
 import org.joml.Matrix4f;
-import org.joml.Vector2f;
-import org.joml.Vector3f;
 import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.Shadow;
 import org.spongepowered.asm.mixin.injection.At;
@@ -61,88 +60,104 @@ public class VertexBufferMixin implements Renderable {
     @Inject(method = "uploadInternal", at = @At("HEAD"), cancellable = true)
     private void sendToRosella(BufferBuilder builder, CallbackInfo ci) {
         Pair<BufferBuilder.DrawArrayParameters, ByteBuffer> pair = builder.popData();
-        if (this.vertexBufferId != 0) {
-            BufferRenderer.unbindAll();
-            BufferBuilder.DrawArrayParameters draw = pair.getFirst();
-            ByteBuffer buffer = pair.getSecond();
-            VertexFormat format = draw.getVertexFormat();
+        BufferRenderer.unbindAll();
+        BufferBuilder.DrawArrayParameters draw = pair.getFirst();
+        ByteBuffer buffer = pair.getSecond();
+        VertexFormat format = draw.getVertexFormat();
 
-            this.vertexCount = draw.getVertexCount();
-            this.vertexFormat = draw.getElementFormat();
-            this.elementFormat = format;
-            this.drawMode = draw.getMode();
-            this.usesTexture = draw.isTextured();
-            this.consumer.clear();
-            this.indices.clear();
+        this.vertexCount = draw.getVertexCount();
+        this.vertexFormat = draw.getElementFormat();
+        this.elementFormat = format;
+        this.drawMode = draw.getMode();
+        this.usesTexture = draw.isTextured();
+        this.consumer.clear();
+        this.indices.clear();
 
-            if (!draw.isCameraOffset()) {
-                if (builder instanceof Blaze4dVertexStorage vertexStorage) {
-                    for (Blaze4dVertexStorage.VertexData data : vertexStorage.getVertices()) {
-                        consumer
-                                .pos(data.x(), data.y(), data.z())
-                                .color(data.r(), data.g(), data.b())
-                                .nextVertex();
-                        indices.add(indices.size());
-                    }
-
-                    if (drawMode == VertexFormat.DrawMode.QUADS) {
-                        // Convert Quads to Triangle Strips
-                        //  0, 1, 2
-                        //  0, 2, 3
-                        //        v0_________________v1
-                        //         / \               /
-                        //        /     \           /
-                        //       /         \       /
-                        //      /             \   /
-                        //    v2-----------------v3
-
-                        indices.clear();
-                        for (int i = 0; i < consumer.getVertexCount(); i += 4) {
-                            indices.add(i);
-                            indices.add(1 + i);
-                            indices.add(2 + i);
-
-                            indices.add(i);
-                            indices.add(2 + i);
-                            indices.add(3 + i);
-                        }
-                    }
-                } else {
-                    throw new RuntimeException("Builder Cannot be cast to Blaze4dVertexStorage");
+        if (!draw.isCameraOffset()) {
+            if (builder instanceof Blaze4dVertexStorage vertexStorage) {
+                this.consumer = vertexStorage.getConsumer();
+                for (int i = 0; i < consumer.getVertexCount(); i++) {
+                    indices.add(i);
                 }
+
+                if (drawMode == VertexFormat.DrawMode.QUADS) {
+                    // Convert Quads to Triangle Strips
+                    //  0, 1, 2
+                    //  0, 2, 3
+                    //        v0_________________v1
+                    //         / \               /
+                    //        /     \           /
+                    //       /         \       /
+                    //      /             \   /
+                    //    v2-----------------v3
+
+                    indices.clear();
+                    for (int i = 0; i < consumer.getVertexCount(); i += 4) {
+                        indices.add(i);
+                        indices.add(1 + i);
+                        indices.add(2 + i);
+
+                        indices.add(2 + i);
+                        indices.add(3 + i);
+                        indices.add(i);
+                    }
+                }
+            } else {
+                throw new RuntimeException("Builder Cannot be cast to Blaze4dVertexStorage");
+            }
+        }
+
+        buffer.limit(draw.getDrawStart());
+        buffer.position(0);
+        Blaze4D.window.queue(() -> {
+            Renderable remove = Blaze4D.rosella.getRenderObjects().remove(toString());
+            if (remove != null) {
+                remove.free(Blaze4D.rosella.getMemory());
             }
 
-            buffer.limit(draw.getDrawStart());
-//            if (!this.usesTexture) {
-//                // TODO: read vertices from here.
-//                if (drawMode != VertexFormat.DrawMode.QUADS) {
-//                    indices = readIndices(buffer);
-//                }
-//            }
-            buffer.position(0);
-            Blaze4D.window.queue(() -> {
-                Renderable remove = Blaze4D.rosella.getRenderObjects().remove(toString());
-                if (remove != null) {
-                    remove.free(Blaze4D.rosella.getMemory());
-                }
-
-                if (consumer.getVertexCount() != 0) {
-                    Blaze4D.rosella.addRenderObject(this, toString());
-                }
-                Blaze4D.rosella.getRenderer().rebuildCommandBuffers(Blaze4D.rosella.getRenderer().renderPass, Blaze4D.rosella);
-            });
-        }
+            if (consumer.getVertexCount() != 0) {
+                Blaze4D.rosella.addRenderObject(this, toString());
+            }
+            Blaze4D.rosella.getRenderer().rebuildCommandBuffers(Blaze4D.rosella.getRenderer().renderPass, Blaze4D.rosella);
+        });
         ci.cancel();
     }
 
     @Override
     public void load(@NotNull Rosella rosella) {
         switch (drawMode) {
-            case TRIANGLES, QUADS -> material = Materials.SOLID_COLOR_TRIANGLES;
+            case TRIANGLES, QUADS -> {
+                if (elementFormat == net.minecraft.client.render.VertexFormats.BLIT_SCREEN) {
+                    System.out.println("e");
+                } else if (elementFormat == net.minecraft.client.render.VertexFormats.POSITION_COLOR_TEXTURE) {
+                    System.out.println("good");
+                    material = Blaze4D.rosella.getMaterials().get(Constants.boundTexture);
+                    if (material == null) {
+                        throw new RuntimeException("Material is null");
+                    }
+                } else if (elementFormat == net.minecraft.client.render.VertexFormats.POSITION) {
+                    material = Materials.SOLID_TRIANGLES;
+                } else {
+                    System.out.println(elementFormat);
+                    material = Materials.SOLID_COLOR_TRIANGLES;
+                }
+            }
 
-            case TRIANGLE_STRIP -> material = Materials.SOLID_COLOR_TRIANGLE_STRIP;
+            case TRIANGLE_STRIP -> {
+                if(elementFormat == net.minecraft.client.render.VertexFormats.POSITION) {
+                    material = Materials.SOLID_TRIANGLE_STRIP;
+                } else {
+                    material = Materials.SOLID_COLOR_TRIANGLE_STRIP;
+                }
+            }
 
-            case TRIANGLE_FAN -> material = Materials.SOLID_COLOR_TRIANGLE_FAN;
+            case TRIANGLE_FAN -> {
+                if(elementFormat == net.minecraft.client.render.VertexFormats.POSITION) {
+                    material = Materials.SOLID_TRIANGLE_FAN;
+                } else {
+                    material = Materials.SOLID_COLOR_TRIANGLE_FAN;
+                }
+            }
 
             default -> throw new RuntimeException("FUCK " + drawMode);
         }

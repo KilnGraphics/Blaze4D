@@ -18,11 +18,25 @@ import java.awt.image.BufferedImage;
  */
 public class Materials {
 
+    public static final Material SOLID_TRIANGLES = register(
+            "solid_tri",
+            Shaders.POSITION,
+            Topology.TRIANGLES,
+            VertexFormats.Companion.getPOSITION()
+    );
+
     public static final Material SOLID_COLOR_TRIANGLES = register(
             "solid_color_tri",
             Shaders.POSITION_COLOR,
             Topology.TRIANGLES,
-            VertexFormats.Companion.getPOSITION_COLOR()
+            VertexFormats.Companion.getPOSITION()
+    );
+
+    public static final Material SOLID_TRIANGLE_STRIP = register(
+            "solid_tri_strip",
+            Shaders.POSITION,
+            Topology.TRIANGLES,
+            VertexFormats.Companion.getPOSITION()
     );
 
     public static final Material SOLID_COLOR_TRIANGLE_STRIP = register(
@@ -30,6 +44,13 @@ public class Materials {
             Shaders.POSITION_COLOR,
             Topology.TRIANGLE_STRIP,
             VertexFormats.Companion.getPOSITION_COLOR()
+    );
+
+    public static final Material SOLID_TRIANGLE_FAN = register(
+            "solid_tri_fan",
+            Shaders.POSITION,
+            Topology.TRIANGLES,
+            VertexFormats.Companion.getPOSITION()
     );
 
     public static final Material SOLID_COLOR_TRIANGLE_FAN = register(

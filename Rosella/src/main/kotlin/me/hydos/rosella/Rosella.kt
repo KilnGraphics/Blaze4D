@@ -6,7 +6,6 @@ import me.hydos.rosella.render.device.Device
 import me.hydos.rosella.render.io.Window
 import me.hydos.rosella.render.material.Material
 import me.hydos.rosella.render.model.Renderable
-import me.hydos.rosella.render.model.RenderObject
 import me.hydos.rosella.render.renderer.Renderer
 import me.hydos.rosella.render.resource.Identifier
 import me.hydos.rosella.render.shader.RawShaderProgram
@@ -243,20 +242,17 @@ class Rosella(
 	}
 
 	fun reloadMaterials() {
-		var test = 0
 		for (material in materials.values) {
 			material.loadShaders(this)
 			material.loadTextures(this)
 			material.shader.raw.createDescriptorSetLayout()
-			material.createPipeline(
+			material.createPipeline( //TODO: cache pipelines when stuff doesnt change
 				device,
 				renderer.swapChain,
 				renderer.renderPass,
 				material.shader.raw.descriptorSetLayout,
 				polygonMode
 			)
-			test++
-			println(test.toString() + " / " + materials.values.size)
 		}
 		println("Recreating Swap Chain")
 		renderer.recreateSwapChain(window, camera, this)

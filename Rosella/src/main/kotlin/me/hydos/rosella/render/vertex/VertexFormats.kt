@@ -2,6 +2,7 @@ package me.hydos.rosella.render.vertex
 
 class VertexFormats {
 	companion object {
+		val POSITION = create(of(VertexFormat.Element.POSITION, 0))
 		val POSITION_COLOR = create(of(VertexFormat.Element.POSITION, 0), of(VertexFormat.Element.COLOR, 1))
 		val POSITION_COLOR_UV = create(of(VertexFormat.Element.POSITION, 0), of(VertexFormat.Element.COLOR, 1), of(VertexFormat.Element.UV, 2))
 

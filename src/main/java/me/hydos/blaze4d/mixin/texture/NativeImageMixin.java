@@ -1,10 +1,6 @@
 package me.hydos.blaze4d.mixin.texture;
 
-import me.hydos.blaze4d.Blaze4D;
-import me.hydos.blaze4d.api.Materials;
-import me.hydos.blaze4d.api.material.Blaze4dMaterial;
 import me.hydos.blaze4d.api.texture.Blaze4dNativeImage;
-import me.hydos.rosella.render.resource.Identifier;
 import me.hydos.rosella.render.texture.UploadableImage;
 import net.minecraft.client.texture.NativeImage;
 import org.jetbrains.annotations.NotNull;
@@ -12,7 +8,6 @@ import org.jetbrains.annotations.Nullable;
 import org.lwjgl.stb.STBImage;
 import org.lwjgl.system.MemoryStack;
 import org.lwjgl.system.MemoryUtil;
-import org.lwjgl.vulkan.VK10;
 import org.spongepowered.asm.mixin.Final;
 import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.Overwrite;
@@ -101,7 +96,7 @@ public class NativeImageMixin implements UploadableImage, Blaze4dNativeImage {
     }
 
     @Override
-    public @NotNull ByteBuffer getPixels() {
+    public ByteBuffer getPixels() {
         return pixels;
     }
 
@@ -118,17 +113,5 @@ public class NativeImageMixin implements UploadableImage, Blaze4dNativeImage {
     @Override
     public void setPixels(ByteBuffer pixels) {
         this.pixels = pixels;
-        Blaze4D.window.queue(() -> {
-            Blaze4D.rosella.getTextureManager().getOrLoadTexture(
-                    this,
-                    Blaze4D.rosella,
-                    VK10.VK_FORMAT_R8G8B8A8_SINT
-            );
-
-            Blaze4D.rosella.registerMaterial(
-                    new Identifier(this.hashCode() + "", this.hashCode() + ""),
-                    new Blaze4dMaterial(Materials.SOLID_COLOR_TRIANGLES, this)
-            );
-        });
     }
 }

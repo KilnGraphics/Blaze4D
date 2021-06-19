@@ -34,3 +34,8 @@ accessible  field   net/minecraft/client/texture/SpriteAtlasTexture$Data   width
 accessible  field   net/minecraft/client/texture/SpriteAtlasTexture$Data   height I
 accessible  field   net/minecraft/client/texture/SpriteAtlasTexture$Data   maxLevel I
 accessible  field   net/minecraft/client/texture/SpriteAtlasTexture$Data   sprites   Ljava/util/List;
+
+# Access to texture stuff for texture rendering
+accessible class com/mojang/blaze3d/platform/GlStateManager$Texture2DState
+accessible class net/minecraft/client/gui/screen/SplashScreen$LogoTexture
+accessible  method  net/minecraft/client/texture/ResourceTexture   upload    (Lnet/minecraft/client/texture/NativeImage;ZZ)V

@@ -5,13 +5,12 @@ package me.hydos.rosella.render
 
 import me.hydos.rosella.render.device.Device
 import me.hydos.rosella.render.device.QueueFamilyIndices
-import me.hydos.rosella.render.texture.TextureImage
 import me.hydos.rosella.render.renderer.Renderer
-import me.hydos.rosella.render.resource.Resource
 import me.hydos.rosella.render.swapchain.DepthBuffer
 import me.hydos.rosella.render.swapchain.RenderPass
 import me.hydos.rosella.render.swapchain.SwapChain
 import me.hydos.rosella.render.texture.StbiImage
+import me.hydos.rosella.render.texture.TextureImage
 import me.hydos.rosella.render.texture.UploadableImage
 import me.hydos.rosella.render.util.memory.Memory
 import me.hydos.rosella.render.util.memory.memcpy
@@ -21,7 +20,6 @@ import org.lwjgl.stb.STBImage
 import org.lwjgl.system.MemoryStack
 import org.lwjgl.vulkan.*
 import org.lwjgl.vulkan.VK10.*
-import java.nio.ByteBuffer
 import java.nio.LongBuffer
 
 fun allocateCmdBuffers(
@@ -332,9 +330,9 @@ fun createTextureImage(device: Device, image: UploadableImage, renderer: Rendere
 			stack
 		) { data ->
 			try {
-				memcpy(data.getByteBuffer(0, (image.getWidth() * image.getHeight() * 4)), image.getPixels(), (image.getWidth() * image.getHeight() * 4).toLong())
+				memcpy(data.getByteBuffer(0, (image.getWidth() * image.getHeight() * 4)), image.getPixels()!!, (image.getWidth() * image.getHeight() * 4).toLong())
 			} catch (e: Exception) {
-				memcpy(data.getByteBuffer(0, image.getPixels().limit()), image.getPixels(), image.getPixels().limit().toLong())
+				memcpy(data.getByteBuffer(0, image.getPixels()!!.limit()), image.getPixels()!!, image.getPixels()!!.limit().toLong())
 			}
 		}
 
