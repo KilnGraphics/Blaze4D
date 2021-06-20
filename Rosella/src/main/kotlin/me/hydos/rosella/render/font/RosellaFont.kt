@@ -29,7 +29,7 @@ class RosellaFont(private val font: Font, rosella: Rosella) {
 				rosella.memory,
 				99999,
 				RawShaderProgram.PoolObjType.UBO,
-				RawShaderProgram.PoolObjType.COMBINED_IMG_SAMPLER
+				RawShaderProgram.PoolObjType.SAMPLER
 			)
 		)
 

@@ -89,6 +89,14 @@ class RawShaderProgram(
 	}
 
 	fun createDescriptorSets(swapChain: SwapChain, renderable: Renderable) {
+		if(descriptorPool == 0L) {
+			System.err.println("Descriptor Pools are invalid! rebuilding... (THIS IS NOT FAST)")
+			createPool(swapChain)
+		}
+		if(descriptorSetLayout == 0L) {
+			System.err.println("Descriptor Set Layouts are invalid! rebuilding... (THIS IS NOT FAST)")
+			createDescriptorSetLayout()
+		}
 		MemoryStack.stackPush().use { stack ->
 			val layouts = stack.mallocLong(swapChain.swapChainImages.size)
 			for (i in 0 until layouts.capacity()) {
@@ -146,6 +154,6 @@ class RawShaderProgram(
 
 	enum class PoolObjType(val vkType: Int, val vkShader: Int) {
 		UBO(VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, VK_SHADER_STAGE_VERTEX_BIT),
-		COMBINED_IMG_SAMPLER(VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, VK_SHADER_STAGE_FRAGMENT_BIT)
+		SAMPLER(VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, VK_SHADER_STAGE_FRAGMENT_BIT)
 	}
 }

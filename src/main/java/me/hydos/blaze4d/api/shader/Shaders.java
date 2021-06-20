@@ -22,7 +22,7 @@ public class Shaders {
                 Blaze4D.rosella.getMemory(),
                 9000,
                 RawShaderProgram.PoolObjType.UBO,
-                RawShaderProgram.PoolObjType.COMBINED_IMG_SAMPLER //TODO: remove dependency on combined image sampler
+                RawShaderProgram.PoolObjType.SAMPLER //TODO: remove dependency on combined image sampler
         );
 
         Blaze4D.rosella.registerShader(

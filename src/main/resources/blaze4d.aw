@@ -39,3 +39,6 @@ accessible  field   net/minecraft/client/texture/SpriteAtlasTexture$Data   sprit
 accessible class com/mojang/blaze3d/platform/GlStateManager$Texture2DState
 accessible class net/minecraft/client/gui/screen/SplashScreen$LogoTexture
 accessible  method  net/minecraft/client/texture/ResourceTexture   upload    (Lnet/minecraft/client/texture/NativeImage;ZZ)V
+
+accessible class net/minecraft/client/texture/ResourceTexture$TextureData
+accessible field net/minecraft/client/texture/TextureManager resourceContainer Lnet/minecraft/resource/ResourceManager;

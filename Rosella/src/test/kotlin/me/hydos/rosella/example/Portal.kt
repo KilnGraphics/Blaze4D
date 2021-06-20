@@ -89,7 +89,7 @@ object Portal {
 				engine.memory,
 				10,
 				RawShaderProgram.PoolObjType.UBO,
-				RawShaderProgram.PoolObjType.COMBINED_IMG_SAMPLER
+				RawShaderProgram.PoolObjType.SAMPLER
 			)
 		)
 
@@ -101,7 +101,7 @@ object Portal {
 				engine.memory,
 				10,
 				RawShaderProgram.PoolObjType.UBO,
-				RawShaderProgram.PoolObjType.COMBINED_IMG_SAMPLER
+				RawShaderProgram.PoolObjType.SAMPLER
 			)
 		)
 	}

@@ -5,6 +5,8 @@ package me.hydos.rosella.render.vertex
  */
 interface VertexConsumer {
 
+	val format: VertexFormat
+
 	fun pos(x: Float, y: Float, z: Float): VertexConsumer
 
 	fun color(red: Int, green: Int, blue: Int): VertexConsumer

@@ -2,7 +2,6 @@ package me.hydos.blaze4d.mixin.vertices;
 
 import com.mojang.datafixers.util.Pair;
 import me.hydos.blaze4d.Blaze4D;
-import me.hydos.blaze4d.api.Constants;
 import me.hydos.blaze4d.api.Materials;
 import me.hydos.blaze4d.api.shader.MinecraftUbo;
 import me.hydos.blaze4d.api.vertex.Blaze4dVertexStorage;
@@ -12,9 +11,7 @@ import me.hydos.rosella.render.model.Renderable;
 import me.hydos.rosella.render.renderer.Renderer;
 import me.hydos.rosella.render.shader.ubo.Ubo;
 import me.hydos.rosella.render.util.memory.Memory;
-import me.hydos.rosella.render.vertex.BufferVertexConsumer;
 import me.hydos.rosella.render.vertex.VertexConsumer;
-import me.hydos.rosella.render.vertex.VertexFormats;
 import net.minecraft.client.gl.VertexBuffer;
 import net.minecraft.client.render.BufferBuilder;
 import net.minecraft.client.render.BufferRenderer;
@@ -44,18 +41,17 @@ public class VertexBufferMixin implements Renderable {
     private VertexFormat.DrawMode drawMode;
     @Shadow
     private boolean usesTexture;
-    @Shadow
-    private int vertexBufferId;
 
-    public VertexConsumer consumer = new BufferVertexConsumer(VertexFormats.Companion.getPOSITION_COLOR());
+    public VertexConsumer consumer;
     public List<Integer> indices = new ArrayList<>();
     public Long vertexBuffer = 0L;
     public Long indexBuffer = 0L;
 
     public List<Long> descSets = new ArrayList<>();
-    public Matrix4f transformationMatrix = new Matrix4f();
+    public Matrix4f transformationMatrix = new Matrix4f().identity();
     public Ubo ubo;
     public Material material;
+    private Blaze4dVertexStorage builderStorage;
 
     @Inject(method = "uploadInternal", at = @At("HEAD"), cancellable = true)
     private void sendToRosella(BufferBuilder builder, CallbackInfo ci) {
@@ -70,12 +66,12 @@ public class VertexBufferMixin implements Renderable {
         this.elementFormat = format;
         this.drawMode = draw.getMode();
         this.usesTexture = draw.isTextured();
-        this.consumer.clear();
         this.indices.clear();
 
         if (!draw.isCameraOffset()) {
             if (builder instanceof Blaze4dVertexStorage vertexStorage) {
                 this.consumer = vertexStorage.getConsumer();
+                this.builderStorage = vertexStorage;
                 for (int i = 0; i < consumer.getVertexCount(); i++) {
                     indices.add(i);
                 }
@@ -105,6 +101,8 @@ public class VertexBufferMixin implements Renderable {
             } else {
                 throw new RuntimeException("Builder Cannot be cast to Blaze4dVertexStorage");
             }
+        } else {
+            throw new RuntimeException("Not Handled");
         }
 
         buffer.limit(draw.getDrawStart());
@@ -127,39 +125,20 @@ public class VertexBufferMixin implements Renderable {
     public void load(@NotNull Rosella rosella) {
         switch (drawMode) {
             case TRIANGLES, QUADS -> {
-                if (elementFormat == net.minecraft.client.render.VertexFormats.BLIT_SCREEN) {
-                    System.out.println("e");
-                } else if (elementFormat == net.minecraft.client.render.VertexFormats.POSITION_COLOR_TEXTURE) {
-                    System.out.println("good");
-                    material = Blaze4D.rosella.getMaterials().get(Constants.boundTexture);
-                    if (material == null) {
-                        throw new RuntimeException("Material is null");
-                    }
-                } else if (elementFormat == net.minecraft.client.render.VertexFormats.POSITION) {
-                    material = Materials.SOLID_TRIANGLES;
-                } else {
-                    System.out.println(elementFormat);
-                    material = Materials.SOLID_COLOR_TRIANGLES;
+                if (elementFormat != net.minecraft.client.render.VertexFormats.BLIT_SCREEN) {
+                    material = Materials.TRIANGLES.build(builderStorage.getShader(), builderStorage.getImage(), consumer.getFormat());
                 }
             }
 
             case TRIANGLE_STRIP -> {
-                if(elementFormat == net.minecraft.client.render.VertexFormats.POSITION) {
-                    material = Materials.SOLID_TRIANGLE_STRIP;
-                } else {
-                    material = Materials.SOLID_COLOR_TRIANGLE_STRIP;
+                if (elementFormat == net.minecraft.client.render.VertexFormats.POSITION) {
+                    material = Materials.TRIANGLE_STRIP.build(builderStorage.getShader(), builderStorage.getImage(), consumer.getFormat());
                 }
             }
 
-            case TRIANGLE_FAN -> {
-                if(elementFormat == net.minecraft.client.render.VertexFormats.POSITION) {
-                    material = Materials.SOLID_TRIANGLE_FAN;
-                } else {
-                    material = Materials.SOLID_COLOR_TRIANGLE_FAN;
-                }
-            }
+            case TRIANGLE_FAN -> material = Materials.TRIANGLE_FAN.build(builderStorage.getShader(), builderStorage.getImage(), consumer.getFormat());
 
-            default -> throw new RuntimeException("FUCK " + drawMode);
+            default -> throw new RuntimeException("Unsupported Draw Mode:  " + drawMode);
         }
         ubo = new MinecraftUbo(rosella.getDevice(), rosella.getMemory());
         ubo.create(rosella.getRenderer().swapChain);

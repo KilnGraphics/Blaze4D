@@ -38,7 +38,7 @@ class Canvas(val rosella: Rosella, val window: Window) {
 				rosella.memory,
 				100,
 				RawShaderProgram.PoolObjType.UBO,
-				RawShaderProgram.PoolObjType.COMBINED_IMG_SAMPLER
+				RawShaderProgram.PoolObjType.SAMPLER
 			)
 		)
 

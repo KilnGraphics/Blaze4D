@@ -26,4 +26,9 @@ public class FramebufferMixin {
         this.viewportHeight = height;
         ci.cancel();
     }
+
+    @Inject(method = "drawInternal", at = @At("HEAD"), cancellable = true)
+    private void weDontSupportFbosAtm(int width, int height, boolean disableBlend, CallbackInfo ci) {
+        ci.cancel();
+    }
 }

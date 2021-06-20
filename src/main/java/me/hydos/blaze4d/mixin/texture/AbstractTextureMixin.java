@@ -4,7 +4,7 @@ import java.util.HashMap;
 import java.util.Map;
 import java.util.concurrent.Executor;
 
-import me.hydos.blaze4d.api.Constants;
+import me.hydos.blaze4d.api.VkRenderSystem;
 import net.minecraft.client.texture.AbstractTexture;
 import net.minecraft.client.texture.TextureManager;
 import net.minecraft.resource.ResourceManager;
@@ -22,17 +22,17 @@ public abstract class AbstractTextureMixin {
 
     private static int nextGlTexId = 1;
     private final int glTexId = nextGlTexId++;
-    private me.hydos.rosella.render.resource.Identifier rosellaIdentifier;
+    private Identifier rosellaIdentifier;
 
     @Inject(method = "bindTexture", at = @At("HEAD"), cancellable = true)
     private void bindFake(CallbackInfo ci) {
-        Constants.boundTexture = rosellaIdentifier;
+        VkRenderSystem.boundTexture = rosellaIdentifier;
         ci.cancel();
     }
 
     @Inject(method = "registerTexture", at = @At("HEAD"))
     private void captureIdentifier(TextureManager textureManager, ResourceManager resourceManager, Identifier identifier, Executor executor, CallbackInfo ci) {
-        this.rosellaIdentifier = new me.hydos.rosella.render.resource.Identifier(identifier.getNamespace(), identifier.getPath());
+        this.rosellaIdentifier = identifier;
     }
 
     @Inject(method = "getGlId", at = @At("HEAD"), cancellable = true)

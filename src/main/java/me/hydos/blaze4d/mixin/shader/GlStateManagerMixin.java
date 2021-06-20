@@ -2,36 +2,27 @@ package me.hydos.blaze4d.mixin.shader;
 
 import com.mojang.blaze3d.platform.GlStateManager;
 import com.mojang.blaze3d.systems.RenderSystem;
-import it.unimi.dsi.fastutil.ints.Int2ObjectOpenHashMap;
+import me.hydos.blaze4d.Blaze4D;
 import me.hydos.blaze4d.api.Blaze4dException;
+import me.hydos.blaze4d.api.VkRenderSystem;
 import me.hydos.blaze4d.api.shader.ShaderContext;
 import me.hydos.blaze4d.api.util.ByteArrayResource;
+import me.hydos.rosella.render.resource.Identifier;
 import me.hydos.rosella.render.resource.Resource;
 import me.hydos.rosella.render.shader.RawShaderProgram;
 import me.hydos.rosella.render.util.ShaderType;
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
 import org.lwjgl.opengl.GL20;
 import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.Overwrite;
 
 import java.nio.charset.StandardCharsets;
 import java.util.List;
-import java.util.Map;
 
 /**
  * This Mixin handles the interactions between Minecraft shaders and GL programs and passes it onto rosella
  */
 @Mixin(GlStateManager.class)
 public class GlStateManagerMixin {
-
-    private static final Logger LOGGER = LogManager.getLogger("Blaze4D VKStateManager");
-    private static final Map<Integer, ShaderContext> SHADER_MAP = new Int2ObjectOpenHashMap<>();
-    private static final Map<Integer, RawShaderProgram> SHADER_PROGRAM_MAP = new Int2ObjectOpenHashMap<>();
-    private static final int DEFAULT_MAX_OBJECTS = 1024;
-    private static String programErrorLog = "none";
-    private static int nextShaderId = 0;
-    private static int nextShaderProgramId = 1; // Minecraft is a special snowflake and needs shader program id's to start at 1
 
     //========================
     //        SHADERS
@@ -49,9 +40,9 @@ public class GlStateManagerMixin {
         ShaderContext shaderContext = new ShaderContext();
         shaderContext.glShaderType = type;
         shaderContext.rosellaShaderType = rosellaType;
-        SHADER_MAP.put(nextShaderId, shaderContext);
-        nextShaderId++;
-        return nextShaderId - 1;
+        VkRenderSystem.SHADER_MAP.put(VkRenderSystem.nextShaderId, shaderContext);
+        VkRenderSystem.nextShaderId++;
+        return VkRenderSystem.nextShaderId - 1;
     }
 
     /**
@@ -61,22 +52,12 @@ public class GlStateManagerMixin {
     @Overwrite
     public static void glShaderSource(int shader, List<String> shaderLines) {
         RenderSystem.assertThread(RenderSystem::isOnRenderThread);
-        ShaderContext context = SHADER_MAP.get(shader);
+        ShaderContext context = VkRenderSystem.SHADER_MAP.get(shader);
         if (context == null) {
             throw new Blaze4dException("Failed to get ShaderContext. (No shader was found with id " + shader + ")");
         }
 
         context.shader = shaderSrcToResource(shaderLines);
-//        RawShaderProgram program = context.vulkanProgram;
-//        if (program == null) {
-//            program = new RawShaderProgram(null, null, Blaze4D.rosella.getDevice(), Blaze4D.rosella.getMemory(), DEFAULT_MAX_OBJECTS);
-//        }
-//
-//        if (context.rosellaShaderType == ShaderType.VERTEX_SHADER) {
-//            program.setVertexShader(shaderSrc);
-//        } else {
-//            program.setFragmentShader(shaderSrc);
-//        }
     }
 
     /**
@@ -114,7 +95,67 @@ public class GlStateManagerMixin {
     @Overwrite
     public static int glCreateProgram() {
         RenderSystem.assertThread(RenderSystem::isOnRenderThread);
-        return nextShaderProgramId++;
+        RawShaderProgram program = new RawShaderProgram(
+                null,
+                null,
+                Blaze4D.rosella.getDevice(),
+                Blaze4D.rosella.getMemory(),
+                VkRenderSystem.DEFAULT_MAX_OBJECTS,
+                RawShaderProgram.PoolObjType.UBO,
+                RawShaderProgram.PoolObjType.SAMPLER, // 12 Samplers because Minecraft wants 12
+                RawShaderProgram.PoolObjType.SAMPLER,
+                RawShaderProgram.PoolObjType.SAMPLER,
+                RawShaderProgram.PoolObjType.SAMPLER,
+                RawShaderProgram.PoolObjType.SAMPLER,
+                RawShaderProgram.PoolObjType.SAMPLER,
+                RawShaderProgram.PoolObjType.SAMPLER,
+                RawShaderProgram.PoolObjType.SAMPLER,
+                RawShaderProgram.PoolObjType.SAMPLER,
+                RawShaderProgram.PoolObjType.SAMPLER,
+                RawShaderProgram.PoolObjType.SAMPLER,
+                RawShaderProgram.PoolObjType.SAMPLER,
+                RawShaderProgram.PoolObjType.SAMPLER
+        );
+        VkRenderSystem.SHADER_PROGRAM_MAP.put(VkRenderSystem.nextShaderProgramId, program);
+        Blaze4D.rosella.getRenderer().rebuildCommandBuffers(Blaze4D.rosella.getRenderer().renderPass, Blaze4D.rosella);
+        return VkRenderSystem.nextShaderProgramId++;
+    }
+
+    /**
+     * @author Blaze4D
+     * @reason To Integrate Shader Programs
+     */
+    @Overwrite
+    public static void glAttachShader(int programId, int shaderId) {
+        RenderSystem.assertThread(RenderSystem::isOnRenderThread);
+        ShaderContext shader = VkRenderSystem.SHADER_MAP.get(shaderId);
+        RawShaderProgram program = VkRenderSystem.SHADER_PROGRAM_MAP.get(programId);
+        if (program == null) {
+            program = new RawShaderProgram(null, null, Blaze4D.rosella.getDevice(), Blaze4D.rosella.getMemory(), VkRenderSystem.DEFAULT_MAX_OBJECTS);
+        }
+
+        if (shader.rosellaShaderType == ShaderType.VERTEX_SHADER) {
+            program.setVertexShader(shader.shader);
+        } else {
+            program.setFragmentShader(shader.shader);
+        }
+
+        VkRenderSystem.debug("Attached shader " + shader.rosellaShaderType + " to program");
+    }
+
+    /**
+     * @author Blaze4D
+     * @reason To Integrate Shader Programs
+     * <p>
+     * Basically compiles the shader program
+     */
+    @Overwrite
+    public static void glLinkProgram(int program) {
+        RenderSystem.assertThread(RenderSystem::isOnRenderThread);
+        Identifier id = VkRenderSystem.generateId(program);
+        Blaze4D.rosella.registerShader(id, VkRenderSystem.SHADER_PROGRAM_MAP.get(program));
+        Blaze4D.rosella.getShaderManager().getOrCreateShader(id);
+        VkRenderSystem.debug("Compiled and Linked Shaders!");
     }
 
     /**
@@ -124,8 +165,7 @@ public class GlStateManagerMixin {
     @Overwrite
     public static void _glBindAttribLocation(int program, int index, CharSequence name) {
         RenderSystem.assertThread(RenderSystem::isOnRenderThread);
-
-        LOGGER.warn("Minecraft tried to bind to program " + program + " a attrib called " + name + " at id " + index);
+        VkRenderSystem.LOGGER.warn("Minecraft tried to bind to program " + program + " a attrib called " + name + " at id " + index);
     }
 
     /**
@@ -144,7 +184,7 @@ public class GlStateManagerMixin {
                 return 1;
             }
 
-            default -> programErrorLog = "glGetProgramI is not implemented for " + pname;
+            default -> VkRenderSystem.programErrorLog = "glGetProgramI is not implemented for " + pname;
         }
         return 0;
     }
@@ -158,8 +198,8 @@ public class GlStateManagerMixin {
     @Overwrite
     public static String glGetProgramInfoLog(int program, int maxLength) {
         RenderSystem.assertThread(RenderSystem::isOnRenderThread);
-        String lastError = programErrorLog;
-        programErrorLog = "";
+        String lastError = VkRenderSystem.programErrorLog;
+        VkRenderSystem.programErrorLog = "";
         return lastError;
     }
 

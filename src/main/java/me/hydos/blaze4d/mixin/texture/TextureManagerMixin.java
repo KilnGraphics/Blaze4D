@@ -40,11 +40,6 @@ public class TextureManagerMixin {
                             Blaze4D.rosella,
                             VK10.VK_FORMAT_R8G8B8A8_SINT
                     );
-
-                    Blaze4D.rosella.registerMaterial(
-                            new me.hydos.rosella.render.resource.Identifier(id.getNamespace(), id.getPath()),
-                            new Blaze4dMaterial(Materials.SOLID_COLOR_TRIANGLES, (UploadableImage) texture)
-                    );
                 }
             } catch (ClassCastException e) {
                 System.out.println("Class " + texture.getClass().getSimpleName() + " has no Rosella Texture Impl");

@@ -33,12 +33,11 @@ public class MinecraftUbo extends LowLevelUbo {
             ByteBuffer buffer = data.getByteBuffer(0, getSize());
             int mat4Size = 16 * java.lang.Float.BYTES;
 
-            Matrix4f mcViewMatrix = toJoml(RenderSystem.getModelViewMatrix());
+            Matrix4f mcViewModelMatrix = toJoml(RenderSystem.getModelViewMatrix());
             Matrix4f mcProjMatrix = projectionToVulkan(toJoml(RenderSystem.getProjectionMatrix()));
 
-            modelMatrix.get(0, buffer);
-            mcViewMatrix.get(alignas(mat4Size, alignof(mcViewMatrix)), buffer);
-            mcProjMatrix.get(alignas(mat4Size * 2, alignof(mcViewMatrix)), buffer);
+            mcViewModelMatrix.get(0, buffer);
+            mcProjMatrix.get(alignas(mat4Size, alignof(mcProjMatrix)), buffer);
 
             getMemory().unmap(getUboFrames().get(currentImg).getAllocation());
         }

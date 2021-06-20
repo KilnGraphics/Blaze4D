@@ -3,7 +3,7 @@ package me.hydos.rosella.render.vertex
 import java.nio.ByteBuffer
 import java.util.function.Consumer
 
-class BufferVertexConsumer(val format: VertexFormat) : VertexConsumer {
+class BufferVertexConsumer(override val format: VertexFormat) : VertexConsumer {
 
 	var bufferConsumerList = ArrayList<Consumer<ByteBuffer>>()
 	private var vertexSize = format.getSize()
