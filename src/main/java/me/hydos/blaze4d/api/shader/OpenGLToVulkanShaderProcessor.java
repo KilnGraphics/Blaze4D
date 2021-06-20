@@ -31,7 +31,6 @@ import java.util.Arrays;
 import java.util.List;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
-import java.util.stream.Collectors;
 
 public class OpenGLToVulkanShaderProcessor {
     public static List<String> convertOpenGLToVulkanShader(List<String> source) {
@@ -41,6 +40,7 @@ public class OpenGLToVulkanShaderProcessor {
 
         int inVariables = 0;
         int outVariables = 0;
+        int samplers = 1;
         List<String> uniformTypes = new ArrayList<>();
         List<String> uniformNames = new ArrayList<>();
 
@@ -49,36 +49,48 @@ public class OpenGLToVulkanShaderProcessor {
 
             if (line.matches("#version \\d*")) {
                 lines.set(i, """
-                #version 450
-                #extension GL_ARB_separate_shader_objects : enable
-                """);
+                        #version 450
+                        #extension GL_ARB_separate_shader_objects : enable
+                        """);
             } else if (line.matches("in \\w* \\w*;")) {
                 lines.set(i, "layout(location = " + (inVariables++) + ") " + line);
             } else if (line.matches("out \\w* \\w*;")) {
                 lines.set(i, "layout(location = " + (outVariables++) + ") " + line);
-            } else if (line.matches("uniform .*")){
+            } else if (line.matches("uniform .*")) {
                 Matcher uniformMatcher = Pattern.compile("uniform\\s(\\w*)\\s(\\w*);").matcher(line);
                 uniformMatcher.find();
                 String type = uniformMatcher.group(1);
                 String name = uniformMatcher.group(2);
-                lines.set(i, "");
-                uniformTypes.add(type);
-                uniformNames.add(name);
+                if (!type.equals("sampler2D")) {
+                    lines.set(i, "");
+                    uniformTypes.add(type);
+                    uniformNames.add(name);
 
-                for (int j = i; j < lines.size(); j++) {
-                    if (lines.get(j).contains(name)) {
-                        lines.set(j, lines.get(j).replaceAll(name, "ubo." + name));
+                    for (int j = i; j < lines.size(); j++) {
+                        if (lines.get(j).contains(name)) {
+                            lines.set(j, lines.get(j).replaceAll(name, "ubo." + name));
+                        }
                     }
+                } else {
+                    lines.set(i, line.replace("uniform", "layout(binding = " + samplers++ + ") uniform"));
                 }
             } else if (line.matches("void main\\(\\) \\{")) {
-                String uboInsert = "layout(binding = 0) uniform UniformBufferObject {";
-                for (int j = 0; j < uniformNames.size(); j++) {
-                    uboInsert += "\n\t " + uniformTypes.get(j) + " " + uniformNames.get(j) + ";";
-                }
-                uboInsert += "\n} ubo;\n";
-                if (uniformNames.size() > 0) {
-                    lines.set(i, uboInsert + line);
-                }
+                String uboInsert = """
+                        layout(binding = 0) uniform UniformBufferObject {
+                            mat4 ModelViewMat;
+                            mat4 ProjMat;
+                            vec4 ColorModulator;
+                            float FogStart;
+                            float FogEnd;
+                            vec4 FogColor;
+                            mat4 TextureMat;
+                            float GameTime;
+                            vec2 ScreenSize;
+                            float LineWidth;
+                        } ubo;
+                        
+                        """;
+                lines.set(i, uboInsert + line);
             }
 
         }

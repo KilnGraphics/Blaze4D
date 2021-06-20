@@ -38,10 +38,10 @@ public class NativeImageMixin implements UploadableImage, Blaze4dNativeImage {
      * @author Blaze4d
      */
     @Overwrite
-    public static NativeImage read(@Nullable NativeImage.Format format, ByteBuffer pixels) throws IOException {
+    public static NativeImage read(@Nullable NativeImage.Format format, ByteBuffer fileBytes) throws IOException {
         if (format != null && !format.isWriteable()) {
             throw new UnsupportedOperationException("Don't know how to read format " + format);
-        } else if (MemoryUtil.memAddress(pixels) == 0L) {
+        } else if (MemoryUtil.memAddress(fileBytes) == 0L) {
             throw new IllegalArgumentException("Invalid buffer");
         } else {
             MemoryStack stack = MemoryStack.stackPush();
@@ -52,7 +52,7 @@ public class NativeImageMixin implements UploadableImage, Blaze4dNativeImage {
                 IntBuffer pHeight = stack.mallocInt(1);
                 IntBuffer pChannels = stack.mallocInt(1);
                 int desiredChannels = format == null ? 0 : format.getChannelCount();
-                ByteBuffer imageBytes = STBImage.stbi_load_from_memory(pixels, pWidth, pHeight, pChannels, desiredChannels);
+                ByteBuffer imageBytes = STBImage.stbi_load_from_memory(fileBytes, pWidth, pHeight, pChannels, desiredChannels);
                 if (imageBytes == null) {
                     throw new IOException("Could not load image: " + STBImage.stbi_failure_reason());
                 }
@@ -61,7 +61,7 @@ public class NativeImageMixin implements UploadableImage, Blaze4dNativeImage {
                 image = new NativeImage(format == null ? NativeImage.Format.getFormat(channels) : format, pWidth.get(0), pHeight.get(0), true, MemoryUtil.memAddress(imageBytes));
                 Blaze4dNativeImage uploadableImage = (Blaze4dNativeImage) (Object) image;
                 uploadableImage.setChannels(channels);
-                uploadableImage.setPixels(pixels);
+                uploadableImage.setPixels(fileBytes);
             } catch (Throwable e) {
                 try {
                     stack.close();

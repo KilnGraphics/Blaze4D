@@ -26,6 +26,7 @@
     "texture.TextureManagerMixin",
     "texture.TextureUtilMixin",
     "vertices.BufferBuilderMixin",
+    "vertices.BufferRendererMixin",
     "vertices.TessellatorMixin",
     "vertices.VertexBufferMixin"
   ],

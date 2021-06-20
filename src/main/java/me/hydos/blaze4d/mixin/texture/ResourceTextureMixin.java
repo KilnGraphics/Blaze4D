@@ -5,6 +5,7 @@ import me.hydos.blaze4d.api.Materials;
 import me.hydos.blaze4d.api.material.Blaze4dMaterial;
 import me.hydos.rosella.render.texture.UploadableImage;
 import net.minecraft.client.MinecraftClient;
+import net.minecraft.client.texture.MissingSprite;
 import net.minecraft.client.texture.NativeImage;
 import net.minecraft.client.texture.ResourceTexture;
 import net.minecraft.resource.ResourceManager;
@@ -32,12 +33,16 @@ public abstract class ResourceTextureMixin implements UploadableImage {
     private NativeImage image;
 
     @Inject(method = "<init>", at = @At("TAIL"))
-    private void constructor(Identifier location, CallbackInfo ci) {
-        ResourceTexture.TextureData data = this.loadTextureData(MinecraftClient.getInstance().getTextureManager().resourceContainer);
-        try {
-            this.image = data.getImage();
-        } catch (IOException e) {
-            e.printStackTrace();
+    private void loadNativeImage(Identifier location, CallbackInfo ci) {
+        if(image == null) {
+            this.image = MissingSprite.getMissingSpriteTexture().getImage();
+//            ResourceTexture.TextureData data = this.loadTextureData(MinecraftClient.getInstance().getTextureManager().resourceContainer);
+//            try {
+//                this.image = data.getImage();
+//            } catch (IOException e) {
+//                this.image = MissingSprite.getMissingSpriteTexture().getImage();
+////                throw new RuntimeException("Failed to get image", e);
+//            }
         }
     }
 
@@ -59,12 +64,12 @@ public abstract class ResourceTextureMixin implements UploadableImage {
 
     @Override
     public int getWidth() {
-        return ((UploadableImage) (Object) image).getWidth();
+        return image.getWidth();
     }
 
     @Override
     public int getHeight() {
-        return ((UploadableImage) (Object) image).getHeight();
+        return image.getHeight();
     }
 
     @Override
@@ -72,10 +77,18 @@ public abstract class ResourceTextureMixin implements UploadableImage {
         return ((UploadableImage) (Object) image).getChannels();
     }
 
-    @NotNull
     @Override
     public ByteBuffer getPixels() {
-        return ((UploadableImage) (Object) image).getPixels();
+        ByteBuffer pixels = ((UploadableImage) (Object) image).getPixels();
+        if(pixels == null) {
+            pixels = ByteBuffer.allocate(getImageSize());
+            for (int x = 0; x < getWidth(); x++) {
+                for (int y = 0; y < getHeight(); y++) {
+                    pixels.putInt(image.getPixelColor(x, y));
+                }
+            }
+        }
+        return pixels;
     }
 
     @Override

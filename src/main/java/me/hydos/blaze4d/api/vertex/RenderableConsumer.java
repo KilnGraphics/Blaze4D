@@ -7,13 +7,13 @@ import net.minecraft.client.render.VertexFormat;
 
 import java.util.List;
 
-public interface Blaze4dVertexStorage {
-
-    VertexFormat getVertexFormat();
+public interface RenderableConsumer {
 
     BufferVertexConsumer getConsumer();
 
     ShaderProgram getShader();
 
     UploadableImage getImage();
+
+    void draw();
 }

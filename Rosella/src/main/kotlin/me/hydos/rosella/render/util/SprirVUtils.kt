@@ -13,13 +13,11 @@ fun compileShaderFile(shader: Resource, shaderType: ShaderType): SpirV {
 
 fun compileShader(filename: String, source: String, shaderType: ShaderType): SpirV {
 	val compiler = shaderc_compiler_initialize()
-
 	if (compiler == NULL) {
 		throw RuntimeException("Failed to create shader compiler")
 	}
 
 	val result: Long = shaderc_compile_into_spv(compiler, source, shaderType.kind, filename, "main", NULL)
-
 	if (result == NULL) {
 		throw RuntimeException("Failed to compile shader $filename into SPIR-V")
 	}
@@ -27,7 +25,6 @@ fun compileShader(filename: String, source: String, shaderType: ShaderType): Spi
 	if (shaderc_result_get_compilation_status(result) != shaderc_compilation_status_success) {
 		error("Failed to compile shader $filename into SPIR-V: ${shaderc_result_get_error_message(result)}")
 	}
-
 	shaderc_compiler_release(compiler)
 
 	return SpirV(result, shaderc_result_get_bytes(result))
