@@ -17,6 +17,7 @@ import net.minecraft.client.MinecraftClient;
 import net.minecraft.client.render.*;
 import org.jetbrains.annotations.NotNull;
 import org.joml.Matrix4f;
+import org.lwjgl.util.vma.Vma;
 import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.Shadow;
 import org.spongepowered.asm.mixin.injection.At;
@@ -82,6 +83,7 @@ public abstract class BufferBuilderMixin extends FixedColorVertexConsumer implem
     private void doCaching(CallbackInfo ci) {
         consumer.clear();
         indices.clear();
+
 
         prevTotalPos = totalPos;
         totalPos = 0;
@@ -216,8 +218,8 @@ public abstract class BufferBuilderMixin extends FixedColorVertexConsumer implem
 
     @Override
     public void free(@NotNull Memory memory) {
-//        Vma.vmaFreeMemory(memory.getAllocator(), vertexBuffer);
-//        Vma.vmaFreeMemory(memory.getAllocator(), indexBuffer);
+        Vma.vmaFreeMemory(memory.getAllocator(), vertexBuffer);
+        Vma.vmaFreeMemory(memory.getAllocator(), indexBuffer);
         ubo.free();
     }
 
