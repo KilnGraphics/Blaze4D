@@ -155,7 +155,7 @@ class Renderer {
 			while (width[0] == 0 && height[0] == 0) {
 				GLFW.glfwGetFramebufferSize(window.windowPtr, width, height)
 //				GLFW.glfwWaitEvents()
-				println("Remember to uncomment this")
+//				println("Remember to uncomment this")
 			}
 		}
 

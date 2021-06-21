@@ -254,9 +254,9 @@ class Rosella(
 				polygonMode
 			)
 		}
-		println("Recreating Swap Chain")
+//		println("Recreating Swap Chain")
 		renderer.recreateSwapChain(window, camera, this)
-		println("Swapchain Recreated")
+//		println("Swapchain Recreated")
 	}
 
 	private fun createDebugUtilsMessengerEXT(

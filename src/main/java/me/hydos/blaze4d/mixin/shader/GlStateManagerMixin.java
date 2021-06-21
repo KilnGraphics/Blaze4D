@@ -139,8 +139,6 @@ public class GlStateManagerMixin {
         } else {
             program.setFragmentShader(shader.shader);
         }
-
-        VkRenderSystem.debug("Attached shader " + shader.rosellaShaderType + " to program");
     }
 
     /**
@@ -161,11 +159,12 @@ public class GlStateManagerMixin {
     /**
      * @author Blaze4D
      * @reason To Integrate Shader Programs
+     * <p>
+     * Since shaders should define this in the vertex format, we shouldn't need to worry about this.
      */
     @Overwrite
     public static void _glBindAttribLocation(int program, int index, CharSequence name) {
         RenderSystem.assertThread(RenderSystem::isOnRenderThread);
-        VkRenderSystem.LOGGER.warn("Minecraft tried to bind to program " + program + " a attrib called " + name + " at id " + index);
     }
 
     /**
@@ -214,12 +213,7 @@ public class GlStateManagerMixin {
      * @return a readable resource for {@link me.hydos.rosella.Rosella}
      */
     private static Resource shaderSrcToResource(List<String> shaderSrc) {
-        StringBuilder src = new StringBuilder();
-        for (String line : shaderSrc) {
-            src.append(line);
-            src.append("\n");
-        }
-        byte[] shaderBytes = src.toString().getBytes(StandardCharsets.UTF_8);
+        byte[] shaderBytes = String.join("\n", shaderSrc).getBytes(StandardCharsets.UTF_8);
         return new ByteArrayResource(shaderBytes);
     }
 }

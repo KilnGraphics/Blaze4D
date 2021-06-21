@@ -41,8 +41,6 @@ public class OpenGLToVulkanShaderProcessor {
         int inVariables = 0;
         int outVariables = 0;
         int samplers = 1;
-        List<String> uniformTypes = new ArrayList<>();
-        List<String> uniformNames = new ArrayList<>();
 
         for (int i = 0; i < lines.size(); i++) {
             String line = lines.get(i);
@@ -60,21 +58,31 @@ public class OpenGLToVulkanShaderProcessor {
                 Matcher uniformMatcher = Pattern.compile("uniform\\s(\\w*)\\s(\\w*);").matcher(line);
                 uniformMatcher.find();
                 String type = uniformMatcher.group(1);
-                String name = uniformMatcher.group(2);
-                if (!type.equals("sampler2D")) {
-                    lines.set(i, "");
-                    uniformTypes.add(type);
-                    uniformNames.add(name);
-
-                    for (int j = i; j < lines.size(); j++) {
-                        if (lines.get(j).contains(name)) {
-                            lines.set(j, lines.get(j).replaceAll(name, "ubo." + name));
-                        }
-                    }
-                } else {
+                if (type.equals("sampler2D")) {
                     lines.set(i, line.replace("uniform", "layout(binding = " + samplers++ + ") uniform"));
+                } else {
+                    lines.set(i, "");
                 }
             } else if (line.matches("void main\\(\\) \\{")) {
+                List<String> uboNames = List.of(
+                        "ModelViewMat",
+                        "ProjMat",
+                        "ColorModulator",
+                        "FogStart",
+                        "FogEnd",
+                        "FogColor",
+                        "TextureMat",
+                        "GameTime",
+                        "ScreenSize",
+                        "LineWidth"
+                );
+
+                for (String uboName : uboNames) {
+                    for (int j = 0; j < lines.size(); j++) {
+                        lines.set(j, lines.get(j).replaceAll(uboName, "ubo." + uboName));
+                    }
+                }
+
                 String uboInsert = """
                         layout(binding = 0) uniform UniformBufferObject {
                             mat4 ModelViewMat;
@@ -88,7 +96,7 @@ public class OpenGLToVulkanShaderProcessor {
                             vec2 ScreenSize;
                             float LineWidth;
                         } ubo;
-                        
+                                                
                         """;
                 lines.set(i, uboInsert + line);
             }
@@ -103,22 +111,34 @@ public class OpenGLToVulkanShaderProcessor {
     public static void main(String[] args) {
         String originalShader = """
                 #version 150
-                                
-                in vec3 Position;
-                in vec2 UV;
-                in vec4 Color;
-                                
-                uniform mat4 ModelViewMat;
-                uniform mat4 ProjMat;
-                                
-                out vec2 texCoord;
-                out vec4 vertexColor;
-                                
+
+                #moj_import <fog.glsl>
+
+                uniform sampler2D Sampler0;
+
+                uniform vec4 ColorModulator;
+                uniform float FogStart;
+                uniform float FogEnd;
+                uniform vec4 FogColor;
+
+                in float vertexDistance;
+                in vec4 vertexColor;
+                in vec4 lightMapColor;
+                in vec4 overlayColor;
+                in vec2 texCoord0;
+                in vec4 normal;
+
+                out vec4 fragColor;
+
                 void main() {
-                    gl_Position = ProjMat * ModelViewMat * vec4(Position, 1.0);
-                                
-                    texCoord = UV;
-                    vertexColor = Color;
+                    vec4 color = texture(Sampler0, texCoord0);
+                    if (color.a < 0.1) {
+                        discard;
+                    }
+                    color *= vertexColor * ColorModulator;
+                    color.rgb = mix(overlayColor.rgb, color.rgb, overlayColor.a);
+                    color *= lightMapColor;
+                    fragColor = linear_fog(color, vertexDistance, FogStart, FogEnd, FogColor);
                 }
                 """;
         System.out.println(String.join("\n", convertOpenGLToVulkanShader(List.of(originalShader))));
