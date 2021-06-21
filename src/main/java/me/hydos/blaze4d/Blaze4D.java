@@ -15,10 +15,6 @@ public class Blaze4D implements ModInitializer {
         window.onMainLoop(() -> rosella.getRenderer().render(rosella));
     }
 
-    public static void prepare() {
-        Materials.initialize(rosella);
-    }
-
     @Override
     public void onInitialize() {
         System.loadLibrary("renderdoc");
