@@ -14,6 +14,10 @@ import me.hydos.rosella.render.swapchain.Frame
 import me.hydos.rosella.render.texture.TextureManager
 import me.hydos.rosella.render.util.memory.Memory
 import me.hydos.rosella.render.util.ok
+import org.apache.logging.log4j.Level
+import org.apache.logging.log4j.LogManager
+import org.apache.logging.log4j.Logger
+import org.apache.logging.log4j.simple.SimpleLogger
 import org.lwjgl.PointerBuffer
 import org.lwjgl.glfw.GLFW.glfwShowWindow
 import org.lwjgl.glfw.GLFWVulkan
@@ -57,7 +61,11 @@ class Rosella(
 	private var debugMessenger: Long = 0
 	var surface: Long = 0
 
+	val logger : Logger = LogManager.getLogger("Rosella")
+
 	init {
+		println(logger.javaClass)
+		(logger as org.apache.logging.log4j.core.Logger).level = Level.ALL
 		SoundManager.initialize()
 		window.onWindowResize(renderer::windowResizeCallback)
 
@@ -187,16 +195,16 @@ class Rosella(
 	private fun debugCallback(severity: Int, messageType: Int, pCallbackData: Long, pUserData: Long): Int {
 		val callbackData = VkDebugUtilsMessengerCallbackDataEXT.create(pCallbackData)
 		val message = callbackData.pMessageString()
-		if (severity == EXTDebugUtils.VK_DEBUG_UTILS_MESSAGE_SEVERITY_ERROR_BIT_EXT) {
+		if (severity >= EXTDebugUtils.VK_DEBUG_UTILS_MESSAGE_SEVERITY_VERBOSE_BIT_EXT) {
 			if(message.startsWith("Validation Error")) {
 				val split = message.split("|")
 				val cause = split[2]
 				RuntimeException(cause).printStackTrace()
 			} else{
-				System.err.println(message)
+				logger.warn(message)
 			}
 		} else {
-			println(message)
+			logger.info(message)
 		}
 		return VK_FALSE
 	}

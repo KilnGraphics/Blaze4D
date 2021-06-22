@@ -85,7 +85,7 @@ class Renderer {
 	fun render(engine: Rosella) {
 		MemoryStack.stackPush().use { stack ->
 			val thisFrame = inFlightFrames[currentFrame]
-			vkWaitForFences(device.device, thisFrame.pFence(), true, UINT64_MAX)
+			vkWaitForFences(device.device, thisFrame.pFence(), true, UINT64_MAX).ok()
 
 			for (jUnit in safeQueue) {
 				jUnit.run()
@@ -115,7 +115,7 @@ class Renderer {
 			}
 
 			if (imagesInFlight.containsKey(imageIndex)) {
-				vkWaitForFences(device.device, imagesInFlight[imageIndex]!!.fence(), true, UINT64_MAX)
+				vkWaitForFences(device.device, imagesInFlight[imageIndex]!!.fence(), true, UINT64_MAX).ok()
 			}
 			imagesInFlight[imageIndex] = thisFrame
 			val submitInfo = VkSubmitInfo.callocStack(stack)
@@ -125,7 +125,7 @@ class Renderer {
 				.pWaitDstStageMask(stack.ints(VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT))
 				.pSignalSemaphores(thisFrame.pRenderFinishedSemaphore())
 				.pCommandBuffers(stack.pointers(commandBuffers[imageIndex]))
-			vkResetFences(device.device, thisFrame.pFence())
+			vkResetFences(device.device, thisFrame.pFence()).ok()
 			vkQueueSubmit(queues.graphicsQueue, submitInfo, thisFrame.fence()).ok()
 
 			val presentInfo = VkPresentInfoKHR.callocStack(stack)
@@ -159,7 +159,7 @@ class Renderer {
 			}
 		}
 
-		vkDeviceWaitIdle(device.device)
+		vkDeviceWaitIdle(device.device).ok()
 		freeSwapChain(engine)
 		createSwapChain(engine)
 		camera.createViewAndProj(swapChain)
@@ -170,7 +170,7 @@ class Renderer {
 			vkDestroyDescriptorPool(device.device, shaderPair.descriptorPool, null)
 		}
 
-		vkFreeCommandBuffers(device.device, commandPool, commandBuffers.asPointerBuffer())
+		clearCommandBuffers()
 
 		for (material in engine.materials.values) {
 			material.free(device)
@@ -190,6 +190,13 @@ class Renderer {
 		swapChain.swapChainImageViews.forEach { imageView -> vkDestroyImageView(device.device, imageView, null) }
 
 		swapChain.free(engine.device.device)
+	}
+
+	fun clearCommandBuffers() {
+		if (commandBuffers.size != 0) {
+			vkFreeCommandBuffers(device.device, commandPool, commandBuffers.asPointerBuffer())
+			commandBuffers.clear()
+		}
 	}
 
 	private fun createSyncObjects() {
@@ -319,7 +326,7 @@ class Renderer {
 				vkEndCommandBuffer(commandBuffer).ok()
 			}
 		}
-		println("CmdBuffers rebuilt: " + engine.renderObjects.size + " obj's inside.")
+		engine.logger.info("CmdBuffers rebuilt: " + engine.renderObjects.size + " obj's inside.")
 	}
 
 	private fun bindModel(

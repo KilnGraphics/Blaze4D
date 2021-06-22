@@ -42,10 +42,10 @@ public class TextureManagerMixin {
                     );
                 }
             } catch (ClassCastException e) {
-                System.out.println("Class " + texture.getClass().getSimpleName() + " has no Rosella Texture Impl");
+                Blaze4D.LOGGER.warn("Class " + texture.getClass().getSimpleName() + " has no Rosella Texture Impl");
                 // Ignore Classes we have not implemented for now
             } catch (Exception e) {
-                System.out.println("Something went wrong and fuck Mojang");
+                Blaze4D.LOGGER.error("Something went wrong and fuck Mojang");
                 e.printStackTrace();
             }
         });

@@ -9,9 +9,6 @@ import me.hydos.rosella.render.model.Renderable;
 import me.hydos.rosella.render.resource.Identifier;
 import me.hydos.rosella.render.shader.RawShaderProgram;
 import me.hydos.rosella.render.shader.ShaderProgram;
-import me.hydos.rosella.render.vertex.VertexConsumer;
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
 
 import java.util.List;
 import java.util.Map;
@@ -20,9 +17,6 @@ import java.util.Map;
  * Used to make bits of the code easier to manage.
  */
 public class GlobalRenderSystem {
-    public static final Logger LOGGER = LogManager.getLogger("Blaze4D Render System");
-    public static final boolean DEBUG = true;
-
     // Shader Fields
     public static final Map<Integer, ShaderContext> SHADER_MAP = new Int2ObjectOpenHashMap<>();
     public static final Map<Integer, RawShaderProgram> SHADER_PROGRAM_MAP = new Int2ObjectOpenHashMap<>();
@@ -50,17 +44,6 @@ public class GlobalRenderSystem {
         return new Identifier("blaze4d", "gl_" + glId);
     }
 
-    /**
-     * Used for debugging stuff
-     *
-     * @param msg the message to be sent when debugging
-     */
-    public static void debug(Object msg) {
-        if (GlobalRenderSystem.DEBUG) {
-            LOGGER.warn(msg);
-        }
-    }
-
     //=================
     // Frame/Drawing Methods
     //=================
@@ -69,20 +52,25 @@ public class GlobalRenderSystem {
      * Called when a frame is flipped. used to send all buffers to the engine to draw. Also allows for caching
      */
     public static void flipFrame() {
-        if(Blaze4D.rosella.getRenderObjects().size() != 0) {
+        if (Blaze4D.rosella.getRenderObjects().size() != 0) {
             for (Renderable renderable : Blaze4D.rosella.getRenderObjects().values()) {
                 renderable.free(Blaze4D.rosella.getMemory());
             }
             Blaze4D.rosella.getRenderObjects().clear();
         }
 
+        if (frameObjects.size() != 0) {
+            Blaze4D.rosella.getRenderer().clearCommandBuffers();
+        }
+
         for (ConsumerRenderObject renderObject : frameObjects) {
             Blaze4D.rosella.addRenderObject(renderObject, renderObject.toString());
         }
 
-        if(frameObjects.size() != 0) {
+        if (frameObjects.size() != 0) {
             Blaze4D.rosella.getRenderer().rebuildCommandBuffers(Blaze4D.rosella.getRenderer().renderPass, Blaze4D.rosella);
         }
+
         frameObjects.clear();
         Blaze4D.window.forceMainLoop();
     }

@@ -73,9 +73,9 @@ class SwapChain(
 			val pSwapChain: LongBuffer = it.longs(VK_NULL_HANDLE)
 			vkCreateSwapchainKHR(device, createInfo, null, pSwapChain).ok()
 			swapChain = pSwapChain[0]
-			vkGetSwapchainImagesKHR(device, swapChain, imageCount, null)
+			vkGetSwapchainImagesKHR(device, swapChain, imageCount, null).ok()
 			val pSwapchainImages: LongBuffer = it.mallocLong(imageCount[0])
-			vkGetSwapchainImagesKHR(device, swapChain, imageCount, pSwapchainImages)
+			vkGetSwapchainImagesKHR(device, swapChain, imageCount, pSwapchainImages).ok()
 
 			swapChainImages = ArrayList(imageCount[0])
 
@@ -133,17 +133,17 @@ class SwapChain(
 		fun querySwapChainSupport(device: VkPhysicalDevice, stack: MemoryStack, surface: Long): SwapChainSupportDetails {
 			val details = SwapChainSupportDetails()
 			details.capabilities = VkSurfaceCapabilitiesKHR.mallocStack(stack)
-			vkGetPhysicalDeviceSurfaceCapabilitiesKHR(device, surface, details.capabilities)
+			vkGetPhysicalDeviceSurfaceCapabilitiesKHR(device, surface, details.capabilities).ok()
 			val count = stack.ints(0)
-			vkGetPhysicalDeviceSurfaceFormatsKHR(device, surface, count, null)
+			vkGetPhysicalDeviceSurfaceFormatsKHR(device, surface, count, null).ok()
 			if (count[0] != 0) {
 				details.formats = VkSurfaceFormatKHR.mallocStack(count[0], stack)
-				vkGetPhysicalDeviceSurfaceFormatsKHR(device, surface, count, details.formats)
+				vkGetPhysicalDeviceSurfaceFormatsKHR(device, surface, count, details.formats).ok()
 			}
-			vkGetPhysicalDeviceSurfacePresentModesKHR(device, surface, count, null)
+			vkGetPhysicalDeviceSurfacePresentModesKHR(device, surface, count, null).ok()
 			if (count[0] != 0) {
 				details.presentModes = stack.mallocInt(count[0])
-				vkGetPhysicalDeviceSurfacePresentModesKHR(device, surface, count, details.presentModes)
+				vkGetPhysicalDeviceSurfacePresentModesKHR(device, surface, count, details.presentModes).ok()
 			}
 			return details
 		}

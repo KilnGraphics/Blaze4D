@@ -72,9 +72,8 @@ class Device(private val engine: Rosella, private val layers: Set<String>) {
 				createInfo.ppEnabledLayerNames(engine.asPtrBuffer(layers))
 			}
 			val pDevice: PointerBuffer = it.pointers(VK_NULL_HANDLE)
-			if (vkCreateDevice(physicalDevice, createInfo, null, pDevice) != VK_SUCCESS) {
-				error("Failed to create logical device")
-			}
+			vkCreateDevice(physicalDevice, createInfo, null, pDevice).ok("Failed to create logical device")
+
 			device = VkDevice(pDevice[0], physicalDevice, createInfo)
 
 			val pQueue: PointerBuffer = it.pointers(VK_NULL_HANDLE)
@@ -112,7 +111,7 @@ class Device(private val engine: Rosella, private val layers: Set<String>) {
 	private fun checkDeviceExtensionsSupport(device: VkPhysicalDevice): Boolean {
 		stackPush().use { stack ->
 			val extensionCount = stack.ints(0)
-			vkEnumerateDeviceExtensionProperties(device, null as String?, extensionCount, null)
+			vkEnumerateDeviceExtensionProperties(device, null as String?, extensionCount, null).ok()
 //			val availableExtensions =
 //			VkExtensionProperties.mallocStack(extensionCount[0], stack)
 //			return availableExtensions.stream().collect(toSet()).containsAll(DEVICE_EXTENSIONS)

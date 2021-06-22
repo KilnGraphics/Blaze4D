@@ -40,7 +40,6 @@ public class Materials {
     }
 
     public static record MaterialBuilder(String originalPath, Topology topology) {
-
         public Material build(ShaderProgram shader, UploadableImage image, VertexFormat format) {
             return MATERIAL_CACHE.computeIfAbsent(new MaterialInfo(this, shader, image, format), info -> {
                 Blaze4dMaterial material = new Blaze4dMaterial(
@@ -57,7 +56,6 @@ public class Materials {
                 );
                 Blaze4D.rosella.reloadMaterials();
                 return material;
-
             });
         }
     }
