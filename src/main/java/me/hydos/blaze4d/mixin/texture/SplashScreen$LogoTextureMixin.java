@@ -1,6 +1,6 @@
 package me.hydos.blaze4d.mixin.texture;
 
-import net.minecraft.client.gui.screen.SplashScreen;
+import net.minecraft.client.gui.screen.SplashOverlay;
 import net.minecraft.client.texture.ResourceTexture;
 import net.minecraft.resource.ResourceManager;
 import net.minecraft.util.Identifier;
@@ -11,7 +11,7 @@ import org.spongepowered.asm.mixin.injection.callback.CallbackInfoReturnable;
 
 import java.io.IOException;
 
-@Mixin(SplashScreen.LogoTexture.class)
+@Mixin(SplashOverlay.LogoTexture.class)
 public abstract class SplashScreen$LogoTextureMixin extends ResourceTexture {
 
     public SplashScreen$LogoTextureMixin(Identifier location) {

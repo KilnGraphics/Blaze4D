@@ -17,6 +17,10 @@ public class Blaze4D implements ModInitializer {
 
     @Override
     public void onInitialize() {
-        System.loadLibrary("renderdoc");
+        try {
+            System.loadLibrary("renderdoc");
+        } catch (UnsatisfiedLinkError e) {
+            System.err.println("Unable to find renderdoc on path.");
+        }
     }
 }

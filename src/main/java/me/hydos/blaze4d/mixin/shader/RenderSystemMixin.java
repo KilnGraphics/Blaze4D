@@ -24,7 +24,7 @@ public abstract class RenderSystemMixin {
      * @author Blaze4D
      * @reason To Integrate Shader Programs
      */
-    @Overwrite
+    @Overwrite(remap = false)
     public static void setShader(Supplier<Shader> supplier) {
         Shader result = supplier.get();
         if(result == null) {

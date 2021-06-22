@@ -2,7 +2,7 @@
   "required": true,
   "minVersion": "0.8",
   "package": "me.hydos.blaze4d.mixin",
-  "compatibilityLevel": "JAVA_8",
+  "compatibilityLevel": "JAVA_16",
   "mixins": [
     "blaze3d.RenderSystemMixin",
     "blaze3d.platform.TextureUtilMixin",

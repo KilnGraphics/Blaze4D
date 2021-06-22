@@ -92,7 +92,7 @@ public class GlStateManagerMixin {
      * @author Blaze4D
      * @reason To Integrate Shader Programs
      */
-    @Overwrite
+    @Overwrite(remap = false)
     public static int glCreateProgram() {
         RenderSystem.assertThread(RenderSystem::isOnRenderThread);
         RawShaderProgram program = new RawShaderProgram(

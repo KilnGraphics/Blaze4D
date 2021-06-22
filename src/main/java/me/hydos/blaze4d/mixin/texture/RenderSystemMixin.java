@@ -11,7 +11,7 @@ import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 @Mixin(RenderSystem.class)
 public class RenderSystemMixin {
 
-    @Inject(method = "setShaderTexture(ILnet/minecraft/util/Identifier;)V", at = @At("HEAD"))
+    @Inject(method = "setShaderTexture(ILnet/minecraft/util/Identifier;)V", remap = false, at = @At("HEAD"))
     private static void setTexture(int i, Identifier identifier, CallbackInfo ci) {
         VkRenderSystem.boundTexture = identifier;
     }

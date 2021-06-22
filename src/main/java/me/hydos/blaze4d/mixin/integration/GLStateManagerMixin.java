@@ -33,7 +33,7 @@ public class GLStateManagerMixin {
             "_colorMask",
             "_depthMask",
             "_glBindFramebuffer"
-    }, at = @At("HEAD"), cancellable = true)
+    }, at = @At("HEAD"), remap = false, cancellable = true)
     private static void unimplementedGlCalls(CallbackInfo ci) {
         //TODO: IMPL
         ci.cancel();

@@ -14,16 +14,16 @@ import org.spongepowered.asm.mixin.injection.callback.CallbackInfoReturnable;
 @Mixin(RenderSystem.class)
 public class RenderSystemMixin {
 
-    @Inject(method = "initRenderer", at = @At("HEAD"))
+    @Inject(method = "initRenderer", remap = false, at = @At("HEAD"))
     private static void cancel_initRenderer(int debugVerbosity, boolean debugSync, CallbackInfo ci) {
     }
 
-    @Inject(method = "maxSupportedTextureSize", at = @At("HEAD"), cancellable = true)
+    @Inject(method = "maxSupportedTextureSize", remap = false, at = @At("HEAD"), cancellable = true)
     private static void setMaxSupportedTextureSize(CallbackInfoReturnable<Integer> cir) {
         cir.setReturnValue(99999999);
     }
 
-    @Inject(method = "isOnRenderThread", at = @At("HEAD"), cancellable = true)
+    @Inject(method = "isOnRenderThread",remap = false, at = @At("HEAD"), cancellable = true)
     private static void myEngineIsMultithreadedAndSafe(CallbackInfoReturnable<Boolean> cir) {
         cir.setReturnValue(true);
         // TODO: if something crashes, point out this was here
