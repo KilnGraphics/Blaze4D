@@ -335,9 +335,9 @@ class Renderer {
 		)
 
 		val offsets = matrix.longs(0)
-		val vertexBuffers = matrix.longs(renderObject.getVerticesBuffer())
+		val vertexBuffers = matrix.longs(renderObject.getVerticesBuffer().buffer)
 		vkCmdBindVertexBuffers(commandBuffer, 0, vertexBuffers, offsets)
-		vkCmdBindIndexBuffer(commandBuffer, renderObject.getIndicesBuffer(), 0, VK_INDEX_TYPE_UINT32)
+		vkCmdBindIndexBuffer(commandBuffer, renderObject.getIndicesBuffer().buffer, 0, VK_INDEX_TYPE_UINT32)
 		vkCmdBindDescriptorSets(
 			commandBuffer,
 			VK_PIPELINE_BIND_POINT_GRAPHICS,

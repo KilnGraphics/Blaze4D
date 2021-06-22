@@ -12,6 +12,7 @@ import me.hydos.rosella.render.renderer.Renderer;
 import me.hydos.rosella.render.shader.ShaderProgram;
 import me.hydos.rosella.render.shader.ubo.Ubo;
 import me.hydos.rosella.render.texture.UploadableImage;
+import me.hydos.rosella.render.util.memory.BufferInfo;
 import me.hydos.rosella.render.util.memory.Memory;
 import net.minecraft.client.MinecraftClient;
 import net.minecraft.client.render.*;
@@ -46,8 +47,8 @@ public abstract class BufferBuilderMixin extends FixedColorVertexConsumer implem
     private MinecraftUbo ubo;
     public Material material;
     public List<Integer> indices = new ArrayList<>();
-    public Long vertexBuffer = 0L;
-    public Long indexBuffer = 0L;
+    public BufferInfo vertexBuffer = null;
+    public BufferInfo indexBuffer = null;
     public List<Long> descriptorSets = new ArrayList<>();
 
     @Inject(method = "begin", at = @At("HEAD"))
@@ -218,8 +219,8 @@ public abstract class BufferBuilderMixin extends FixedColorVertexConsumer implem
 
     @Override
     public void free(@NotNull Memory memory) {
-        Vma.vmaFreeMemory(memory.getAllocator(), vertexBuffer);
-        Vma.vmaFreeMemory(memory.getAllocator(), indexBuffer);
+        memory.freeBuffer(vertexBuffer);
+        memory.freeBuffer(indexBuffer);
         ubo.free();
     }
 
@@ -265,12 +266,12 @@ public abstract class BufferBuilderMixin extends FixedColorVertexConsumer implem
     }
 
     @Override
-    public long getVerticesBuffer() {
+    public BufferInfo getVerticesBuffer() {
         return vertexBuffer;
     }
 
     @Override
-    public long getIndicesBuffer() {
+    public BufferInfo getIndicesBuffer() {
         return indexBuffer;
     }
 

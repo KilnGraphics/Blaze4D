@@ -141,14 +141,14 @@ class Memory(val device: Device, private val instance: VkInstance) {
 	/**
 	 * Creates an index buffer from an list of indices
 	 */
-	fun createIndexBuffer(engine: Rosella, indices: List<Int>): Long {
+	fun createIndexBuffer(engine: Rosella, indices: List<Int>): BufferInfo {
 		stackPush().use {
 			val size: Int = (Integer.BYTES * indices.size)
 			val pBuffer = it.mallocLong(1)
 			val stagingBuffer = engine.memory.createStagingBuf(size, pBuffer, it) { data ->
 				memcpy(data.getByteBuffer(0, size), indices)
 			}
-			createBuffer(
+			val indexBufferInfo = createBuffer(
 				size,
 				VK10.VK_BUFFER_USAGE_TRANSFER_DST_BIT or VK10.VK_BUFFER_USAGE_INDEX_BUFFER_BIT,
 				Vma.VMA_MEMORY_USAGE_CPU_TO_GPU,
@@ -157,14 +157,14 @@ class Memory(val device: Device, private val instance: VkInstance) {
 			val indexBuffer = pBuffer[0]
 			copyBuffer(stagingBuffer.buffer, indexBuffer, size, engine, device)
 			freeBuffer(stagingBuffer)
-			return indexBuffer
+			return indexBufferInfo
 		}
 	}
 
 	/**
 	 * Creates a vertex buffer from an List of Vertices
 	 */
-	fun createVertexBuffer(engine: Rosella, consumer: VertexConsumer): Long {
+	fun createVertexBuffer(engine: Rosella, consumer: VertexConsumer): BufferInfo {
 		stackPush().use {
 			if (consumer is BufferVertexConsumer) {
 				val size: Int = consumer.getVertexSize() * consumer.getVertexCount()
@@ -175,7 +175,7 @@ class Memory(val device: Device, private val instance: VkInstance) {
 						bufConsumer.accept(dst)
 					}
 				}
-				createBuffer(
+				val vertexBufferInfo = createBuffer(
 					size,
 					VK10.VK_BUFFER_USAGE_TRANSFER_DST_BIT or VK10.VK_BUFFER_USAGE_VERTEX_BUFFER_BIT,
 					Vma.VMA_MEMORY_USAGE_CPU_TO_GPU,
@@ -184,7 +184,7 @@ class Memory(val device: Device, private val instance: VkInstance) {
 				val vertexBuffer = pBuffer[0]
 				copyBuffer(stagingBuffer.buffer, vertexBuffer, size, engine, device)
 				freeBuffer(stagingBuffer)
-				return vertexBuffer
+				return vertexBufferInfo
 			} else {
 				throw RuntimeException("Cannot handle non buffer based Vertex Consumers")
 			}

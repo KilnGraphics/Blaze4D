@@ -10,6 +10,7 @@ import me.hydos.rosella.render.material.Material;
 import me.hydos.rosella.render.model.Renderable;
 import me.hydos.rosella.render.renderer.Renderer;
 import me.hydos.rosella.render.shader.ubo.Ubo;
+import me.hydos.rosella.render.util.memory.BufferInfo;
 import me.hydos.rosella.render.util.memory.Memory;
 import me.hydos.rosella.render.vertex.VertexConsumer;
 import net.minecraft.client.gl.VertexBuffer;
@@ -44,8 +45,8 @@ public class VertexBufferMixin implements Renderable {
 
     public VertexConsumer consumer;
     public List<Integer> indices = new ArrayList<>();
-    public Long vertexBuffer = 0L;
-    public Long indexBuffer = 0L;
+    public BufferInfo vertexBuffer = null;
+    public BufferInfo indexBuffer = null;
 
     public List<Long> descSets = new ArrayList<>();
     public Matrix4f transformationMatrix = new Matrix4f().identity();
@@ -146,8 +147,8 @@ public class VertexBufferMixin implements Renderable {
 
     @Override
     public void free(@NotNull Memory memory) {
-//        Vma.vmaFreeMemory(memory.getAllocator(), vertexBuffer);
-//        Vma.vmaFreeMemory(memory.getAllocator(), indexBuffer);
+        memory.freeBuffer(vertexBuffer);
+        memory.freeBuffer(indexBuffer);
         ubo.free();
     }
 
@@ -187,12 +188,12 @@ public class VertexBufferMixin implements Renderable {
     }
 
     @Override
-    public long getVerticesBuffer() {
+    public BufferInfo getVerticesBuffer() {
         return vertexBuffer;
     }
 
     @Override
-    public long getIndicesBuffer() {
+    public BufferInfo getIndicesBuffer() {
         return indexBuffer;
     }
 

@@ -116,7 +116,7 @@ tasks.withType(JavaCompile).configureEach {
 
 java {
     withSourcesJar()
-    withJavadocJar()
+//    withJavadocJar()
     sourceCompatibility = JavaVersion.VERSION_16
     targetCompatibility = JavaVersion.VERSION_16
 }
@@ -127,8 +127,13 @@ jar {
     }
 }
 
+//javadoc {
+//    failOnError(false)
+//}
+
 artifacts {
-    archives jar, sourcesJar, javadocJar
+    archives jar, sourcesJar
+//    , javadocJar
 }
 
 curseforge {

@@ -7,6 +7,7 @@ import me.hydos.rosella.render.resource.Identifier
 import me.hydos.rosella.render.resource.Resource
 import me.hydos.rosella.render.shader.ubo.LowLevelUbo
 import me.hydos.rosella.render.shader.ubo.Ubo
+import me.hydos.rosella.render.util.memory.BufferInfo
 import me.hydos.rosella.render.util.memory.Memory
 import me.hydos.rosella.render.vertex.BufferVertexConsumer
 import me.hydos.rosella.render.vertex.VertexConsumer
@@ -21,8 +22,8 @@ open class RenderObject(private val model: Resource, val materialIdentifier: Ide
 
 	var consumer = BufferVertexConsumer(VertexFormats.POSITION_COLOR_UV)
 	var indices: ArrayList<Int> = ArrayList()
-	private var vertexBuffer: Long = 0
-	private var indexBuffer: Long = 0
+	private lateinit var vertexBuffer: BufferInfo
+	private lateinit var indexBuffer: BufferInfo
 
 	private var descSets: MutableList<Long> = ArrayList()
 	var modelTransformMatrix: Matrix4f = Matrix4f()
@@ -38,8 +39,8 @@ open class RenderObject(private val model: Resource, val materialIdentifier: Ide
 	}
 
 	override fun free(memory: Memory) {
-		vmaFreeMemory(memory.allocator, vertexBuffer)
-		vmaFreeMemory(memory.allocator, indexBuffer)
+		memory.freeBuffer(vertexBuffer)
+		memory.freeBuffer(indexBuffer)
 		uniformBufferObject.free()
 	}
 
@@ -74,11 +75,11 @@ open class RenderObject(private val model: Resource, val materialIdentifier: Ide
 		return mat
 	}
 
-	override fun getVerticesBuffer(): Long {
+	override fun getVerticesBuffer(): BufferInfo {
 		return vertexBuffer
 	}
 
-	override fun getIndicesBuffer(): Long {
+	override fun getIndicesBuffer(): BufferInfo {
 		return indexBuffer
 	}
 
