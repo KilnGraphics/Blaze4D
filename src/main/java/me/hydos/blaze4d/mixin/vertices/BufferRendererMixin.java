@@ -1,6 +1,6 @@
 package me.hydos.blaze4d.mixin.vertices;
 
-import me.hydos.blaze4d.api.vertex.RenderableConsumer;
+import me.hydos.blaze4d.api.vertex.UploadableConsumer;
 import net.minecraft.client.render.BufferBuilder;
 import net.minecraft.client.render.BufferRenderer;
 import org.spongepowered.asm.mixin.Mixin;
@@ -13,6 +13,6 @@ public class BufferRendererMixin {
 
     @Inject(method = "draw(Lnet/minecraft/client/render/BufferBuilder;)V", at = @At(value = "HEAD"), cancellable = true)
     private static void redirectDraw(BufferBuilder builder, CallbackInfo ci) {
-        ((RenderableConsumer) builder).draw();
+        ((UploadableConsumer) builder).draw();
     }
 }

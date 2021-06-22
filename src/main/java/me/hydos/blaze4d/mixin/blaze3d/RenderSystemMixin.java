@@ -2,6 +2,7 @@ package me.hydos.blaze4d.mixin.blaze3d;
 
 import com.mojang.blaze3d.systems.RenderSystem;
 import me.hydos.blaze4d.Blaze4D;
+import me.hydos.blaze4d.api.GlobalRenderSystem;
 import net.minecraft.client.render.Tessellator;
 import org.lwjgl.glfw.GLFW;
 import org.spongepowered.asm.mixin.Mixin;
@@ -38,7 +39,7 @@ public class RenderSystemMixin {
         GLFW.glfwPollEvents();
         RenderSystem.replayQueue();
         Tessellator.getInstance().getBuffer().clear();
-        Blaze4D.window.forceMainLoop();
+        GlobalRenderSystem.flipFrame();
         GLFW.glfwPollEvents();
     }
 }

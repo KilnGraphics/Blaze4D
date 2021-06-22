@@ -94,4 +94,13 @@ class BufferVertexConsumer(override val format: VertexFormat) : VertexConsumer {
 	override fun getVertexCount(): Int {
 		return vertexCount
 	}
+
+	override fun copy(): VertexConsumer {
+		val consumer = BufferVertexConsumer(format)
+		consumer.debugSize = this.debugSize
+		consumer.bufferConsumerList = this.bufferConsumerList
+		consumer.vertexCount = this.vertexCount
+		consumer.vertexSize = this.vertexSize
+		return consumer
+	}
 }

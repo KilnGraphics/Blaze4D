@@ -2,8 +2,7 @@ package me.hydos.blaze4d.mixin.shader;
 
 import com.mojang.blaze3d.systems.RenderSystem;
 import me.hydos.blaze4d.Blaze4D;
-import me.hydos.blaze4d.api.VkRenderSystem;
-import me.hydos.rosella.Rosella;
+import me.hydos.blaze4d.api.GlobalRenderSystem;
 import me.hydos.rosella.render.shader.RawShaderProgram;
 import net.minecraft.client.render.Shader;
 import org.jetbrains.annotations.Nullable;
@@ -33,13 +32,13 @@ public abstract class RenderSystemMixin {
         if (!RenderSystem.isOnRenderThread()) {
             RenderSystem.recordRenderCall(() -> {
                 RenderSystemMixin.shader = result;
-                RawShaderProgram rawProgram = VkRenderSystem.SHADER_PROGRAM_MAP.get(RenderSystemMixin.shader.getProgramRef());
-                VkRenderSystem.activeShader = Blaze4D.rosella.getShaderManager().getOrCreateShader(rawProgram);
+                RawShaderProgram rawProgram = GlobalRenderSystem.SHADER_PROGRAM_MAP.get(RenderSystemMixin.shader.getProgramRef());
+                GlobalRenderSystem.activeShader = Blaze4D.rosella.getShaderManager().getOrCreateShader(rawProgram);
             });
         } else {
             RenderSystemMixin.shader = result;
-            RawShaderProgram rawProgram = VkRenderSystem.SHADER_PROGRAM_MAP.get(RenderSystemMixin.shader.getProgramRef());
-            VkRenderSystem.activeShader = Blaze4D.rosella.getShaderManager().getOrCreateShader(rawProgram);
+            RawShaderProgram rawProgram = GlobalRenderSystem.SHADER_PROGRAM_MAP.get(RenderSystemMixin.shader.getProgramRef());
+            GlobalRenderSystem.activeShader = Blaze4D.rosella.getShaderManager().getOrCreateShader(rawProgram);
         }
 
     }

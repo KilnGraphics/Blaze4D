@@ -73,12 +73,12 @@ class Renderer {
 			.level(VK_COMMAND_BUFFER_LEVEL_PRIMARY)
 			.commandPool(commandPool)
 			.commandBufferCount(1)
-		vkAllocateCommandBuffers(device.device, allocInfo, pCommandBuffer)
+		vkAllocateCommandBuffers(device.device, allocInfo, pCommandBuffer).ok()
 		val commandBuffer = VkCommandBuffer(pCommandBuffer[0], device.device)
 		val beginInfo = VkCommandBufferBeginInfo.callocStack(stack)
 			.sType(VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO)
 			.flags(VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT)
-		vkBeginCommandBuffer(commandBuffer, beginInfo)
+		vkBeginCommandBuffer(commandBuffer, beginInfo).ok()
 		return commandBuffer
 	}
 
@@ -319,7 +319,7 @@ class Renderer {
 				vkEndCommandBuffer(commandBuffer).ok()
 			}
 		}
-		println("Command Buffers rebuilt! " + engine.renderObjects.size + " objects rendered.")
+		println("CmdBuffers rebuilt: " + engine.renderObjects.size + " obj's inside.")
 	}
 
 	private fun bindModel(

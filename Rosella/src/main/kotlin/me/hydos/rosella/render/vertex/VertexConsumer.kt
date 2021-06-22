@@ -26,4 +26,6 @@ interface VertexConsumer {
 	fun getVertexSize(): Int
 
 	fun getVertexCount(): Int
+
+	fun copy(): VertexConsumer
 }

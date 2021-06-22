@@ -7,7 +7,7 @@ import net.minecraft.client.render.VertexFormat;
 
 import java.util.List;
 
-public interface RenderableConsumer {
+public interface UploadableConsumer {
 
     BufferVertexConsumer getConsumer();
 

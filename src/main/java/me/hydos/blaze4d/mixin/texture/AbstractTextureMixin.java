@@ -4,7 +4,7 @@ import java.util.HashMap;
 import java.util.Map;
 import java.util.concurrent.Executor;
 
-import me.hydos.blaze4d.api.VkRenderSystem;
+import me.hydos.blaze4d.api.GlobalRenderSystem;
 import net.minecraft.client.texture.AbstractTexture;
 import net.minecraft.client.texture.TextureManager;
 import net.minecraft.resource.ResourceManager;
@@ -26,7 +26,7 @@ public abstract class AbstractTextureMixin {
 
     @Inject(method = "bindTexture", at = @At("HEAD"), cancellable = true)
     private void bindFake(CallbackInfo ci) {
-        VkRenderSystem.boundTexture = rosellaIdentifier;
+        GlobalRenderSystem.boundTexture = rosellaIdentifier;
         ci.cancel();
     }
 

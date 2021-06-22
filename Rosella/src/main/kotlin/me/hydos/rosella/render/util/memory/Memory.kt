@@ -128,7 +128,7 @@ class Memory(val device: Device, private val instance: VkInstance) {
 				copyRegion.size(size.toLong())
 				VK10.vkCmdCopyBuffer(commandBuffer, srcBuffer, dstBuffer, copyRegion)
 			}
-			VK10.vkEndCommandBuffer(commandBuffer)
+			VK10.vkEndCommandBuffer(commandBuffer).ok()
 			val submitInfo = VkSubmitInfo.callocStack(it)
 				.sType(VK10.VK_STRUCTURE_TYPE_SUBMIT_INFO)
 				.pCommandBuffers(pCommandBuffer)

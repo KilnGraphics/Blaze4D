@@ -4,7 +4,7 @@ import com.mojang.datafixers.util.Pair;
 import me.hydos.blaze4d.Blaze4D;
 import me.hydos.blaze4d.api.Materials;
 import me.hydos.blaze4d.api.shader.MinecraftUbo;
-import me.hydos.blaze4d.api.vertex.RenderableConsumer;
+import me.hydos.blaze4d.api.vertex.UploadableConsumer;
 import me.hydos.rosella.Rosella;
 import me.hydos.rosella.render.material.Material;
 import me.hydos.rosella.render.model.Renderable;
@@ -52,7 +52,7 @@ public class VertexBufferMixin implements Renderable {
     public Matrix4f transformationMatrix = new Matrix4f().identity();
     public Ubo ubo;
     public Material material;
-    private RenderableConsumer builderStorage;
+    private UploadableConsumer builderStorage;
 
     @Inject(method = "uploadInternal", at = @At("HEAD"), cancellable = true)
     private void sendToRosella(BufferBuilder builder, CallbackInfo ci) {
@@ -70,7 +70,7 @@ public class VertexBufferMixin implements Renderable {
         this.indices.clear();
 
         if (!draw.isCameraOffset()) {
-            if (builder instanceof RenderableConsumer vertexStorage) {
+            if (builder instanceof UploadableConsumer vertexStorage) {
                 this.consumer = vertexStorage.getConsumer();
                 this.builderStorage = vertexStorage;
                 for (int i = 0; i < consumer.getVertexCount(); i++) {
