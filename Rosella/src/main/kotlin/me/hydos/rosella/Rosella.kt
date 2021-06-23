@@ -17,7 +17,6 @@ import me.hydos.rosella.render.util.ok
 import org.apache.logging.log4j.Level
 import org.apache.logging.log4j.LogManager
 import org.apache.logging.log4j.Logger
-import org.apache.logging.log4j.simple.SimpleLogger
 import org.lwjgl.PointerBuffer
 import org.lwjgl.glfw.GLFW.glfwShowWindow
 import org.lwjgl.glfw.GLFWVulkan
