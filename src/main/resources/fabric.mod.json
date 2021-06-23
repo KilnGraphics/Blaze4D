@@ -2,7 +2,7 @@
   "schemaVersion": 1,
   "id": "blaze4d",
   "version": "${version}",
-  "name": "Blaze 4D",
+  "name": "Iodine",
   "description": "Blaze3D But Vulkan.",
   "authors": [
     "hydos"

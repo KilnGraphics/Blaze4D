@@ -13,7 +13,7 @@ import java.nio.LongBuffer;
 public class Aftermath {
     private static final SharedLibrary AFTERMATH = Library.loadNative(Aftermath.class,
             "me.hydos.aftermath",
-            System.getProperty("os.name").toLowerCase().contains("windows") ? "GFSDK_Aftermath_Lib.x64" : "",
+            System.getProperty("os.name").toLowerCase().contains("windows") ? "WinAftermath" : "LinuxAftermath",
             false);
 
     private static final long GFSDK_Aftermath_EnableGpuCrashDumps;

@@ -3,6 +3,8 @@ package me.hydos.aftermath.callback;
 import org.jetbrains.annotations.Nullable;
 import org.lwjgl.system.Callback;
 
+import java.io.IOException;
+
 import static org.lwjgl.system.MemoryUtil.NULL;
 
 
@@ -43,7 +45,7 @@ public abstract class GPUCrashDumpCallback extends Callback implements GPUCrashD
 
 
         @Override
-        public void invoke(long pGpuCrashDump, int gpuCrashDumpSize, long pUserData) {
+        public void invoke(long pGpuCrashDump, int gpuCrashDumpSize, long pUserData) throws IOException {
             delegate.invoke(pGpuCrashDump, gpuCrashDumpSize, pUserData);
         }
     }
