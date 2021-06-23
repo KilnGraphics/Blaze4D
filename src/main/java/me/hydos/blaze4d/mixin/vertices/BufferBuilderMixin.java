@@ -14,6 +14,7 @@ import org.spongepowered.asm.mixin.injection.Inject;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
 
 @Mixin(BufferBuilder.class)
@@ -154,7 +155,7 @@ public abstract class BufferBuilderMixin extends FixedColorVertexConsumer implem
                     getShader(),
                     getImage()
             );
-            renderObject.indices = indices;
+            renderObject.indices = Collections.unmodifiableList(indices);
             GlobalRenderSystem.uploadObject(renderObject);
         }
     }

@@ -54,6 +54,7 @@ public class Materials {
                         new Identifier("minecraft", originalPath + "_" + shader.hashCode() + "_" + format.hashCode()),
                         material
                 );
+                Blaze4D.rosella.getRenderer().clearCommandBuffers();
                 Blaze4D.rosella.reloadMaterials();
                 return material;
             });

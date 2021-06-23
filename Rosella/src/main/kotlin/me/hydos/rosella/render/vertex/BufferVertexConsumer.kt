@@ -1,11 +1,13 @@
 package me.hydos.rosella.render.vertex
 
 import java.nio.ByteBuffer
+import java.util.*
 import java.util.function.Consumer
+import kotlin.collections.ArrayList
 
 class BufferVertexConsumer(override val format: VertexFormat) : VertexConsumer {
 
-	var bufferConsumerList = ArrayList<Consumer<ByteBuffer>>()
+	var bufferConsumerList : MutableList<Consumer<ByteBuffer>> = ArrayList()
 	private var vertexSize = format.getSize()
 	private var vertexCount = 0
 
@@ -98,7 +100,7 @@ class BufferVertexConsumer(override val format: VertexFormat) : VertexConsumer {
 	override fun copy(): VertexConsumer {
 		val consumer = BufferVertexConsumer(format)
 		consumer.debugSize = this.debugSize
-		consumer.bufferConsumerList = this.bufferConsumerList
+		consumer.bufferConsumerList = Collections.unmodifiableList(this.bufferConsumerList)
 		consumer.vertexCount = this.vertexCount
 		consumer.vertexSize = this.vertexSize
 		return consumer

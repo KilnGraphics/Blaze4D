@@ -64,7 +64,6 @@ class Rosella(
 	val logger : Logger = LogManager.getLogger("Rosella")
 
 	init {
-		println(logger.javaClass)
 		(logger as org.apache.logging.log4j.core.Logger).level = Level.ALL
 		SoundManager.initialize()
 		window.onWindowResize(renderer::windowResizeCallback)
