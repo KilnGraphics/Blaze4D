@@ -47,17 +47,14 @@ public class Blaze4D implements ModInitializer {
                 0x2,
                 0x1,
                 (pGpuCrashDump, gpuCrashDumpSize, pUserData) -> {
-                    LOGGER.error("GPU Crash Callback: %d, %d, %d", pGpuCrashDump, gpuCrashDumpSize, pUserData);
-                    LOGGER.error(MemoryUtil.memUTF8Safe(pGpuCrashDump, gpuCrashDumpSize));
                     try {
                         writeGpuCrashDumpToFile(pGpuCrashDump, gpuCrashDumpSize);
                     } catch (IOException e) {
                         throw new IOException("Failed to write Gpu crash dump to file", e);
                     }
                 },
-                (pShaderDebugInfo, shaderDebugInfoSize, pUserData) -> LOGGER.error("Shader Debug Callback: %d, %d, %d", pShaderDebugInfo, shaderDebugInfoSize, pUserData),
+                (pShaderDebugInfo, shaderDebugInfoSize, pUserData) -> {},
                 (addValue, pUserData) -> {
-                    LOGGER.info("GPU Crash Description Callback: %d, %d", addValue, pUserData);
                     Map<Integer, String> info = Map.of(0x00000001, "Blaze 4D",
                             0x00000002, "v1.0",
                             0x00010000, "Gpu Crash Dump Blaze4D Info",
@@ -111,44 +108,39 @@ public class Blaze4D implements ModInitializer {
             String applicationName = MemoryUtil.memUTF8(pApplicationName, size - 1);
             String baseFileName = applicationName + "-" + baseInfo.pid();
 
-            System.out.println(baseFileName);
-
             // Write the the crash dump data to a file using the .nv-gpudmp extension
             // registered with Nsight Graphics.
             String crashDumpFileName = baseFileName + ".nv-gpudmp";
             FileOutputStream dumpFile = new FileOutputStream(crashDumpFileName);
             dumpFile.write(MemoryUtil.memUTF8Safe(pGpuCrashDump, gpuCrashDumpSize).getBytes(StandardCharsets.UTF_8));
-//
-//            // Decode the crash dump to a JSON string.
-//            // Step 1: Generate the JSON and get the size.
-//            uint32_t jsonSize = 0;
-//            AFTERMATH_CHECK_ERROR(GFSDK_Aftermath_GpuCrashDump_GenerateJSON(
-//                    decoder,
-//                    GFSDK_Aftermath_GpuCrashDumpDecoderFlags_ALL_INFO,
-//                    GFSDK_Aftermath_GpuCrashDumpFormatterFlags_NONE,
-//                    ShaderDebugInfoLookupCallback,
-//                    ShaderLookupCallback,
-//                    nullptr,
-//                    ShaderSourceDebugInfoLookupCallback,
-//                    this,
-//                    & jsonSize));
-//            // Step 2: Allocate a buffer and fetch the generated JSON.
-//            std::vector < char>json(jsonSize);
-//            AFTERMATH_CHECK_ERROR(GFSDK_Aftermath_GpuCrashDump_GetJSON(
-//                    decoder,
-//                    uint32_t(json.size()),
-//                    json.data()));
-//
-//            // Write the the crash dump data as JSON to a file.
-//    const std::string jsonFileName = crashDumpFileName + ".json";
-//            std::ofstream jsonFile(jsonFileName, std::ios::out | std::ios::binary);
-//            if (jsonFile) {
-//                jsonFile.write(json.data(), json.size());
-//                jsonFile.close();
-//            }
-//
-//            // Destroy the GPU crash dump decoder object.
-//            AFTERMATH_CHECK_ERROR(GFSDK_Aftermath_GpuCrashDump_DestroyDecoder(decoder));
+
+            // Decode the crash dump to a JSON string.
+            // Step 1: Generate the JSON and get the size.
+            IntBuffer pJsonSize = stack.callocInt(1);
+            Aftermath.generateJson(
+                    decoder,
+                    0xFFF,
+                    0x0,
+                    MemoryUtil.NULL, // (pIdentifier, setShaderDebugInfo, pUserData) -> {},
+                    MemoryUtil.NULL, // (pShaderHash, setShaderBinary , pUserData) -> {},
+                    MemoryUtil.NULL,
+                    MemoryUtil.NULL,
+                    new Object(),
+                    pJsonSize);
+            // Step 2: Allocate a buffer and fetch the generated JSON.
+            ByteBuffer pJsonBuffer = stack.malloc(pJsonSize.get(0));
+            Aftermath.getJson(
+                    decoder,
+                    pJsonSize.get(0),
+                    pJsonBuffer);
+
+            // Write the the crash dump data as JSON to a file.
+            String jsonFileName = crashDumpFileName + ".json";
+            FileOutputStream jsonDumpFile = new FileOutputStream(jsonFileName);
+            jsonDumpFile.write(MemoryUtil.memUTF8(pJsonBuffer).getBytes(StandardCharsets.UTF_8));
+
+            // Destroy the GPU crash dump decoder object.
+            Aftermath.destroyDecoder(decoder);
         }
     }
 }

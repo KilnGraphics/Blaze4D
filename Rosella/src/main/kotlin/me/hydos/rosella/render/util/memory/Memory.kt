@@ -133,7 +133,7 @@ class Memory(val device: Device, private val instance: VkInstance) {
 				.sType(VK10.VK_STRUCTURE_TYPE_SUBMIT_INFO)
 				.pCommandBuffers(pCommandBuffer)
 			VK10.vkQueueSubmit(engine.renderer.queues.graphicsQueue, submitInfo, VK10.VK_NULL_HANDLE).ok()
-			VK10.vkQueueWaitIdle(engine.renderer.queues.graphicsQueue)
+			VK10.vkQueueWaitIdle(engine.renderer.queues.graphicsQueue).ok()
 			VK10.vkFreeCommandBuffers(device.device, engine.renderer.commandPool, pCommandBuffer)
 		}
 	}

@@ -13,7 +13,7 @@ import java.nio.LongBuffer;
 public class Aftermath {
     private static final SharedLibrary AFTERMATH = Library.loadNative(Aftermath.class,
             "me.hydos.aftermath",
-            System.getProperty("os.name").toLowerCase().contains("windows") ? "WinAftermath" : "LinuxAftermath",
+            System.getProperty("os.name").toLowerCase().contains("windows") ? "GFSDK_Aftermath_Lib.x64" : "LinuxAftermath",
             false);
 
     private static final long GFSDK_Aftermath_EnableGpuCrashDumps;
@@ -92,5 +92,17 @@ public class Aftermath {
 
     public static int getDescription(long decoder, int key, int size, ByteBuffer pApplicationName) {
         return JNI.invokePPPPI(decoder, key, size, MemoryUtil.memAddress(pApplicationName), GFSDK_Aftermath_GpuCrashDump_GetDescription);
+    }
+
+    public static int generateJson(long decoder, int decoderFlags, int formatFlags, long shaderDebugLookupCb, long shaderLookupCb, long shaderInstructionsLookupCb, long shaderSourceDebugInfoLookupCb, Object pUserData, IntBuffer pJsonSize) {
+        return JNI.callJPPPPPPPPI(decoder, decoderFlags, formatFlags, shaderDebugLookupCb, shaderLookupCb, shaderInstructionsLookupCb, shaderSourceDebugInfoLookupCb, MemoryUtil.NULL, MemoryUtil.memAddressSafe(pJsonSize), GFSDK_Aftermath_GpuCrashDump_GenerateJSON);
+    }
+
+    public static int getJson(long decoder, int jsonSize, ByteBuffer pJsonBuffer) {
+        return JNI.callPPPI(decoder, jsonSize, MemoryUtil.memAddress(pJsonBuffer), GFSDK_Aftermath_GpuCrashDump_GetJSON);
+    }
+
+    public static int destroyDecoder(long decoder) {
+        return JNI.callPI(decoder, GFSDK_Aftermath_GpuCrashDump_DestroyDecoder);
     }
 }
