@@ -23,7 +23,9 @@ import java.nio.charset.StandardCharsets;
 import java.util.Map;
 
 public class Blaze4D implements ModInitializer {
+
     public static final Logger LOGGER = LogManager.getLogger("Iodine", new StringFormatterMessageFactory());
+    public static final boolean VALIDATION_ENABLED = true;
 
     public static Rosella rosella;
     public static Window window;
@@ -37,7 +39,9 @@ public class Blaze4D implements ModInitializer {
     public void onInitialize() {
         ((org.apache.logging.log4j.core.Logger) LOGGER).setLevel(Level.ALL);
         try {
-            System.loadLibrary("renderdoc");
+            if (!VALIDATION_ENABLED) {
+                System.loadLibrary("renderdoc");
+            }
         } catch (UnsatisfiedLinkError e) {
             LOGGER.warn("Unable to find renderdoc on path.");
         }
@@ -53,7 +57,8 @@ public class Blaze4D implements ModInitializer {
                         throw new IOException("Failed to write Gpu crash dump to file", e);
                     }
                 },
-                (pShaderDebugInfo, shaderDebugInfoSize, pUserData) -> {},
+                (pShaderDebugInfo, shaderDebugInfoSize, pUserData) -> {
+                },
                 (addValue, pUserData) -> {
                     Map<Integer, String> info = Map.of(0x00000001, "Blaze 4D",
                             0x00000002, "v1.0",

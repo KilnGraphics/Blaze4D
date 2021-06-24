@@ -60,7 +60,7 @@ class Rosella(
 	private var debugMessenger: Long = 0
 	var surface: Long = 0
 
-	val logger : Logger = LogManager.getLogger("Rosella")
+	val logger: Logger = LogManager.getLogger("Rosella")
 
 	init {
 		(logger as org.apache.logging.log4j.core.Logger).level = Level.ALL
@@ -102,12 +102,23 @@ class Rosella(
 				.sType(VK_STRUCTURE_TYPE_INSTANCE_CREATE_INFO)
 				.ppEnabledExtensionNames(getRequiredExtensions(enableValidationLayers))
 			if (enableValidationLayers) {
+
+				val features = stack.callocInt(3)
+				features.put(EXTValidationFeatures.VK_VALIDATION_FEATURE_ENABLE_BEST_PRACTICES_EXT)
+				features.put(EXTValidationFeatures.VK_VALIDATION_FEATURE_ENABLE_GPU_ASSISTED_EXT)
+				features.put(EXTValidationFeatures.VK_VALIDATION_FEATURE_ENABLE_DEBUG_PRINTF_EXT)
+
+				val validationFeaturesEXT = VkValidationFeaturesEXT.callocStack(stack)
+				validationFeaturesEXT
+					.sType(EXTValidationFeatures.VK_STRUCTURE_TYPE_VALIDATION_FEATURES_EXT)
+					.pEnabledValidationFeatures(features)
+
 				createInfo.ppEnabledLayerNames(asPtrBuffer(validationLayers))
 				val debugCreateInfo = VkDebugUtilsMessengerCreateInfoEXT.callocStack(stack)
 				populateDebugMessengerCreateInfo(debugCreateInfo)
+				debugCreateInfo.pNext(validationFeaturesEXT.address())
 				createInfo.pNext(debugCreateInfo.address())
 			}
-
 			val pInstance = stack.mallocPointer(1)
 			vkCreateInstance(createInfo, null, pInstance).ok()
 
@@ -194,11 +205,11 @@ class Rosella(
 		val callbackData = VkDebugUtilsMessengerCallbackDataEXT.create(pCallbackData)
 		val message = callbackData.pMessageString()
 		if (severity >= EXTDebugUtils.VK_DEBUG_UTILS_MESSAGE_SEVERITY_VERBOSE_BIT_EXT) {
-			if(message.startsWith("Validation Error")) {
+			if (message.startsWith("Validation Error")) {
 				val split = message.split("|")
 				val cause = split[2]
 				RuntimeException(cause).printStackTrace()
-			} else{
+			} else {
 				logger.warn(message)
 			}
 		} else {
@@ -231,7 +242,7 @@ class Rosella(
 	}
 
 	fun addRenderObject(renderObject: Renderable, name: String) {
-		if(renderObjects.containsKey(name)) {
+		if (renderObjects.containsKey(name)) {
 			error("An render object already exists with that name!")
 		}
 		renderObject.load(this)
