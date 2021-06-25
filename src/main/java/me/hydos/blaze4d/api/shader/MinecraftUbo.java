@@ -29,7 +29,7 @@ public class MinecraftUbo extends LowLevelUbo {
 
     @Override
     public int getSize() {
-        return 248;
+        return 260;
     }
 
     @Override
@@ -58,8 +58,6 @@ public class MinecraftUbo extends LowLevelUbo {
             putFloat(RenderSystem.getShaderGameTime(), buffer); // GameTime
             putVec2i(window.getFramebufferWidth(), window.getFramebufferHeight(), buffer); // ScreenSize
             putFloat(RenderSystem.getShaderLineWidth(), buffer); // LineWidth
-//            mcViewModelMatrix.get(0, buffer);
-//            mcProjMatrix.get(alignas(mat4Size, alignof(mcProjMatrix)), buffer);
 
             getMemory().unmap(getUboFrames().get(currentImg).getAllocation());
         }
@@ -74,7 +72,7 @@ public class MinecraftUbo extends LowLevelUbo {
         if (size == 0) {
             matrix4f.get(0, buffer);
         } else {
-            matrix4f.get(size + alignof(matrix4f), buffer);
+            matrix4f.get(size, buffer);
         }
         size += 16 * Float.BYTES;
     }
@@ -83,7 +81,7 @@ public class MinecraftUbo extends LowLevelUbo {
         if (size == 0) {
             buffer.putFloat(f);
         } else {
-            buffer.putFloat(size + alignof(f), f);
+            buffer.putFloat(size, f);
         }
         size += Float.BYTES;
     }
@@ -92,7 +90,7 @@ public class MinecraftUbo extends LowLevelUbo {
         if (size == 0) {
             buffer.putInt(i);
         } else {
-            buffer.putInt(size + alignof(i), i);
+            buffer.putInt(size, i);
         }
         size += Integer.BYTES;
     }
@@ -101,6 +99,7 @@ public class MinecraftUbo extends LowLevelUbo {
         putFloat(vec4[0], buffer);
         putFloat(vec4[1], buffer);
         putFloat(vec4[2], buffer);
+        putFloat(vec4[3], buffer);
     }
 
     private void beginUboWrite() {
@@ -147,7 +146,6 @@ public class MinecraftUbo extends LowLevelUbo {
         vpm.m22(0.5f);
         vpm.m23(0.5f);
         vpm.m33(1);
-
-        return vpm.mul(glProjMatrix);
+        return glProjMatrix.mul(vpm);
     }
 }

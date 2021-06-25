@@ -21,14 +21,11 @@
     "texture.NativeImageMixin",
     "texture.RenderSystemMixin",
     "texture.ResourceTextureMixin",
-    "texture.SplashScreen$LogoTextureMixin",
     "texture.SpriteAtlasTextureMixin",
     "texture.TextureManagerMixin",
     "texture.TextureUtilMixin",
     "vertices.BufferBuilderMixin",
-    "vertices.BufferRendererMixin",
-    "vertices.TessellatorMixin",
-    "vertices.VertexBufferMixin"
+    "vertices.BufferRendererMixin"
   ],
   "client": [
   ],

@@ -61,7 +61,7 @@ public class NativeImageMixin implements UploadableImage, Blaze4dNativeImage {
                 image = new NativeImage(format == null ? NativeImage.Format.getFormat(channels) : format, pWidth.get(0), pHeight.get(0), true, MemoryUtil.memAddress(imageBytes));
                 Blaze4dNativeImage uploadableImage = (Blaze4dNativeImage) (Object) image;
                 uploadableImage.setChannels(channels);
-                uploadableImage.setPixels(fileBytes);
+                uploadableImage.setPixels(imageBytes);
             } catch (Throwable e) {
                 try {
                     stack.close();
@@ -112,6 +112,9 @@ public class NativeImageMixin implements UploadableImage, Blaze4dNativeImage {
 
     @Override
     public void setPixels(ByteBuffer pixels) {
-        this.pixels = pixels;
+        this.pixels = MemoryUtil.memAlloc(pixels.limit() * Float.BYTES);
+        for (int i = 0; i < pixels.limit(); i++) {
+            this.pixels.putFloat(Byte.toUnsignedInt(pixels.get()) / 255f);
+        }
     }
 }
