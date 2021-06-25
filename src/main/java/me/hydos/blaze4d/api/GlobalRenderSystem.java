@@ -9,6 +9,7 @@ import me.hydos.rosella.render.model.Renderable;
 import me.hydos.rosella.render.resource.Identifier;
 import me.hydos.rosella.render.shader.RawShaderProgram;
 import me.hydos.rosella.render.shader.ShaderProgram;
+import org.lwjgl.vulkan.VK10;
 
 import java.util.List;
 import java.util.Map;
@@ -52,15 +53,12 @@ public class GlobalRenderSystem {
      * Called when a frame is flipped. used to send all buffers to the engine to draw. Also allows for caching
      */
     public static void flipFrame() {
+        VK10.vkDeviceWaitIdle(Blaze4D.rosella.getDevice().getDevice());
         if (Blaze4D.rosella.getRenderObjects().size() != 0) {
             for (Renderable renderable : Blaze4D.rosella.getRenderObjects().values()) {
                 renderable.free(Blaze4D.rosella.getMemory());
             }
             Blaze4D.rosella.getRenderObjects().clear();
-        }
-
-        if (frameObjects.size() != 0) {
-            Blaze4D.rosella.getRenderer().clearCommandBuffers();
         }
 
         for (ConsumerRenderObject renderObject : frameObjects) {

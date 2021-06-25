@@ -329,11 +329,7 @@ fun createTextureImage(device: Device, image: UploadableImage, renderer: Rendere
 			pBuffer,
 			stack
 		) { data ->
-			try {
-				memcpy(data.getByteBuffer(0, (image.getWidth() * image.getHeight() * 4)), image.getPixels()!!, (image.getWidth() * image.getHeight() * 4).toLong())
-			} catch (e: Exception) {
-				memcpy(data.getByteBuffer(0, image.getPixels()!!.limit()), image.getPixels()!!, image.getPixels()!!.limit().toLong())
-			}
+			memcpy(data.getByteBuffer(0, image.getImageSize()), image.getPixels()!!, image.getImageSize().toLong())
 		}
 
 		if(image is StbiImage) {

@@ -102,7 +102,7 @@ public class GlStateManagerMixin {
                 Blaze4D.rosella.getMemory(),
                 GlobalRenderSystem.DEFAULT_MAX_OBJECTS,
                 RawShaderProgram.PoolObjType.UBO,
-                RawShaderProgram.PoolObjType.SAMPLER, // 12 Samplers because Minecraft wants 12
+                RawShaderProgram.PoolObjType.SAMPLER/*, // 12 Samplers because Minecraft wants 12
                 RawShaderProgram.PoolObjType.SAMPLER,
                 RawShaderProgram.PoolObjType.SAMPLER,
                 RawShaderProgram.PoolObjType.SAMPLER,
@@ -114,7 +114,7 @@ public class GlStateManagerMixin {
                 RawShaderProgram.PoolObjType.SAMPLER,
                 RawShaderProgram.PoolObjType.SAMPLER,
                 RawShaderProgram.PoolObjType.SAMPLER,
-                RawShaderProgram.PoolObjType.SAMPLER
+                RawShaderProgram.PoolObjType.SAMPLER*/
         );
         GlobalRenderSystem.SHADER_PROGRAM_MAP.put(GlobalRenderSystem.nextShaderProgramId, program);
         Blaze4D.rosella.getRenderer().rebuildCommandBuffers(Blaze4D.rosella.getRenderer().renderPass, Blaze4D.rosella);

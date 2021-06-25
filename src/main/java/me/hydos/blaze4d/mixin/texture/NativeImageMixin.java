@@ -102,7 +102,7 @@ public class NativeImageMixin implements UploadableImage, Blaze4dNativeImage {
 
     @Override
     public int getImageSize() {
-        return width * height * 4;
+        return width * height * (Float.BYTES * 4); // 4 Float sized channels
     }
 
     @Override

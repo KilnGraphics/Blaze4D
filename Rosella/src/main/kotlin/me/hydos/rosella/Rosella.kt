@@ -272,7 +272,7 @@ class Rosella(
 			)
 		}
 //		println("Recreating Swap Chain")
-		renderer.recreateSwapChain(window, camera, this)
+//		renderer.recreateSwapChain(window, camera, this)
 //		println("Swapchain Recreated")
 	}
 

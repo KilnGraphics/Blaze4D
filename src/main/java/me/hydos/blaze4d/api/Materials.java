@@ -44,7 +44,7 @@ public class Materials {
             return MATERIAL_CACHE.computeIfAbsent(new MaterialInfo(this, shader, image, format), info -> {
                 Blaze4dMaterial material = new Blaze4dMaterial(
                         shader,
-                        VK10.VK_FORMAT_R8G8B8A8_UNORM,
+                        VK10.VK_FORMAT_R32G32B32A32_SFLOAT,
                         false,
                         topology,
                         format,
