@@ -58,7 +58,7 @@ class VertexFormat(private val elementMap: Map<Int, Element>) {
 		POSITION(VK10.VK_FORMAT_R32G32B32_SFLOAT, DataType.FLOAT.byteLength * 3),
 		NORMAL(VK10.VK_FORMAT_R32G32B32_SFLOAT, DataType.FLOAT.byteLength * 3),
 		COLOR(VK10.VK_FORMAT_R32G32B32_SFLOAT, DataType.FLOAT.byteLength * 3),
-		COLOR4(VK10.VK_FORMAT_R8G8B8A8_UINT, DataType.BYTE.byteLength * 4),
+		COLOR4(VK10.VK_FORMAT_R32G32B32A32_SFLOAT, DataType.FLOAT.byteLength * 4),
 		UVs(VK10.VK_FORMAT_R16_SINT, DataType.SHORT.byteLength * 2),
 		UVf(VK10.VK_FORMAT_R32G32_SFLOAT, DataType.FLOAT.byteLength * 2),
 		PADDING(VK10.VK_FORMAT_R8_SINT, DataType.BYTE.byteLength),

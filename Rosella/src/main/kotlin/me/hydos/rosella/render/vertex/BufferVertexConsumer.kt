@@ -36,13 +36,13 @@ class BufferVertexConsumer(override val format: VertexFormat) : VertexConsumer {
 
 	override fun color(red: Byte, green: Byte, blue: Byte, alpha: Byte): VertexConsumer {
 		bufferConsumerList.add(Consumer {
-			it.put(red)
-			it.put(green)
-			it.put(blue)
-			it.put(alpha)
+			it.putFloat(red / 255f)
+			it.putFloat(green / 255f)
+			it.putFloat(blue / 255f)
+			it.putFloat(alpha / 255f)
 		})
 
-		debugSize += 4 * Byte.SIZE_BYTES
+		debugSize += 4 * Float.SIZE_BYTES
 		return this
 	}
 
@@ -76,7 +76,7 @@ class BufferVertexConsumer(override val format: VertexFormat) : VertexConsumer {
 
 	override fun nextVertex(): VertexConsumer {
 		if (debugSize != vertexSize) {
-			throw RuntimeException("Incorrect vertex size passed. Received $debugSize but wanted $vertexSize");
+			throw RuntimeException("Incorrect vertex size passed. Received $debugSize but wanted $vertexSize")
 		}
 
 		debugSize = 0
