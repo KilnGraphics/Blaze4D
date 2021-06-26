@@ -88,13 +88,14 @@ class RawShaderProgram(
 		}
 	}
 
-	fun createDescriptorSets(swapChain: SwapChain, renderable: Renderable) {
+	fun createDescriptorSets(engine: Rosella, renderable: Renderable) {
+		val swapChain = engine.renderer.swapChain
 		if(descriptorPool == 0L) {
-			System.err.println("Descriptor Pools are invalid! rebuilding... (THIS IS NOT FAST)")
+			engine.logger.warn("Descriptor Pools are invalid! rebuilding... (THIS IS NOT FAST)")
 			createPool(swapChain)
 		}
 		if(descriptorSetLayout == 0L) {
-			System.err.println("Descriptor Set Layouts are invalid! rebuilding... (THIS IS NOT FAST)")
+			engine.logger.warn("Descriptor Set Layouts are invalid! rebuilding... (THIS IS NOT FAST)")
 			createDescriptorSetLayout()
 		}
 		MemoryStack.stackPush().use { stack ->

@@ -11,7 +11,7 @@
   "icon": "assets/blaze4d/icon.png",
   "environment": "*",
   "entrypoints": {
-    "main": [
+    "client": [
       "me.hydos.blaze4d.Blaze4D"
     ]
   },

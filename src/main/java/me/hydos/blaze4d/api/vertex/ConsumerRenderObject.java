@@ -83,12 +83,12 @@ public class ConsumerRenderObject implements Renderable {
     public void create(@NotNull Rosella rosella) {
         vertexBuffer = rosella.getMemory().createVertexBuffer(rosella, consumer);
         indexBuffer = rosella.getMemory().createIndexBuffer(rosella, indices);
-        resize(rosella.getRenderer());
+        resize(rosella);
     }
 
     @Override
-    public void resize(@NotNull Renderer renderer) {
-        material.shader.getRaw().createDescriptorSets(renderer.swapChain, this);
+    public void resize(@NotNull Rosella engine) {
+        material.shader.getRaw().createDescriptorSets(engine, this);
     }
 
     @NotNull
@@ -120,11 +120,13 @@ public class ConsumerRenderObject implements Renderable {
         return material;
     }
 
+    @NotNull
     @Override
     public BufferInfo getVerticesBuffer() {
         return vertexBuffer;
     }
 
+    @NotNull
     @Override
     public BufferInfo getIndicesBuffer() {
         return indexBuffer;

@@ -117,7 +117,6 @@ tasks.withType(JavaCompile).configureEach {
 
 java {
     withSourcesJar()
-//    withJavadocJar()
     sourceCompatibility = JavaVersion.VERSION_16
     targetCompatibility = JavaVersion.VERSION_16
 }
@@ -128,13 +127,8 @@ jar {
     }
 }
 
-//javadoc {
-//    failOnError(false)
-//}
-
 artifacts {
     archives jar, sourcesJar
-//    , javadocJar
 }
 
 curseforge {
@@ -149,7 +143,7 @@ curseforge {
             changelogType = "html"
             changelog = project.ext.changelog
             mainArtifact(remapJar.archivePath) {
-                displayName = "Oro Mod Template - $rootProject.mod_version"
+                displayName = "Blaze4D - $rootProject.mod_version"
             }
             afterEvaluate {
                 uploadTask.dependsOn("build")
@@ -183,7 +177,7 @@ task github {
 
     doLast {
         def github = GitHub.connectUsingOAuth(System.getenv().GITHUB_TOKEN as String)
-        def repository = github.getRepository("OroArmor/oro-mod-template")
+        def repository = github.getRepository("hYdos/Blaze4D")
 
         def releaseBuilder = new GHReleaseBuilder(repository, project.mod_version)
         releaseBuilder.name("$project.project_name $project.mod_version for $project.minecraft_version")

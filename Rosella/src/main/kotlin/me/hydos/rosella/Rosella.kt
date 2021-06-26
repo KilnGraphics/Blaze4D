@@ -12,6 +12,7 @@ import me.hydos.rosella.render.shader.RawShaderProgram
 import me.hydos.rosella.render.shader.ShaderManager
 import me.hydos.rosella.render.swapchain.Frame
 import me.hydos.rosella.render.texture.TextureManager
+import me.hydos.rosella.render.util.getLogLevel
 import me.hydos.rosella.render.util.memory.Memory
 import me.hydos.rosella.render.util.ok
 import org.apache.logging.log4j.Level
@@ -23,7 +24,9 @@ import org.lwjgl.glfw.GLFWVulkan
 import org.lwjgl.glfw.GLFWVulkan.glfwCreateWindowSurface
 import org.lwjgl.system.MemoryStack.stackGet
 import org.lwjgl.system.MemoryStack.stackPush
+import org.lwjgl.system.MemoryUtil
 import org.lwjgl.system.MemoryUtil.NULL
+import org.lwjgl.system.jni.JNINativeInterface
 import org.lwjgl.vulkan.*
 import org.lwjgl.vulkan.KHRSurface.vkDestroySurfaceKHR
 import org.lwjgl.vulkan.VK10.*
@@ -57,7 +60,6 @@ class Rosella(
 	lateinit var maxImages: IntBuffer
 
 	val device: Device
-	private var debugMessenger: Long = 0
 	var surface: Long = 0
 
 	val logger: Logger = LogManager.getLogger("Rosella")
@@ -75,7 +77,7 @@ class Rosella(
 		createInstance(name, validationLayers)
 
 		if (enableValidationLayers) {
-			setupDebugMessenger()
+			setupDebugMessenger(this)
 		}
 
 		createSurface()
@@ -115,7 +117,7 @@ class Rosella(
 
 				createInfo.ppEnabledLayerNames(asPtrBuffer(validationLayers))
 				val debugCreateInfo = VkDebugUtilsMessengerCreateInfoEXT.callocStack(stack)
-				populateDebugMessengerCreateInfo(debugCreateInfo)
+				populateDebugMessengerCreateInfo(this, debugCreateInfo)
 				debugCreateInfo.pNext(validationFeaturesEXT.address())
 				createInfo.pNext(debugCreateInfo.address())
 			}
@@ -153,9 +155,7 @@ class Rosella(
 
 		vkDestroyDevice(device.device, null)
 
-		if (vkGetInstanceProcAddr(vulkanInstance, "vkDestroyDebugUtilsMessengerEXT") != NULL) {
-			EXTDebugUtils.vkDestroyDebugUtilsMessengerEXT(vulkanInstance, debugMessenger, null)
-		}
+		DebugManager.free(vulkanInstance)
 
 		vkDestroySurfaceKHR(vulkanInstance, surface, null)
 		vkDestroyInstance(vulkanInstance, null)
@@ -181,42 +181,6 @@ class Rosella(
 			validationLayers.add("VK_LAYER_KHRONOS_validation")
 			return validationLayers
 		}
-
-	private fun setupDebugMessenger() {
-		stackPush().use { stack ->
-			val createInfo = VkDebugUtilsMessengerCreateInfoEXT.callocStack(stack)
-			populateDebugMessengerCreateInfo(createInfo)
-			val pDebugMessenger = stack.longs(VK_NULL_HANDLE)
-			if (createDebugUtilsMessengerEXT(vulkanInstance, createInfo, null, pDebugMessenger) != VK_SUCCESS) {
-				throw RuntimeException("Failed to set up debug messenger")
-			}
-			debugMessenger = pDebugMessenger[0]
-		}
-	}
-
-	private fun populateDebugMessengerCreateInfo(debugCreateInfo: VkDebugUtilsMessengerCreateInfoEXT) {
-		debugCreateInfo.sType(EXTDebugUtils.VK_STRUCTURE_TYPE_DEBUG_UTILS_MESSENGER_CREATE_INFO_EXT)
-			.messageSeverity(EXTDebugUtils.VK_DEBUG_UTILS_MESSAGE_SEVERITY_VERBOSE_BIT_EXT or EXTDebugUtils.VK_DEBUG_UTILS_MESSAGE_SEVERITY_WARNING_BIT_EXT or EXTDebugUtils.VK_DEBUG_UTILS_MESSAGE_SEVERITY_ERROR_BIT_EXT)
-			.messageType(EXTDebugUtils.VK_DEBUG_UTILS_MESSAGE_TYPE_GENERAL_BIT_EXT or EXTDebugUtils.VK_DEBUG_UTILS_MESSAGE_TYPE_VALIDATION_BIT_EXT or EXTDebugUtils.VK_DEBUG_UTILS_MESSAGE_TYPE_PERFORMANCE_BIT_EXT)
-			.pfnUserCallback(this::debugCallback)
-	}
-
-	private fun debugCallback(severity: Int, messageType: Int, pCallbackData: Long, pUserData: Long): Int {
-		val callbackData = VkDebugUtilsMessengerCallbackDataEXT.create(pCallbackData)
-		val message = callbackData.pMessageString()
-		if (severity >= EXTDebugUtils.VK_DEBUG_UTILS_MESSAGE_SEVERITY_VERBOSE_BIT_EXT) {
-			if (message.startsWith("Validation Error")) {
-				val split = message.split("|")
-				val cause = split[2]
-				RuntimeException(cause).printStackTrace()
-			} else {
-				logger.warn(message)
-			}
-		} else {
-			logger.info(message)
-		}
-		return VK_FALSE
-	}
 
 	internal fun asPtrBuffer(validationLayers: Set<String>): PointerBuffer {
 		val stack = stackGet()
@@ -271,20 +235,6 @@ class Rosella(
 				polygonMode
 			)
 		}
-//		println("Recreating Swap Chain")
-//		renderer.recreateSwapChain(window, camera, this)
-//		println("Swapchain Recreated")
-	}
-
-	private fun createDebugUtilsMessengerEXT(
-		instance: VkInstance,
-		createInfo: VkDebugUtilsMessengerCreateInfoEXT,
-		allocationCallbacks: VkAllocationCallbacks?,
-		pDebugMessenger: LongBuffer
-	): Int {
-		return if (vkGetInstanceProcAddr(instance, "vkCreateDebugUtilsMessengerEXT") != NULL) {
-			EXTDebugUtils.vkCreateDebugUtilsMessengerEXT(instance, createInfo, allocationCallbacks, pDebugMessenger)
-		} else VK_ERROR_EXTENSION_NOT_PRESENT
 	}
 
 	fun getHeight(): Float {
@@ -293,5 +243,70 @@ class Rosella(
 
 	fun getWidth(): Float {
 		return renderer.swapChain.swapChainExtent.width().toFloat()
+	}
+
+	private companion object DebugManager {
+		@JvmStatic
+		private var debugMessenger: Long = 0
+
+		@JvmStatic
+		private fun createDebugUtilsMessengerEXT(
+				instance: VkInstance,
+				createInfo: VkDebugUtilsMessengerCreateInfoEXT,
+				allocationCallbacks: VkAllocationCallbacks?,
+				pDebugMessenger: LongBuffer
+		): Int {
+			return if (vkGetInstanceProcAddr(instance, "vkCreateDebugUtilsMessengerEXT") != NULL) {
+				EXTDebugUtils.vkCreateDebugUtilsMessengerEXT(instance, createInfo, allocationCallbacks, pDebugMessenger)
+			} else VK_ERROR_EXTENSION_NOT_PRESENT
+		}
+
+		@JvmStatic
+		fun debugCallback(severity: Int, messageType: Int, pCallbackData: Long, pUserData: Long): Int {
+			val callbackData = VkDebugUtilsMessengerCallbackDataEXT.create(pCallbackData)
+			val message = callbackData.pMessageString()
+			val engine = MemoryUtil.memGlobalRefToObject<Rosella>(pUserData)
+			val type = when(messageType) {
+				EXTDebugUtils.VK_DEBUG_UTILS_MESSAGE_TYPE_GENERAL_BIT_EXT -> "GENERAL"
+				EXTDebugUtils.VK_DEBUG_UTILS_MESSAGE_TYPE_VALIDATION_BIT_EXT -> "VALIDATION"
+				EXTDebugUtils.VK_DEBUG_UTILS_MESSAGE_TYPE_PERFORMANCE_BIT_EXT -> "PERFORMANCE"
+				else -> "Unknown"
+			}
+			if (message.startsWith("Validation Error")) {
+				val split = message.split("|")
+				val cause = split[2]
+				engine.logger.error("$type: ${split[0]} | ${split[1]}", RuntimeException(cause))
+			} else {
+				engine.logger.log(severity.getLogLevel(), "$type: $message")
+			}
+			return VK_FALSE
+		}
+
+		@JvmStatic
+		private fun setupDebugMessenger(engine: Rosella) {
+			stackPush().use { stack ->
+				val createInfo = VkDebugUtilsMessengerCreateInfoEXT.callocStack(stack)
+				populateDebugMessengerCreateInfo(engine, createInfo)
+				val pDebugMessenger = stack.longs(VK_NULL_HANDLE)
+				createDebugUtilsMessengerEXT(engine.vulkanInstance, createInfo, null, pDebugMessenger).ok()
+				debugMessenger = pDebugMessenger[0]
+			}
+		}
+
+		@JvmStatic
+		private fun populateDebugMessengerCreateInfo(engine: Rosella, debugCreateInfo: VkDebugUtilsMessengerCreateInfoEXT) {
+			debugCreateInfo.sType(EXTDebugUtils.VK_STRUCTURE_TYPE_DEBUG_UTILS_MESSENGER_CREATE_INFO_EXT)
+					.messageSeverity(EXTDebugUtils.VK_DEBUG_UTILS_MESSAGE_SEVERITY_VERBOSE_BIT_EXT or EXTDebugUtils.VK_DEBUG_UTILS_MESSAGE_SEVERITY_WARNING_BIT_EXT or EXTDebugUtils.VK_DEBUG_UTILS_MESSAGE_SEVERITY_ERROR_BIT_EXT)
+					.messageType(EXTDebugUtils.VK_DEBUG_UTILS_MESSAGE_TYPE_GENERAL_BIT_EXT or EXTDebugUtils.VK_DEBUG_UTILS_MESSAGE_TYPE_VALIDATION_BIT_EXT or EXTDebugUtils.VK_DEBUG_UTILS_MESSAGE_TYPE_PERFORMANCE_BIT_EXT)
+					.pfnUserCallback(this::debugCallback)
+					.pUserData(JNINativeInterface.NewGlobalRef(engine))
+		}
+
+		@JvmStatic
+		private fun free(vulkanInstance: VkInstance) {
+			if (vkGetInstanceProcAddr(vulkanInstance, "vkDestroyDebugUtilsMessengerEXT") != NULL) {
+				EXTDebugUtils.vkDestroyDebugUtilsMessengerEXT(vulkanInstance, debugMessenger, null)
+			}
+		}
 	}
 }
