@@ -13,7 +13,7 @@ interface Renderable {
 	fun load(engine: Rosella)
 	fun free(memory: Memory)
 	fun create(engine: Rosella)
-	fun resize(renderer: Renderer)
+	fun resize(engine: Rosella)
 	fun getIndices(): List<Int>
 	fun render(): VertexConsumer
 	fun getDescriptorSets(): MutableList<Long>

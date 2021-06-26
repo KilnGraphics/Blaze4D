@@ -48,11 +48,11 @@ open class RenderObject(private val model: Resource, val materialIdentifier: Ide
 		loadModelInfo()
 		vertexBuffer = engine.memory.createVertexBuffer(engine, consumer)
 		indexBuffer = engine.memory.createIndexBuffer(engine, indices)
-		resize(engine.renderer)
+		resize(engine)
 	}
 
-	override fun resize(renderer: Renderer) {
-		mat.shader.raw.createDescriptorSets(renderer.swapChain, this)
+	override fun resize(engine: Rosella) {
+		mat.shader.raw.createDescriptorSets(engine, this)
 	}
 
 	override fun getIndices(): List<Int> {

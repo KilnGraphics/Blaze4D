@@ -5,8 +5,7 @@ import me.hydos.aftermath.Aftermath;
 import me.hydos.aftermath.struct.GFSDK_Aftermath_GpuCrashDump_BaseInfo;
 import me.hydos.rosella.Rosella;
 import me.hydos.rosella.render.io.Window;
-import net.fabricmc.api.ModInitializer;
-import net.minecraft.client.MinecraftClient;
+import net.fabricmc.api.ClientModInitializer;
 import org.apache.logging.log4j.Level;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -22,7 +21,7 @@ import java.nio.LongBuffer;
 import java.nio.charset.StandardCharsets;
 import java.util.Map;
 
-public class Blaze4D implements ModInitializer {
+public class Blaze4D implements ClientModInitializer {
 
     public static final Logger LOGGER = LogManager.getLogger("Iodine", new StringFormatterMessageFactory());
     public static final boolean VALIDATION_ENABLED = true;
@@ -36,7 +35,7 @@ public class Blaze4D implements ModInitializer {
     }
 
     @Override
-    public void onInitialize() {
+    public void onInitializeClient() {
         ((org.apache.logging.log4j.core.Logger) LOGGER).setLevel(Level.ALL);
         try {
             if (!VALIDATION_ENABLED) {
@@ -61,10 +60,8 @@ public class Blaze4D implements ModInitializer {
                 },
                 (addValue, pUserData) -> {
                     Map<Integer, String> info = Map.of(0x00000001, "Blaze 4D",
-                            0x00000002, "v1.0",
-                            0x00010000, "Gpu Crash Dump Blaze4D Info",
-                            0x00010000 + 1, "Engine State: Rendering.",
-                            0x00010000 + 2, "Current Screen: " + MinecraftClient.getInstance().currentScreen.getTitle().asString()
+                            0x00000002, "1.0.0",
+                            0x00010000, "Gpu Crash Dump Blaze4D Info"
                     );
 
                     info.forEach(AddGPUCrashDumpDescriptionCallback.invoke(addValue));
@@ -146,6 +143,7 @@ public class Blaze4D implements ModInitializer {
 
             // Destroy the GPU crash dump decoder object.
             Aftermath.destroyDecoder(decoder);
+            Aftermath.disableGPUCrashDumps();
         }
     }
 }

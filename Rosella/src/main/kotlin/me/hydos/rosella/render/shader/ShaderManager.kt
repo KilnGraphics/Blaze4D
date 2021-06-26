@@ -16,7 +16,7 @@ class ShaderManager(val device: Device) {
 		return cachedShaders[identifier]
 	}
 
-	@Deprecated("Try not to store instances of a raw shader program. only store an Identifier or store an ShaderProgram")
+//	@Deprecated("Try not to store instances of a raw shader program. only store an Identifier or store an ShaderProgram")
 	fun getOrCreateShader(rawShader: RawShaderProgram): ShaderProgram? {
 		for (identifier in shaders.keys) {
 			if(rawShader == shaders[identifier]) {

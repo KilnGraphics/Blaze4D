@@ -1,6 +1,8 @@
 package me.hydos.rosella.audio
 
+import me.hydos.rosella.Rosella
 import me.hydos.rosella.render.resource.Resource
+import org.apache.logging.log4j.LogManager
 import org.lwjgl.BufferUtils
 import org.lwjgl.openal.AL
 import org.lwjgl.openal.AL10.*
@@ -20,20 +22,24 @@ object SoundManager {
 
 	@JvmStatic
 	fun initialize() {
-		val device = alcOpenDevice(BufferUtils.createByteBuffer(1))
-		check(device != NULL) { "Failed to open an OpenAL device." }
+		try {
+			val device = alcOpenDevice(BufferUtils.createByteBuffer(1))
+			check(device != NULL) { "Failed to open an OpenAL device." }
 
-		val deviceCaps = ALC.createCapabilities(device)
-		check(deviceCaps.OpenALC10)
+			val deviceCaps = ALC.createCapabilities(device)
+			check(deviceCaps.OpenALC10)
 
-		val context = alcCreateContext(device, null as IntBuffer?)
-		val useTLC = deviceCaps.ALC_EXT_thread_local_context && alcSetThreadContext(context)
+			val context = alcCreateContext(device, null as IntBuffer?)
+			val useTLC = deviceCaps.ALC_EXT_thread_local_context && alcSetThreadContext(context)
 
-		if (!useTLC) {
-			check(alcMakeContextCurrent(context))
+			if (!useTLC) {
+				check(alcMakeContextCurrent(context))
+			}
+
+			AL.createCapabilities(deviceCaps, MemoryUtil::memCallocPointer)
+		} catch (e: Exception) {
+			LogManager.getFormatterLogger("Rosella").error("Unable to initialize sound manager: " + e.message)
 		}
-
-		AL.createCapabilities(deviceCaps, MemoryUtil::memCallocPointer)
 	}
 
 	@JvmStatic

@@ -36,6 +36,7 @@ public class NativeImageMixin implements UploadableImage, Blaze4dNativeImage {
 
     /**
      * @author Blaze4d
+     * @reason Injecting code would not be feasible
      */
     @Overwrite
     public static NativeImage read(@Nullable NativeImage.Format format, ByteBuffer fileBytes) throws IOException {

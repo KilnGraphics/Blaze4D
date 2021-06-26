@@ -15,7 +15,7 @@ import java.util.function.Supplier;
 @Mixin(RenderSystem.class)
 public abstract class RenderSystemMixin {
 
-    @Shadow
+    @Shadow(remap = false)
     @Nullable
     private static Shader shader;
 
@@ -40,6 +40,5 @@ public abstract class RenderSystemMixin {
             RawShaderProgram rawProgram = GlobalRenderSystem.SHADER_PROGRAM_MAP.get(RenderSystemMixin.shader.getProgramRef());
             GlobalRenderSystem.activeShader = Blaze4D.rosella.getShaderManager().getOrCreateShader(rawProgram);
         }
-
     }
 }

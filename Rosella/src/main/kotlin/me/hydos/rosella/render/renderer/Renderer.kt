@@ -278,7 +278,7 @@ class Renderer {
 		}
 
 		for (renderObject in engine.renderObjects.values) {
-			renderObject.resize(this)
+			renderObject.resize(engine)
 		}
 
 		MemoryStack.stackPush().use {
