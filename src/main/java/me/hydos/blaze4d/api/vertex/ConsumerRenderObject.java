@@ -5,7 +5,6 @@ import me.hydos.blaze4d.api.shader.MinecraftUbo;
 import me.hydos.rosella.Rosella;
 import me.hydos.rosella.render.material.Material;
 import me.hydos.rosella.render.model.Renderable;
-import me.hydos.rosella.render.renderer.Renderer;
 import me.hydos.rosella.render.shader.ShaderProgram;
 import me.hydos.rosella.render.shader.ubo.Ubo;
 import me.hydos.rosella.render.texture.UploadableImage;
@@ -69,7 +68,7 @@ public class ConsumerRenderObject implements Renderable {
             default -> throw new RuntimeException("Unsupported Draw Mode:  " + drawMode);
         }
         ubo = new MinecraftUbo(rosella.getDevice(), rosella.getMemory());
-        ubo.create(rosella.getRenderer().swapChain);
+        ubo.create(rosella.getRenderer().swapchain);
     }
 
     @Override

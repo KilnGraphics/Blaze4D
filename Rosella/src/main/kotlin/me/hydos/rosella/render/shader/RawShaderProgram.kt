@@ -89,7 +89,7 @@ class RawShaderProgram(
 	}
 
 	fun createDescriptorSets(engine: Rosella, renderable: Renderable) {
-		val swapChain = engine.renderer.swapChain
+		val swapChain = engine.renderer.swapchain
 		if(descriptorPool == 0L) {
 			engine.logger.warn("Descriptor Pools are invalid! rebuilding... (THIS IS NOT FAST)")
 			createPool(swapChain)

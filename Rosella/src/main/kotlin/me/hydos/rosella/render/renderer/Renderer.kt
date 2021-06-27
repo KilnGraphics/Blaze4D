@@ -35,7 +35,7 @@ class Renderer {
 	private var g: Float = 0.3f
 	private var b: Float = 0.3f
 
-	lateinit var swapChain: SwapChain
+	lateinit var swapchain: SwapChain
 	lateinit var renderPass: RenderPass
 
 	lateinit var device: Device
@@ -48,21 +48,15 @@ class Renderer {
 	var safeQueue = ArrayList<JUnit>()
 
 	private fun createSwapChain(engine: Rosella) {
-		this.swapChain = SwapChain(engine, device.device, device.physicalDevice, engine.surface)
-		this.renderPass = RenderPass(device, swapChain, engine)
-		createImgViews(swapChain, device)
+		this.swapchain = SwapChain(engine, device.device, device.physicalDevice, engine.surface)
+		this.renderPass = RenderPass(device, swapchain, engine)
+		createImgViews(swapchain, device)
 		for (material in engine.materials.values) {
-			material.createPipeline(
-				device,
-				swapChain,
-				renderPass,
-				material.shader.raw.descriptorSetLayout,
-				engine.polygonMode
-			)
+			material.pipeline = engine.pipelineManager.getPipeline(material, this, engine)
 		}
-		depthBuffer.createDepthResources(device, swapChain, this)
+		depthBuffer.createDepthResources(device, swapchain, this)
 		createFrameBuffers()
-		engine.camera.createViewAndProj(swapChain)
+		engine.camera.createViewAndProj(swapchain)
 		rebuildCommandBuffers(renderPass, engine)
 		createSyncObjects()
 	}
@@ -96,7 +90,7 @@ class Renderer {
 
 			var vkResult: Int = KHRSwapchain.vkAcquireNextImageKHR(
 				device.device,
-				swapChain.swapChain,
+				swapchain.swapChain,
 				UINT64_MAX,
 				thisFrame.imageAvailableSemaphore(),
 				VK_NULL_HANDLE,
@@ -111,7 +105,7 @@ class Renderer {
 			val imageIndex = pImageIndex[0]
 
 			for (shader in engine.shaderManager.shaders.values) {
-				shader.updateUbos(imageIndex, swapChain, engine)
+				shader.updateUbos(imageIndex, swapchain, engine)
 			}
 
 			if (imagesInFlight.containsKey(imageIndex)) {
@@ -132,7 +126,7 @@ class Renderer {
 				.sType(KHRSwapchain.VK_STRUCTURE_TYPE_PRESENT_INFO_KHR)
 				.pWaitSemaphores(thisFrame.pRenderFinishedSemaphore())
 				.swapchainCount(1)
-				.pSwapchains(stack.longs(swapChain.swapChain))
+				.pSwapchains(stack.longs(swapchain.swapChain))
 				.pImageIndices(pImageIndex)
 
 			vkResult = KHRSwapchain.vkQueuePresentKHR(queues.presentQueue, presentInfo)
@@ -140,6 +134,7 @@ class Renderer {
 			if (vkResult == KHRSwapchain.VK_ERROR_OUT_OF_DATE_KHR || vkResult == KHRSwapchain.VK_SUBOPTIMAL_KHR || resizeFramebuffer) {
 				resizeFramebuffer = false
 				recreateSwapChain(engine.window, engine.camera, engine)
+				engine.pipelineManager.invalidatePipelines(swapchain, engine)
 			} else if (vkResult != VK_SUCCESS) {
 				throw RuntimeException("Failed to present swap chain image")
 			}
@@ -162,7 +157,7 @@ class Renderer {
 		vkDeviceWaitIdle(device.device).ok()
 		freeSwapChain(engine)
 		createSwapChain(engine)
-		camera.createViewAndProj(swapChain)
+		camera.createViewAndProj(swapchain)
 	}
 
 	fun freeSwapChain(engine: Rosella) {
@@ -172,14 +167,10 @@ class Renderer {
 
 		clearCommandBuffers()
 
-		for (material in engine.materials.values) {
-			material.free(device)
-		}
-
 		// Free Depth Buffer
 		depthBuffer.free(device)
 
-		swapChain.frameBuffers.forEach { framebuffer ->
+		swapchain.frameBuffers.forEach { framebuffer ->
 			vkDestroyFramebuffer(
 				device.device,
 				framebuffer,
@@ -187,9 +178,9 @@ class Renderer {
 			)
 		}
 		vkDestroyRenderPass(device.device, renderPass.renderPass, null)
-		swapChain.swapChainImageViews.forEach { imageView -> vkDestroyImageView(device.device, imageView, null) }
+		swapchain.swapChainImageViews.forEach { imageView -> vkDestroyImageView(device.device, imageView, null) }
 
-		swapChain.free(engine.device.device)
+		swapchain.free(engine.device.device)
 	}
 
 	fun clearCommandBuffers() {
@@ -201,7 +192,7 @@ class Renderer {
 
 	private fun createSyncObjects() {
 		inFlightFrames = ArrayList(MAX_FRAMES_IN_FLIGHT)
-		imagesInFlight = HashMap(swapChain.swapChainImages.size)
+		imagesInFlight = HashMap(swapchain.swapChainImages.size)
 
 		MemoryStack.stackPush().use { stack ->
 			val semaphoreInfo = VkSemaphoreCreateInfo.callocStack(stack)
@@ -242,21 +233,21 @@ class Renderer {
 	}
 
 	private fun createFrameBuffers() {
-		swapChain.frameBuffers = ArrayList(swapChain.swapChainImageViews.size)
+		swapchain.frameBuffers = ArrayList(swapchain.swapChainImageViews.size)
 		MemoryStack.stackPush().use { stack ->
 			val attachments = stack.longs(VK_NULL_HANDLE, depthBuffer.depthImageView)
 			val pFramebuffer = stack.mallocLong(1)
 			val framebufferInfo = VkFramebufferCreateInfo.callocStack(stack)
 				.sType(VK_STRUCTURE_TYPE_FRAMEBUFFER_CREATE_INFO)
 				.renderPass(renderPass.renderPass)
-				.width(swapChain.swapChainExtent.width())
-				.height(swapChain.swapChainExtent.height())
+				.width(swapchain.swapChainExtent.width())
+				.height(swapchain.swapChainExtent.height())
 				.layers(1)
-			for (imageView in swapChain.swapChainImageViews) {
+			for (imageView in swapchain.swapChainImageViews) {
 				attachments.put(0, imageView)
 				framebufferInfo.pAttachments(attachments)
 				vkCreateFramebuffer(device.device, framebufferInfo, null, pFramebuffer).ok()
-				swapChain.frameBuffers.add(pFramebuffer[0])
+				swapchain.frameBuffers.add(pFramebuffer[0])
 			}
 		}
 	}
@@ -274,7 +265,7 @@ class Renderer {
 		}
 
 		for (shader in usedShaders) {
-			shader.raw.createPool(swapChain)
+			shader.raw.createPool(swapchain)
 		}
 
 		for (renderObject in engine.renderObjects.values) {
@@ -282,7 +273,7 @@ class Renderer {
 		}
 
 		MemoryStack.stackPush().use {
-			val commandBuffersCount: Int = swapChain.frameBuffers.size
+			val commandBuffersCount: Int = swapchain.frameBuffers.size
 
 			commandBuffers = ArrayList(commandBuffersCount)
 
@@ -304,7 +295,7 @@ class Renderer {
 
 			val beginInfo = createBeginInfo(it)
 			val renderPassInfo = createRenderPassInfo(it, renderPass)
-			val renderArea = createRenderArea(it, 0, 0, swapChain)
+			val renderArea = createRenderArea(it, 0, 0, swapchain)
 			val clearValues = createClearValues(it, r, g, b, 1.0f, 0)
 
 			renderPassInfo.renderArea(renderArea)
@@ -313,7 +304,7 @@ class Renderer {
 			for (i in 0 until commandBuffersCount) {
 				val commandBuffer = commandBuffers[i]
 				vkBeginCommandBuffer(commandBuffer, beginInfo).ok()
-				renderPassInfo.framebuffer(swapChain.frameBuffers[i])
+				renderPassInfo.framebuffer(swapchain.frameBuffers[i])
 
 				vkCmdBeginRenderPass(commandBuffer, renderPassInfo, VK_SUBPASS_CONTENTS_INLINE)
 				run {
@@ -326,7 +317,7 @@ class Renderer {
 				vkEndCommandBuffer(commandBuffer).ok()
 			}
 		}
-		engine.logger.info("CmdBuffers rebuilt: " + engine.renderObjects.size + " obj's inside.")
+//		engine.logger.info("CmdBuffers rebuilt: " + engine.renderObjects.size + " obj's inside.")
 	}
 
 	private fun bindModel(
@@ -338,7 +329,7 @@ class Renderer {
 		vkCmdBindPipeline(
 			commandBuffer,
 			VK_PIPELINE_BIND_POINT_GRAPHICS,
-			renderObject.getMaterial().graphicsPipeline
+			renderObject.getMaterial().pipeline.graphicsPipeline
 		)
 
 		val offsets = matrix.longs(0)
@@ -348,7 +339,7 @@ class Renderer {
 		vkCmdBindDescriptorSets(
 			commandBuffer,
 			VK_PIPELINE_BIND_POINT_GRAPHICS,
-			renderObject.getMaterial().pipelineLayout,
+			renderObject.getMaterial().pipeline.pipelineLayout,
 			0,
 			matrix.longs(descriptorSet),
 			null

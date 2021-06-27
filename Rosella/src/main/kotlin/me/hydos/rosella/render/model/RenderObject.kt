@@ -2,7 +2,6 @@ package me.hydos.rosella.render.model
 
 import me.hydos.rosella.Rosella
 import me.hydos.rosella.render.material.Material
-import me.hydos.rosella.render.renderer.Renderer
 import me.hydos.rosella.render.resource.Identifier
 import me.hydos.rosella.render.resource.Resource
 import me.hydos.rosella.render.shader.ubo.LowLevelUbo
@@ -16,7 +15,6 @@ import org.joml.Matrix4f
 import org.joml.Vector3f
 import org.joml.Vector3fc
 import org.lwjgl.assimp.Assimp
-import org.lwjgl.util.vma.Vma.vmaFreeMemory
 
 open class RenderObject(private val model: Resource, val materialIdentifier: Identifier) : Renderable {
 
@@ -35,7 +33,7 @@ open class RenderObject(private val model: Resource, val materialIdentifier: Ide
 			?: error("The material $materialIdentifier couldn't be found. (Are you registering the material?)")
 		mat = retrievedMaterial
 		uniformBufferObject = LowLevelUbo(engine.device, engine.memory)
-		uniformBufferObject.create(engine.renderer.swapChain)
+		uniformBufferObject.create(engine.renderer.swapchain)
 	}
 
 	override fun free(memory: Memory) {

@@ -1,16 +1,10 @@
 package me.hydos.blaze4d.mixin.texture;
 
-import me.hydos.blaze4d.api.texture.Blaze4dNativeImage;
 import me.hydos.rosella.render.texture.UploadableImage;
 import net.minecraft.client.texture.NativeImage;
-import org.jetbrains.annotations.NotNull;
-import org.jetbrains.annotations.Nullable;
-import org.lwjgl.stb.STBImage;
-import org.lwjgl.system.MemoryStack;
 import org.lwjgl.system.MemoryUtil;
 import org.spongepowered.asm.mixin.Final;
 import org.spongepowered.asm.mixin.Mixin;
-import org.spongepowered.asm.mixin.Overwrite;
 import org.spongepowered.asm.mixin.Shadow;
 import org.spongepowered.asm.mixin.injection.At;
 import org.spongepowered.asm.mixin.injection.Inject;
@@ -18,10 +12,9 @@ import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 
 import java.io.IOException;
 import java.nio.ByteBuffer;
-import java.nio.IntBuffer;
 
 @Mixin(NativeImage.class)
-public class NativeImageMixin implements UploadableImage, Blaze4dNativeImage {
+public abstract class NativeImageMixin implements UploadableImage {
 
     @Shadow
     @Final
@@ -31,49 +24,21 @@ public class NativeImageMixin implements UploadableImage, Blaze4dNativeImage {
     @Final
     private int height;
 
-    private int channels;
+    @Shadow
+    @Final
+    private long sizeBytes;
+
+    @Shadow
+    public abstract byte[] getBytes() throws IOException;
+
+    @Shadow private long pointer;
+    private int channels = 4;
     private ByteBuffer pixels;
 
-    /**
-     * @author Blaze4d
-     * @reason Injecting code would not be feasible
-     */
-    @Overwrite
-    public static NativeImage read(@Nullable NativeImage.Format format, ByteBuffer fileBytes) throws IOException {
-        if (format != null && !format.isWriteable()) {
-            throw new UnsupportedOperationException("Don't know how to read format " + format);
-        } else if (MemoryUtil.memAddress(fileBytes) == 0L) {
-            throw new IllegalArgumentException("Invalid buffer");
-        } else {
-            MemoryStack stack = MemoryStack.stackPush();
-
-            NativeImage image;
-            try {
-                IntBuffer pWidth = stack.mallocInt(1);
-                IntBuffer pHeight = stack.mallocInt(1);
-                IntBuffer pChannels = stack.mallocInt(1);
-                int desiredChannels = format == null ? 0 : format.getChannelCount();
-                ByteBuffer imageBytes = STBImage.stbi_load_from_memory(fileBytes, pWidth, pHeight, pChannels, desiredChannels);
-                if (imageBytes == null) {
-                    throw new IOException("Could not load image: " + STBImage.stbi_failure_reason());
-                }
-
-                int channels = pChannels.get(0);
-                image = new NativeImage(format == null ? NativeImage.Format.getFormat(channels) : format, pWidth.get(0), pHeight.get(0), true, MemoryUtil.memAddress(imageBytes));
-                Blaze4dNativeImage uploadableImage = (Blaze4dNativeImage) (Object) image;
-                uploadableImage.setChannels(channels);
-                uploadableImage.setPixels(imageBytes);
-            } catch (Throwable e) {
-                try {
-                    stack.close();
-                } catch (Throwable t) {
-                    e.addSuppressed(t);
-                }
-                throw e;
-            }
-            stack.close();
-            return image;
-        }
+    @Inject(method = "<init>(Lnet/minecraft/client/texture/NativeImage$Format;IIZJ)V", at = @At("TAIL"))
+    private void setExtraArgs(NativeImage.Format format, int width, int height, boolean useStb, long pointer, CallbackInfo ci) throws IOException {
+        this.pixels = ByteBuffer.wrap(getBytes());
+        this.channels = format.getChannelCount();
     }
 
     @Inject(method = "uploadInternal", at = @At("HEAD"), cancellable = true)
@@ -98,24 +63,18 @@ public class NativeImageMixin implements UploadableImage, Blaze4dNativeImage {
 
     @Override
     public ByteBuffer getPixels() {
+        if (pixels == null) {
+            this.pixels = MemoryUtil.memAlloc(getImageSize() * Float.BYTES);
+            ByteBuffer originalIntBytes = MemoryUtil.memByteBuffer(pointer, getImageSize() / 4);
+            for (int i = 0; i < originalIntBytes.limit(); i++) {
+                this.pixels.putFloat(Byte.toUnsignedInt(originalIntBytes.get(i)) / 255F);
+            }
+        }
         return pixels;
     }
 
     @Override
     public int getImageSize() {
-        return width * height * (Float.BYTES * 4); // 4 Float sized channels
-    }
-
-    @Override
-    public void setChannels(int channels) {
-        this.channels = channels;
-    }
-
-    @Override
-    public void setPixels(ByteBuffer pixels) {
-        this.pixels = MemoryUtil.memAlloc(pixels.limit() * Float.BYTES);
-        for (int i = 0; i < pixels.limit(); i++) {
-            this.pixels.putFloat(Byte.toUnsignedInt(pixels.get()) / 255f);
-        }
+        return getWidth() * getHeight() * getChannels() * Float.BYTES;
     }
 }

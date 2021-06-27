@@ -58,7 +58,7 @@ public abstract class ResourceTextureMixin implements UploadableImage {
         Blaze4D.rosella.getTextureManager().getOrLoadTexture(
                 this,
                 Blaze4D.rosella,
-                VK10.VK_FORMAT_R8G8B8A8_SINT
+                VK10.VK_FORMAT_R32G32B32A32_SFLOAT
         );
     }
 
@@ -79,20 +79,11 @@ public abstract class ResourceTextureMixin implements UploadableImage {
 
     @Override
     public ByteBuffer getPixels() {
-        ByteBuffer pixels = ((UploadableImage) (Object) image).getPixels();
-        if(pixels == null) {
-            pixels = ByteBuffer.allocate(getImageSize());
-            for (int x = 0; x < getWidth(); x++) {
-                for (int y = 0; y < getHeight(); y++) {
-                    pixels.putInt(image.getPixelColor(x, y));
-                }
-            }
-        }
-        return pixels;
+        return ((UploadableImage) (Object) image).getPixels();
     }
 
     @Override
     public int getImageSize() {
-        return ((UploadableImage) (Object) image).getImageSize();
+        return getWidth() * getHeight() * getChannels();
     }
 }

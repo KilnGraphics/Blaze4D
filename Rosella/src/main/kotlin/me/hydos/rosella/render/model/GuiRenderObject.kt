@@ -69,7 +69,7 @@ open class GuiRenderObject(
 			?: error("The material $materialIdentifier couldn't be found. (Are you registering the material?)")
 		mat = retrievedMaterial
 		uniformBufferObject = LowLevelUbo(engine.device, engine.memory)
-		uniformBufferObject.create(engine.renderer.swapChain)
+		uniformBufferObject.create(engine.renderer.swapchain)
 		modelTransformMatrix.translate(0f, 0f, z)
 	}
 

@@ -1,6 +1,5 @@
 package me.hydos.blaze4d;
 
-import me.hydos.aftermath.AddGPUCrashDumpDescriptionCallback;
 import me.hydos.aftermath.Aftermath;
 import me.hydos.aftermath.struct.GFSDK_Aftermath_GpuCrashDump_BaseInfo;
 import me.hydos.rosella.Rosella;
@@ -19,12 +18,11 @@ import java.nio.ByteBuffer;
 import java.nio.IntBuffer;
 import java.nio.LongBuffer;
 import java.nio.charset.StandardCharsets;
-import java.util.Map;
 
 public class Blaze4D implements ClientModInitializer {
 
-    public static final Logger LOGGER = LogManager.getLogger("Iodine", new StringFormatterMessageFactory());
-    public static final boolean VALIDATION_ENABLED = true;
+    public static final Logger LOGGER = LogManager.getLogger("Blaze4D", new StringFormatterMessageFactory());
+    public static final boolean VALIDATION_ENABLED = false;
 
     public static Rosella rosella;
     public static Window window;
@@ -59,12 +57,6 @@ public class Blaze4D implements ClientModInitializer {
                 (pShaderDebugInfo, shaderDebugInfoSize, pUserData) -> {
                 },
                 (addValue, pUserData) -> {
-                    Map<Integer, String> info = Map.of(0x00000001, "Blaze 4D",
-                            0x00000002, "1.0.0",
-                            0x00010000, "Gpu Crash Dump Blaze4D Info"
-                    );
-
-                    info.forEach(AddGPUCrashDumpDescriptionCallback.invoke(addValue));
                 },
                 new Object()
         );
@@ -78,7 +70,8 @@ public class Blaze4D implements ClientModInitializer {
                     0x000020b,
                     pGpuCrashDump,
                     gpuCrashDumpSize,
-                    pDecoder);
+                    pDecoder
+            );
 
             long decoder = pDecoder.get(0);
 

@@ -21,10 +21,6 @@ import java.util.Map;
 @Mixin(TextureManager.class)
 public class TextureManagerMixin {
 
-    @Shadow
-    @Final
-    private Map<Identifier, AbstractTexture> textures;
-
     @Inject(method = "method_18167", at = @At("RETURN"))
     private void reloadTextures(CallbackInfo ci) {
         Blaze4D.rosella.reloadMaterials();

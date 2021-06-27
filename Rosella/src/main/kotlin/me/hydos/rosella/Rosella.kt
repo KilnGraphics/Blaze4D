@@ -5,6 +5,7 @@ import me.hydos.rosella.render.camera.Camera
 import me.hydos.rosella.render.device.Device
 import me.hydos.rosella.render.io.Window
 import me.hydos.rosella.render.material.Material
+import me.hydos.rosella.render.material.PipelineManager
 import me.hydos.rosella.render.model.Renderable
 import me.hydos.rosella.render.renderer.Renderer
 import me.hydos.rosella.render.resource.Identifier
@@ -51,8 +52,10 @@ class Rosella(
 
 	var renderObjects = HashMap<String, Renderable>()
 	var materials = HashMap<Identifier, Material>()
+
 	var shaderManager: ShaderManager
 	var textureManager: TextureManager
+	var pipelineManager: PipelineManager
 
 	val camera = Camera(window)
 
@@ -86,6 +89,7 @@ class Rosella(
 		this.textureManager = TextureManager(device)
 		this.memory = Memory(device, vulkanInstance)
 		renderer.initialize(this)
+		this.pipelineManager = PipelineManager(renderer.swapchain, device)
 
 		glfwShowWindow(window.windowPtr)
 	}
@@ -151,7 +155,7 @@ class Rosella(
 
 		vkDestroyCommandPool(device.device, renderer.commandPool, null)
 
-		renderer.swapChain.free(device.device)
+		renderer.swapchain.free(device.device)
 
 		vkDestroyDevice(device.device, null)
 
@@ -216,6 +220,8 @@ class Rosella(
 
 	fun registerMaterial(identifier: Identifier, material: Material) {
 		materials[identifier] = material
+		material.loadShaders(this)
+		material.loadTextures(this)
 	}
 
 	fun registerShader(identifier: Identifier, rawShader: RawShaderProgram) {
@@ -224,25 +230,17 @@ class Rosella(
 
 	fun reloadMaterials() {
 		for (material in materials.values) {
-			material.loadShaders(this)
-			material.loadTextures(this)
 			material.shader.raw.createDescriptorSetLayout()
-			material.createPipeline( //TODO: cache pipelines when stuff doesnt change
-				device,
-				renderer.swapChain,
-				renderer.renderPass,
-				material.shader.raw.descriptorSetLayout,
-				polygonMode
-			)
+			material.pipeline = pipelineManager.getPipeline(material, renderer, this)
 		}
 	}
 
 	fun getHeight(): Float {
-		return renderer.swapChain.swapChainExtent.height().toFloat()
+		return renderer.swapchain.swapChainExtent.height().toFloat()
 	}
 
 	fun getWidth(): Float {
-		return renderer.swapChain.swapChainExtent.width().toFloat()
+		return renderer.swapchain.swapChainExtent.width().toFloat()
 	}
 
 	private companion object DebugManager {
@@ -251,10 +249,10 @@ class Rosella(
 
 		@JvmStatic
 		private fun createDebugUtilsMessengerEXT(
-				instance: VkInstance,
-				createInfo: VkDebugUtilsMessengerCreateInfoEXT,
-				allocationCallbacks: VkAllocationCallbacks?,
-				pDebugMessenger: LongBuffer
+			instance: VkInstance,
+			createInfo: VkDebugUtilsMessengerCreateInfoEXT,
+			allocationCallbacks: VkAllocationCallbacks?,
+			pDebugMessenger: LongBuffer
 		): Int {
 			return if (vkGetInstanceProcAddr(instance, "vkCreateDebugUtilsMessengerEXT") != NULL) {
 				EXTDebugUtils.vkCreateDebugUtilsMessengerEXT(instance, createInfo, allocationCallbacks, pDebugMessenger)
@@ -266,7 +264,7 @@ class Rosella(
 			val callbackData = VkDebugUtilsMessengerCallbackDataEXT.create(pCallbackData)
 			val message = callbackData.pMessageString()
 			val engine = MemoryUtil.memGlobalRefToObject<Rosella>(pUserData)
-			val type = when(messageType) {
+			val type = when (messageType) {
 				EXTDebugUtils.VK_DEBUG_UTILS_MESSAGE_TYPE_GENERAL_BIT_EXT -> "GENERAL"
 				EXTDebugUtils.VK_DEBUG_UTILS_MESSAGE_TYPE_VALIDATION_BIT_EXT -> "VALIDATION"
 				EXTDebugUtils.VK_DEBUG_UTILS_MESSAGE_TYPE_PERFORMANCE_BIT_EXT -> "PERFORMANCE"
@@ -294,12 +292,15 @@ class Rosella(
 		}
 
 		@JvmStatic
-		private fun populateDebugMessengerCreateInfo(engine: Rosella, debugCreateInfo: VkDebugUtilsMessengerCreateInfoEXT) {
+		private fun populateDebugMessengerCreateInfo(
+			engine: Rosella,
+			debugCreateInfo: VkDebugUtilsMessengerCreateInfoEXT
+		) {
 			debugCreateInfo.sType(EXTDebugUtils.VK_STRUCTURE_TYPE_DEBUG_UTILS_MESSENGER_CREATE_INFO_EXT)
-					.messageSeverity(EXTDebugUtils.VK_DEBUG_UTILS_MESSAGE_SEVERITY_VERBOSE_BIT_EXT or EXTDebugUtils.VK_DEBUG_UTILS_MESSAGE_SEVERITY_WARNING_BIT_EXT or EXTDebugUtils.VK_DEBUG_UTILS_MESSAGE_SEVERITY_ERROR_BIT_EXT)
-					.messageType(EXTDebugUtils.VK_DEBUG_UTILS_MESSAGE_TYPE_GENERAL_BIT_EXT or EXTDebugUtils.VK_DEBUG_UTILS_MESSAGE_TYPE_VALIDATION_BIT_EXT or EXTDebugUtils.VK_DEBUG_UTILS_MESSAGE_TYPE_PERFORMANCE_BIT_EXT)
-					.pfnUserCallback(this::debugCallback)
-					.pUserData(JNINativeInterface.NewGlobalRef(engine))
+				.messageSeverity(EXTDebugUtils.VK_DEBUG_UTILS_MESSAGE_SEVERITY_VERBOSE_BIT_EXT or EXTDebugUtils.VK_DEBUG_UTILS_MESSAGE_SEVERITY_WARNING_BIT_EXT or EXTDebugUtils.VK_DEBUG_UTILS_MESSAGE_SEVERITY_ERROR_BIT_EXT)
+				.messageType(EXTDebugUtils.VK_DEBUG_UTILS_MESSAGE_TYPE_GENERAL_BIT_EXT or EXTDebugUtils.VK_DEBUG_UTILS_MESSAGE_TYPE_VALIDATION_BIT_EXT or EXTDebugUtils.VK_DEBUG_UTILS_MESSAGE_TYPE_PERFORMANCE_BIT_EXT)
+				.pfnUserCallback(this::debugCallback)
+				.pUserData(JNINativeInterface.NewGlobalRef(engine))
 		}
 
 		@JvmStatic

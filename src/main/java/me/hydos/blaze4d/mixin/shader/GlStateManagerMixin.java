@@ -3,7 +3,6 @@ package me.hydos.blaze4d.mixin.shader;
 import com.mojang.blaze3d.platform.GlStateManager;
 import com.mojang.blaze3d.systems.RenderSystem;
 import me.hydos.blaze4d.Blaze4D;
-import me.hydos.blaze4d.api.Blaze4dException;
 import me.hydos.blaze4d.api.GlobalRenderSystem;
 import me.hydos.blaze4d.api.shader.ShaderContext;
 import me.hydos.blaze4d.api.util.ByteArrayResource;
@@ -54,7 +53,7 @@ public class GlStateManagerMixin {
         RenderSystem.assertThread(RenderSystem::isOnRenderThread);
         ShaderContext context = GlobalRenderSystem.SHADER_MAP.get(shader);
         if (context == null) {
-            throw new Blaze4dException("Failed to get ShaderContext. (No shader was found with id " + shader + ")");
+            throw new RuntimeException("Failed to get ShaderContext. (No shader was found with id " + shader + ")");
         }
 
         context.shader = shaderSrcToResource(shaderLines);

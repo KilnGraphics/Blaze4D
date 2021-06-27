@@ -2,10 +2,11 @@
   "schemaVersion": 1,
   "id": "blaze4d",
   "version": "${version}",
-  "name": "Iodine",
-  "description": "Blaze3D But Vulkan.",
+  "name": "Blaze 4D",
+  "description": "Blaze3D But Vulkan & mod compatibility",
   "authors": [
-    "hydos"
+    "hydos",
+    "OroArmor"
   ],
   "license": "MIT",
   "icon": "assets/blaze4d/icon.png",

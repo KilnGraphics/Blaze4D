@@ -336,7 +336,6 @@ fun createTextureImage(device: Device, image: UploadableImage, renderer: Rendere
 			STBImage.stbi_image_free(image.getPixels())
 		}
 
-
 		val pTextureImage = stack.mallocLong(1)
 		val pTextureImageMemory = stack.mallocLong(1)
 		createImage(
