@@ -25,7 +25,6 @@ package me.hydos.blaze4d.api.shader;
         vertexColor = Color;
         }*/
 
-
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
@@ -33,6 +32,7 @@ import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
 public class OpenGLToVulkanShaderProcessor {
+
     public static List<String> convertOpenGLToVulkanShader(List<String> source) {
         List<String> lines = new ArrayList<>(source.stream()
                 .flatMap(line -> Arrays.stream(line.split("\n")))
@@ -61,7 +61,8 @@ public class OpenGLToVulkanShaderProcessor {
                 if (type.equals("sampler2D")) {
                     lines.set(i, line.replace("uniform", "layout(binding = " + samplers++ + ") uniform"));
                 } else {
-                    lines.set(i, "");
+                    lines.remove(i);
+                    i--;
                 }
             } else if (line.matches("void main\\(\\) \\{")) {
                 List<String> uboNames = List.of(

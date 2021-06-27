@@ -44,7 +44,7 @@ class BufferVertexConsumer(override val format: VertexFormat) : VertexConsumer {
 		return this
 	}
 
-	override fun color(red: Byte, green: Byte, blue: Byte, alpha: Byte): VertexConsumer {
+	override fun color(red: Int, green: Int, blue: Int, alpha: Int): VertexConsumer {
 		bufferConsumerList.add(Consumer {
 			it.putFloat(red / 255f)
 			it.putFloat(green / 255f)

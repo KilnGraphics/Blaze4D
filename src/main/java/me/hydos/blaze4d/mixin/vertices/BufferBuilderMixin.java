@@ -59,8 +59,8 @@ public abstract class BufferBuilderMixin extends FixedColorVertexConsumer implem
     }
 
     @Inject(method = "clear", at = @At("HEAD"))
-    private void doCaching(CallbackInfo ci) {
-        consumer.clear();
+    private void clear(CallbackInfo ci) {
+        consumer = new me.hydos.rosella.render.vertex.BufferVertexConsumer(consumer.getFormat());
     }
 
     @Override
@@ -77,7 +77,7 @@ public abstract class BufferBuilderMixin extends FixedColorVertexConsumer implem
 
     @Override
     public VertexConsumer color(int red, int green, int blue, int alpha) {
-        consumer.color((byte) red, (byte) green, (byte) blue, (byte) alpha);
+        consumer.color(red, green, blue, alpha);
         return this;
     }
 
@@ -155,7 +155,7 @@ public abstract class BufferBuilderMixin extends FixedColorVertexConsumer implem
 
         if (consumer.getVertexCount() != 0) {
             ConsumerRenderObject renderObject = new ConsumerRenderObject(
-                    consumer.copy(),
+                    consumer,
                     drawMode,
                     format,
                     getShader(),

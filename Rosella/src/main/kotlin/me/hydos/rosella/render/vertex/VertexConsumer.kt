@@ -11,7 +11,7 @@ interface VertexConsumer {
 
 	fun color(red: Int, green: Int, blue: Int): VertexConsumer
 
-	fun color(red: Byte, green: Byte, blue: Byte, alpha: Byte): VertexConsumer
+	fun color(red: Int, green: Int, blue: Int, alpha: Int): VertexConsumer
 
 	fun uv(u: Float, v: Float): VertexConsumer
 
