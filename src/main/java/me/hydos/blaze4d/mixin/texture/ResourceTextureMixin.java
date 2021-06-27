@@ -2,7 +2,6 @@ package me.hydos.blaze4d.mixin.texture;
 
 import me.hydos.blaze4d.Blaze4D;
 import me.hydos.rosella.render.texture.UploadableImage;
-import net.minecraft.client.MinecraftClient;
 import net.minecraft.client.texture.MissingSprite;
 import net.minecraft.client.texture.NativeImage;
 import net.minecraft.client.texture.ResourceTexture;
@@ -17,7 +16,6 @@ import org.spongepowered.asm.mixin.injection.At;
 import org.spongepowered.asm.mixin.injection.Inject;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 
-import java.io.IOException;
 import java.nio.ByteBuffer;
 
 @Mixin(ResourceTexture.class)
@@ -35,14 +33,14 @@ public abstract class ResourceTextureMixin implements UploadableImage {
     @Inject(method = "<init>", at = @At("TAIL"))
     private void loadNativeImage(Identifier location, CallbackInfo ci) {
         if (image == null) {
-//            this.image = MissingSprite.getMissingSpriteTexture().getImage();
-            try {
-                ResourceTexture.TextureData data = this.loadTextureData(MinecraftClient.getInstance().getResourceManager());
-                this.image = data.getImage();
-            } catch (Exception e) {
-                this.image = MissingSprite.getMissingSpriteTexture().getImage();
-//                throw new RuntimeException("Failed to get image", e);
-            }
+            this.image = MissingSprite.getMissingSpriteTexture().getImage();
+//            ResourceTexture.TextureData data = this.loadTextureData(MinecraftClient.getInstance().getTextureManager().resourceContainer);
+//            try {
+//                this.image = data.getImage();
+//            } catch (IOException e) {
+//                this.image = MissingSprite.getMissingSpriteTexture().getImage();
+////                throw new RuntimeException("Failed to get image", e);
+//            }
         }
     }
 
