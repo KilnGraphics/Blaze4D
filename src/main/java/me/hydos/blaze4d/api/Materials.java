@@ -44,7 +44,13 @@ public class Materials {
             return MATERIAL_CACHE.computeIfAbsent(new MaterialInfo(this, shader, image, format), info -> {
                 Blaze4dMaterial material = new Blaze4dMaterial(
                         shader,
-                        VK10.VK_FORMAT_R32G32B32A32_SFLOAT,
+                        switch (image.getChannels()) {
+                            case 4 -> VK10.VK_FORMAT_R32G32B32A32_SFLOAT;
+                            case 3 -> VK10.VK_FORMAT_R32G32B32_SFLOAT;
+                            case 2 -> VK10.VK_FORMAT_R32G32_SFLOAT;
+                            case 1 -> VK10.VK_FORMAT_R32_SFLOAT;
+                            default -> throw new IllegalStateException("Unexpected value: " + image.getChannels());
+                        },
                         false,
                         topology,
                         format,

@@ -70,6 +70,12 @@ public abstract class BufferBuilderMixin extends FixedColorVertexConsumer implem
     }
 
     @Override
+    public VertexConsumer normal(float x, float y, float z) {
+        consumer.normal(x, y, z);
+        return this;
+    }
+
+    @Override
     public VertexConsumer color(int red, int green, int blue, int alpha) {
         consumer.color((byte) red, (byte) green, (byte) blue, (byte) alpha);
         return this;
@@ -82,8 +88,8 @@ public abstract class BufferBuilderMixin extends FixedColorVertexConsumer implem
     }
 
     @Override
-    public VertexConsumer light(int light) {
-        consumer.light(light);
+    public VertexConsumer light(int u, int v) {
+        consumer.light((short) u, (short) v);
         return this;
     }
 

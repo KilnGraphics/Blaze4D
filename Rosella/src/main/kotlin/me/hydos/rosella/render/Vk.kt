@@ -13,7 +13,6 @@ import me.hydos.rosella.render.texture.StbiImage
 import me.hydos.rosella.render.texture.TextureImage
 import me.hydos.rosella.render.texture.UploadableImage
 import me.hydos.rosella.render.util.memory.Memory
-import me.hydos.rosella.render.util.memory.memcpy
 import me.hydos.rosella.render.util.ok
 import org.lwjgl.PointerBuffer
 import org.lwjgl.stb.STBImage
@@ -223,10 +222,12 @@ fun createImage(
 		val imageInfo = VkImageCreateInfo.callocStack(stack)
 			.sType(VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO)
 			.imageType(VK_IMAGE_TYPE_2D)
-		imageInfo.extent().width(width)
-		imageInfo.extent().height(height)
-		imageInfo.extent().depth(1)
-		imageInfo.mipLevels(1)
+		imageInfo.extent()
+			.width(width)
+			.height(height)
+			.depth(1)
+		imageInfo
+			.mipLevels(1)
 			.arrayLayers(1)
 			.format(format)
 			.tiling(tiling)
@@ -320,7 +321,14 @@ fun transitionImageLayout(
  * A Giant mess of an texture image creator.
  * TODO: clean
  */
-fun createTextureImage(device: Device, image: UploadableImage, renderer: Renderer, memory: Memory, imgFormat: Int, textureImage: TextureImage) {
+fun createTextureImage(
+	device: Device,
+	image: UploadableImage,
+	renderer: Renderer,
+	memory: Memory,
+	imgFormat: Int,
+	textureImage: TextureImage
+) {
 	MemoryStack.stackPush().use { stack ->
 
 		val pBuffer = stack.mallocLong(1)
@@ -329,10 +337,14 @@ fun createTextureImage(device: Device, image: UploadableImage, renderer: Rendere
 			pBuffer,
 			stack
 		) { data ->
-			memcpy(data.getByteBuffer(0, image.getImageSize()), image.getPixels()!!, image.getImageSize().toLong())
+			val pixels = image.getPixels()!!
+			val newData = data.getByteBuffer(0, pixels.limit())
+			for (i in 0 until pixels.limit()) {
+				newData.put(i, pixels.get(i))
+			}
 		}
 
-		if(image is StbiImage) {
+		if (image is StbiImage) {
 			STBImage.stbi_image_free(image.getPixels())
 		}
 
@@ -360,7 +372,15 @@ fun createTextureImage(device: Device, image: UploadableImage, renderer: Rendere
 			renderer.device,
 			renderer
 		)
-		copyBufferToImage(stagingBuf.buffer, textureImage.textureImage, image.getWidth(), image.getHeight(), device, renderer)
+
+		copyBufferToImage(
+			stagingBuf.buffer,
+			textureImage.textureImage,
+			image.getWidth(),
+			image.getHeight(),
+			device,
+			renderer
+		)
 		transitionImageLayout(
 			textureImage.textureImage,
 			imgFormat,
@@ -381,11 +401,12 @@ private fun copyBufferToImage(buffer: Long, image: Long, width: Int, height: Int
 			.bufferOffset(0)
 			.bufferRowLength(0)
 			.bufferImageHeight(0)
-		region.imageSubresource().aspectMask(VK_IMAGE_ASPECT_COLOR_BIT)
-		region.imageSubresource().mipLevel(0)
-		region.imageSubresource().baseArrayLayer(0)
-		region.imageSubresource().layerCount(1)
-		region.imageOffset()[0, 0] = 0
+		region.imageSubresource()
+			.aspectMask(VK_IMAGE_ASPECT_COLOR_BIT)
+			.mipLevel(0)
+			.baseArrayLayer(0)
+			.layerCount(1)
+		region.imageOffset().set(0, 0, 0)
 		region.imageExtent(VkExtent3D.callocStack(stack).set(width, height, 1))
 		vkCmdCopyBufferToImage(commandBuffer, buffer, image, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, region)
 		endSingleTimeCommands(commandBuffer, device, renderer)

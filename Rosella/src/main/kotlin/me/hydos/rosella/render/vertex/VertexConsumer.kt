@@ -17,7 +17,10 @@ interface VertexConsumer {
 
 	fun uv(u: Short, v: Short): VertexConsumer
 
-	fun light(light: Int): VertexConsumer
+	fun light(u: Short, v: Short): VertexConsumer {
+		this.uv(u, v)
+		return this
+	}
 
 	fun nextVertex(): VertexConsumer
 
@@ -28,4 +31,6 @@ interface VertexConsumer {
 	fun getVertexCount(): Int
 
 	fun copy(): VertexConsumer
+
+	fun normal(x :Float, y: Float, z: Float): VertexConsumer
 }

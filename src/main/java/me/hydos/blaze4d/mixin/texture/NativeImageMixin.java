@@ -25,10 +25,6 @@ public abstract class NativeImageMixin implements UploadableImage {
     private int height;
 
     @Shadow
-    @Final
-    private long sizeBytes;
-
-    @Shadow
     public abstract byte[] getBytes() throws IOException;
 
     @Shadow private long pointer;

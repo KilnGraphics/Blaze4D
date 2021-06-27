@@ -3,7 +3,6 @@ package me.hydos.rosella.render.vertex
 import java.nio.ByteBuffer
 import java.util.*
 import java.util.function.Consumer
-import kotlin.collections.ArrayList
 
 class BufferVertexConsumer(override val format: VertexFormat) : VertexConsumer {
 
@@ -28,6 +27,17 @@ class BufferVertexConsumer(override val format: VertexFormat) : VertexConsumer {
 			it.putFloat(red / 255f)
 			it.putFloat(green / 255f)
 			it.putFloat(blue / 255f)
+		})
+
+		debugSize += 3 * Float.SIZE_BYTES
+		return this
+	}
+
+	override fun normal(x: Float, y: Float, z: Float): VertexConsumer {
+		bufferConsumerList.add(Consumer {
+			it.putFloat(x)
+			it.putFloat(y)
+			it.putFloat(z)
 		})
 
 		debugSize += 3 * Float.SIZE_BYTES
@@ -62,15 +72,6 @@ class BufferVertexConsumer(override val format: VertexFormat) : VertexConsumer {
 		})
 
 		debugSize += 2 * Short.SIZE_BYTES
-		return this
-	}
-
-	override fun light(light: Int): VertexConsumer {
-		bufferConsumerList.add(Consumer {
-			it.putInt(light)
-		})
-
-		debugSize += Int.SIZE_BYTES
 		return this
 	}
 
