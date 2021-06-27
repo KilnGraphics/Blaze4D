@@ -9,6 +9,7 @@ import me.hydos.rosella.render.model.Renderable;
 import me.hydos.rosella.render.resource.Identifier;
 import me.hydos.rosella.render.shader.RawShaderProgram;
 import me.hydos.rosella.render.shader.ShaderProgram;
+import org.joml.Matrix4f;
 import org.lwjgl.vulkan.VK10;
 
 import java.util.List;
@@ -32,6 +33,10 @@ public class GlobalRenderSystem {
     // Active Fields
     public static net.minecraft.util.Identifier boundTexture = new net.minecraft.util.Identifier("minecraft", "empty");
     public static ShaderProgram activeShader;
+
+    // Matrices
+    public static Matrix4f projectionMatrix = new Matrix4f();
+    public static Matrix4f modelViewMatrix = new Matrix4f();
 
     //=================
     // Shader Methods

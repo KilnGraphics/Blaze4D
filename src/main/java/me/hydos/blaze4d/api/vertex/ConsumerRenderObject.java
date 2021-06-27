@@ -1,5 +1,6 @@
 package me.hydos.blaze4d.api.vertex;
 
+import com.mojang.blaze3d.systems.RenderSystem;
 import me.hydos.blaze4d.api.Materials;
 import me.hydos.blaze4d.api.shader.MinecraftUbo;
 import me.hydos.rosella.Rosella;
@@ -28,14 +29,16 @@ public class ConsumerRenderObject implements Renderable {
 
     // Renderable Fields
     private final Matrix4f transformationMatrix = new Matrix4f();
-    private MinecraftUbo ubo;
+    private final MinecraftUbo ubo;
     public Material material;
     public List<Integer> indices = new ArrayList<>();
     public BufferInfo vertexBuffer = null;
     public BufferInfo indexBuffer = null;
     public List<Long> descriptorSets = new ArrayList<>();
 
-    public ConsumerRenderObject(VertexConsumer consumer, net.minecraft.client.render.VertexFormat.DrawMode drawMode, VertexFormat format, ShaderProgram program, UploadableImage image) {
+    public ConsumerRenderObject(VertexConsumer consumer, net.minecraft.client.render.VertexFormat.DrawMode drawMode, VertexFormat format, ShaderProgram program, UploadableImage image, Rosella rosella, Matrix4f projMatrix, Matrix4f viewMatrix) {
+        ubo = new MinecraftUbo(rosella.getDevice(), rosella.getMemory());
+        ubo.setMatrices(projMatrix, viewMatrix);
         this.consumer = consumer;
         this.drawMode = drawMode;
         this.format = format;
@@ -67,7 +70,6 @@ public class ConsumerRenderObject implements Renderable {
 
             default -> throw new RuntimeException("Unsupported Draw Mode:  " + drawMode);
         }
-        ubo = new MinecraftUbo(rosella.getDevice(), rosella.getMemory());
         ubo.create(rosella.getRenderer().swapchain);
     }
 

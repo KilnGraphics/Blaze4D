@@ -152,7 +152,7 @@ public class GlStateManagerMixin {
         Identifier id = GlobalRenderSystem.generateId(program);
         Blaze4D.rosella.registerShader(id, GlobalRenderSystem.SHADER_PROGRAM_MAP.get(program));
         Blaze4D.rosella.getShaderManager().getOrCreateShader(id);
-        Blaze4D.LOGGER.info("Compiled and Linked Shaders!");
+//        Blaze4D.LOGGER.info("Compiled and Linked Shaders!");
     }
 
     /**

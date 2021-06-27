@@ -1,5 +1,6 @@
 package me.hydos.blaze4d.mixin.vertices;
 
+import me.hydos.blaze4d.Blaze4D;
 import me.hydos.blaze4d.api.GlobalRenderSystem;
 import me.hydos.blaze4d.api.vertex.ConsumerRenderObject;
 import me.hydos.blaze4d.api.vertex.UploadableConsumer;
@@ -7,6 +8,7 @@ import me.hydos.rosella.render.shader.ShaderProgram;
 import me.hydos.rosella.render.texture.UploadableImage;
 import net.minecraft.client.MinecraftClient;
 import net.minecraft.client.render.*;
+import org.joml.Matrix4f;
 import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.Shadow;
 import org.spongepowered.asm.mixin.injection.At;
@@ -28,6 +30,9 @@ public abstract class BufferBuilderMixin extends FixedColorVertexConsumer implem
 
     private me.hydos.rosella.render.vertex.BufferVertexConsumer consumer;
     private ShaderProgram shader;
+
+    private Matrix4f projMatrix;
+    private Matrix4f viewMatrix;
 
     @Inject(method = "begin", at = @At("HEAD"))
     private void setupConsumer(VertexFormat.DrawMode drawMode, VertexFormat format, CallbackInfo ci) {
@@ -56,6 +61,9 @@ public abstract class BufferBuilderMixin extends FixedColorVertexConsumer implem
                 throw new RuntimeException("Format not implemented: " + format);
             }
         }
+
+        projMatrix = copyMat4f(GlobalRenderSystem.projectionMatrix);
+        viewMatrix = copyMat4f(GlobalRenderSystem.modelViewMatrix);
     }
 
     @Inject(method = "clear", at = @At("HEAD"))
@@ -159,10 +167,38 @@ public abstract class BufferBuilderMixin extends FixedColorVertexConsumer implem
                     drawMode,
                     format,
                     getShader(),
-                    getImage()
+                    getImage(),
+                    Blaze4D.rosella,
+                    projMatrix,
+                    viewMatrix
             );
             renderObject.indices = Collections.unmodifiableList(indices);
             GlobalRenderSystem.uploadObject(renderObject);
         }
+    }
+
+    private org.joml.Matrix4f copyMat4f(org.joml.Matrix4f mat4f) {
+        org.joml.Matrix4f newMatrix = new org.joml.Matrix4f();
+
+        newMatrix.m00(mat4f.m00());
+        newMatrix.m01(mat4f.m01());
+        newMatrix.m02(mat4f.m02());
+        newMatrix.m03(mat4f.m03());
+
+        newMatrix.m10(mat4f.m10());
+        newMatrix.m11(mat4f.m11());
+        newMatrix.m12(mat4f.m12());
+        newMatrix.m13(mat4f.m13());
+
+        newMatrix.m20(mat4f.m20());
+        newMatrix.m21(mat4f.m21());
+        newMatrix.m22(mat4f.m22());
+        newMatrix.m23(mat4f.m23());
+
+        newMatrix.m30(mat4f.m30());
+        newMatrix.m31(mat4f.m31());
+        newMatrix.m32(mat4f.m32());
+        newMatrix.m33(mat4f.m33());
+        return newMatrix;
     }
 }
