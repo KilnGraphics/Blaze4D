@@ -45,14 +45,11 @@ public class MinecraftUbo extends LowLevelUbo {
             PointerBuffer data = stack.mallocPointer(1);
             getMemory().map(getUboFrames().get(currentImg).getAllocation(), false, data);
             ByteBuffer buffer = data.getByteBuffer(0, getSize());
-
-//            Matrix4f mcViewModelMatrix = toJoml(RenderSystem.getModelViewMatrix());
-//            Matrix4f mcProjMatrix = projectionToVulkan(toJoml(RenderSystem.getProjectionMatrix()));
             Window window = MinecraftClient.getInstance().getWindow();
 
             beginUboWrite();
             putMat4(viewTransformMatrix, buffer); // ModelViewMat
-            putMat4(proj, buffer); // ProjectionMat //TODO: fix the proj matrix
+            putMat4(projectionMatrix, buffer); // ProjectionMat
             putVec4f(RenderSystem.getShaderColor(), buffer); // ColorModulator
             putFloat(RenderSystem.getShaderFogStart(), buffer); // FogStart
             putFloat(RenderSystem.getShaderFogEnd(), buffer); // FogEnd
@@ -144,16 +141,17 @@ public class MinecraftUbo extends LowLevelUbo {
         Matrix4f vpm = new Matrix4f();
 
         /*To Convert A OpenGL Projection Matrix to a Vulkan one, we need to do the following multiplication...
-        | 1   0   0    0   |
-        | 0  -1   0    0   |
-        | 0   0   0.5  0.5 |
-        | 0   0   0    1   |*/
+        | 1 (m00)   0   0    0   |
+        | 0  1 (m11)   0    0   |
+        | 0   0   0.5 (m22)  0 |
+        | 0   0   0.5 (m23)    1 (m33)|*/
 
         vpm.m00(1);
-        vpm.m11(-1);
+        vpm.m11(1);
         vpm.m22(0.5f);
-        vpm.m32(0.5f);
+        vpm.m23(0.5f);
         vpm.m33(1);
-        return glProjMatrix.mul(vpm);
+        glProjMatrix.mul(vpm);
+        return glProjMatrix;
     }
 }

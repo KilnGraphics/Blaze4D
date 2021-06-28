@@ -9,6 +9,7 @@
     "integration.FramebufferMixin",
     "integration.GlDebugMixin",
     "integration.GLStateManagerMixin",
+    "integration.Matrix4fMixin",
     "integration.VideoWarningManagerMixin",
     "integration.WindowFramebufferMixin",
     "integration.WindowMixin",

@@ -51,11 +51,6 @@ public abstract class RenderSystemMixin {
         }
     }
 
-    @Inject(method = "setProjectionMatrix", at = @At("HEAD"))
-    private static void setOurProjMatrix(Matrix4f matrix4f, CallbackInfo ci) {
-        GlobalRenderSystem.projectionMatrix = MinecraftUbo.projectionToVulkan(MinecraftUbo.toJoml(matrix4f));
-    }
-
     @Inject(method = "applyModelViewMatrix", at = @At("HEAD"))
     private static void setOurModelViewMatrix(CallbackInfo ci) {
         GlobalRenderSystem.modelViewMatrix = MinecraftUbo.toJoml(modelViewStack.peek().getModel().copy());
