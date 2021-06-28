@@ -270,6 +270,10 @@ class Rosella(
 				EXTDebugUtils.VK_DEBUG_UTILS_MESSAGE_TYPE_PERFORMANCE_BIT_EXT -> "PERFORMANCE"
 				else -> "Unknown"
 			}
+			if (message.contains("0x609a13b")) {
+				return VK_FALSE
+			}
+
 			if (message.startsWith("Validation Error")) {
 				val split = message.split("|")
 				val cause = split[2]

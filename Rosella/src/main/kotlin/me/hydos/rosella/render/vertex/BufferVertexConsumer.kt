@@ -67,11 +67,11 @@ class BufferVertexConsumer(override val format: VertexFormat) : VertexConsumer {
 
 	override fun uv(u: Short, v: Short): VertexConsumer {
 		bufferConsumerList.add(Consumer {
-			it.putShort(u)
-			it.putShort(v)
+			it.putInt(u.toInt())
+			it.putInt(v.toInt())
 		})
 
-		debugSize += 2 * Short.SIZE_BYTES
+		debugSize += 2 * Int.SIZE_BYTES
 		return this
 	}
 
