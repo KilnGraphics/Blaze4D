@@ -71,7 +71,8 @@ public class PortalJava {
                         VK10.VK_FORMAT_R8G8B8A8_UNORM,
                         false,
                         Topology.TRIANGLES,
-                        VertexFormats.Companion.getPOSITION_COLOR_UV()
+                        VertexFormats.Companion.getPOSITION_COLOR_UV(),
+                        VK10.VK_FILTER_LINEAR
                 )
         );
         rosella.registerMaterial(
@@ -81,7 +82,8 @@ public class PortalJava {
                         VK10.VK_FORMAT_R8G8B8A8_SRGB,
                         true,
                         Topology.TRIANGLES,
-                        VertexFormats.Companion.getPOSITION_COLOR_UV()
+                        VertexFormats.Companion.getPOSITION_COLOR_UV(),
+                        VK10.VK_FILTER_LINEAR
                 )
         );
         rosella.reloadMaterials();
