@@ -33,7 +33,8 @@ public class TextureManagerMixin {
                             case 2 -> VK10.VK_FORMAT_R32G32_SFLOAT;
                             case 1 -> VK10.VK_FORMAT_R32_SFLOAT;
                             default -> throw new IllegalStateException("Unexpected value: " + ((UploadableImage) texture).getChannels());
-                        }
+                        },
+                        VK10.VK_FILTER_NEAREST
                 );
             }
         } catch (ClassCastException e) {

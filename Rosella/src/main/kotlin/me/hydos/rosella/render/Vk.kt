@@ -181,12 +181,12 @@ fun findMemoryType(typeFilter: Int, properties: Int, device: Device): Int {
 	error("Failed to find suitable memory type")
 }
 
-fun createTextureSampler(device: Device): Long {
+fun createTextureSampler(device: Device, filter: Int): Long {
 	MemoryStack.stackPush().use { stack ->
 		val samplerInfo = VkSamplerCreateInfo.callocStack(stack)
 			.sType(VK_STRUCTURE_TYPE_SAMPLER_CREATE_INFO)
-			.magFilter(VK_FILTER_LINEAR)
-			.minFilter(VK_FILTER_LINEAR)
+			.magFilter(filter)
+			.minFilter(filter)
 			.addressModeU(VK_SAMPLER_ADDRESS_MODE_REPEAT)
 			.addressModeV(VK_SAMPLER_ADDRESS_MODE_REPEAT)
 			.addressModeW(VK_SAMPLER_ADDRESS_MODE_REPEAT)

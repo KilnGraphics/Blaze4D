@@ -60,7 +60,8 @@ class Canvas(val rosella: Rosella, val window: Window) {
 				VK10.VK_FORMAT_R8G8B8A8_SRGB,
 				false,
 				Topology.TRIANGLES,
-				VertexFormats.POSITION_COLOR_UV
+				VertexFormats.POSITION_COLOR_UV,
+				VK10.VK_FILTER_LINEAR
 			)
 		)
 	}
@@ -77,7 +78,8 @@ class Canvas(val rosella: Rosella, val window: Window) {
 			textureFormat,
 			blend,
 			Topology.TRIANGLES,
-			VertexFormats.POSITION_COLOR_UV
+			VertexFormats.POSITION_COLOR_UV,
+			VK10.VK_FILTER_LINEAR
 		)
 	}
 

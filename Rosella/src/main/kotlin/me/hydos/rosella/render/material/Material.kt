@@ -19,7 +19,8 @@ open class Material(
 	val imgFormat: Int,
 	val useBlend: Boolean,
 	val topology: Topology,
-	val vertexFormat: VertexFormat
+	val vertexFormat: VertexFormat,
+	val imageFilter: Int
 ) {
 	lateinit var pipeline: PipelineInfo
 
@@ -35,7 +36,7 @@ open class Material(
 
 	open fun loadTextures(engine: Rosella) {
 		if (resource != Resource.Empty) {
-			texture = engine.textureManager.getOrLoadTexture(resource, engine, imgFormat)!!
+			texture = engine.textureManager.getOrLoadTexture(resource, engine, imgFormat, imageFilter)!!
 		}
 	}
 }

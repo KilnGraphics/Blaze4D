@@ -40,7 +40,8 @@ class RosellaFont(private val font: Font, rosella: Rosella) {
 				VK10.VK_FORMAT_R8G8B8A8_UNORM,
 				false,
 				Topology.TRIANGLES,
-				VertexFormats.POSITION_COLOR_UV
+				VertexFormats.POSITION_COLOR_UV,
+				VK10.VK_FILTER_LINEAR
 			)
 		)
 	}

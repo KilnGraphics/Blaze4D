@@ -62,7 +62,8 @@ public abstract class ResourceTextureMixin implements UploadableImage {
                     case BGR -> VK10.VK_FORMAT_R32G32B32_SFLOAT;
                     case LUMINANCE_ALPHA -> VK10.VK_FORMAT_R32G32_SFLOAT;
                     case LUMINANCE -> VK10.VK_FORMAT_R32_SFLOAT;
-                }
+                },
+                VK10.VK_FILTER_NEAREST
         );
     }
 

@@ -13,12 +13,12 @@ class TextureManager(val device: Device) {
 	private val textureMap = HashMap<UploadableImage, Texture>()
 
 	@Deprecated("Resource Specification is bad")
-	fun getOrLoadTexture(resource: Resource, engine: Rosella, imgFormat: Int): Texture? {
+	fun getOrLoadTexture(resource: Resource, engine: Rosella, imgFormat: Int, imageFilter: Int): Texture? {
 		if (!resourceTextureMap.containsKey(resource)) {
 			val textureImage = TextureImage(0, 0, 0)
 			createTextureImage(device, StbiImage(resource), engine.renderer, engine.memory, imgFormat, textureImage)
 			textureImage.view = createTextureImageView(device, imgFormat, textureImage.textureImage)
-			val textureSampler = createTextureSampler(device)
+			val textureSampler = createTextureSampler(device, imageFilter)
 
 			resourceTextureMap[resource] = Texture(imgFormat, textureImage, textureSampler)
 		}
@@ -26,12 +26,12 @@ class TextureManager(val device: Device) {
 		return resourceTextureMap[resource]
 	}
 
-	fun getOrLoadTexture(image: UploadableImage, engine: Rosella, imgFormat: Int): Texture? {
+	fun getOrLoadTexture(image: UploadableImage, engine: Rosella, imgFormat: Int, imageFilter: Int): Texture? {
 		if (!textureMap.containsKey(image)) {
 			val textureImage = TextureImage(0, 0, 0)
 			createTextureImage(device, image, engine.renderer, engine.memory, imgFormat, textureImage)
 			textureImage.view = createTextureImageView(device, imgFormat, textureImage.textureImage)
-			val textureSampler = createTextureSampler(device)
+			val textureSampler = createTextureSampler(device, imageFilter)
 
 			textureMap[image] = Texture(imgFormat, textureImage, textureSampler)
 		}
