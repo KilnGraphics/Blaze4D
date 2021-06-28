@@ -22,7 +22,7 @@ public class GlobalRenderSystem {
     // Shader Fields
     public static final Map<Integer, ShaderContext> SHADER_MAP = new Int2ObjectOpenHashMap<>();
     public static final Map<Integer, RawShaderProgram> SHADER_PROGRAM_MAP = new Int2ObjectOpenHashMap<>();
-    public static final int DEFAULT_MAX_OBJECTS = 1024;
+    public static final int DEFAULT_MAX_OBJECTS = 4096;
     public static String programErrorLog = "none";
     public static int nextShaderId = 1; // Minecraft is a special snowflake and needs shader's to start at 1
     public static int nextShaderProgramId = 1; // Same reason as above
@@ -53,6 +53,8 @@ public class GlobalRenderSystem {
     //=================
     // Frame/Drawing Methods
     //=================
+
+    private static boolean alreadyRefreshed = false;
 
     /**
      * Called when a frame is flipped. used to send all buffers to the engine to draw. Also allows for caching

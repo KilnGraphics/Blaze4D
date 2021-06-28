@@ -1,9 +1,9 @@
 package me.hydos.blaze4d.api.vertex;
 
-import com.mojang.blaze3d.systems.RenderSystem;
 import me.hydos.blaze4d.api.Materials;
 import me.hydos.blaze4d.api.shader.MinecraftUbo;
 import me.hydos.rosella.Rosella;
+import me.hydos.rosella.render.descriptorsets.DescriptorSet;
 import me.hydos.rosella.render.device.Device;
 import me.hydos.rosella.render.material.Material;
 import me.hydos.rosella.render.model.Renderable;
@@ -16,7 +16,6 @@ import me.hydos.rosella.render.vertex.VertexConsumer;
 import net.minecraft.client.render.VertexFormat;
 import org.jetbrains.annotations.NotNull;
 import org.joml.Matrix4f;
-import org.lwjgl.vulkan.VK10;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -36,7 +35,7 @@ public class ConsumerRenderObject implements Renderable {
     public List<Integer> indices = new ArrayList<>();
     public BufferInfo vertexBuffer = null;
     public BufferInfo indexBuffer = null;
-    public List<Long> descriptorSets = new ArrayList<>();
+    public DescriptorSet descriptorSets;
 
     public ConsumerRenderObject(VertexConsumer consumer, net.minecraft.client.render.VertexFormat.DrawMode drawMode, VertexFormat format, ShaderProgram program, UploadableImage image, Rosella rosella, Matrix4f projMatrix, Matrix4f viewMatrix) {
         ubo = new MinecraftUbo(rosella.getDevice(), rosella.getMemory());
@@ -72,6 +71,7 @@ public class ConsumerRenderObject implements Renderable {
 
             default -> throw new RuntimeException("Unsupported Draw Mode:  " + drawMode);
         }
+        descriptorSets = new DescriptorSet(material.shader.getRaw().getDescriptorPool());
         ubo.create(rosella.getRenderer().swapchain);
     }
 
@@ -80,10 +80,7 @@ public class ConsumerRenderObject implements Renderable {
         memory.freeBuffer(vertexBuffer);
         memory.freeBuffer(indexBuffer);
         ubo.free();
-
-        for (Long descriptorSet : descriptorSets) {
-            VK10.vkFreeDescriptorSets(device.getDevice(), material.shader.getRaw().getDescriptorPool(), descriptorSet);
-        }
+        descriptorSets.free(device);
     }
 
     @Override
@@ -95,8 +92,9 @@ public class ConsumerRenderObject implements Renderable {
 
     @Override
     public void resize(@NotNull Rosella rosella) {
+
         material.shader.getRaw().createDescriptorSets(rosella, this);
-        if(!rosella.getPipelineManager().isValidPipeline(material.pipeline)) {
+        if (!rosella.getPipelineManager().isValidPipeline(material.pipeline)) {
             material.pipeline = rosella.getPipelineManager().getPipeline(material, rosella.getRenderer(), rosella);
         }
     }
@@ -115,13 +113,8 @@ public class ConsumerRenderObject implements Renderable {
 
     @NotNull
     @Override
-    public List<Long> getDescriptorSets() {
+    public DescriptorSet getDescriptorSet() {
         return descriptorSets;
-    }
-
-    @Override
-    public void setDescriptorSets(@NotNull List<Long> descriptorSets) {
-        this.descriptorSets = descriptorSets;
     }
 
     @NotNull

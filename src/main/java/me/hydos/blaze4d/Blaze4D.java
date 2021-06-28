@@ -12,7 +12,7 @@ import org.lwjgl.system.Configuration;
 
 public class Blaze4D implements ClientModInitializer {
     public static final Logger LOGGER = LogManager.getLogger("Blaze4D", new StringFormatterMessageFactory());
-    public static final boolean VALIDATION_ENABLED = false;
+    public static final boolean VALIDATION_ENABLED = true;
 
     public static Rosella rosella;
     public static Window window;

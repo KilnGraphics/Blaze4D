@@ -35,6 +35,9 @@ class RawShaderProgram(
 	}
 
 	fun createPool(swapChain: SwapChain) {
+		if(descriptorPool != 0L) {
+			vkDestroyDescriptorPool(device.device, descriptorPool, null)
+		}
 		MemoryStack.stackPush().use { stack ->
 			val poolSizes = VkDescriptorPoolSize.callocStack(poolObjects.size, stack)
 
@@ -113,7 +116,7 @@ class RawShaderProgram(
 			vkAllocateDescriptorSets(device.device, allocInfo, pDescriptorSets)
 				.ok("Failed to allocate descriptor sets")
 
-			renderable.setDescriptorSets(ArrayList(pDescriptorSets.capacity()))
+			renderable.getDescriptorSet().descriptorSets = ArrayList(pDescriptorSets.capacity())
 
 			val bufferInfo = VkDescriptorBufferInfo.callocStack(1, stack)
 				.offset(0)
@@ -149,7 +152,8 @@ class RawShaderProgram(
 					descriptorWrite.dstSet(descriptorSet)
 				}
 				vkUpdateDescriptorSets(device.device, descriptorWrites, null)
-				renderable.getDescriptorSets().add(descriptorSet)
+				renderable.getDescriptorSet().descriptorPool = descriptorPool
+				renderable.getDescriptorSet().add(descriptorSet)
 			}
 		}
 	}

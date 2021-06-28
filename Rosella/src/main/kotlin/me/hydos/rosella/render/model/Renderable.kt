@@ -1,6 +1,7 @@
 package me.hydos.rosella.render.model
 
 import me.hydos.rosella.Rosella
+import me.hydos.rosella.render.descriptorsets.DescriptorSet
 import me.hydos.rosella.render.device.Device
 import me.hydos.rosella.render.material.Material
 import me.hydos.rosella.render.shader.ubo.Ubo
@@ -16,8 +17,7 @@ interface Renderable {
 	fun resize(engine: Rosella)
 	fun getIndices(): List<Int>
 	fun render(): VertexConsumer
-	fun getDescriptorSets(): MutableList<Long>
-	fun setDescriptorSets(descSets: MutableList<Long>)
+	fun getDescriptorSet(): DescriptorSet
 	fun getMaterial(): Material
 	fun getVerticesBuffer(): BufferInfo
 	fun getIndicesBuffer(): BufferInfo

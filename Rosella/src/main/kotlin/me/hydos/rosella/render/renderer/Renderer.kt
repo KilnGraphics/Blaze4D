@@ -308,7 +308,7 @@ class Renderer {
 				vkCmdBeginRenderPass(commandBuffer, renderPassInfo, VK_SUBPASS_CONTENTS_INLINE)
 				run {
 					for (renderObject in engine.renderObjects.values) {
-						bindModel(renderObject, it, renderObject.getDescriptorSets()[i], commandBuffer)
+						bindModel(renderObject, it, renderObject.getDescriptorSet().descriptorSets[i], commandBuffer)
 						vkCmdDrawIndexed(commandBuffer, renderObject.getIndices().size, 1, 0, 0, 0)
 					}
 				}
@@ -316,7 +316,6 @@ class Renderer {
 				vkEndCommandBuffer(commandBuffer).ok()
 			}
 		}
-		//		engine.logger.info("CmdBuffers rebuilt: " + engine.renderObjects.size + " obj's inside.")
 	}
 
 	private fun bindModel(

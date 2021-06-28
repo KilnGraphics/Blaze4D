@@ -1,6 +1,7 @@
 package me.hydos.rosella.render.model
 
 import me.hydos.rosella.Rosella
+import me.hydos.rosella.render.descriptorsets.DescriptorSet
 import me.hydos.rosella.render.device.Device
 import me.hydos.rosella.render.material.Material
 import me.hydos.rosella.render.resource.Identifier
@@ -24,7 +25,7 @@ open class RenderObject(private val model: Resource, val materialIdentifier: Ide
 	private lateinit var vertexBuffer: BufferInfo
 	private lateinit var indexBuffer: BufferInfo
 
-	private var descSets: MutableList<Long> = ArrayList()
+	lateinit var descSets: DescriptorSet
 	var modelTransformMatrix: Matrix4f = Matrix4f()
 	lateinit var uniformBufferObject: Ubo
 	lateinit var mat: Material
@@ -33,6 +34,7 @@ open class RenderObject(private val model: Resource, val materialIdentifier: Ide
 		val retrievedMaterial = engine.materials[materialIdentifier]
 			?: error("The material $materialIdentifier couldn't be found. (Are you registering the material?)")
 		mat = retrievedMaterial
+		descSets = DescriptorSet(mat.shader.raw.descriptorPool)
 		uniformBufferObject = LowLevelUbo(engine.device, engine.memory)
 		uniformBufferObject.create(engine.renderer.swapchain)
 	}
@@ -62,12 +64,8 @@ open class RenderObject(private val model: Resource, val materialIdentifier: Ide
 		return consumer
 	}
 
-	override fun getDescriptorSets(): MutableList<Long> {
+	override fun getDescriptorSet(): DescriptorSet {
 		return descSets
-	}
-
-	override fun setDescriptorSets(descSets: MutableList<Long>) {
-		this.descSets = descSets
 	}
 
 	override fun getMaterial(): Material {
