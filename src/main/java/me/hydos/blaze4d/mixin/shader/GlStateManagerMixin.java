@@ -20,7 +20,7 @@ import java.util.List;
 /**
  * This Mixin handles the interactions between Minecraft shaders and GL programs and passes it onto rosella
  */
-@Mixin(GlStateManager.class)
+@Mixin(value = GlStateManager.class, remap = false)
 public class GlStateManagerMixin {
 
     //========================

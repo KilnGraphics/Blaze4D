@@ -1,10 +1,14 @@
 package me.hydos.aftermath.callback;
 
+import me.hydos.aftermath.AftermathCallbackCreationHelper;
 import org.lwjgl.system.APIUtil;
 import org.lwjgl.system.CallbackI;
 import org.lwjgl.system.NativeType;
 import org.lwjgl.system.libffi.FFICIF;
 import org.lwjgl.system.libffi.LibFFI;
+
+import java.nio.ByteBuffer;
+import java.util.function.BiFunction;
 
 import static org.lwjgl.system.MemoryUtil.*;
 import static org.lwjgl.system.libffi.LibFFI.*;
@@ -29,7 +33,7 @@ public interface ShaderDebugInfoLookupCallbackI extends CallbackI {
                         memGetLong(memGetAddress(args)),
                         memGetLong(memGetAddress(args + 1 * POINTER_SIZE))
                 },
-                memGetAddress(memGetAddress(args + 2 * POINTER_SIZE)),
+                AftermathCallbackCreationHelper.createSetShaderDebugInfo(memGetLong(memGetAddress(args + 2 * POINTER_SIZE))),
                 memGetAddress(memGetAddress(args + 3 * POINTER_SIZE))
         );
     }
@@ -39,5 +43,5 @@ public interface ShaderDebugInfoLookupCallbackI extends CallbackI {
      * @param setShaderDebugInfo
      * @param pUserData
      */
-    void invoke(@NativeType("GFSDK_Aftermath_ShaderDebugInfoIdentifier *") long[] pIdentifier, @NativeType("PFN_GFSDK_Aftermath_SetData") long setShaderDebugInfo, @NativeType("void *") long pUserData);
+    void invoke(@NativeType("GFSDK_Aftermath_ShaderDebugInfoIdentifier *") long[] pIdentifier, @NativeType("PFN_GFSDK_Aftermath_SetData") BiFunction<ByteBuffer, Integer, Integer> setShaderDebugInfo, @NativeType("void *") long pUserData);
 }

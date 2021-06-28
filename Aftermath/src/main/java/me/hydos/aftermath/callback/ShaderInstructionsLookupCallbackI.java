@@ -14,7 +14,7 @@ import static org.lwjgl.system.MemoryUtil.memGetAddress;
 import static org.lwjgl.system.MemoryUtil.memGetLong;
 import static org.lwjgl.system.libffi.LibFFI.*;
 
-public interface ShaderLookupCallbackI extends CallbackI {
+public interface ShaderInstructionsLookupCallbackI extends CallbackI {
     FFICIF CIF = APIUtil.apiCreateCIF(
             LibFFI.FFI_DEFAULT_ABI,
             ffi_type_void,
@@ -35,5 +35,5 @@ public interface ShaderLookupCallbackI extends CallbackI {
         );
     }
 
-    void invoke(@NativeType("GFSDK_Aftermath_ShaderHash&") long shaderHash, @NativeType("PFN_GFSDK_Aftermath_SetData") BiFunction<ByteBuffer, Integer, Integer> setShaderBinary, @NativeType("void *") long pUserData);
+    void invoke(@NativeType("GFSDK_Aftermath_ShaderInstructionsHash *") long pShaderInstructionsHash, @NativeType("PFN_GFSDK_Aftermath_SetData") BiFunction<ByteBuffer, Integer, Integer> setShaderBinary, @NativeType("void *") long pUserData);
 }

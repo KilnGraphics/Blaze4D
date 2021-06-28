@@ -3,6 +3,9 @@ package me.hydos.aftermath.callback;
 import org.jetbrains.annotations.Nullable;
 import org.lwjgl.system.Callback;
 
+import java.nio.ByteBuffer;
+import java.util.function.BiFunction;
+
 import static org.lwjgl.system.MemoryUtil.NULL;
 
 
@@ -43,7 +46,7 @@ public abstract class ShaderDebugInfoLookupCallback extends Callback implements 
 
 
         @Override
-        public void invoke(long[] pIdentifier, long setShaderDebugInfo, long pUserData) {
+        public void invoke(long[] pIdentifier, BiFunction<ByteBuffer, Integer, Integer> setShaderDebugInfo, long pUserData) {
             delegate.invoke(pIdentifier, setShaderDebugInfo, pUserData);
         }
     }
