@@ -49,12 +49,11 @@ class PipelineManager(var swapchain: SwapChain, val device: Device) {
 	}
 
 	fun invalidatePipelines(swapchain: SwapChain, rosella: Rosella) {
-//		exitProcess(-1)
 		for (pipeline in pipelines.values) {
 			VK10.vkDestroyPipeline(device.device, pipeline.graphicsPipeline, null)
 			VK10.vkDestroyPipelineLayout(device.device, pipeline.pipelineLayout, null)
 		}
-//
+
 		pipelines.clear()
 		rosella.renderer.rebuildCommandBuffers(rosella.renderer.renderPass, rosella)
 		this.swapchain = swapchain

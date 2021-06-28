@@ -1,6 +1,7 @@
 package me.hydos.blaze4d.mixin.texture;
 
 import me.hydos.blaze4d.Blaze4D;
+import me.hydos.blaze4d.api.GlobalRenderSystem;
 import me.hydos.rosella.render.texture.UploadableImage;
 import net.minecraft.client.texture.NativeImage;
 import org.lwjgl.system.MemoryUtil;
@@ -33,6 +34,8 @@ public abstract class NativeImageMixin implements UploadableImage {
 
     @Shadow public abstract NativeImage.Format getFormat();
 
+    @Shadow public abstract void close();
+
     private int channels = 4;
     private ByteBuffer pixels;
 
@@ -55,6 +58,9 @@ public abstract class NativeImageMixin implements UploadableImage {
 //                },
 //                blur ? VK10.VK_FILTER_LINEAR : VK10.VK_FILTER_NEAREST
 //        );
+        if (close) {
+            this.close();
+        }
         ci.cancel();
     }
 
