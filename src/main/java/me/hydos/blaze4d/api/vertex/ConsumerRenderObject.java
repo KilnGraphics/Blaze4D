@@ -88,8 +88,11 @@ public class ConsumerRenderObject implements Renderable {
     }
 
     @Override
-    public void resize(@NotNull Rosella engine) {
-        material.shader.getRaw().createDescriptorSets(engine, this);
+    public void resize(@NotNull Rosella rosella) {
+        material.shader.getRaw().createDescriptorSets(rosella, this);
+        if(!rosella.getPipelineManager().isValidPipeline(material.pipeline)) {
+            material.pipeline = rosella.getPipelineManager().getPipeline(material, rosella.getRenderer(), rosella);
+        }
     }
 
     @NotNull

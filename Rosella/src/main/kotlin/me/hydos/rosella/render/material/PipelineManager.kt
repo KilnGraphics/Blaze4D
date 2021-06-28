@@ -13,7 +13,6 @@ import org.lwjgl.system.MemoryStack
 import org.lwjgl.vulkan.*
 import java.nio.ByteBuffer
 import java.nio.LongBuffer
-import kotlin.system.exitProcess
 
 class PipelineManager(var swapchain: SwapChain, val device: Device) {
 
@@ -50,17 +49,19 @@ class PipelineManager(var swapchain: SwapChain, val device: Device) {
 	}
 
 	fun invalidatePipelines(swapchain: SwapChain, rosella: Rosella) {
-		println("We stopped your pc from crashing :)")
-		exitProcess(-1)
-//		VK12.vkDeviceWaitIdle(rosella.device.device)
-//		for (pipeline in pipelines.values) {
-//			VK10.vkDestroyPipeline(device.device, pipeline.graphicsPipeline, null)
-//			VK10.vkDestroyPipelineLayout(device.device, pipeline.pipelineLayout, null)
-//		}
+//		exitProcess(-1)
+		for (pipeline in pipelines.values) {
+			VK10.vkDestroyPipeline(device.device, pipeline.graphicsPipeline, null)
+			VK10.vkDestroyPipelineLayout(device.device, pipeline.pipelineLayout, null)
+		}
 //
-//		pipelines.clear()
-//		rosella.renderer.rebuildCommandBuffers(rosella.renderer.renderPass, rosella)
-//		this.swapchain = swapchain
+		pipelines.clear()
+		rosella.renderer.rebuildCommandBuffers(rosella.renderer.renderPass, rosella)
+		this.swapchain = swapchain
+	}
+
+	fun isValidPipeline(pipeline: PipelineInfo): Boolean {
+		return pipelines.values.contains(pipeline)
 	}
 
 	/**

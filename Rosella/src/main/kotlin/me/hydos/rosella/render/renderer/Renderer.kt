@@ -143,14 +143,13 @@ class Renderer {
 		}
 	}
 
-	fun recreateSwapChain(window: Window, camera: Camera, engine: Rosella) {
+	private fun recreateSwapChain(window: Window, camera: Camera, engine: Rosella) {
 		MemoryStack.stackPush().use { stack ->
 			val width = stack.ints(0)
 			val height = stack.ints(0)
 			while (width[0] == 0 && height[0] == 0) {
 				GLFW.glfwGetFramebufferSize(window.windowPtr, width, height)
-//				GLFW.glfwWaitEvents()
-//				println("Remember to uncomment this")
+				GLFW.glfwWaitEvents()
 			}
 		}
 
@@ -317,7 +316,7 @@ class Renderer {
 				vkEndCommandBuffer(commandBuffer).ok()
 			}
 		}
-//		engine.logger.info("CmdBuffers rebuilt: " + engine.renderObjects.size + " obj's inside.")
+		//		engine.logger.info("CmdBuffers rebuilt: " + engine.renderObjects.size + " obj's inside.")
 	}
 
 	private fun bindModel(
