@@ -9,7 +9,7 @@ import org.spongepowered.asm.mixin.injection.callback.CallbackInfoReturnable;
 @Mixin(TextureUtil.class)
 public class TextureUtilMixin {
 
-    @Inject(method = "generateTextureId", at = @At("HEAD"), remap = false, cancellable = true)
+    @Inject(method = "generateTextureId", at = @At("HEAD"), cancellable = true)
     private static void cancelled_generateTextureId(CallbackInfoReturnable<Integer> cir) {
         cir.setReturnValue(-1);
     }

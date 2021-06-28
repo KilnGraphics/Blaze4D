@@ -21,7 +21,7 @@ import java.util.function.Supplier;
 @Mixin(value = RenderSystem.class, remap = false)
 public abstract class RenderSystemMixin {
 
-    @Shadow(remap = false)
+    @Shadow
     @Nullable
     private static Shader shader;
 

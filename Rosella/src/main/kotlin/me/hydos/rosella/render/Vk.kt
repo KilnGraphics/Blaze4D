@@ -196,7 +196,11 @@ fun createTextureSampler(device: Device, filter: Int): Long {
 			.unnormalizedCoordinates(false)
 			.compareEnable(false)
 			.compareOp(VK_COMPARE_OP_ALWAYS)
-			.mipmapMode(VK_SAMPLER_MIPMAP_MODE_LINEAR)
+		if (filter == VK_FILTER_LINEAR) {
+			samplerInfo.mipmapMode(VK_SAMPLER_MIPMAP_MODE_LINEAR)
+		} else {
+			samplerInfo.mipmapMode(VK_SAMPLER_MIPMAP_MODE_NEAREST)
+		}
 		val pTextureSampler = stack.mallocLong(1)
 		if (vkCreateSampler(device.device, samplerInfo, null, pTextureSampler) != VK_SUCCESS) {
 			throw RuntimeException("Failed to create texture sampler")

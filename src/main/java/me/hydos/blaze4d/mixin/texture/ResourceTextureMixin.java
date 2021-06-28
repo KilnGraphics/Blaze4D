@@ -1,17 +1,11 @@
 package me.hydos.blaze4d.mixin.texture;
 
-import me.hydos.blaze4d.Blaze4D;
 import me.hydos.rosella.render.texture.UploadableImage;
 import net.minecraft.client.texture.MissingSprite;
 import net.minecraft.client.texture.NativeImage;
 import net.minecraft.client.texture.ResourceTexture;
-import net.minecraft.resource.ResourceManager;
 import net.minecraft.util.Identifier;
-import org.lwjgl.vulkan.VK10;
-import org.spongepowered.asm.mixin.Final;
 import org.spongepowered.asm.mixin.Mixin;
-import org.spongepowered.asm.mixin.Overwrite;
-import org.spongepowered.asm.mixin.Shadow;
 import org.spongepowered.asm.mixin.injection.At;
 import org.spongepowered.asm.mixin.injection.Inject;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
@@ -21,50 +15,16 @@ import java.nio.ByteBuffer;
 @Mixin(ResourceTexture.class)
 public abstract class ResourceTextureMixin implements UploadableImage {
 
-    @Shadow
-    @Final
-    protected Identifier location;
-
-    @Shadow
-    protected abstract ResourceTexture.TextureData loadTextureData(ResourceManager resourceManager);
-
     private NativeImage image;
 
     @Inject(method = "<init>", at = @At("TAIL"))
     private void loadNativeImage(Identifier location, CallbackInfo ci) {
-        if (image == null) {
-            this.image = MissingSprite.getMissingSpriteTexture().getImage();
-//            ResourceTexture.TextureData data = this.loadTextureData(MinecraftClient.getInstance().getTextureManager().resourceContainer);
-//            try {
-//                this.image = data.getImage();
-//            } catch (IOException e) {
-//                this.image = MissingSprite.getMissingSpriteTexture().getImage();
-////                throw new RuntimeException("Failed to get image", e);
-//            }
-        }
+        this.image = MissingSprite.getMissingSpriteTexture().getImage();
     }
 
-    /**
-     * @author Blaze4D
-     * @reason Texture's
-     * <p>
-     * Cancel the upload method
-     */
-    @Overwrite
-    public final void upload(NativeImage nativeImage, boolean blur, boolean clamp) {
+    @Inject(method = "upload", at = @At("HEAD"))
+    private void setImage(NativeImage nativeImage, boolean blur, boolean clamp, CallbackInfo ci) {
         this.image = nativeImage;
-
-        Blaze4D.rosella.getTextureManager().getOrLoadTexture(
-                this,
-                Blaze4D.rosella,
-                switch (nativeImage.getFormat()) {
-                    case ABGR -> VK10.VK_FORMAT_R32G32B32A32_SFLOAT;
-                    case BGR -> VK10.VK_FORMAT_R32G32B32_SFLOAT;
-                    case LUMINANCE_ALPHA -> VK10.VK_FORMAT_R32G32_SFLOAT;
-                    case LUMINANCE -> VK10.VK_FORMAT_R32_SFLOAT;
-                },
-                VK10.VK_FILTER_NEAREST
-        );
     }
 
     @Override

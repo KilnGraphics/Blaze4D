@@ -115,7 +115,7 @@ public abstract class WindowMixin {
         GLFW.glfwSetCursorEnterCallback(this.handle, this::onCursorEnterChanged);
     }
 
-    @Inject(method = "setIcon", at = @At(value = "INVOKE", target = "Lorg/lwjgl/glfw/GLFW;glfwSetWindowIcon(JLorg/lwjgl/glfw/GLFWImage$Buffer;)V", remap = false), locals = LocalCapture.CAPTURE_FAILSOFT)
+    @Inject(method = "setIcon", at = @At(value = "INVOKE", target = "Lorg/lwjgl/glfw/GLFW;glfwSetWindowIcon(JLorg/lwjgl/glfw/GLFWImage$Buffer;)V"), locals = LocalCapture.CAPTURE_FAILSOFT)
     private void setIcon(InputStream icon16, InputStream icon32, CallbackInfo ci, MemoryStack memoryStack, IntBuffer intBuffer, IntBuffer intBuffer2, IntBuffer intBuffer3, GLFWImage.Buffer buffer, ByteBuffer byteBuffer, ByteBuffer byteBuffer2) {
         GLFW.glfwSetWindowIcon(Blaze4D.window.getWindowPtr(), buffer);
     }

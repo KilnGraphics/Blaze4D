@@ -91,7 +91,7 @@ public class GlStateManagerMixin {
      * @author Blaze4D
      * @reason To Integrate Shader Programs
      */
-    @Overwrite(remap = false)
+    @Overwrite
     public static int glCreateProgram() {
         RenderSystem.assertThread(RenderSystem::isOnRenderThread);
         RawShaderProgram program = new RawShaderProgram(

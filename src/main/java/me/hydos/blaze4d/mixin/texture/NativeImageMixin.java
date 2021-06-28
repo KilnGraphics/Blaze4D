@@ -1,8 +1,10 @@
 package me.hydos.blaze4d.mixin.texture;
 
+import me.hydos.blaze4d.Blaze4D;
 import me.hydos.rosella.render.texture.UploadableImage;
 import net.minecraft.client.texture.NativeImage;
 import org.lwjgl.system.MemoryUtil;
+import org.lwjgl.vulkan.VK10;
 import org.spongepowered.asm.mixin.Final;
 import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.Shadow;
@@ -28,6 +30,9 @@ public abstract class NativeImageMixin implements UploadableImage {
     public abstract byte[] getBytes() throws IOException;
 
     @Shadow private long pointer;
+
+    @Shadow public abstract NativeImage.Format getFormat();
+
     private int channels = 4;
     private ByteBuffer pixels;
 
@@ -39,6 +44,17 @@ public abstract class NativeImageMixin implements UploadableImage {
 
     @Inject(method = "uploadInternal", at = @At("HEAD"), cancellable = true)
     private void uploadToRosella(int level, int offsetX, int offsetY, int unpackSkipPixels, int unpackSkipRows, int width, int height, boolean blur, boolean clamp, boolean mipmap, boolean close, CallbackInfo ci) {
+//        Blaze4D.rosella.getTextureManager().getOrLoadTexture(
+//                this,
+//                Blaze4D.rosella,
+//                switch (getFormat()) {
+//                    case ABGR -> VK10.VK_FORMAT_R32G32B32A32_SFLOAT;
+//                    case BGR -> VK10.VK_FORMAT_R32G32B32_SFLOAT;
+//                    case LUMINANCE_ALPHA -> VK10.VK_FORMAT_R32G32_SFLOAT;
+//                    case LUMINANCE -> VK10.VK_FORMAT_R32_SFLOAT;
+//                },
+//                blur ? VK10.VK_FILTER_LINEAR : VK10.VK_FILTER_NEAREST
+//        );
         ci.cancel();
     }
 

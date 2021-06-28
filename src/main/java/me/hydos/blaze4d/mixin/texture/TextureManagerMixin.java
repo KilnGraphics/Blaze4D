@@ -44,7 +44,6 @@ public class TextureManagerMixin {
             Blaze4D.LOGGER.error("Something went wrong and fuck Mojang");
             e.printStackTrace();
         }
-        ci.cancel();
     }
 
     @Inject(method = "bindTexture", at = @At("HEAD"))
