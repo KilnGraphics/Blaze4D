@@ -5,6 +5,7 @@ import me.hydos.aftermath.struct.GFSDK_Aftermath_GpuCrashDump_BaseInfo;
 import me.hydos.rosella.Rosella;
 import me.hydos.rosella.render.io.Window;
 import net.fabricmc.api.ClientModInitializer;
+import net.fabricmc.loader.api.FabricLoader;
 import org.apache.logging.log4j.Level;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -36,7 +37,7 @@ public class Blaze4D implements ClientModInitializer {
     public void onInitializeClient() {
         ((org.apache.logging.log4j.core.Logger) LOGGER).setLevel(Level.ALL);
         try {
-            if (!VALIDATION_ENABLED) {
+            if (!VALIDATION_ENABLED && FabricLoader.getInstance().isDevelopmentEnvironment()) {
                 System.loadLibrary("renderdoc");
             }
         } catch (UnsatisfiedLinkError e) {

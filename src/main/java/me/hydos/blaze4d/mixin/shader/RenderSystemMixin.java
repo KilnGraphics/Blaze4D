@@ -18,7 +18,7 @@ import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 
 import java.util.function.Supplier;
 
-@Mixin(RenderSystem.class)
+@Mixin(value = RenderSystem.class, remap = false)
 public abstract class RenderSystemMixin {
 
     @Shadow(remap = false)
@@ -32,7 +32,7 @@ public abstract class RenderSystemMixin {
      * @author Blaze4D
      * @reason To Integrate Shader Programs
      */
-    @Overwrite(remap = false)
+    @Overwrite
     public static void setShader(Supplier<Shader> supplier) {
         Shader result = supplier.get();
         if (result == null) {
