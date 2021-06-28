@@ -11,7 +11,6 @@ import net.minecraft.client.util.VideoMode;
 import org.apache.logging.log4j.Logger;
 import org.lwjgl.glfw.GLFW;
 import org.lwjgl.glfw.GLFWImage;
-import org.lwjgl.opengl.GL;
 import org.lwjgl.system.MemoryStack;
 import org.lwjgl.system.MemoryUtil;
 import org.spongepowered.asm.mixin.Final;
@@ -58,9 +57,6 @@ public abstract class WindowMixin {
     protected abstract void onWindowPosChanged(long window, int x, int y);
 
     @Shadow
-    protected abstract void onWindowSizeChanged(long window, int width, int height);
-
-    @Shadow
     protected abstract void onWindowFocusChanged(long window, boolean focused);
 
     @Shadow
@@ -81,7 +77,9 @@ public abstract class WindowMixin {
     @Shadow
     private int framebufferHeight;
 
-    @Shadow @Final private static Logger LOGGER;
+    @Shadow
+    @Final
+    private static Logger LOGGER;
 
     @Inject(method = "<init>", at = @At("TAIL"))
     private void initializeRosellaWindow(WindowEventHandler eventHandler, MonitorTracker monitorTracker, WindowSettings settings, String videoMode, String title, CallbackInfo ci) {
@@ -93,7 +91,7 @@ public abstract class WindowMixin {
         Blaze4D.finishAndRender();
 
         Monitor monitor = monitorTracker.getMonitor(GLFW.glfwGetPrimaryMonitor());
-        this.handle = Blaze4D.window.getWindowPtr(); // We own the place now OpenGL, Fuck Off! :)
+        this.handle = Blaze4D.window.getWindowPtr();
         if (monitor != null) {
             VideoMode videoMode2 = monitor.findClosestVideoMode(this.fullscreen ? this.videoMode : Optional.empty());
             this.windowedX = this.x = monitor.getViewportX() + videoMode2.getWidth() / 2 - this.width / 2;
@@ -122,7 +120,7 @@ public abstract class WindowMixin {
 
     @Inject(method = "throwGlError", at = @At("HEAD"), cancellable = true)
     private static void silenceGl(int error, long description, CallbackInfo ci) {
-        String message = "GLFW/OpenGL error " + error + ": " + MemoryUtil.memUTF8(description);
+        String message = "suppressed GLFW/OpenGL error " + error + ": " + MemoryUtil.memUTF8(description);
         LOGGER.warn(message);
     }
 }

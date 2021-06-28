@@ -61,7 +61,7 @@ public class GlobalRenderSystem {
         VK10.vkDeviceWaitIdle(Blaze4D.rosella.getDevice().getDevice());
         if (Blaze4D.rosella.getRenderObjects().size() != 0) {
             for (Renderable renderable : Blaze4D.rosella.getRenderObjects().values()) {
-                renderable.free(Blaze4D.rosella.getMemory());
+                renderable.free(Blaze4D.rosella.getMemory(), Blaze4D.rosella.getDevice());
             }
             Blaze4D.rosella.getRenderObjects().clear();
         }

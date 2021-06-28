@@ -9,7 +9,7 @@ import org.spongepowered.asm.mixin.injection.At;
 import org.spongepowered.asm.mixin.injection.Inject;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 
-@Mixin(GlStateManager.class)
+@Mixin(value = GlStateManager.class, remap = false)
 public class GLStateManagerMixin {
 
     @Inject(method = {
@@ -33,7 +33,7 @@ public class GLStateManagerMixin {
             "_colorMask",
             "_depthMask",
             "_glBindFramebuffer"
-    }, at = @At("HEAD"), remap = false, cancellable = true)
+    }, at = @At("HEAD"), cancellable = true)
     private static void unimplementedGlCalls(CallbackInfo ci) {
         //TODO: IMPL
         ci.cancel();

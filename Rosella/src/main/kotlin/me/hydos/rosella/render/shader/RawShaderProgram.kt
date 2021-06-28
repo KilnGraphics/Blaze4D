@@ -48,6 +48,7 @@ class RawShaderProgram(
 				.sType(VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO)
 				.pPoolSizes(poolSizes)
 				.maxSets(swapChain.swapChainImages.size * maxObjCount)
+				.flags(VK_DESCRIPTOR_POOL_CREATE_FREE_DESCRIPTOR_SET_BIT)
 
 			val pDescriptorPool = stack.mallocLong(1)
 			vkCreateDescriptorPool(
@@ -151,6 +152,11 @@ class RawShaderProgram(
 				renderable.getDescriptorSets().add(descriptorSet)
 			}
 		}
+	}
+
+	fun free() {
+		vkDestroyDescriptorSetLayout(device.device, descriptorSetLayout, null)
+		vkDestroyDescriptorPool(device.device, descriptorPool, null)
 	}
 
 	enum class PoolObjType(val vkType: Int, val vkShader: Int) {

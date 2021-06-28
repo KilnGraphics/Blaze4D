@@ -1,6 +1,7 @@
 package me.hydos.rosella.render.model
 
 import me.hydos.rosella.Rosella
+import me.hydos.rosella.render.device.Device
 import me.hydos.rosella.render.material.Material
 import me.hydos.rosella.render.resource.Identifier
 import me.hydos.rosella.render.resource.Resource
@@ -36,7 +37,7 @@ open class RenderObject(private val model: Resource, val materialIdentifier: Ide
 		uniformBufferObject.create(engine.renderer.swapchain)
 	}
 
-	override fun free(memory: Memory) {
+	override fun free(memory: Memory, device: Device) {
 		memory.freeBuffer(vertexBuffer)
 		memory.freeBuffer(indexBuffer)
 		uniformBufferObject.free()

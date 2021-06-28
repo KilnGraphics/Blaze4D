@@ -25,4 +25,10 @@ class ShaderManager(val device: Device) {
 		}
 		error("Couldn't find a loaded shader matching that. oh no")
 	}
+
+	fun free() {
+		for (value in cachedShaders.values) {
+			value.raw.free()
+		}
+	}
 }

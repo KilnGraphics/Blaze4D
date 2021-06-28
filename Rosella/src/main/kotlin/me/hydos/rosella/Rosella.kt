@@ -142,8 +142,10 @@ class Rosella(
 
 	fun free() {
 		for (model in renderObjects.values) {
-			model.free(memory)
+			model.free(memory, device)
 		}
+
+		shaderManager.free()
 
 		renderer.freeSwapChain(this)
 

@@ -4,6 +4,7 @@ import com.mojang.blaze3d.systems.RenderSystem;
 import me.hydos.blaze4d.api.Materials;
 import me.hydos.blaze4d.api.shader.MinecraftUbo;
 import me.hydos.rosella.Rosella;
+import me.hydos.rosella.render.device.Device;
 import me.hydos.rosella.render.material.Material;
 import me.hydos.rosella.render.model.Renderable;
 import me.hydos.rosella.render.shader.ShaderProgram;
@@ -15,6 +16,7 @@ import me.hydos.rosella.render.vertex.VertexConsumer;
 import net.minecraft.client.render.VertexFormat;
 import org.jetbrains.annotations.NotNull;
 import org.joml.Matrix4f;
+import org.lwjgl.vulkan.VK10;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -74,10 +76,14 @@ public class ConsumerRenderObject implements Renderable {
     }
 
     @Override
-    public void free(@NotNull Memory memory) {
+    public void free(@NotNull Memory memory, @NotNull Device device) {
         memory.freeBuffer(vertexBuffer);
         memory.freeBuffer(indexBuffer);
         ubo.free();
+
+        for (Long descriptorSet : descriptorSets) {
+            VK10.vkFreeDescriptorSets(device.getDevice(), material.shader.getRaw().getDescriptorPool(), descriptorSet);
+        }
     }
 
     @Override
