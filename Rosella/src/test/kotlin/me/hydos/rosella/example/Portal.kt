@@ -64,7 +64,8 @@ object Portal {
 				VK10.VK_FORMAT_R8G8B8A8_UNORM,
 				false,
 				Topology.TRIANGLES,
-				POSITION_COLOR_UV
+				POSITION_COLOR_UV,
+				VK10.VK_FILTER_LINEAR
 			)
 		)
 		engine.registerMaterial(
@@ -74,7 +75,8 @@ object Portal {
 				VK10.VK_FORMAT_R8G8B8A8_SRGB,
 				true,
 				Topology.TRIANGLES,
-				POSITION_COLOR_UV
+				POSITION_COLOR_UV,
+				VK10.VK_FILTER_LINEAR
 			)
 		)
 		engine.reloadMaterials()
