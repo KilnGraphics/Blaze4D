@@ -102,9 +102,8 @@ public abstract class NativeImageMixin implements UploadableImage {
 //                Blaze4D.LOGGER.error("Pointer is zero :ohno:");
 //            }
         }
-        System.out.println(pixels);
         if (pixels.capacity() != getImageSize()) {
-            //throw new IllegalStateException("Image has wrong size! Expected: " + getImageSize() + " but got " + pixels.capacity());
+            throw new IllegalStateException("Image has wrong size! Expected: " + getImageSize() + " but got " + pixels.capacity());
         }
 
         return pixels;

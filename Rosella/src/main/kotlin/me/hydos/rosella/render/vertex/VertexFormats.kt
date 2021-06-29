@@ -13,6 +13,7 @@ class VertexFormats {
 		val POSITION_COLOR4_UV = create(of(VertexFormat.Element.POSITION, 0), of(VertexFormat.Element.COLOR4, 1), of(VertexFormat.Element.UVf, 2))
 		val POSITION_UV_COLOR4 = create(of(VertexFormat.Element.POSITION, 0), of(VertexFormat.Element.UVf, 1), of(VertexFormat.Element.COLOR4, 2))
 		val POSITION_COLOR4_UV_LIGHT = create(of(VertexFormat.Element.POSITION, 0), of(VertexFormat.Element.COLOR4, 1), of(VertexFormat.Element.UVf, 2), of(VertexFormat.Element.LIGHT, 3))
+		val POSITION_COLOR4_UV_LIGHT_NORMAL = create(of(VertexFormat.Element.POSITION, 0), of(VertexFormat.Element.COLOR4, 1), of(VertexFormat.Element.UVf, 2), of(VertexFormat.Element.LIGHT, 3), of(VertexFormat.Element.NORMAL, 4))
 
 		private fun of(element: VertexFormat.Element, layoutLoc: Int): Pair<VertexFormat.Element, Int> {
 			return Pair(element, layoutLoc)

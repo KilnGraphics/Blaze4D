@@ -68,6 +68,13 @@ public class GlobalRenderSystem {
             Blaze4D.rosella.getRenderObjects().clear();
         }
 
+        if (frameObjects.size() >= 2000) {
+            // Assume Something went wrong. skip a frame
+            Blaze4D.LOGGER.warn("Skipped a frame. (tried to render " + frameObjects.size() + " objects to the screen)");
+            frameObjects.clear();
+            return;
+        }
+
         for (ConsumerRenderObject renderObject : frameObjects) {
             Blaze4D.rosella.addRenderObject(renderObject, renderObject.toString());
         }

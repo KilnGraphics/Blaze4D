@@ -53,6 +53,6 @@ public abstract class RenderSystemMixin {
 
     @Inject(method = "applyModelViewMatrix", at = @At("HEAD"))
     private static void setOurModelViewMatrix(CallbackInfo ci) {
-        GlobalRenderSystem.modelViewMatrix = MinecraftUbo.toJoml(modelViewStack.peek().getModel().copy());
+        GlobalRenderSystem.modelViewMatrix = MinecraftUbo.toJoml(modelViewStack.peek().getModel());
     }
 }
