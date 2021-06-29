@@ -9,6 +9,8 @@ import me.hydos.rosella.render.model.GuiRenderObject
 import me.hydos.rosella.render.resource.Global
 import me.hydos.rosella.render.resource.Identifier
 import me.hydos.rosella.render.shader.RawShaderProgram
+import me.hydos.rosella.render.texture.SamplerCreateInfo
+import me.hydos.rosella.render.texture.TextureFilter
 import me.hydos.rosella.render.vertex.VertexFormats.Companion.POSITION_COLOR_UV
 import org.lwjgl.vulkan.VK10
 
@@ -65,7 +67,7 @@ object Portal {
 				false,
 				Topology.TRIANGLES,
 				POSITION_COLOR_UV,
-				VK10.VK_FILTER_LINEAR
+				SamplerCreateInfo(TextureFilter.NEAREST)
 			)
 		)
 		engine.registerMaterial(
@@ -76,7 +78,7 @@ object Portal {
 				true,
 				Topology.TRIANGLES,
 				POSITION_COLOR_UV,
-				VK10.VK_FILTER_LINEAR
+				SamplerCreateInfo(TextureFilter.NEAREST)
 			)
 		)
 		engine.reloadMaterials()

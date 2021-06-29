@@ -10,6 +10,8 @@ import me.hydos.rosella.render.model.GuiRenderObject;
 import me.hydos.rosella.render.resource.Global;
 import me.hydos.rosella.render.resource.Identifier;
 import me.hydos.rosella.render.shader.RawShaderProgram;
+import me.hydos.rosella.render.texture.SamplerCreateInfo;
+import me.hydos.rosella.render.texture.TextureFilter;
 import me.hydos.rosella.render.vertex.VertexFormats;
 import org.joml.Vector3f;
 import org.lwjgl.glfw.GLFW;
@@ -72,7 +74,7 @@ public class PortalJava {
                         false,
                         Topology.TRIANGLES,
                         VertexFormats.Companion.getPOSITION_COLOR_UV(),
-                        VK10.VK_FILTER_LINEAR
+                        new SamplerCreateInfo(TextureFilter.NEAREST)
                 )
         );
         rosella.registerMaterial(
@@ -83,7 +85,7 @@ public class PortalJava {
                         true,
                         Topology.TRIANGLES,
                         VertexFormats.Companion.getPOSITION_COLOR_UV(),
-                        VK10.VK_FILTER_LINEAR
+                        new SamplerCreateInfo(TextureFilter.NEAREST)
                 )
         );
         rosella.reloadMaterials();
