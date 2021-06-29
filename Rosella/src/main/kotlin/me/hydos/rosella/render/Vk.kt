@@ -181,34 +181,6 @@ fun findMemoryType(typeFilter: Int, properties: Int, device: Device): Int {
 	error("Failed to find suitable memory type")
 }
 
-fun createTextureSampler(device: Device, filter: Int): Long {
-	MemoryStack.stackPush().use { stack ->
-		val samplerInfo = VkSamplerCreateInfo.callocStack(stack)
-			.sType(VK_STRUCTURE_TYPE_SAMPLER_CREATE_INFO)
-			.magFilter(filter)
-			.minFilter(filter)
-			.addressModeU(VK_SAMPLER_ADDRESS_MODE_REPEAT)
-			.addressModeV(VK_SAMPLER_ADDRESS_MODE_REPEAT)
-			.addressModeW(VK_SAMPLER_ADDRESS_MODE_REPEAT)
-			.anisotropyEnable(true)
-			.maxAnisotropy(16.0f)
-			.borderColor(VK_BORDER_COLOR_INT_OPAQUE_BLACK)
-			.unnormalizedCoordinates(false)
-			.compareEnable(false)
-			.compareOp(VK_COMPARE_OP_ALWAYS)
-		if (filter == VK_FILTER_LINEAR) {
-			samplerInfo.mipmapMode(VK_SAMPLER_MIPMAP_MODE_LINEAR)
-		} else {
-			samplerInfo.mipmapMode(VK_SAMPLER_MIPMAP_MODE_NEAREST)
-		}
-		val pTextureSampler = stack.mallocLong(1)
-		if (vkCreateSampler(device.device, samplerInfo, null, pTextureSampler) != VK_SUCCESS) {
-			throw RuntimeException("Failed to create texture sampler")
-		}
-		return pTextureSampler[0]
-	}
-}
-
 fun createTextureImageView(device: Device, imgFormat: Int, textureImage: Long): Long {
 	return createImageView(
 		textureImage,

@@ -1,7 +1,8 @@
 package me.hydos.blaze4d.mixin.texture;
 
 import me.hydos.blaze4d.Blaze4D;
-import me.hydos.blaze4d.api.GlobalRenderSystem;
+import me.hydos.rosella.render.texture.SamplerCreateInfo;
+import me.hydos.rosella.render.texture.TextureFilter;
 import me.hydos.rosella.render.texture.UploadableImage;
 import net.minecraft.client.texture.NativeImage;
 import org.lwjgl.system.MemoryUtil;
@@ -30,11 +31,14 @@ public abstract class NativeImageMixin implements UploadableImage {
     @Shadow
     public abstract byte[] getBytes() throws IOException;
 
-    @Shadow private long pointer;
+    @Shadow
+    private long pointer;
 
-    @Shadow public abstract NativeImage.Format getFormat();
+    @Shadow
+    public abstract NativeImage.Format getFormat();
 
-    @Shadow public abstract void close();
+    @Shadow
+    public abstract void close();
 
     private int channels = 4;
     private ByteBuffer pixels;
@@ -47,17 +51,17 @@ public abstract class NativeImageMixin implements UploadableImage {
 
     @Inject(method = "uploadInternal", at = @At("HEAD"), cancellable = true)
     private void uploadToRosella(int level, int offsetX, int offsetY, int unpackSkipPixels, int unpackSkipRows, int width, int height, boolean blur, boolean clamp, boolean mipmap, boolean close, CallbackInfo ci) {
-//        Blaze4D.rosella.getTextureManager().getOrLoadTexture(
-//                this,
-//                Blaze4D.rosella,
-//                switch (getFormat()) {
-//                    case ABGR -> VK10.VK_FORMAT_R32G32B32A32_SFLOAT;
-//                    case BGR -> VK10.VK_FORMAT_R32G32B32_SFLOAT;
-//                    case LUMINANCE_ALPHA -> VK10.VK_FORMAT_R32G32_SFLOAT;
-//                    case LUMINANCE -> VK10.VK_FORMAT_R32_SFLOAT;
-//                },
-//                blur ? VK10.VK_FILTER_LINEAR : VK10.VK_FILTER_NEAREST
-//        );
+        Blaze4D.rosella.getTextureManager().getOrLoadTexture(
+                this,
+                Blaze4D.rosella,
+                switch (getFormat()) {
+                    case ABGR -> VK10.VK_FORMAT_R32G32B32A32_SFLOAT;
+                    case BGR -> VK10.VK_FORMAT_R32G32B32_SFLOAT;
+                    case LUMINANCE_ALPHA -> VK10.VK_FORMAT_R32G32_SFLOAT;
+                    case LUMINANCE -> VK10.VK_FORMAT_R32_SFLOAT;
+                },
+                new SamplerCreateInfo(blur ? TextureFilter.LINEAR : TextureFilter.NEAREST)
+        );
         if (close) {
             this.close();
         }

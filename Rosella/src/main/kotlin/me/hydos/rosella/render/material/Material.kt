@@ -5,6 +5,8 @@ import me.hydos.rosella.render.Topology
 import me.hydos.rosella.render.resource.Identifier
 import me.hydos.rosella.render.resource.Resource
 import me.hydos.rosella.render.shader.ShaderProgram
+import me.hydos.rosella.render.texture.SamplerCreateInfo
+import me.hydos.rosella.render.texture.StbiImage
 import me.hydos.rosella.render.texture.Texture
 import me.hydos.rosella.render.vertex.VertexFormat
 
@@ -20,7 +22,7 @@ open class Material(
 	val useBlend: Boolean,
 	val topology: Topology,
 	val vertexFormat: VertexFormat,
-	val imageFilter: Int
+	val samplerCreateInfo: SamplerCreateInfo
 ) {
 	lateinit var pipeline: PipelineInfo
 
@@ -36,7 +38,7 @@ open class Material(
 
 	open fun loadTextures(engine: Rosella) {
 		if (resource != Resource.Empty) {
-			texture = engine.textureManager.getOrLoadTexture(resource, engine, imgFormat, imageFilter)!!
+			texture = engine.textureManager.getOrLoadTexture(StbiImage(resource), engine, imgFormat, samplerCreateInfo)!!
 		}
 	}
 }

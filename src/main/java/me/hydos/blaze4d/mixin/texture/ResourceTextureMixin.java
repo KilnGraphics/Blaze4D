@@ -24,7 +24,7 @@ public abstract class ResourceTextureMixin implements UploadableImage {
 
     @Inject(method = "upload", at = @At("HEAD"))
     private void setImage(NativeImage nativeImage, boolean blur, boolean clamp, CallbackInfo ci) {
-//        this.image = nativeImage;
+        this.image = nativeImage;
     }
 
     @Override

@@ -8,6 +8,8 @@ import me.hydos.rosella.render.model.ShapeRenderObject
 import me.hydos.rosella.render.resource.Global
 import me.hydos.rosella.render.resource.Identifier
 import me.hydos.rosella.render.shader.RawShaderProgram
+import me.hydos.rosella.render.texture.SamplerCreateInfo
+import me.hydos.rosella.render.texture.TextureFilter
 import me.hydos.rosella.render.vertex.VertexFormats
 import org.joml.Vector3f
 import org.lwjgl.vulkan.VK10
@@ -41,7 +43,7 @@ class RosellaFont(private val font: Font, rosella: Rosella) {
 				false,
 				Topology.TRIANGLES,
 				VertexFormats.POSITION_COLOR_UV,
-				VK10.VK_FILTER_LINEAR
+				SamplerCreateInfo(TextureFilter.LINEAR)
 			)
 		)
 	}
