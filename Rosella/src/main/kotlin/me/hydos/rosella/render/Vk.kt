@@ -322,49 +322,6 @@ fun createTextureImage(
 			for (i in 0 until pixels.limit()) {
 				newData.put(i, pixels.get(i))
 			}
-
-			Thread {
-				GLFW.glfwInit()
-				GLFW.glfwDefaultWindowHints()
-				var window = GLFW.glfwCreateWindow(1024, 1024, "Image Debug View", 0, 0)
-				GLFW.glfwMakeContextCurrent(window)
-				GLFW.glfwSwapInterval(1)
-				GLFW.glfwShowWindow(window)
-				GL.createCapabilities()
-				var pixelWidth = 1024 / image.getWidth()
-				var pixelHeight = 1024 / image.getHeight()
-				val pixels = image.getPixels()!!
-				println(pixels)
-				GL11.glClearColor(0F, 0F, 0F, 1F)
-				GL11.glEnable(GL11.GL_BLEND)
-				GL11.glBlendFunc(GL11.GL_SRC_ALPHA, GL11.GL_ONE_MINUS_SRC_ALPHA)
-				while (!GLFW.glfwWindowShouldClose(window)) {
-					GL11.glClear(GL11.GL_COLOR_BUFFER_BIT)
-					GL11.glBegin(GL11.GL_QUADS)
-					pixels.position(0)
-					for (i in 0 until image.getWidth()) {
-						for (j in 0 until image.getHeight()) {
-							if (image.getChannels() == 4) {
-								try {
-									GL11.glColor4f(pixels.float, pixels.float, pixels.float, pixels.float)
-								} catch (e: Exception) {
-									GL11.glColor4f(0F, 0F, 0F, 1F)
-								}
-							} else {
-								System.err.println("implement this")
-							}
-							GL11.glVertex2f((i * pixelWidth - 512) / 512f, (j * pixelHeight - 512) / 512f)
-							GL11.glVertex2f(((i + 1) * pixelWidth - 512) / 512f, (j * pixelHeight - 512) / 512f)
-							GL11.glVertex2f(((i + 1) * pixelWidth - 512) / 512f, ((j + 1) * pixelHeight - 512) / 512f)
-							GL11.glVertex2f((i * pixelWidth - 512) / 512f, ((j + 1) * pixelHeight - 512) / 512f)
-						}
-					}
-					GL11.glEnd()
-					GLFW.glfwSwapBuffers(window)
-					GLFW.glfwPollEvents()
-				}
-			}.start()
-			println("debug")
 		}
 
 		if (image is StbiImage) {

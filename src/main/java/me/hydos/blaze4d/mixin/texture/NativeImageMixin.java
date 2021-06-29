@@ -93,9 +93,9 @@ public abstract class NativeImageMixin implements UploadableImage {
                 // FIXME
                 int[] originalIntBytes = makePixelArray();
                 for (int color : originalIntBytes) {
-                    this.pixels.putFloat(NativeImage.getRed(color) / 255F);
-                    this.pixels.putFloat(NativeImage.getGreen(color) / 255F);
                     this.pixels.putFloat(NativeImage.getBlue(color) / 255F);
+                    this.pixels.putFloat(NativeImage.getGreen(color) / 255F);
+                    this.pixels.putFloat(NativeImage.getRed(color) / 255F);
                     this.pixels.putFloat(NativeImage.getAlpha(color) / 255F);
                 }
 //            } else {
