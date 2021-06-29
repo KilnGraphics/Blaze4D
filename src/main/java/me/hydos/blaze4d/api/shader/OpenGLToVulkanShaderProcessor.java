@@ -75,7 +75,10 @@ public class OpenGLToVulkanShaderProcessor {
                         "TextureMat",
                         "GameTime",
                         "ScreenSize",
-                        "LineWidth"
+                        "LineWidth",
+                        "ChunkOffset",
+                        "Light0_Direction",
+                        "Light1_Direction"
                 );
 
                 for (String uboName : uboNames) {
@@ -96,6 +99,9 @@ public class OpenGLToVulkanShaderProcessor {
                             float GameTime;
                             vec2 ScreenSize;
                             float LineWidth;
+                            vec3 ChunkOffset;
+                            vec3 Light0_Direction;
+                            vec3 Light1_Direction;
                         } ubo;
                                                 
                         """;
@@ -113,33 +119,32 @@ public class OpenGLToVulkanShaderProcessor {
         String originalShader = """
                 #version 150
 
-                #moj_import <fog.glsl>
+                #moj_import <light.glsl>
 
-                uniform sampler2D Sampler0;
+                in vec3 Position;
+                in vec4 Color;
+                in vec2 UV0;
+                in ivec2 UV2;
+                in vec3 Normal;
 
-                uniform vec4 ColorModulator;
-                uniform float FogStart;
-                uniform float FogEnd;
-                uniform vec4 FogColor;
+                uniform sampler2D Sampler2;
 
-                in float vertexDistance;
-                in vec4 vertexColor;
-                in vec4 lightMapColor;
-                in vec4 overlayColor;
-                in vec2 texCoord0;
-                in vec4 normal;
+                uniform mat4 ModelViewMat;
+                uniform mat4 ProjMat;
+                uniform vec3 ChunkOffset;
 
-                out vec4 fragColor;
+                out float vertexDistance;
+                out vec4 vertexColor;
+                out vec2 texCoord0;
+                out vec4 normal;
 
                 void main() {
-                    vec4 color = texture(Sampler0, texCoord0);
-                    if (color.a < 0.1) {
-                        discard;
-                    }
-                    color *= vertexColor * ColorModulator;
-                    color.rgb = mix(overlayColor.rgb, color.rgb, overlayColor.a);
-                    color *= lightMapColor;
-                    fragColor = linear_fog(color, vertexDistance, FogStart, FogEnd, FogColor);
+                    gl_Position = ProjMat * ModelViewMat * vec4(Position + ChunkOffset, 1.0);
+
+                    vertexDistance = length((ModelViewMat * vec4(Position + ChunkOffset, 1.0)).xyz);
+                    vertexColor = Color * minecraft_sample_lightmap(Sampler2, UV2);
+                    texCoord0 = UV0;
+                    normal = ProjMat * ModelViewMat * vec4(Normal, 0.0);
                 }
                 """;
         System.out.println(String.join("\n", convertOpenGLToVulkanShader(List.of(originalShader))));

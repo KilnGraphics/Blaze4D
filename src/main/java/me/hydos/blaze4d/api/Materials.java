@@ -35,6 +35,11 @@ public class Materials {
             Topology.TRIANGLE_FAN
     );
 
+    public static final MaterialBuilder LINES = register(
+            "lines",
+            Topology.LINE_LIST
+    );
+
     public static MaterialBuilder register(String path, Topology topology) {
         return new MaterialBuilder(path, topology);
     }

@@ -8,7 +8,9 @@ import me.hydos.rosella.render.shader.ShaderProgram;
 import me.hydos.rosella.render.texture.UploadableImage;
 import net.minecraft.client.MinecraftClient;
 import net.minecraft.client.render.*;
+import net.minecraft.util.math.Vec3f;
 import org.joml.Matrix4f;
+import org.joml.Vector3f;
 import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.Shadow;
 import org.spongepowered.asm.mixin.injection.At;
@@ -33,6 +35,9 @@ public abstract class BufferBuilderMixin extends FixedColorVertexConsumer implem
 
     private Matrix4f projMatrix;
     private Matrix4f viewMatrix;
+    private Vector3f chunkOffset;
+    private Vec3f shaderLightDirections0;
+    private Vec3f shaderLightDirections1;
 
     @Inject(method = "begin", at = @At("HEAD"))
     private void setupConsumer(VertexFormat.DrawMode drawMode, VertexFormat format, CallbackInfo ci) {
@@ -49,11 +54,15 @@ public abstract class BufferBuilderMixin extends FixedColorVertexConsumer implem
         } else if (format == VertexFormats.POSITION_TEXTURE_COLOR) {
             consumer = new me.hydos.rosella.render.vertex.BufferVertexConsumer(me.hydos.rosella.render.vertex.VertexFormats.Companion.getPOSITION_UV_COLOR4());
         } else if (format == VertexFormats.LINES) {
-            consumer = new me.hydos.rosella.render.vertex.BufferVertexConsumer(me.hydos.rosella.render.vertex.VertexFormats.Companion.getPOSITION_COLOR_NORMAL_PADDING());
+            consumer = new me.hydos.rosella.render.vertex.BufferVertexConsumer(me.hydos.rosella.render.vertex.VertexFormats.Companion.getPOSITION_COLOR_NORMAL());
         } else if (format == VertexFormats.POSITION_COLOR_TEXTURE_LIGHT) {
             consumer = new me.hydos.rosella.render.vertex.BufferVertexConsumer(me.hydos.rosella.render.vertex.VertexFormats.Companion.getPOSITION_COLOR4_UV_LIGHT());
         } else if (format == VertexFormats.POSITION_COLOR_TEXTURE_LIGHT_NORMAL) {
             consumer = new me.hydos.rosella.render.vertex.BufferVertexConsumer(me.hydos.rosella.render.vertex.VertexFormats.Companion.getPOSITION_COLOR4_UV_LIGHT_NORMAL());
+        } else if (format == VertexFormats.POSITION_COLOR_TEXTURE_OVERLAY_LIGHT_NORMAL) {
+            consumer = new me.hydos.rosella.render.vertex.BufferVertexConsumer(me.hydos.rosella.render.vertex.VertexFormats.Companion.getPOSITION_COLOR4_UV_UV0_LIGHT_NORMAL());
+        } else if (format == VertexFormats.POSITION_TEXTURE_COLOR_NORMAL) {
+            consumer = new me.hydos.rosella.render.vertex.BufferVertexConsumer(me.hydos.rosella.render.vertex.VertexFormats.Companion.getPOSITION_UV_COLOR4_NORMAL());
         } else {
             // Check if its text
             List<VertexFormatElement> elements = format.getElements();
@@ -66,6 +75,9 @@ public abstract class BufferBuilderMixin extends FixedColorVertexConsumer implem
 
         projMatrix = copyMat4f(GlobalRenderSystem.projectionMatrix);
         viewMatrix = copyMat4f(GlobalRenderSystem.modelViewMatrix);
+        chunkOffset = copyVec3f(GlobalRenderSystem.chunkOffset);
+        shaderLightDirections0 = GlobalRenderSystem.shaderLightDirections0.copy();
+        shaderLightDirections1 = GlobalRenderSystem.shaderLightDirections1.copy();
     }
 
     @Inject(method = "clear", at = @At("HEAD"))
@@ -107,6 +119,19 @@ public abstract class BufferBuilderMixin extends FixedColorVertexConsumer implem
     public VertexConsumer overlay(int u, int v) {
         consumer.uv((short) u, (short) v);
         return this;
+    }
+
+    @Override
+    public void vertex(float x, float y, float z, float red, float green, float blue, float alpha, float u, float v, int overlay, int light, float normalX, float normalY, float normalZ) {
+        this.vertex(x, y, z);
+        this.color(red, green, blue, alpha);
+        this.texture(u, v);
+        if (consumer.getFormat() != me.hydos.rosella.render.vertex.VertexFormats.Companion.getPOSITION_COLOR4_UV_LIGHT_NORMAL()) {
+            this.overlay(overlay);
+        }
+        this.light(light);
+        this.normal(normalX, normalY, normalZ);
+        this.next();
     }
 
     @Override
@@ -172,16 +197,22 @@ public abstract class BufferBuilderMixin extends FixedColorVertexConsumer implem
                     getImage(),
                     Blaze4D.rosella,
                     projMatrix,
-                    viewMatrix
+                    viewMatrix,
+                    chunkOffset,
+                    shaderLightDirections0,
+                    shaderLightDirections1
             );
             renderObject.indices = Collections.unmodifiableList(indices);
             GlobalRenderSystem.uploadObject(renderObject);
         }
     }
 
-    private org.joml.Matrix4f copyMat4f(org.joml.Matrix4f mat4f) {
-        org.joml.Matrix4f newMatrix = new org.joml.Matrix4f();
+    protected Vector3f copyVec3f(Vector3f vec3f) {
+        return new Vector3f(vec3f.x, vec3f.y, vec3f.z);
+    }
 
+    protected Matrix4f copyMat4f(Matrix4f mat4f) {
+        Matrix4f newMatrix = new Matrix4f();
         newMatrix.m00(mat4f.m00());
         newMatrix.m01(mat4f.m01());
         newMatrix.m02(mat4f.m02());
@@ -201,6 +232,7 @@ public abstract class BufferBuilderMixin extends FixedColorVertexConsumer implem
         newMatrix.m31(mat4f.m31());
         newMatrix.m32(mat4f.m32());
         newMatrix.m33(mat4f.m33());
+
         return newMatrix;
     }
 }

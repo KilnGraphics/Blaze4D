@@ -1,23 +1,20 @@
 package me.hydos.blaze4d.api.shader;
 
 import com.mojang.blaze3d.systems.RenderSystem;
-import me.hydos.blaze4d.Blaze4D;
 import me.hydos.rosella.render.device.Device;
 import me.hydos.rosella.render.shader.ubo.LowLevelUbo;
 import me.hydos.rosella.render.swapchain.SwapChain;
 import me.hydos.rosella.render.util.memory.Memory;
 import net.minecraft.client.MinecraftClient;
 import net.minecraft.client.util.Window;
-import net.minecraft.util.math.Vec3i;
+import net.minecraft.util.math.Vec3f;
 import org.jetbrains.annotations.NotNull;
 import org.joml.Matrix4f;
+import org.joml.Vector3f;
 import org.lwjgl.PointerBuffer;
 import org.lwjgl.system.MemoryStack;
 
 import java.nio.ByteBuffer;
-
-import static me.hydos.rosella.render.util.VkUtilsKt.alignas;
-import static me.hydos.rosella.render.util.VkUtilsKt.alignof;
 
 public class MinecraftUbo extends LowLevelUbo {
 
@@ -25,6 +22,9 @@ public class MinecraftUbo extends LowLevelUbo {
 
     public Matrix4f projectionMatrix;
     public Matrix4f viewTransformMatrix;
+    public Vector3f chunkOffset;
+    public Vec3f shaderLightDirections0;
+    public Vec3f shaderLightDirections1;
 
     public MinecraftUbo(@NotNull Device device, @NotNull Memory memory) {
         super(device, memory);
@@ -32,7 +32,7 @@ public class MinecraftUbo extends LowLevelUbo {
 
     @Override
     public int getSize() {
-        return 260;
+        return 296;
     }
 
     @Override
@@ -58,6 +58,9 @@ public class MinecraftUbo extends LowLevelUbo {
             putFloat(RenderSystem.getShaderGameTime(), buffer); // GameTime
             putVec2i(window.getFramebufferWidth(), window.getFramebufferHeight(), buffer); // ScreenSize
             putFloat(RenderSystem.getShaderLineWidth(), buffer); // LineWidth
+            putVec3f(chunkOffset, buffer); // ChunkOffset
+            putVec3f(shaderLightDirections0, buffer); // Light0_Direction
+            putVec3f(shaderLightDirections1, buffer); // Light1_Direction
 
             getMemory().unmap(getUboFrames().get(currentImg).getAllocation());
         }
@@ -102,13 +105,28 @@ public class MinecraftUbo extends LowLevelUbo {
         putFloat(vec4[3], buffer);
     }
 
+    protected void putVec3f(Vector3f vec3, ByteBuffer buffer) {
+        putFloat(vec3.x, buffer);
+        putFloat(vec3.y, buffer);
+        putFloat(vec3.z, buffer);
+    }
+
+    protected void putVec3f(Vec3f vec3, ByteBuffer buffer) {
+        putFloat(vec3.getX(), buffer);
+        putFloat(vec3.getY(), buffer);
+        putFloat(vec3.getZ(), buffer);
+    }
+
     private void beginUboWrite() {
         size = 0;
     }
 
-    public void setMatrices(Matrix4f projectionMatrix, Matrix4f viewTransformMatrix) {
+    public void setUniforms(Matrix4f projectionMatrix, Matrix4f viewTransformMatrix, Vector3f chunkOffset, Vec3f shaderLightDirections0, Vec3f shaderLightDirections1) {
         this.projectionMatrix = projectionMatrix;
-        this.viewTransformMatrix =  viewTransformMatrix;
+        this.viewTransformMatrix = viewTransformMatrix;
+        this.chunkOffset = chunkOffset;
+        this.shaderLightDirections0 = shaderLightDirections0;
+        this.shaderLightDirections1 = shaderLightDirections1;
     }
 
     public static Matrix4f toJoml(net.minecraft.util.math.Matrix4f mcMatrix) {

@@ -14,8 +14,10 @@ import me.hydos.rosella.render.util.memory.BufferInfo;
 import me.hydos.rosella.render.util.memory.Memory;
 import me.hydos.rosella.render.vertex.VertexConsumer;
 import net.minecraft.client.render.VertexFormat;
+import net.minecraft.util.math.Vec3f;
 import org.jetbrains.annotations.NotNull;
 import org.joml.Matrix4f;
+import org.joml.Vector3f;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -37,9 +39,9 @@ public class ConsumerRenderObject implements Renderable {
     public BufferInfo indexBuffer = null;
     public DescriptorSet descriptorSets;
 
-    public ConsumerRenderObject(VertexConsumer consumer, net.minecraft.client.render.VertexFormat.DrawMode drawMode, VertexFormat format, ShaderProgram program, UploadableImage image, Rosella rosella, Matrix4f projMatrix, Matrix4f viewMatrix) {
+    public ConsumerRenderObject(VertexConsumer consumer, VertexFormat.DrawMode drawMode, VertexFormat format, ShaderProgram program, UploadableImage image, Rosella rosella, Matrix4f projMatrix, Matrix4f viewMatrix, Vector3f chunkOffset, Vec3f shaderLightDirections0, Vec3f shaderLightDirections1) {
         ubo = new MinecraftUbo(rosella.getDevice(), rosella.getMemory());
-        ubo.setMatrices(projMatrix, viewMatrix);
+        ubo.setUniforms(projMatrix, viewMatrix, chunkOffset, shaderLightDirections0, shaderLightDirections1);
         this.consumer = consumer;
         this.drawMode = drawMode;
         this.format = format;
@@ -68,6 +70,8 @@ public class ConsumerRenderObject implements Renderable {
             }
 
             case TRIANGLE_FAN -> material = Materials.TRIANGLE_FAN.build(shader, image, consumer.getFormat());
+
+            case LINES -> material = Materials.LINES.build(shader, image, consumer.getFormat());
 
             default -> throw new RuntimeException("Unsupported Draw Mode:  " + drawMode);
         }

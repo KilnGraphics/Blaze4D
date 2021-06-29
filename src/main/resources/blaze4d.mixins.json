@@ -17,6 +17,7 @@
     "shader.GLImportProcessorMixin",
     "shader.GlStateManagerMixin",
     "shader.RenderSystemMixin",
+    "shader.WorldRendererMixin",
     "testing.screens.RotatingCubeMapRendererMixin",
     "testing.screens.TitleScreenMixin",
     "texture.AbstractTextureMixin",

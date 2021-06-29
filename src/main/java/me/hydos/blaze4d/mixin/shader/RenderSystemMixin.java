@@ -8,7 +8,9 @@ import me.hydos.rosella.render.shader.RawShaderProgram;
 import net.minecraft.client.render.Shader;
 import net.minecraft.client.util.math.MatrixStack;
 import net.minecraft.util.math.Matrix4f;
+import net.minecraft.util.math.Vec3f;
 import org.jetbrains.annotations.Nullable;
+import org.spongepowered.asm.mixin.Final;
 import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.Overwrite;
 import org.spongepowered.asm.mixin.Shadow;
@@ -27,6 +29,8 @@ public abstract class RenderSystemMixin {
 
     @Shadow
     private static MatrixStack modelViewStack;
+
+    @Shadow @Final private static Vec3f[] shaderLightDirections;
 
     /**
      * @author Blaze4D
@@ -54,5 +58,11 @@ public abstract class RenderSystemMixin {
     @Inject(method = "applyModelViewMatrix", at = @At("HEAD"))
     private static void setOurModelViewMatrix(CallbackInfo ci) {
         GlobalRenderSystem.modelViewMatrix = MinecraftUbo.toJoml(modelViewStack.peek().getModel());
+    }
+
+    @Inject(method = "setupShaderLights", at = @At("TAIL"))
+    private static void setShaderLights(Shader shader, CallbackInfo ci) {
+        GlobalRenderSystem.shaderLightDirections0 = shaderLightDirections[0];
+        GlobalRenderSystem.shaderLightDirections1 = shaderLightDirections[1];
     }
 }
