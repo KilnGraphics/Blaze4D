@@ -10,7 +10,6 @@
     "integration.GlDebugMixin",
     "integration.GLStateManagerMixin",
     "integration.Matrix4fMixin",
-    "integration.MinecraftClientMixin",
     "integration.VideoWarningManagerMixin",
     "integration.WindowFramebufferMixin",
     "integration.WindowMixin",

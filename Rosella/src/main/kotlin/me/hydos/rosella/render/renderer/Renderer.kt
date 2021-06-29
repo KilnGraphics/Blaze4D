@@ -306,11 +306,9 @@ class Renderer {
 				renderPassInfo.framebuffer(swapchain.frameBuffers[i])
 
 				vkCmdBeginRenderPass(commandBuffer, renderPassInfo, VK_SUBPASS_CONTENTS_INLINE)
-				run {
-					for (renderObject in engine.renderObjects.values) {
-						bindModel(renderObject, it, renderObject.getDescriptorSet().descriptorSets[i], commandBuffer)
-						vkCmdDrawIndexed(commandBuffer, renderObject.getIndices().size, 1, 0, 0, 0)
-					}
+				for (renderObject in engine.renderObjects.values) {
+					bindModel(renderObject, it, renderObject.getDescriptorSet().descriptorSets[i], commandBuffer)
+					vkCmdDrawIndexed(commandBuffer, renderObject.getIndices().size, 1, 0, 0, 0)
 				}
 				vkCmdEndRenderPass(commandBuffer)
 				vkEndCommandBuffer(commandBuffer).ok()

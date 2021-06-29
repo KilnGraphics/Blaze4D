@@ -141,6 +141,8 @@ class Rosella(
 	}
 
 	fun free() {
+		vkDeviceWaitIdle(device.device)
+
 		for (model in renderObjects.values) {
 			model.free(memory, device)
 		}
