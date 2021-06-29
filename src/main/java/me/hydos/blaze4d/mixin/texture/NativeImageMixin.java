@@ -41,7 +41,7 @@ public abstract class NativeImageMixin implements UploadableImage {
     @Shadow
     public abstract void close();
 
-    @Shadow @Deprecated public abstract int[] makePixelArray();
+    @Shadow public abstract int getPixelColor(int x, int y);
 
     private int channels = 4;
     private ByteBuffer pixels;
@@ -89,22 +89,18 @@ public abstract class NativeImageMixin implements UploadableImage {
     public ByteBuffer getPixels() {
         if (pixels == null) {
             this.pixels = MemoryUtil.memAlloc(getImageSize());
-//            if (pointer != 0) {
-                // FIXME
-                int[] originalIntBytes = makePixelArray();
-                for (int color : originalIntBytes) {
-                    this.pixels.putFloat(NativeImage.getBlue(color) / 255F);
-                    this.pixels.putFloat(NativeImage.getGreen(color) / 255F);
-                    this.pixels.putFloat(NativeImage.getRed(color) / 255F);
-                    this.pixels.putFloat(NativeImage.getAlpha(color) / 255F);
+            for (int y = 0; y < getHeight(); y++) {
+                for (int x = 0; x < getWidth(); x++) {
+                    int pixelColor = getPixelColor(x, y);
+                    this.pixels.putFloat(NativeImage.getRed(pixelColor) / 255F);
+                    this.pixels.putFloat(NativeImage.getGreen(pixelColor) / 255F);
+                    this.pixels.putFloat(NativeImage.getBlue(pixelColor) / 255F);
+                    this.pixels.putFloat(NativeImage.getAlpha(pixelColor) / 255F);
                 }
-//            } else {
-//                Blaze4D.LOGGER.error("Pointer is zero :ohno:");
-//            }
+            }
         }
-        System.out.println(pixels);
         if (pixels.capacity() != getImageSize()) {
-            //throw new IllegalStateException("Image has wrong size! Expected: " + getImageSize() + " but got " + pixels.capacity());
+            throw new IllegalStateException("Image has wrong size! Expected: " + getImageSize() + " but got " + pixels.capacity());
         }
 
         return pixels;
