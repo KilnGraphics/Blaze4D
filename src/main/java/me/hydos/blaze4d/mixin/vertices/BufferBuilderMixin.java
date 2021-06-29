@@ -123,6 +123,12 @@ public abstract class BufferBuilderMixin extends FixedColorVertexConsumer implem
 
     @Override
     public void vertex(float x, float y, float z, float red, float green, float blue, float alpha, float u, float v, int overlay, int light, float normalX, float normalY, float normalZ) {
+        if(consumer.getFormat() == me.hydos.rosella.render.vertex.VertexFormats.Companion.getPOSITION_UV_COLOR4()) {
+            this.vertex(x, y, z);
+            this.texture(u, v);
+            this.color(red, green, blue, alpha);
+            return;
+        }
         this.vertex(x, y, z);
         this.color(red, green, blue, alpha);
         this.texture(u, v);

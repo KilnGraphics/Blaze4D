@@ -7,6 +7,7 @@ import org.joml.Vector3f
 import java.awt.Shape
 import java.awt.geom.AffineTransform
 import java.awt.geom.PathIterator
+import java.util.function.Function
 import kotlin.math.max
 
 class ShapeRenderObject(
@@ -49,7 +50,7 @@ class ShapeRenderObject(
 					val a = buffer[0] to buffer[1]
 					val b = buffer[2] to buffer[3]
 					val f = run {
-						val function = KotlinWTF.interpolate(
+						val function = interpolate(
 							location.first,
 							location.second,
 							a.first,
@@ -78,7 +79,7 @@ class ShapeRenderObject(
 					val b = buffer[2] to buffer[3]
 					val c = buffer[4] to buffer[5]
 					val f = run {
-						val function = KotlinWTF.interpolate(
+						val function = interpolate(
 							location.first,
 							location.second,
 							a.first,
@@ -137,5 +138,69 @@ class ShapeRenderObject(
 		indices.add(consumer.getVertexCount() - 3)
 		indices.add(consumer.getVertexCount() - 2)
 		indices.add(consumer.getVertexCount() - 1)
+	}
+
+	fun interpolate(x1: Float, y1: Float, x2: Float, y2: Float, x3: Float, y3: Float): Function<Float, Float> {
+		val l0d = (x1 - x2) * (x1 - x3)
+		val l1d = (x2 - x1) * (x2 - x3)
+		val l2d = (x3 - x1) * (x3 - x2)
+		return Function { x: Float ->
+			val l_0 = (x - x2) * (x - x3)
+			val l_1 = (x - x1) * (x - x3)
+			val l_2 = (x - x1) * (x - x2)
+			y1 * l_0 / l0d + y2 * l_1 / l1d + y3 * l_2 / l2d
+		}
+	}
+
+	fun interpolate(
+		x1: Float,
+		y1: Float,
+		x2: Float,
+		y2: Float,
+		x3: Float,
+		y3: Float,
+		x4: Float,
+		y4: Float
+	): Function<Float, Float> {
+		val l0d = (x1 - x2) * (x1 - x3) * (x1 - x4)
+		val l1d = (x2 - x1) * (x2 - x3) * (x2 - x4)
+		val l2d = (x3 - x1) * (x3 - x2) * (x3 - x4)
+		val l3d = (x4 - x1) * (x4 - x2) * (x4 - x3)
+		return Function { x: Float ->
+			val l_0 = (x - x2) * (x - x3) * (x - x4)
+			val l_1 = (x - x1) * (x - x3) * (x - x4)
+			val l_2 = (x - x1) * (x - x2) * (x - x4)
+			val l_3 = (x - x1) * (x - x2) * (x - x3)
+			y1 * l_0 / l0d + y2 * l_1 / l1d + y3 * l_2 / l2d + y4 * l_3 / l3d
+		}
+	}
+
+	private fun test(x1: Float, y1: Float, x2: Float, y2: Float, x3: Float, y3: Float) {
+		val function = interpolate(x1, y1, x2, y2, x3, y3)
+		if (function.apply(x1) != y1) {
+			throw AssertionError()
+		}
+		if (function.apply(x2) != y2) {
+			throw AssertionError()
+		}
+		if (function.apply(x3) != y3) {
+			throw AssertionError()
+		}
+	}
+
+	private fun test(x1: Float, y1: Float, x2: Float, y2: Float, x3: Float, y3: Float, x4: Float, y4: Float) {
+		val function = interpolate(x1, y1, x2, y2, x3, y3, x4, y4)
+		if (function.apply(x1) != y1) {
+			throw AssertionError()
+		}
+		if (function.apply(x2) != y2) {
+			throw AssertionError()
+		}
+		if (function.apply(x3) != y3) {
+			throw AssertionError()
+		}
+		if (function.apply(x4) != y4) {
+			throw AssertionError()
+		}
 	}
 }

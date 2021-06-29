@@ -37,7 +37,6 @@ public class RenderSystemMixin {
     public static void flipFrame(long window) {
         RenderSystem.replayQueue();
         Tessellator.getInstance().getBuffer().clear();
-        GlobalRenderSystem.flipFrame();
         GLFW.glfwPollEvents();
     }
 }
