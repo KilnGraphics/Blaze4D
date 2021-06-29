@@ -15,6 +15,7 @@ import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 
 import java.io.IOException;
 import java.nio.ByteBuffer;
+import java.nio.IntBuffer;
 
 @Mixin(NativeImage.class)
 public abstract class NativeImageMixin implements UploadableImage {
@@ -36,12 +37,13 @@ public abstract class NativeImageMixin implements UploadableImage {
 
     @Shadow public abstract void close();
 
+    @Shadow @Deprecated public abstract int[] makePixelArray();
+
     private int channels = 4;
     private ByteBuffer pixels;
 
     @Inject(method = "<init>(Lnet/minecraft/client/texture/NativeImage$Format;IIZJ)V", at = @At("TAIL"))
     private void setExtraArgs(NativeImage.Format format, int width, int height, boolean useStb, long pointer, CallbackInfo ci) throws IOException {
-        this.pixels = ByteBuffer.wrap(getBytes());
         this.channels = format.getChannelCount();
     }
 
@@ -82,12 +84,25 @@ public abstract class NativeImageMixin implements UploadableImage {
     @Override
     public ByteBuffer getPixels() {
         if (pixels == null) {
-            this.pixels = MemoryUtil.memAlloc(getImageSize() * Float.BYTES);
-            ByteBuffer originalIntBytes = MemoryUtil.memByteBuffer(pointer, getImageSize() / 4);
-            for (int i = 0; i < originalIntBytes.limit(); i++) {
-                this.pixels.putFloat(Byte.toUnsignedInt(originalIntBytes.get(i)) / 255F);
-            }
+            this.pixels = MemoryUtil.memAlloc(getImageSize());
+//            if (pointer != 0) {
+                // FIXME
+                int[] originalIntBytes = makePixelArray();
+                for (int color : originalIntBytes) {
+                    this.pixels.putFloat(NativeImage.getRed(color) / 255F);
+                    this.pixels.putFloat(NativeImage.getGreen(color) / 255F);
+                    this.pixels.putFloat(NativeImage.getBlue(color) / 255F);
+                    this.pixels.putFloat(NativeImage.getAlpha(color) / 255F);
+                }
+//            } else {
+//                Blaze4D.LOGGER.error("Pointer is zero :ohno:");
+//            }
         }
+        System.out.println(pixels);
+        if (pixels.capacity() != getImageSize()) {
+            //throw new IllegalStateException("Image has wrong size! Expected: " + getImageSize() + " but got " + pixels.capacity());
+        }
+
         return pixels;
     }
 

@@ -24,7 +24,7 @@ public abstract class ResourceTextureMixin implements UploadableImage {
 
     @Inject(method = "upload", at = @At("HEAD"))
     private void setImage(NativeImage nativeImage, boolean blur, boolean clamp, CallbackInfo ci) {
-//        this.image = nativeImage;
+        this.image = nativeImage;
     }
 
     @Override
@@ -49,6 +49,6 @@ public abstract class ResourceTextureMixin implements UploadableImage {
 
     @Override
     public int getImageSize() {
-        return getWidth() * getHeight() * getChannels();
+        return ((UploadableImage) (Object) image).getImageSize();
     }
 }
