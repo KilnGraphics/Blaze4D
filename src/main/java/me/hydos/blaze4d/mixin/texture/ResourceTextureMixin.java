@@ -49,6 +49,6 @@ public abstract class ResourceTextureMixin implements UploadableImage {
 
     @Override
     public int getImageSize() {
-        return getWidth() * getHeight() * getChannels();
+        return ((UploadableImage) (Object) image).getImageSize();
     }
 }
