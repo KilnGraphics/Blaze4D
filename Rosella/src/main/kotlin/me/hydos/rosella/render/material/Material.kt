@@ -38,7 +38,9 @@ open class Material(
 
 	open fun loadTextures(engine: Rosella) {
 		if (resource != Resource.Empty) {
-			texture = engine.textureManager.getOrLoadTexture(StbiImage(resource), engine, imgFormat, samplerCreateInfo)!!
+			val test = engine.textureManager.generateTextureId() // FIXME this is temporary
+			engine.textureManager.uploadTextureToId(engine, test, StbiImage(resource), imgFormat, samplerCreateInfo)
+			texture = engine.textureManager.getTexture(test)!!
 		}
 	}
 }

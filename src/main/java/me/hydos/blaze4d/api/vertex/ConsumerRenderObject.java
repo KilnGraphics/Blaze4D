@@ -24,19 +24,19 @@ public class ConsumerRenderObject implements Renderable {
 
     private final net.minecraft.client.render.VertexFormat.DrawMode drawMode;
     private final VertexFormat format;
-    private final UploadableImage image;
+    private final int textureId;
     private final ShaderProgram shader;
 
     // Render Implementation Fields
     public final RenderInfo renderInfo = new RenderInfo(new BufferVertexConsumer(VertexFormats.Companion.getPOSITION_COLOR_UV()));
     public InstanceInfo instanceInfo;
 
-    public ConsumerRenderObject(VertexConsumer consumer, VertexFormat.DrawMode drawMode, VertexFormat format, ShaderProgram program, UploadableImage image, Rosella rosella, Matrix4f projMatrix, Matrix4f viewMatrix, Vector3f chunkOffset, Vec3f shaderLightDirections0, Vec3f shaderLightDirections1) {
+    public ConsumerRenderObject(VertexConsumer consumer, VertexFormat.DrawMode drawMode, VertexFormat format, ShaderProgram program, int textureId, Rosella rosella, Matrix4f projMatrix, Matrix4f viewMatrix, Vector3f chunkOffset, Vec3f shaderLightDirections0, Vec3f shaderLightDirections1) {
         this.renderInfo.consumer = consumer;
         this.drawMode = drawMode;
         this.format = format;
         this.shader = program;
-        this.image = image;
+        this.textureId = textureId;
         Material material = getMaterial(drawMode);
         instanceInfo = new InstanceInfo(new MinecraftUbo(rosella.getDevice(), rosella.getMemory(), material), material);
         ((MinecraftUbo) instanceInfo.ubo).setUniforms(projMatrix, viewMatrix, chunkOffset, shaderLightDirections0, shaderLightDirections1);
@@ -47,19 +47,19 @@ public class ConsumerRenderObject implements Renderable {
         switch (drawMode) {
             case TRIANGLES, QUADS -> {
                 if (format != net.minecraft.client.render.VertexFormats.BLIT_SCREEN) {
-                    returnValue = Materials.TRIANGLES.build(shader, image, renderInfo.consumer.getFormat());
+                    returnValue = Materials.TRIANGLES.build(shader, textureId, renderInfo.consumer.getFormat());
                 }
             }
 
             case TRIANGLE_STRIP -> {
                 if (format == net.minecraft.client.render.VertexFormats.POSITION) {
-                    returnValue = Materials.TRIANGLE_STRIP.build(shader, image, renderInfo.consumer.getFormat());
+                    returnValue = Materials.TRIANGLE_STRIP.build(shader, textureId, renderInfo.consumer.getFormat());
                 }
             }
 
-            case TRIANGLE_FAN -> returnValue = Materials.TRIANGLE_FAN.build(shader, image, renderInfo.consumer.getFormat());
+            case TRIANGLE_FAN -> returnValue = Materials.TRIANGLE_FAN.build(shader, textureId, renderInfo.consumer.getFormat());
 
-            case LINES -> returnValue = Materials.LINES.build(shader, image, renderInfo.consumer.getFormat());
+            case LINES -> returnValue = Materials.LINES.build(shader, textureId, renderInfo.consumer.getFormat());
 
             default -> throw new RuntimeException("Unsupported Draw Mode:  " + drawMode);
         }

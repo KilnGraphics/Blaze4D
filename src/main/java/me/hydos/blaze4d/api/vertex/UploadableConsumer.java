@@ -13,7 +13,7 @@ public interface UploadableConsumer {
 
     ShaderProgram getShader();
 
-    UploadableImage getImage();
+    int getTextureId();
 
     void draw();
 }

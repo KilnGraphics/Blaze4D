@@ -8,6 +8,8 @@ import me.hydos.rosella.render.shader.ShaderProgram;
 import me.hydos.rosella.render.texture.UploadableImage;
 import net.minecraft.client.MinecraftClient;
 import net.minecraft.client.render.*;
+import net.minecraft.client.texture.MissingSprite;
+import net.minecraft.client.texture.TextureManager;
 import net.minecraft.util.math.Vec3f;
 import org.joml.Matrix4f;
 import org.joml.Vector3f;
@@ -156,12 +158,8 @@ public abstract class BufferBuilderMixin extends FixedColorVertexConsumer implem
     }
 
     @Override
-    public UploadableImage getImage() {
-        UploadableImage image = (UploadableImage) MinecraftClient.getInstance().getTextureManager().getTexture(GlobalRenderSystem.boundTexture);
-        if (image == null) {
-            throw new RuntimeException("Image is Null");
-        }
-        return image;
+    public int getTextureId() {
+        return GlobalRenderSystem.boundTextureId;
     }
 
     @Override
@@ -200,7 +198,7 @@ public abstract class BufferBuilderMixin extends FixedColorVertexConsumer implem
                     drawMode,
                     format,
                     getShader(),
-                    getImage(),
+                    getTextureId(),
                     Blaze4D.rosella,
                     projMatrix,
                     viewMatrix,
