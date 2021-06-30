@@ -41,3 +41,10 @@ accessible class net/minecraft/client/gui/screen/SplashOverlay$LogoTexture
 accessible  method  net/minecraft/client/texture/ResourceTexture   upload    (Lnet/minecraft/client/texture/NativeImage;ZZ)V
 accessible class net/minecraft/client/texture/ResourceTexture$TextureData
 accessible field net/minecraft/client/texture/TextureManager resourceContainer Lnet/minecraft/resource/ResourceManager;
+
+# Access to Glyph stuff to get their backing textures
+accessible class net/minecraft/client/font/BitmapFont$BitmapFontGlyph
+accessible class net/minecraft/client/font/TrueTypeFont$TtfGlyph
+accessible class net/minecraft/client/font/UnicodeTextureFont$UnicodeTextureGlyph
+accessible field net/minecraft/client/font/BlankGlyph IMAGE Lnet/minecraft/client/texture/NativeImage;
+accessible field net/minecraft/client/font/WhiteRectangleGlyph IMAGE Lnet/minecraft/client/texture/NativeImage;

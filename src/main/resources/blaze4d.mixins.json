@@ -29,6 +29,11 @@
     "texture.SpriteAtlasTextureMixin",
     "texture.TextureManagerMixin",
     "texture.TextureUtilMixin",
+    "texture.glyph.BitmapFontGlyphMixin",
+    "texture.glyph.BlankGlyphMixin",
+    "texture.glyph.TtfGlyphMixin",
+    "texture.glyph.UnicodeTextureGlyphMixin",
+    "texture.glyph.WhiteRectangleGlyphMixin",
     "vertices.BufferBuilderMixin",
     "vertices.BufferRendererMixin"
   ],
