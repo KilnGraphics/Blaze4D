@@ -315,9 +315,7 @@ fun createTextureImage(
 		) { data ->
 			val pixels = image.getPixels()!!
 			val newData = data.getByteBuffer(0, pixels.limit())
-			for (i in 0 until pixels.limit()) {
-				newData.put(i, pixels.get(i))
-			}
+			newData.put(0, pixels, 0, pixels.limit())
 		}
 
 		if (image is StbiImage) {
