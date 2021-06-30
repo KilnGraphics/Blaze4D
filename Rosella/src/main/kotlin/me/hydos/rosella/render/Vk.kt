@@ -15,14 +15,10 @@ import me.hydos.rosella.render.texture.UploadableImage
 import me.hydos.rosella.render.util.memory.Memory
 import me.hydos.rosella.render.util.ok
 import org.lwjgl.PointerBuffer
-import org.lwjgl.glfw.GLFW
-import org.lwjgl.opengl.GL
-import org.lwjgl.opengl.GL11
 import org.lwjgl.stb.STBImage
 import org.lwjgl.system.MemoryStack
 import org.lwjgl.vulkan.*
 import org.lwjgl.vulkan.VK10.*
-import java.lang.Exception
 import java.nio.LongBuffer
 
 fun allocateCmdBuffers(
@@ -319,9 +315,7 @@ fun createTextureImage(
 		) { data ->
 			val pixels = image.getPixels()!!
 			val newData = data.getByteBuffer(0, pixels.limit())
-			for (i in 0 until pixels.limit()) {
-				newData.put(i, pixels.get(i))
-			}
+			newData.put(0, pixels, 0, pixels.limit())
 		}
 
 		if (image is StbiImage) {
