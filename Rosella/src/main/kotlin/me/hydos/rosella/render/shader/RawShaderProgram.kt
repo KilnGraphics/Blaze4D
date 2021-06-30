@@ -2,9 +2,9 @@ package me.hydos.rosella.render.shader
 
 import me.hydos.rosella.Rosella
 import me.hydos.rosella.render.device.Device
-import me.hydos.rosella.render.model.Renderable
+import me.hydos.rosella.render.info.InstanceInfo
 import me.hydos.rosella.render.resource.Resource
-import me.hydos.rosella.render.swapchain.SwapChain
+import me.hydos.rosella.render.swapchain.Swapchain
 import me.hydos.rosella.render.util.memory.Memory
 import me.hydos.rosella.render.util.ok
 import org.lwjgl.system.MemoryStack
@@ -22,19 +22,18 @@ class RawShaderProgram(
 	var descriptorPool: Long = 0
 	var descriptorSetLayout: Long = 0
 
-	fun updateUbos(currentImage: Int, swapChain: SwapChain, engine: Rosella) {
-		for (renderObject in engine.renderObjects.values) {
-			renderObject.getUbo().update(
-				currentImage,
-				swapChain,
-				engine.camera.view,
-				engine.camera.proj,
-				renderObject.getTransformMatrix()
-			)
+	fun updateUbos(currentImage: Int, swapchain: Swapchain, engine: Rosella) {
+		for (instances in engine.renderObjects.values) {
+			for (instance in instances) {
+				instance.ubo.update(
+					currentImage,
+					swapchain
+				)
+			}
 		}
 	}
 
-	fun createPool(swapChain: SwapChain) {
+	fun createPool(swapchain: Swapchain) {
 		if(descriptorPool != 0L) {
 			vkDestroyDescriptorPool(device.device, descriptorPool, null)
 		}
@@ -44,13 +43,13 @@ class RawShaderProgram(
 			poolObjects.forEachIndexed { i, poolObj ->
 				poolSizes[i]
 					.type(poolObj.vkType)
-					.descriptorCount(swapChain.swapChainImages.size * maxObjCount)
+					.descriptorCount(swapchain.swapChainImages.size * maxObjCount)
 			}
 
 			val poolInfo = VkDescriptorPoolCreateInfo.callocStack(stack)
 				.sType(VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO)
 				.pPoolSizes(poolSizes)
-				.maxSets(swapChain.swapChainImages.size * maxObjCount)
+				.maxSets(swapchain.swapChainImages.size * maxObjCount)
 				.flags(VK_DESCRIPTOR_POOL_CREATE_FREE_DESCRIPTOR_SET_BIT)
 
 			val pDescriptorPool = stack.mallocLong(1)
@@ -92,7 +91,7 @@ class RawShaderProgram(
 		}
 	}
 
-	fun createDescriptorSets(engine: Rosella, renderable: Renderable) {
+	fun createDescriptorSets(engine: Rosella, instanceInfo: InstanceInfo) {
 		val swapChain = engine.renderer.swapchain
 		if(descriptorPool == 0L) {
 			engine.logger.warn("Descriptor Pools are invalid! rebuilding... (THIS IS NOT FAST)")
@@ -116,22 +115,22 @@ class RawShaderProgram(
 			vkAllocateDescriptorSets(device.device, allocInfo, pDescriptorSets)
 				.ok("Failed to allocate descriptor sets")
 
-			renderable.getDescriptorSet().descriptorSets = ArrayList(pDescriptorSets.capacity())
+			instanceInfo.ubo.getDescriptors().descriptorSets = ArrayList(pDescriptorSets.capacity())
 
 			val bufferInfo = VkDescriptorBufferInfo.callocStack(1, stack)
 				.offset(0)
-				.range(renderable.getUbo().getSize().toLong())
+				.range(instanceInfo.ubo.getSize().toLong())
 
 			val imageInfo = VkDescriptorImageInfo.callocStack(1, stack)
 				.imageLayout(VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL)
-				.imageView(renderable.getMaterial().texture.textureImage.view)
-				.sampler(renderable.getMaterial().texture.textureSampler)
+				.imageView(instanceInfo.material.texture.textureImage.view)
+				.sampler(instanceInfo.material.texture.textureSampler)
 
 			val descriptorWrites = VkWriteDescriptorSet.callocStack(poolObjects.size, stack)
 
 			for (i in 0 until pDescriptorSets.capacity()) {
 				val descriptorSet = pDescriptorSets[i]
-				bufferInfo.buffer(renderable.getUbo().getUniformBuffers()[i].buffer)
+				bufferInfo.buffer(instanceInfo.ubo.getUniformBuffers()[i].buffer)
 				poolObjects.forEachIndexed { index, poolObj ->
 					val descriptorWrite = descriptorWrites[index]
 						.sType(VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET)
@@ -152,8 +151,8 @@ class RawShaderProgram(
 					descriptorWrite.dstSet(descriptorSet)
 				}
 				vkUpdateDescriptorSets(device.device, descriptorWrites, null)
-				renderable.getDescriptorSet().descriptorPool = descriptorPool
-				renderable.getDescriptorSet().add(descriptorSet)
+				instanceInfo.ubo.getDescriptors().descriptorPool = descriptorPool
+				instanceInfo.ubo.getDescriptors().add(descriptorSet)
 			}
 		}
 	}

@@ -8,21 +8,17 @@ import me.hydos.rosella.render.device.QueueFamilyIndices
 import me.hydos.rosella.render.renderer.Renderer
 import me.hydos.rosella.render.swapchain.DepthBuffer
 import me.hydos.rosella.render.swapchain.RenderPass
-import me.hydos.rosella.render.swapchain.SwapChain
+import me.hydos.rosella.render.swapchain.Swapchain
 import me.hydos.rosella.render.texture.StbiImage
 import me.hydos.rosella.render.texture.TextureImage
 import me.hydos.rosella.render.texture.UploadableImage
 import me.hydos.rosella.render.util.memory.Memory
 import me.hydos.rosella.render.util.ok
 import org.lwjgl.PointerBuffer
-import org.lwjgl.glfw.GLFW
-import org.lwjgl.opengl.GL
-import org.lwjgl.opengl.GL11
 import org.lwjgl.stb.STBImage
 import org.lwjgl.system.MemoryStack
 import org.lwjgl.vulkan.*
 import org.lwjgl.vulkan.VK10.*
-import java.lang.Exception
 import java.nio.LongBuffer
 
 fun allocateCmdBuffers(
@@ -53,10 +49,10 @@ fun createRenderPassInfo(stack: MemoryStack, renderPass: RenderPass): VkRenderPa
 		.renderPass(renderPass.renderPass)
 }
 
-fun createRenderArea(stack: MemoryStack, x: Int = 0, y: Int = 0, swapChain: SwapChain): VkRect2D {
+fun createRenderArea(stack: MemoryStack, x: Int = 0, y: Int = 0, swapchain: Swapchain): VkRect2D {
 	return VkRect2D.callocStack(stack)
 		.offset(VkOffset2D.callocStack(stack).set(x, y))
-		.extent(swapChain.swapChainExtent)
+		.extent(swapchain.swapChainExtent)
 }
 
 fun createImageView(image: Long, format: Int, aspectFlags: Int, device: Device): Long {
@@ -78,13 +74,13 @@ fun createImageView(image: Long, format: Int, aspectFlags: Int, device: Device):
 	}
 }
 
-fun createImgViews(swapChain: SwapChain, device: Device) {
-	swapChain.swapChainImageViews = ArrayList(swapChain.swapChainImages.size)
-	for (swapChainImage in swapChain.swapChainImages) {
-		swapChain.swapChainImageViews.add(
+fun createImgViews(swapchain: Swapchain, device: Device) {
+	swapchain.swapChainImageViews = ArrayList(swapchain.swapChainImages.size)
+	for (swapChainImage in swapchain.swapChainImages) {
+		swapchain.swapChainImageViews.add(
 			createImageView(
 				swapChainImage,
-				swapChain.swapChainImageFormat,
+				swapchain.swapChainImageFormat,
 				VK_IMAGE_ASPECT_COLOR_BIT,
 				device
 			)

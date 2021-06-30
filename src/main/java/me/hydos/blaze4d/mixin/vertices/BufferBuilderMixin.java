@@ -208,7 +208,7 @@ public abstract class BufferBuilderMixin extends FixedColorVertexConsumer implem
                     shaderLightDirections0,
                     shaderLightDirections1
             );
-            renderObject.indices = Collections.unmodifiableList(indices);
+            renderObject.renderInfo.indices = Collections.unmodifiableList(indices);
             GlobalRenderSystem.uploadObject(renderObject);
         }
     }

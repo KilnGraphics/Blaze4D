@@ -99,7 +99,7 @@ class Canvas(val rosella: Rosella, val window: Window) {
 		material: Identifier,
 		colour: Vector3f = Vector3f(0f, 0f, 0f)
 	) {
-		rosella.addRenderObject(
+		rosella.addToScene(
 			GuiRenderObject(
 				material,
 				layer.z,
@@ -110,8 +110,7 @@ class Canvas(val rosella: Rosella, val window: Window) {
 					width * getXScale(),
 					height * getYScale()
 				)
-			},
-			name
+			}
 		)
 		canvasObjects.add(name)
 	}

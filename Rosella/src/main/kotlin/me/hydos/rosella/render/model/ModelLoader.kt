@@ -10,11 +10,11 @@ import org.lwjgl.assimp.AINode
 import org.lwjgl.assimp.AIScene
 import org.lwjgl.assimp.AIVector3D
 import org.lwjgl.assimp.Assimp.aiGetErrorString
-import java.util.*
 import java.util.Objects.requireNonNull
 import java.util.logging.Logger
 
 object ModelLoader {
+	@JvmStatic
 	fun loadModel(resource: Resource, flags: Int): SimpleModel {
 		loadScene(resource, flags).use { scene ->
 			Logger.getLogger(ModelLoader::class.java.simpleName)

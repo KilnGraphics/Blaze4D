@@ -2,13 +2,12 @@ package me.hydos.rosella.render.device
 
 import me.hydos.rosella.Rosella
 import me.hydos.rosella.render.findQueueFamilies
-import me.hydos.rosella.render.swapchain.SwapChain.Companion.querySwapChainSupport
+import me.hydos.rosella.render.swapchain.Swapchain.Companion.querySwapChainSupport
 import me.hydos.rosella.render.swapchain.SwapChainSupportDetails
 import me.hydos.rosella.render.util.ok
 import org.lwjgl.PointerBuffer
 import org.lwjgl.system.MemoryStack.stackPush
 import org.lwjgl.vulkan.*
-import org.lwjgl.vulkan.KHRSurface.*
 import org.lwjgl.vulkan.KHRSwapchain.VK_KHR_SWAPCHAIN_EXTENSION_NAME
 import org.lwjgl.vulkan.VK10.*
 

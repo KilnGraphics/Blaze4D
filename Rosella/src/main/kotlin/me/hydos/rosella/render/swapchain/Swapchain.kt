@@ -15,7 +15,7 @@ import org.lwjgl.vulkan.VK10.*
 import java.nio.IntBuffer
 import java.nio.LongBuffer
 
-class SwapChain(
+class Swapchain(
 	engine: Rosella,
 	device: VkDevice,
 	physicalDevice: VkPhysicalDevice,

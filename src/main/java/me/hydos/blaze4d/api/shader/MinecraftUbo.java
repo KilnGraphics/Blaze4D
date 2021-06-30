@@ -1,9 +1,12 @@
 package me.hydos.blaze4d.api.shader;
 
 import com.mojang.blaze3d.systems.RenderSystem;
+import me.hydos.rosella.render.descriptorsets.DescriptorSet;
 import me.hydos.rosella.render.device.Device;
-import me.hydos.rosella.render.shader.ubo.LowLevelUbo;
-import me.hydos.rosella.render.swapchain.SwapChain;
+import me.hydos.rosella.render.material.Material;
+import me.hydos.rosella.render.shader.ubo.Ubo;
+import me.hydos.rosella.render.swapchain.Swapchain;
+import me.hydos.rosella.render.util.memory.BufferInfo;
 import me.hydos.rosella.render.util.memory.Memory;
 import net.minecraft.client.MinecraftClient;
 import net.minecraft.client.util.Window;
@@ -13,12 +16,20 @@ import org.joml.Matrix4f;
 import org.joml.Vector3f;
 import org.lwjgl.PointerBuffer;
 import org.lwjgl.system.MemoryStack;
+import org.lwjgl.util.vma.Vma;
+import org.lwjgl.vulkan.VK10;
 
 import java.nio.ByteBuffer;
+import java.nio.LongBuffer;
+import java.util.ArrayList;
+import java.util.List;
 
-public class MinecraftUbo extends LowLevelUbo {
+public class MinecraftUbo extends Ubo {
 
+    private final Memory memory;
     private int size;
+    public DescriptorSet descSets;
+    public List<BufferInfo> uboFrames = new ArrayList<>();
 
     public Matrix4f projectionMatrix;
     public Matrix4f viewTransformMatrix;
@@ -26,8 +37,28 @@ public class MinecraftUbo extends LowLevelUbo {
     public Vec3f shaderLightDirections0;
     public Vec3f shaderLightDirections1;
 
-    public MinecraftUbo(@NotNull Device device, @NotNull Memory memory) {
-        super(device, memory);
+
+    public MinecraftUbo(@NotNull Device device, @NotNull Memory memory, Material material) {
+        this.memory = memory;
+        this.descSets = new DescriptorSet(material.shader.getRaw().getDescriptorPool());
+    }
+
+    @Override
+    public void create(Swapchain swapChain) {
+        try (MemoryStack stack = MemoryStack.stackPush()) {
+            uboFrames = new ArrayList<>(swapChain.getSwapChainImages().size());
+            for (int i = 0; i < swapChain.getSwapChainImages().size(); i++) {
+                LongBuffer pBuffer = stack.mallocLong(1);
+                uboFrames.add(
+                        memory.createBuffer(
+                                getSize(),
+                                VK10.VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT,
+                                Vma.VMA_MEMORY_USAGE_CPU_ONLY,
+                                pBuffer
+                        )
+                );
+            }
+        }
     }
 
     @Override
@@ -36,14 +67,14 @@ public class MinecraftUbo extends LowLevelUbo {
     }
 
     @Override
-    public void update(int currentImg, @NotNull SwapChain swapChain, @NotNull Matrix4f view, @NotNull Matrix4f proj, @NotNull Matrix4f modelMatrix) {
-        if (getUboFrames().size() == 0) {
+    public void update(int currentImg, @NotNull Swapchain swapChain) {
+        if (uboFrames.size() == 0) {
             create(swapChain); //TODO: CONCERN. why did i write this
         }
 
         try (MemoryStack stack = MemoryStack.stackPush()) {
             PointerBuffer data = stack.mallocPointer(1);
-            getMemory().map(getUboFrames().get(currentImg).getAllocation(), false, data);
+            memory.map(uboFrames.get(currentImg).getAllocation(), false, data);
             ByteBuffer buffer = data.getByteBuffer(0, getSize());
             Window window = MinecraftClient.getInstance().getWindow();
 
@@ -62,7 +93,7 @@ public class MinecraftUbo extends LowLevelUbo {
             putVec3f(shaderLightDirections0, buffer); // Light0_Direction
             putVec3f(shaderLightDirections1, buffer); // Light1_Direction
 
-            getMemory().unmap(getUboFrames().get(currentImg).getAllocation());
+            memory.unmap(uboFrames.get(currentImg).getAllocation());
         }
     }
 
@@ -155,21 +186,22 @@ public class MinecraftUbo extends LowLevelUbo {
         return jomlMatrix;
     }
 
-    public static Matrix4f projectionToVulkan(Matrix4f glProjMatrix) {
-        Matrix4f vpm = new Matrix4f();
+    @Override
+    public void free() {
+        for (BufferInfo uboImg : uboFrames) {
+            memory.freeBuffer(uboImg);
+        }
+    }
 
-        /*To Convert A OpenGL Projection Matrix to a Vulkan one, we need to do the following multiplication...
-        | 1 (m00)   0   0    0   |
-        | 0  1 (m11)   0    0   |
-        | 0   0   0.5 (m22)  0 |
-        | 0   0   0.5 (m23)    1 (m33)|*/
+    @NotNull
+    @Override
+    public List<BufferInfo> getUniformBuffers() {
+        return uboFrames;
+    }
 
-        vpm.m00(1);
-        vpm.m11(1);
-        vpm.m22(0.5f);
-        vpm.m23(0.5f);
-        vpm.m33(1);
-        glProjMatrix.mul(vpm);
-        return glProjMatrix;
+    @NotNull
+    @Override
+    public DescriptorSet getDescriptors() {
+        return descSets;
     }
 }

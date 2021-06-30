@@ -12,7 +12,7 @@ public class Matrix4fMixin {
 
     @Inject(method = "projectionMatrix(FFFFFF)Lnet/minecraft/util/math/Matrix4f;", at = @At("HEAD"))
     private static void createVkProjectionMatrix(float left, float right, float bottom, float top, float nearPlane, float farPlane, CallbackInfoReturnable<Matrix4f> cir) {
-        GlobalRenderSystem.projectionMatrix = new org.joml.Matrix4f().ortho(
+        GlobalRenderSystem.projectionMatrix = new org.joml.Matrix4f().setOrtho(
                 left,
                 right,
                 bottom,

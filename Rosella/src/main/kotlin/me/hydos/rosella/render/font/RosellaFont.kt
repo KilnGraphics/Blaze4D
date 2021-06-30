@@ -2,8 +2,8 @@ package me.hydos.rosella.render.font
 
 import me.hydos.rosella.Rosella
 import me.hydos.rosella.render.Topology
+import me.hydos.rosella.render.`object`.RenderObject
 import me.hydos.rosella.render.material.Material
-import me.hydos.rosella.render.model.RenderObject
 import me.hydos.rosella.render.model.ShapeRenderObject
 import me.hydos.rosella.render.resource.Global
 import me.hydos.rosella.render.resource.Identifier

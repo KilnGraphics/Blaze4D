@@ -49,14 +49,12 @@ public class PortalJava {
     }
 
     private static void setupMainMenuScene() {
-        rosella.addRenderObject(
-                new GuiRenderObject(menuBackground, -1f, new Vector3f(0, 0, 0), 1.5f, 1f),
-                "mainMenuBackground"
+        rosella.addToScene(
+                new GuiRenderObject(menuBackground, -1f, new Vector3f(0, 0, 0), 1.5f, 1f)
         );
 
-        rosella.addRenderObject(
-                new GuiRenderObject(portalLogo, -0.9f, new Vector3f(0, 0, 0), 0.4f, 0.1f, -1f, -2.6f),
-                "portalLogo"
+        rosella.addToScene(
+                new GuiRenderObject(portalLogo, -0.9f, new Vector3f(0, 0, 0), 0.4f, 0.1f, -1f, -2.6f)
         );
 
 //        rosella.addRenderObject(

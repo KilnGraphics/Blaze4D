@@ -10,7 +10,7 @@ import org.lwjgl.vulkan.VK10.*
 import java.nio.LongBuffer
 
 
-class RenderPass(val device: Device, private val swapChain: SwapChain, private val engine: Rosella) {
+class RenderPass(val device: Device, private val swapchain: Swapchain, private val engine: Rosella) {
 	var renderPass: Long = 0
 
 	init {
@@ -19,7 +19,7 @@ class RenderPass(val device: Device, private val swapChain: SwapChain, private v
 			val attachmentRefs = VkAttachmentReference.callocStack(2, it)
 
 			attachments[0]
-				.format(swapChain.swapChainImageFormat)
+				.format(swapchain.swapChainImageFormat)
 				.samples(VK_SAMPLE_COUNT_1_BIT)
 				.loadOp(VK_ATTACHMENT_LOAD_OP_CLEAR)
 				.storeOp(VK_ATTACHMENT_STORE_OP_STORE)

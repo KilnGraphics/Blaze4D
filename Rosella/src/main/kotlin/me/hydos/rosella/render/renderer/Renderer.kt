@@ -5,14 +5,15 @@ import me.hydos.rosella.render.*
 import me.hydos.rosella.render.camera.Camera
 import me.hydos.rosella.render.device.Device
 import me.hydos.rosella.render.device.Queues
+import me.hydos.rosella.render.info.InstanceInfo
+import me.hydos.rosella.render.info.RenderInfo
 import me.hydos.rosella.render.io.JUnit
 import me.hydos.rosella.render.io.Window
-import me.hydos.rosella.render.model.Renderable
 import me.hydos.rosella.render.shader.ShaderProgram
 import me.hydos.rosella.render.swapchain.DepthBuffer
 import me.hydos.rosella.render.swapchain.Frame
 import me.hydos.rosella.render.swapchain.RenderPass
-import me.hydos.rosella.render.swapchain.SwapChain
+import me.hydos.rosella.render.swapchain.Swapchain
 import me.hydos.rosella.render.util.memory.asPointerBuffer
 import me.hydos.rosella.render.util.ok
 import org.lwjgl.PointerBuffer
@@ -35,7 +36,7 @@ class Renderer {
 	private var g: Float = 0.3f
 	private var b: Float = 0.3f
 
-	lateinit var swapchain: SwapChain
+	lateinit var swapchain: Swapchain
 	lateinit var renderPass: RenderPass
 
 	lateinit var device: Device
@@ -48,7 +49,7 @@ class Renderer {
 	var safeQueue = ArrayList<JUnit>()
 
 	private fun createSwapChain(engine: Rosella) {
-		this.swapchain = SwapChain(engine, device.device, device.physicalDevice, engine.surface)
+		this.swapchain = Swapchain(engine, device.device, device.physicalDevice, engine.surface)
 		this.renderPass = RenderPass(device, swapchain, engine)
 		createImgViews(swapchain, device)
 		for (material in engine.materials.values) {
@@ -253,7 +254,6 @@ class Renderer {
 
 	/**
 	 * Create the Command Buffers
-	 * TODO: instancing
 	 */
 	fun rebuildCommandBuffers(renderPass: RenderPass, engine: Rosella) {
 		val usedShaders = ArrayList<ShaderProgram>()
@@ -267,8 +267,10 @@ class Renderer {
 			shader.raw.createPool(swapchain)
 		}
 
-		for (renderObject in engine.renderObjects.values) {
-			renderObject.resize(engine)
+		for (instances in engine.renderObjects.values) {
+			for (instance in instances) {
+				instance.rebuild(engine)
+			}
 		}
 
 		MemoryStack.stackPush().use {
@@ -306,9 +308,12 @@ class Renderer {
 				renderPassInfo.framebuffer(swapchain.frameBuffers[i])
 
 				vkCmdBeginRenderPass(commandBuffer, renderPassInfo, VK_SUBPASS_CONTENTS_INLINE)
-				for (renderObject in engine.renderObjects.values) {
-					bindModel(renderObject, it, renderObject.getDescriptorSet().descriptorSets[i], commandBuffer)
-					vkCmdDrawIndexed(commandBuffer, renderObject.getIndices().size, 1, 0, 0, 0)
+				for (renderInfo in engine.renderObjects.keys) {
+					bindRenderInfo(renderInfo, it, commandBuffer)
+					for (instance in engine.renderObjects[renderInfo]!!) {
+						bindInstanceInfo(instance, it, commandBuffer, i)
+						vkCmdDrawIndexed(commandBuffer, renderInfo.getIndicesSize(), 1, 0, 0, 0)
+					}
 				}
 				vkCmdEndRenderPass(commandBuffer)
 				vkEndCommandBuffer(commandBuffer).ok()
@@ -316,28 +321,35 @@ class Renderer {
 		}
 	}
 
-	private fun bindModel(
-		renderObject: Renderable,
-		matrix: MemoryStack,
-		descriptorSet: Long,
+	private fun bindRenderInfo(
+		renderInfo: RenderInfo,
+		stack: MemoryStack,
 		commandBuffer: VkCommandBuffer
+	) {
+		val offsets = stack.longs(0)
+		val vertexBuffers = stack.longs(renderInfo.vertexBuffer.buffer)
+		vkCmdBindVertexBuffers(commandBuffer, 0, vertexBuffers, offsets)
+		vkCmdBindIndexBuffer(commandBuffer, renderInfo.indexBuffer.buffer, 0, VK_INDEX_TYPE_UINT32)
+	}
+
+	private fun bindInstanceInfo(
+		instanceInfo: InstanceInfo,
+		matrix: MemoryStack,
+		commandBuffer: VkCommandBuffer,
+		commandBufferIndex: Int
 	) {
 		vkCmdBindPipeline(
 			commandBuffer,
 			VK_PIPELINE_BIND_POINT_GRAPHICS,
-			renderObject.getMaterial().pipeline.graphicsPipeline
+			instanceInfo.material.pipeline.graphicsPipeline
 		)
 
-		val offsets = matrix.longs(0)
-		val vertexBuffers = matrix.longs(renderObject.getVerticesBuffer().buffer)
-		vkCmdBindVertexBuffers(commandBuffer, 0, vertexBuffers, offsets)
-		vkCmdBindIndexBuffer(commandBuffer, renderObject.getIndicesBuffer().buffer, 0, VK_INDEX_TYPE_UINT32)
 		vkCmdBindDescriptorSets(
 			commandBuffer,
 			VK_PIPELINE_BIND_POINT_GRAPHICS,
-			renderObject.getMaterial().pipeline.pipelineLayout,
+			instanceInfo.material.pipeline.pipelineLayout,
 			0,
-			matrix.longs(descriptorSet),
+			matrix.longs(instanceInfo.ubo.getDescriptors().descriptorSets[commandBufferIndex]),
 			null
 		)
 	}

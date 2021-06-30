@@ -37,24 +37,22 @@ object Portal {
 	}
 
 	private fun setupMainMenuScene() {
-		engine.addRenderObject(
+		engine.addToScene(
 			GuiRenderObject(
 				menuBackground
 			).apply {
 				scale(1.5f, 1f)
-			},
-			"mainMenuBackground"
+			}
 		)
 
-		engine.addRenderObject(
+		engine.addToScene(
 			GuiRenderObject(
 				portalLogo,
 				-0.9f
 			).apply {
 				scale(0.4f, 0.1f)
 				translate(-1f, -2.6f)
-			},
-			"portalLogo"
+			}
 		)
 	}
 

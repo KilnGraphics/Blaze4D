@@ -5,7 +5,8 @@ import it.unimi.dsi.fastutil.objects.ObjectArrayList;
 import me.hydos.blaze4d.Blaze4D;
 import me.hydos.blaze4d.api.shader.ShaderContext;
 import me.hydos.blaze4d.api.vertex.ConsumerRenderObject;
-import me.hydos.rosella.render.model.Renderable;
+import me.hydos.rosella.render.info.InstanceInfo;
+import me.hydos.rosella.render.object.Renderable;
 import me.hydos.rosella.render.resource.Identifier;
 import me.hydos.rosella.render.shader.RawShaderProgram;
 import me.hydos.rosella.render.shader.ShaderProgram;
@@ -14,6 +15,7 @@ import org.joml.Matrix4f;
 import org.joml.Vector3f;
 import org.lwjgl.vulkan.VK10;
 
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 
@@ -59,14 +61,10 @@ public class GlobalRenderSystem {
     // Frame/Drawing Methods
     //=================
 
-    private static boolean alreadyRefreshed = false;
-
     public static void beginCaptureRenderObjects() {
         VK10.vkDeviceWaitIdle(Blaze4D.rosella.getDevice().getDevice());
         if (Blaze4D.rosella.getRenderObjects().size() != 0) {
-            for (Renderable renderable : Blaze4D.rosella.getRenderObjects().values()) {
-                renderable.free(Blaze4D.rosella.getMemory(), Blaze4D.rosella.getDevice());
-            }
+            Blaze4D.rosella.freeScene();
             Blaze4D.rosella.getRenderObjects().clear();
         }
     }
@@ -78,7 +76,7 @@ public class GlobalRenderSystem {
         VK10.vkDeviceWaitIdle(Blaze4D.rosella.getDevice().getDevice());
 
         for (ConsumerRenderObject renderObject : frameObjects) {
-            Blaze4D.rosella.addRenderObject(renderObject, renderObject.toString());
+            Blaze4D.rosella.addToScene(renderObject);
         }
 
         if (frameObjects.size() != 0) {

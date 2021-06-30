@@ -1,12 +1,14 @@
 package me.hydos.rosella
 
 import me.hydos.rosella.audio.SoundManager
+import me.hydos.rosella.render.`object`.Renderable
 import me.hydos.rosella.render.camera.Camera
 import me.hydos.rosella.render.device.Device
+import me.hydos.rosella.render.info.InstanceInfo
+import me.hydos.rosella.render.info.RenderInfo
 import me.hydos.rosella.render.io.Window
 import me.hydos.rosella.render.material.Material
 import me.hydos.rosella.render.material.PipelineManager
-import me.hydos.rosella.render.model.Renderable
 import me.hydos.rosella.render.renderer.Renderer
 import me.hydos.rosella.render.resource.Identifier
 import me.hydos.rosella.render.shader.RawShaderProgram
@@ -38,7 +40,7 @@ import java.util.function.Consumer
 import java.util.stream.Collectors
 
 /**
- * Main engine class. most interactions will happen here
+ * Main engine class. most interactions with Rosella will happen here
  */
 class Rosella(
 	name: String,
@@ -50,7 +52,7 @@ class Rosella(
 
 	var renderer: Renderer = Renderer()
 
-	var renderObjects = HashMap<String, Renderable>()
+	var renderObjects = HashMap<RenderInfo, ArrayList<InstanceInfo>>()
 	var materials = HashMap<Identifier, Material>()
 
 	var shaderManager: ShaderManager
@@ -143,12 +145,8 @@ class Rosella(
 	fun free() {
 		vkDeviceWaitIdle(device.device)
 
-		for (model in renderObjects.values) {
-			model.free(memory, device)
-		}
-
+		freeScene()
 		shaderManager.free()
-
 		renderer.freeSwapChain(this)
 
 		renderer.inFlightFrames.forEach(Consumer { frame: Frame ->
@@ -158,17 +156,24 @@ class Rosella(
 		})
 
 		vkDestroyCommandPool(device.device, renderer.commandPool, null)
-
 		renderer.swapchain.free(device.device)
-
 		vkDestroyDevice(device.device, null)
-
 		DebugManager.free(vulkanInstance)
-
 		vkDestroySurfaceKHR(vulkanInstance, surface, null)
 		vkDestroyInstance(vulkanInstance, null)
-
 		memory.free()
+	}
+
+	fun freeScene() {
+		for (renderInfo in renderObjects.keys) {
+			renderInfo.free(device, memory)
+		}
+
+		for (instances in renderObjects.values) {
+			for (instanceInfo in instances) {
+				instanceInfo.free(device, memory)
+			}
+		}
 	}
 
 	private fun getRequiredExtensions(validationLayersEnabled: Boolean): PointerBuffer? {
@@ -213,13 +218,13 @@ class Rosella(
 		}
 	}
 
-	fun addRenderObject(renderObject: Renderable, name: String) {
-		if (renderObjects.containsKey(name)) {
-			error("An render object already exists with that name!")
+	fun addToScene(obj: Renderable) {
+		if (!renderObjects.containsKey(obj.renderInfo)) {
+			obj.renderInfo.createBuffers(memory, this)
+			renderObjects[obj.renderInfo] = ArrayList()
 		}
-		renderObject.load(this)
-		renderObjects[name] = renderObject
-		renderObject.create(this)
+		obj.onAddedToScene(this)
+		renderObjects[obj.renderInfo]!!.add(obj.instanceInfo)
 	}
 
 	fun registerMaterial(identifier: Identifier, material: Material) {

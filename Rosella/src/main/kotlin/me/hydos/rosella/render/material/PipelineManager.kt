@@ -6,7 +6,7 @@ import me.hydos.rosella.render.device.Device
 import me.hydos.rosella.render.renderer.Renderer
 import me.hydos.rosella.render.shader.ShaderProgram
 import me.hydos.rosella.render.swapchain.RenderPass
-import me.hydos.rosella.render.swapchain.SwapChain
+import me.hydos.rosella.render.swapchain.Swapchain
 import me.hydos.rosella.render.util.ok
 import me.hydos.rosella.render.vertex.VertexFormat
 import org.lwjgl.system.MemoryStack
@@ -14,7 +14,7 @@ import org.lwjgl.vulkan.*
 import java.nio.ByteBuffer
 import java.nio.LongBuffer
 
-class PipelineManager(var swapchain: SwapChain, val device: Device) {
+class PipelineManager(var swapchain: Swapchain, val device: Device) {
 
 	private val pipelines = HashMap<PipelineCreateInfo, PipelineInfo>()
 
@@ -48,7 +48,7 @@ class PipelineManager(var swapchain: SwapChain, val device: Device) {
 		return getPipeline(createInfo)
 	}
 
-	fun invalidatePipelines(swapchain: SwapChain, rosella: Rosella) {
+	fun invalidatePipelines(swapchain: Swapchain, rosella: Rosella) {
 		for (pipeline in pipelines.values) {
 			VK10.vkDestroyPipeline(device.device, pipeline.graphicsPipeline, null)
 			VK10.vkDestroyPipelineLayout(device.device, pipeline.pipelineLayout, null)
@@ -68,7 +68,7 @@ class PipelineManager(var swapchain: SwapChain, val device: Device) {
 	 */
 	private fun createPipeline(
 		device: Device,
-		swapChain: SwapChain,
+		swapchain: Swapchain,
 		renderPass: RenderPass,
 		descriptorSetLayout: Long,
 		polygonMode: Int,
@@ -123,8 +123,8 @@ class PipelineManager(var swapchain: SwapChain, val device: Device) {
 			val viewport = VkViewport.callocStack(1, it)
 				.x(0.0f)
 				.y(0.0f)
-				.width(swapChain.swapChainExtent.width().toFloat())
-				.height(swapChain.swapChainExtent.height().toFloat())
+				.width(swapchain.swapChainExtent.width().toFloat())
+				.height(swapchain.swapChainExtent.height().toFloat())
 				.minDepth(0.0f)
 				.maxDepth(1.0f)
 
@@ -133,7 +133,7 @@ class PipelineManager(var swapchain: SwapChain, val device: Device) {
 			 */
 			val scissor = VkRect2D.callocStack(1, it)
 				.offset(VkOffset2D.callocStack(it).set(0, 0))
-				.extent(swapChain.swapChainExtent)
+				.extent(swapchain.swapChainExtent)
 
 			/**
 			 * Viewport State

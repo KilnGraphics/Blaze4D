@@ -47,7 +47,7 @@ public abstract class NativeImageMixin implements UploadableImage {
     private ByteBuffer pixels;
 
     @Inject(method = "<init>(Lnet/minecraft/client/texture/NativeImage$Format;IIZJ)V", at = @At("TAIL"))
-    private void setExtraArgs(NativeImage.Format format, int width, int height, boolean useStb, long pointer, CallbackInfo ci) throws IOException {
+    private void setExtraArgs(NativeImage.Format format, int width, int height, boolean useStb, long pointer, CallbackInfo ci) {
         this.channels = format.getChannelCount();
     }
 

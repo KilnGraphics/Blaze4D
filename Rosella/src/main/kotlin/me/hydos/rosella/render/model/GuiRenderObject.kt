@@ -1,9 +1,9 @@
 package me.hydos.rosella.render.model
 
 import me.hydos.rosella.Rosella
+import me.hydos.rosella.render.`object`.RenderObject
 import me.hydos.rosella.render.resource.Identifier
 import me.hydos.rosella.render.resource.Resource
-import me.hydos.rosella.render.shader.ubo.LowLevelUbo
 import org.joml.Vector3f
 
 open class GuiRenderObject(
@@ -29,55 +29,53 @@ open class GuiRenderObject(
 	}
 
 	override fun loadModelInfo() {
-		consumer.clear()
-		indices = ArrayList()
+		renderInfo.consumer.clear()
+		renderInfo.indices = ArrayList()
 
-		consumer
+		colour = Vector3f(0f, 0f, 0f)
+
+		renderInfo.consumer
 			.pos(-0.5f, -0.5f, 0f)
 			.color(colour.x().toInt(), colour.y().toInt(), colour.z().toInt())
 			.uv(0f, 0f)
 			.nextVertex()
 
-		consumer
+		renderInfo.consumer
 			.pos(0.5f, -0.5f, 0f)
 			.color(colour.x().toInt(), colour.y().toInt(), colour.z().toInt())
 			.uv(1f, 0f)
 			.nextVertex()
 
-		consumer
+		renderInfo.consumer
 			.pos(0.5f, 0.5f, 0f)
 			.color(colour.x().toInt(), colour.y().toInt(), colour.z().toInt())
 			.uv(1f, 1f)
 			.nextVertex()
 
-		consumer
+		renderInfo.consumer
 			.pos(-0.5f, 0.5f, 0f)
 			.color(colour.x().toInt(), colour.y().toInt(), colour.z().toInt())
 			.uv(0f, 1f)
 			.nextVertex()
 
-		indices.add(0)
-		indices.add(1)
-		indices.add(2)
-		indices.add(2)
-		indices.add(3)
-		indices.add(0)
+		renderInfo.indices.add(0)
+		renderInfo.indices.add(1)
+		renderInfo.indices.add(2)
+		renderInfo.indices.add(2)
+		renderInfo.indices.add(3)
+		renderInfo.indices.add(0)
 	}
 
-	override fun load(engine: Rosella) {
-		val retrievedMaterial = engine.materials[materialIdentifier]
-			?: error("The material $materialIdentifier couldn't be found. (Are you registering the material?)")
-		mat = retrievedMaterial
-		uniformBufferObject = LowLevelUbo(engine.device, engine.memory)
-		uniformBufferObject.create(engine.renderer.swapchain)
-		modelTransformMatrix.translate(0f, 0f, z)
+	override fun onAddedToScene(engine: Rosella) {
+		super.onAddedToScene(engine)
+		modelMatrix.translate(0f, 0f, z)
 	}
 
 	fun scale(x: Float, y: Float) {
-		modelTransformMatrix.scale(x, y, 1f)
+		modelMatrix.scale(x, y, 1f)
 	}
 
 	fun translate(x: Float, y: Float) {
-		modelTransformMatrix.translate(x, -y, 0f)
+		modelMatrix.translate(x, -y, 0f)
 	}
 }

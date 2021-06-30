@@ -19,14 +19,14 @@ class DepthBuffer {
 	var depthImageMemory: Long = 0
 	var depthImageView: Long = 0
 
-	fun createDepthResources(device: Device, swapChain: SwapChain, renderer: Renderer) {
+	fun createDepthResources(device: Device, swapchain: Swapchain, renderer: Renderer) {
 		MemoryStack.stackPush().use { stack ->
 			val depthFormat: Int = findDepthFormat(device)
 			val pDepthImage = stack.mallocLong(1)
 			val pDepthImageMemory = stack.mallocLong(1)
 			createImage(
-				swapChain.swapChainExtent.width(),
-				swapChain.swapChainExtent.height(),
+				swapchain.swapChainExtent.width(),
+				swapchain.swapChainExtent.height(),
 				depthFormat,
 				VK_IMAGE_TILING_OPTIMAL,
 				VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT,

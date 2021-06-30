@@ -3,50 +3,67 @@ package me.hydos.blaze4d.api.vertex;
 import me.hydos.blaze4d.api.Materials;
 import me.hydos.blaze4d.api.shader.MinecraftUbo;
 import me.hydos.rosella.Rosella;
-import me.hydos.rosella.render.descriptorsets.DescriptorSet;
 import me.hydos.rosella.render.device.Device;
+import me.hydos.rosella.render.info.InstanceInfo;
+import me.hydos.rosella.render.info.RenderInfo;
 import me.hydos.rosella.render.material.Material;
-import me.hydos.rosella.render.model.Renderable;
+import me.hydos.rosella.render.object.Renderable;
 import me.hydos.rosella.render.shader.ShaderProgram;
-import me.hydos.rosella.render.shader.ubo.Ubo;
 import me.hydos.rosella.render.texture.UploadableImage;
-import me.hydos.rosella.render.util.memory.BufferInfo;
 import me.hydos.rosella.render.util.memory.Memory;
+import me.hydos.rosella.render.vertex.BufferVertexConsumer;
 import me.hydos.rosella.render.vertex.VertexConsumer;
+import me.hydos.rosella.render.vertex.VertexFormats;
 import net.minecraft.client.render.VertexFormat;
 import net.minecraft.util.math.Vec3f;
 import org.jetbrains.annotations.NotNull;
 import org.joml.Matrix4f;
 import org.joml.Vector3f;
 
-import java.util.ArrayList;
-import java.util.List;
-
 public class ConsumerRenderObject implements Renderable {
 
-    private final VertexConsumer consumer;
     private final net.minecraft.client.render.VertexFormat.DrawMode drawMode;
     private final VertexFormat format;
     private final UploadableImage image;
     private final ShaderProgram shader;
 
-    // Renderable Fields
-    private final Matrix4f transformationMatrix = new Matrix4f();
-    private final MinecraftUbo ubo;
-    public Material material;
-    public List<Integer> indices = new ArrayList<>();
-    public BufferInfo vertexBuffer = null;
-    public BufferInfo indexBuffer = null;
-    public DescriptorSet descriptorSets;
+    // Render Implementation Fields
+    public final RenderInfo renderInfo = new RenderInfo(new BufferVertexConsumer(VertexFormats.Companion.getPOSITION_COLOR_UV()));
+    public InstanceInfo instanceInfo;
 
     public ConsumerRenderObject(VertexConsumer consumer, VertexFormat.DrawMode drawMode, VertexFormat format, ShaderProgram program, UploadableImage image, Rosella rosella, Matrix4f projMatrix, Matrix4f viewMatrix, Vector3f chunkOffset, Vec3f shaderLightDirections0, Vec3f shaderLightDirections1) {
-        ubo = new MinecraftUbo(rosella.getDevice(), rosella.getMemory());
-        ubo.setUniforms(projMatrix, viewMatrix, chunkOffset, shaderLightDirections0, shaderLightDirections1);
-        this.consumer = consumer;
+        this.renderInfo.consumer = consumer;
         this.drawMode = drawMode;
         this.format = format;
         this.shader = program;
         this.image = image;
+        Material material = getMaterial(drawMode);
+        instanceInfo = new InstanceInfo(new MinecraftUbo(rosella.getDevice(), rosella.getMemory(), material), material);
+        ((MinecraftUbo) instanceInfo.ubo).setUniforms(projMatrix, viewMatrix, chunkOffset, shaderLightDirections0, shaderLightDirections1);
+    }
+
+    private Material getMaterial(VertexFormat.DrawMode drawMode) {
+        Material returnValue = null;
+        switch (drawMode) {
+            case TRIANGLES, QUADS -> {
+                if (format != net.minecraft.client.render.VertexFormats.BLIT_SCREEN) {
+                    returnValue = Materials.TRIANGLES.build(shader, image, renderInfo.consumer.getFormat());
+                }
+            }
+
+            case TRIANGLE_STRIP -> {
+                if (format == net.minecraft.client.render.VertexFormats.POSITION) {
+                    returnValue = Materials.TRIANGLE_STRIP.build(shader, image, renderInfo.consumer.getFormat());
+                }
+            }
+
+            case TRIANGLE_FAN -> returnValue = Materials.TRIANGLE_FAN.build(shader, image, renderInfo.consumer.getFormat());
+
+            case LINES -> returnValue = Materials.LINES.build(shader, image, renderInfo.consumer.getFormat());
+
+            default -> throw new RuntimeException("Unsupported Draw Mode:  " + drawMode);
+        }
+        return returnValue;
     }
 
     //======================
@@ -54,100 +71,29 @@ public class ConsumerRenderObject implements Renderable {
     //======================
 
 
-    @Override
-    public void load(@NotNull Rosella rosella) {
-        switch (drawMode) {
-            case TRIANGLES, QUADS -> {
-                if (format != net.minecraft.client.render.VertexFormats.BLIT_SCREEN) {
-                    material = Materials.TRIANGLES.build(shader, image, consumer.getFormat());
-                }
-            }
-
-            case TRIANGLE_STRIP -> {
-                if (format == net.minecraft.client.render.VertexFormats.POSITION) {
-                    material = Materials.TRIANGLE_STRIP.build(shader, image, consumer.getFormat());
-                }
-            }
-
-            case TRIANGLE_FAN -> material = Materials.TRIANGLE_FAN.build(shader, image, consumer.getFormat());
-
-            case LINES -> material = Materials.LINES.build(shader, image, consumer.getFormat());
-
-            default -> throw new RuntimeException("Unsupported Draw Mode:  " + drawMode);
-        }
-        descriptorSets = new DescriptorSet(material.shader.getRaw().getDescriptorPool());
-        ubo.create(rosella.getRenderer().swapchain);
+    public void onAddedToScene(@NotNull Rosella rosella) {
+        instanceInfo.rebuild(rosella);
+        instanceInfo.ubo.create(rosella.getRenderer().swapchain);
     }
 
     @Override
     public void free(@NotNull Memory memory, @NotNull Device device) {
-        memory.freeBuffer(vertexBuffer);
-        memory.freeBuffer(indexBuffer);
-        ubo.free();
-        descriptorSets.free(device);
+        instanceInfo.free(device, memory);
+        renderInfo.free(device, memory);
     }
 
     @Override
-    public void create(@NotNull Rosella rosella) {
-        vertexBuffer = rosella.getMemory().createVertexBuffer(rosella, consumer);
-        indexBuffer = rosella.getMemory().createIndexBuffer(rosella, indices);
-        resize(rosella);
+    public void rebuild(Rosella rosella) {
+        instanceInfo.rebuild(rosella);
     }
 
     @Override
-    public void resize(@NotNull Rosella rosella) {
-
-        material.shader.getRaw().createDescriptorSets(rosella, this);
-        if (!rosella.getPipelineManager().isValidPipeline(material.pipeline)) {
-            material.pipeline = rosella.getPipelineManager().getPipeline(material, rosella.getRenderer(), rosella);
-        }
+    public InstanceInfo getInstanceInfo() {
+        return instanceInfo;
     }
 
-    @NotNull
     @Override
-    public List<Integer> getIndices() {
-        return indices;
-    }
-
-    @NotNull
-    @Override
-    public me.hydos.rosella.render.vertex.VertexConsumer render() {
-        return consumer;
-    }
-
-    @NotNull
-    @Override
-    public DescriptorSet getDescriptorSet() {
-        return descriptorSets;
-    }
-
-    @NotNull
-    @Override
-    public Material getMaterial() {
-        return material;
-    }
-
-    @NotNull
-    @Override
-    public BufferInfo getVerticesBuffer() {
-        return vertexBuffer;
-    }
-
-    @NotNull
-    @Override
-    public BufferInfo getIndicesBuffer() {
-        return indexBuffer;
-    }
-
-    @NotNull
-    @Override
-    public Ubo getUbo() {
-        return ubo;
-    }
-
-    @NotNull
-    @Override
-    public Matrix4f getTransformMatrix() {
-        return transformationMatrix;
+    public RenderInfo getRenderInfo() {
+        return renderInfo;
     }
 }
