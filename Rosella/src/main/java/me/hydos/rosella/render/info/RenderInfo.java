@@ -65,6 +65,10 @@ public class RenderInfo implements MemoryCloseable {
         return indexBuffer;
     }
 
+    public boolean areBuffersAllocated() {
+        return indexBuffer != null && vertexBuffer != null;
+    }
+
     /**
      * Gets the size of the index array
      *

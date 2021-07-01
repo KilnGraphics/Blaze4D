@@ -219,7 +219,7 @@ class Rosella(
 	}
 
 	fun addToScene(obj: Renderable) {
-		if (!renderObjects.containsKey(obj.renderInfo)) {
+		if (!renderObjects.containsKey(obj.renderInfo) && !obj.isReady) {
 			obj.renderInfo.createBuffers(memory, this)
 			renderObjects[obj.renderInfo] = ArrayList()
 		}
