@@ -4,6 +4,8 @@
   "package": "me.hydos.blaze4d.mixin",
   "compatibilityLevel": "JAVA_16",
   "mixins": [
+  ],
+  "client": [
     "blaze3d.RenderSystemMixin",
     "integration.FramebufferMixin",
     "integration.GlDebugMixin",
@@ -23,10 +25,7 @@
     "texture.RenderSystemMixin",
     "texture.TextureManagerMixin",
     "texture.TextureUtilMixin",
-    "vertices.BufferBuilderMixin",
-    "vertices.BufferRendererMixin"
-  ],
-  "client": [
+    "vertices.BufferBuilderMixin"
   ],
   "injectors": {
     "defaultRequire": 1

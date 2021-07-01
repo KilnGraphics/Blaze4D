@@ -224,7 +224,11 @@ class Rosella(
 			renderObjects[obj.renderInfo] = ArrayList()
 		}
 		obj.onAddedToScene(this)
-		renderObjects[obj.renderInfo]!!.add(obj.instanceInfo)
+		try {
+			renderObjects[obj.renderInfo]!!.add(obj.instanceInfo)
+		} catch (e : Exception) {
+			System.err.println("Something not good happened")
+		}
 	}
 
 	fun registerMaterial(identifier: Identifier, material: Material) {

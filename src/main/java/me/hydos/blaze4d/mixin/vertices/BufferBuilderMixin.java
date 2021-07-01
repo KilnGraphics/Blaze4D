@@ -1,92 +1,76 @@
 package me.hydos.blaze4d.mixin.vertices;
 
+import java.util.*;
+
 import me.hydos.blaze4d.Blaze4D;
 import me.hydos.blaze4d.api.GlobalRenderSystem;
-import me.hydos.blaze4d.api.vertex.ConsumerRenderObject;
+import me.hydos.blaze4d.api.vertex.ConsumerCreationInfo;
 import me.hydos.blaze4d.api.vertex.ObjectInfo;
 import me.hydos.blaze4d.api.vertex.UploadableConsumer;
 import me.hydos.rosella.render.shader.ShaderProgram;
-import me.hydos.rosella.render.texture.UploadableImage;
-import net.minecraft.client.MinecraftClient;
-import net.minecraft.client.render.*;
-import net.minecraft.util.math.Vec3f;
 import org.joml.Matrix4f;
 import org.joml.Vector3f;
 import org.spongepowered.asm.mixin.Mixin;
-import org.spongepowered.asm.mixin.Shadow;
 import org.spongepowered.asm.mixin.injection.At;
 import org.spongepowered.asm.mixin.injection.Inject;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 
-import java.util.ArrayList;
-import java.util.Collections;
-import java.util.List;
+import net.minecraft.client.render.*;
+import net.minecraft.util.math.Vec3f;
 
 @Mixin(BufferBuilder.class)
 public abstract class BufferBuilderMixin extends FixedColorVertexConsumer implements UploadableConsumer {
 
-    @Shadow
-    private VertexFormat format;
-
-    @Shadow
-    private VertexFormat.DrawMode drawMode;
-
+    private Map<ConsumerCreationInfo, me.hydos.rosella.render.vertex.BufferVertexConsumer> consumers = new HashMap<>();
     private me.hydos.rosella.render.vertex.BufferVertexConsumer consumer;
-    private ShaderProgram shader;
-
-    private Matrix4f projMatrix;
-    private Matrix4f viewMatrix;
-    private Vector3f chunkOffset;
-    private Vec3f shaderLightDirections0;
-    private Vec3f shaderLightDirections1;
 
     @Inject(method = "begin", at = @At("HEAD"))
     private void setupConsumer(VertexFormat.DrawMode drawMode, VertexFormat format, CallbackInfo ci) {
-        this.shader = GlobalRenderSystem.activeShader;
+        Matrix4f projMatrix = copyMat4f(GlobalRenderSystem.projectionMatrix);
+        Matrix4f viewMatrix = copyMat4f(GlobalRenderSystem.modelViewMatrix);
+        Vector3f chunkOffset = copyVec3f(GlobalRenderSystem.chunkOffset);
+        Vec3f shaderLightDirections0 = GlobalRenderSystem.shaderLightDirections0.copy();
+        Vec3f shaderLightDirections1 = GlobalRenderSystem.shaderLightDirections1.copy();
 
-        if (format == VertexFormats.POSITION) {
-            consumer = new me.hydos.rosella.render.vertex.BufferVertexConsumer(me.hydos.rosella.render.vertex.VertexFormats.Companion.getPOSITION());
-        } else if (format == VertexFormats.POSITION_COLOR) {
-            consumer = new me.hydos.rosella.render.vertex.BufferVertexConsumer(me.hydos.rosella.render.vertex.VertexFormats.Companion.getPOSITION_COLOR4());
-        } else if (format == VertexFormats.POSITION_COLOR_TEXTURE) {
-            consumer = new me.hydos.rosella.render.vertex.BufferVertexConsumer(me.hydos.rosella.render.vertex.VertexFormats.Companion.getPOSITION_COLOR4_UV());
-        } else if (format == VertexFormats.POSITION_TEXTURE) {
-            consumer = new me.hydos.rosella.render.vertex.BufferVertexConsumer(me.hydos.rosella.render.vertex.VertexFormats.Companion.getPOSITION_UV());
-        } else if (format == VertexFormats.POSITION_TEXTURE_COLOR) {
-            consumer = new me.hydos.rosella.render.vertex.BufferVertexConsumer(me.hydos.rosella.render.vertex.VertexFormats.Companion.getPOSITION_UV_COLOR4());
-        } else if (format == VertexFormats.LINES) {
-            consumer = new me.hydos.rosella.render.vertex.BufferVertexConsumer(me.hydos.rosella.render.vertex.VertexFormats.Companion.getPOSITION_COLOR_NORMAL());
-        } else if (format == VertexFormats.POSITION_COLOR_TEXTURE_LIGHT) {
-            consumer = new me.hydos.rosella.render.vertex.BufferVertexConsumer(me.hydos.rosella.render.vertex.VertexFormats.Companion.getPOSITION_COLOR4_UV_LIGHT());
-        } else if (format == VertexFormats.POSITION_COLOR_TEXTURE_LIGHT_NORMAL) {
-            consumer = new me.hydos.rosella.render.vertex.BufferVertexConsumer(me.hydos.rosella.render.vertex.VertexFormats.Companion.getPOSITION_COLOR4_UV_LIGHT_NORMAL());
-        } else if (format == VertexFormats.POSITION_COLOR_TEXTURE_OVERLAY_LIGHT_NORMAL) {
-            consumer = new me.hydos.rosella.render.vertex.BufferVertexConsumer(me.hydos.rosella.render.vertex.VertexFormats.Companion.getPOSITION_COLOR4_UV_UV0_LIGHT_NORMAL());
-        } else if (format == VertexFormats.POSITION_TEXTURE_COLOR_NORMAL) {
-            consumer = new me.hydos.rosella.render.vertex.BufferVertexConsumer(me.hydos.rosella.render.vertex.VertexFormats.Companion.getPOSITION_UV_COLOR4_NORMAL());
-        } else if (format == VertexFormats.POSITION_TEXTURE_COLOR_LIGHT) {
-            consumer = new me.hydos.rosella.render.vertex.BufferVertexConsumer(me.hydos.rosella.render.vertex.VertexFormats.Companion.getPOSITION_UV_COLOR4_LIGHT());
-        }
-        else {
-            // Check if its text
-            List<VertexFormatElement> elements = format.getElements();
-            if (elements.size() == 4 && elements.get(0) == VertexFormats.POSITION_ELEMENT && elements.get(1) == VertexFormats.COLOR_ELEMENT && elements.get(2) == VertexFormats.TEXTURE_0_ELEMENT && elements.get(3).getByteLength() == 4) {
-                consumer = new me.hydos.rosella.render.vertex.BufferVertexConsumer(me.hydos.rosella.render.vertex.VertexFormats.Companion.getPOSITION_COLOR4_UV0_UV());
+        this.consumer = consumers.computeIfAbsent(new ConsumerCreationInfo(drawMode, format, format.getElements(), GlobalRenderSystem.boundTextureId, GlobalRenderSystem.activeShader, projMatrix, viewMatrix, chunkOffset, shaderLightDirections0, shaderLightDirections1), formats -> {
+            me.hydos.rosella.render.vertex.BufferVertexConsumer consumer;
+            if (format == VertexFormats.POSITION) {
+                consumer = new me.hydos.rosella.render.vertex.BufferVertexConsumer(me.hydos.rosella.render.vertex.VertexFormats.Companion.getPOSITION());
+            } else if (format == VertexFormats.POSITION_COLOR) {
+                consumer = new me.hydos.rosella.render.vertex.BufferVertexConsumer(me.hydos.rosella.render.vertex.VertexFormats.Companion.getPOSITION_COLOR4());
+            } else if (format == VertexFormats.POSITION_COLOR_TEXTURE) {
+                consumer = new me.hydos.rosella.render.vertex.BufferVertexConsumer(me.hydos.rosella.render.vertex.VertexFormats.Companion.getPOSITION_COLOR4_UV());
+            } else if (format == VertexFormats.POSITION_TEXTURE) {
+                consumer = new me.hydos.rosella.render.vertex.BufferVertexConsumer(me.hydos.rosella.render.vertex.VertexFormats.Companion.getPOSITION_UV());
+            } else if (format == VertexFormats.POSITION_TEXTURE_COLOR) {
+                consumer = new me.hydos.rosella.render.vertex.BufferVertexConsumer(me.hydos.rosella.render.vertex.VertexFormats.Companion.getPOSITION_UV_COLOR4());
+            } else if (format == VertexFormats.LINES) {
+                consumer = new me.hydos.rosella.render.vertex.BufferVertexConsumer(me.hydos.rosella.render.vertex.VertexFormats.Companion.getPOSITION_COLOR_NORMAL());
+            } else if (format == VertexFormats.POSITION_COLOR_TEXTURE_LIGHT) {
+                consumer = new me.hydos.rosella.render.vertex.BufferVertexConsumer(me.hydos.rosella.render.vertex.VertexFormats.Companion.getPOSITION_COLOR4_UV_LIGHT());
+            } else if (format == VertexFormats.POSITION_COLOR_TEXTURE_LIGHT_NORMAL) {
+                consumer = new me.hydos.rosella.render.vertex.BufferVertexConsumer(me.hydos.rosella.render.vertex.VertexFormats.Companion.getPOSITION_COLOR4_UV_LIGHT_NORMAL());
+            } else if (format == VertexFormats.POSITION_COLOR_TEXTURE_OVERLAY_LIGHT_NORMAL) {
+                consumer = new me.hydos.rosella.render.vertex.BufferVertexConsumer(me.hydos.rosella.render.vertex.VertexFormats.Companion.getPOSITION_COLOR4_UV_UV0_LIGHT_NORMAL());
+            } else if (format == VertexFormats.POSITION_TEXTURE_COLOR_NORMAL) {
+                consumer = new me.hydos.rosella.render.vertex.BufferVertexConsumer(me.hydos.rosella.render.vertex.VertexFormats.Companion.getPOSITION_UV_COLOR4_NORMAL());
+            } else if (format == VertexFormats.POSITION_TEXTURE_COLOR_LIGHT) {
+                consumer = new me.hydos.rosella.render.vertex.BufferVertexConsumer(me.hydos.rosella.render.vertex.VertexFormats.Companion.getPOSITION_UV_COLOR4_LIGHT());
             } else {
-                throw new RuntimeException("Format not implemented: " + format);
+                // Check if its text
+                List<VertexFormatElement> elements = format.getElements();
+                if (elements.size() == 4 && elements.get(0) == VertexFormats.POSITION_ELEMENT && elements.get(1) == VertexFormats.COLOR_ELEMENT && elements.get(2) == VertexFormats.TEXTURE_0_ELEMENT && elements.get(3).getByteLength() == 4) {
+                    consumer = new me.hydos.rosella.render.vertex.BufferVertexConsumer(me.hydos.rosella.render.vertex.VertexFormats.Companion.getPOSITION_COLOR4_UV0_UV());
+                } else {
+                    throw new RuntimeException("Format not implemented: " + format);
+                }
             }
-        }
-
-        projMatrix = copyMat4f(GlobalRenderSystem.projectionMatrix);
-        viewMatrix = copyMat4f(GlobalRenderSystem.modelViewMatrix);
-        chunkOffset = copyVec3f(GlobalRenderSystem.chunkOffset);
-        shaderLightDirections0 = GlobalRenderSystem.shaderLightDirections0.copy();
-        shaderLightDirections1 = GlobalRenderSystem.shaderLightDirections1.copy();
+            return consumer;
+        });
     }
 
     @Inject(method = "clear", at = @At("HEAD"))
     private void clear(CallbackInfo ci) {
-        consumer = new me.hydos.rosella.render.vertex.BufferVertexConsumer(consumer.getFormat());
     }
 
     @Override
@@ -127,7 +111,7 @@ public abstract class BufferBuilderMixin extends FixedColorVertexConsumer implem
 
     @Override
     public void vertex(float x, float y, float z, float red, float green, float blue, float alpha, float u, float v, int overlay, int light, float normalX, float normalY, float normalZ) {
-        if(consumer.getFormat() == me.hydos.rosella.render.vertex.VertexFormats.Companion.getPOSITION_UV_COLOR4()) {
+        if (consumer.getFormat() == me.hydos.rosella.render.vertex.VertexFormats.Companion.getPOSITION_UV_COLOR4()) {
             this.vertex(x, y, z);
             this.texture(u, v);
             this.color(red, green, blue, alpha);
@@ -156,7 +140,7 @@ public abstract class BufferBuilderMixin extends FixedColorVertexConsumer implem
 
     @Override
     public ShaderProgram getShader() {
-        return shader;
+        return GlobalRenderSystem.activeShader;
     }
 
     @Override
@@ -166,50 +150,55 @@ public abstract class BufferBuilderMixin extends FixedColorVertexConsumer implem
 
     @Override
     public void draw() {
-        List<Integer> indices = new ArrayList<>();
+        for (Map.Entry<ConsumerCreationInfo, me.hydos.rosella.render.vertex.BufferVertexConsumer> entry : consumers.entrySet()) {
+            me.hydos.rosella.render.vertex.BufferVertexConsumer consumer = entry.getValue();
+            List<Integer> indices = new ArrayList<>();
+            ConsumerCreationInfo creationInfo = entry.getKey();
 
-        if (drawMode == VertexFormat.DrawMode.QUADS) {
-            // Convert Quads to Triangle Strips
-            //  0, 1, 2
-            //  0, 2, 3
-            //        v0_________________v1
-            //         / \               /
-            //        /     \           /
-            //       /         \       /
-            //      /             \   /
-            //    v2-----------------v3
+            if (creationInfo.drawMode() == VertexFormat.DrawMode.QUADS) {
+                // Convert Quads to Triangle Strips
+                //  0, 1, 2
+                //  0, 2, 3
+                //        v0_________________v1
+                //         / \               /
+                //        /     \           /
+                //       /         \       /
+                //      /             \   /
+                //    v2-----------------v3
 
-            for (int i = 0; i < consumer.getVertexCount(); i += 4) {
-                indices.add(i);
-                indices.add(1 + i);
-                indices.add(2 + i);
+                for (int i = 0; i < consumer.getVertexCount(); i += 4) {
+                    indices.add(i);
+                    indices.add(1 + i);
+                    indices.add(2 + i);
 
-                indices.add(2 + i);
-                indices.add(3 + i);
-                indices.add(i);
+                    indices.add(2 + i);
+                    indices.add(3 + i);
+                    indices.add(i);
+                }
+            } else {
+                for (int i = 0; i < consumer.getVertexCount(); i++) {
+                    indices.add(i);
+                }
             }
-        } else {
-            for (int i = 0; i < consumer.getVertexCount(); i++) {
-                indices.add(i);
+
+            if (consumer.getVertexCount() != 0) {
+                ObjectInfo objectInfo = new ObjectInfo(
+                        consumer,
+                        creationInfo.drawMode(),
+                        creationInfo.format(),
+                        creationInfo.shader(),
+                        creationInfo.boundTextureId(),
+                        creationInfo.projMatrix(),
+                        creationInfo.viewMatrix(),
+                        creationInfo.chunkOffset(),
+                        creationInfo.shaderLightDirections0(),
+                        creationInfo.shaderLightDirections1(),
+                        Collections.unmodifiableList(indices)
+                );
+                GlobalRenderSystem.uploadObject(objectInfo, Blaze4D.rosella);
             }
         }
-
-        if (consumer.getVertexCount() != 0) {
-            ObjectInfo objectInfo = new ObjectInfo(
-                    consumer,
-                    drawMode,
-                    format,
-                    getShader(),
-                    getTextureId(),
-                    projMatrix,
-                    viewMatrix,
-                    chunkOffset,
-                    shaderLightDirections0,
-                    shaderLightDirections1,
-                    Collections.unmodifiableList(indices)
-            );
-            GlobalRenderSystem.uploadObject(objectInfo, Blaze4D.rosella);
-        }
+        consumers.clear();
     }
 
     protected Vector3f copyVec3f(Vector3f vec3f) {
