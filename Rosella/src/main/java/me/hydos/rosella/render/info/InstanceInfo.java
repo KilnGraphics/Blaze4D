@@ -24,6 +24,7 @@ public class InstanceInfo implements MemoryCloseable {
     @Override
     public void free(Device device, Memory memory) {
         ubo.free(device, memory);
+        material.shader.getDescriptorManager().freeDescriptorSet(ubo.getDescriptors());
     }
 
     /**
