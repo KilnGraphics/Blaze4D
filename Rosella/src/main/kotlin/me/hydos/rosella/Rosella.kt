@@ -87,7 +87,7 @@ class Rosella(
 
 		createSurface()
 		this.device = Device(this, validationLayers)
-		this.shaderManager = ShaderManager(device)
+		this.shaderManager = ShaderManager(this)
 		this.textureManager = TextureManager(device)
 		this.memory = Memory(device, vulkanInstance)
 		renderer.initialize(this)
@@ -219,7 +219,7 @@ class Rosella(
 	}
 
 	fun addToScene(obj: Renderable) {
-		if (!renderObjects.containsKey(obj.renderInfo)) {
+		if (!renderObjects.containsKey(obj.renderInfo) && !obj.isReady) {
 			obj.renderInfo.createBuffers(memory, this)
 			renderObjects[obj.renderInfo] = ArrayList()
 		}

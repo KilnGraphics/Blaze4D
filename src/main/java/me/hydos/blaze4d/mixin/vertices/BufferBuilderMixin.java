@@ -3,13 +3,12 @@ package me.hydos.blaze4d.mixin.vertices;
 import me.hydos.blaze4d.Blaze4D;
 import me.hydos.blaze4d.api.GlobalRenderSystem;
 import me.hydos.blaze4d.api.vertex.ConsumerRenderObject;
+import me.hydos.blaze4d.api.vertex.ObjectInfo;
 import me.hydos.blaze4d.api.vertex.UploadableConsumer;
 import me.hydos.rosella.render.shader.ShaderProgram;
 import me.hydos.rosella.render.texture.UploadableImage;
 import net.minecraft.client.MinecraftClient;
 import net.minecraft.client.render.*;
-import net.minecraft.client.texture.MissingSprite;
-import net.minecraft.client.texture.TextureManager;
 import net.minecraft.util.math.Vec3f;
 import org.joml.Matrix4f;
 import org.joml.Vector3f;
@@ -158,8 +157,12 @@ public abstract class BufferBuilderMixin extends FixedColorVertexConsumer implem
     }
 
     @Override
-    public int getTextureId() {
-        return GlobalRenderSystem.boundTextureId;
+    public UploadableImage getImage() {
+        UploadableImage image = (UploadableImage) MinecraftClient.getInstance().getTextureManager().getTexture(GlobalRenderSystem.boundTexture);
+        if (image == null) {
+            throw new RuntimeException("Image is Null");
+        }
+        return image;
     }
 
     @Override
@@ -193,21 +196,20 @@ public abstract class BufferBuilderMixin extends FixedColorVertexConsumer implem
         }
 
         if (consumer.getVertexCount() != 0) {
-            ConsumerRenderObject renderObject = new ConsumerRenderObject(
+            ObjectInfo objectInfo = new ObjectInfo(
                     consumer,
                     drawMode,
                     format,
                     getShader(),
-                    getTextureId(),
-                    Blaze4D.rosella,
+                    getImage(),
                     projMatrix,
                     viewMatrix,
                     chunkOffset,
                     shaderLightDirections0,
-                    shaderLightDirections1
+                    shaderLightDirections1,
+                    Collections.unmodifiableList(indices)
             );
-            renderObject.renderInfo.indices = Collections.unmodifiableList(indices);
-            GlobalRenderSystem.uploadObject(renderObject);
+            GlobalRenderSystem.uploadObject(objectInfo, Blaze4D.rosella);
         }
     }
 

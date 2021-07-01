@@ -14,9 +14,4 @@ public class MinecraftClientMixin {
     private void renderFrame(boolean tick, CallbackInfo ci) {
         GlobalRenderSystem.render();
     }
-
-    @Inject(method = "render", at = @At(value = "INVOKE", target = "Lnet/minecraft/client/gl/Framebuffer;beginWrite(Z)V"))
-    private void captureRenderObjects(boolean tick, CallbackInfo ci) {
-        GlobalRenderSystem.beginCaptureRenderObjects();
-    }
 }

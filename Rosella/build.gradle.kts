@@ -30,6 +30,8 @@ repositories {
 dependencies {
 	implementation(platform("org.lwjgl:lwjgl-bom:$lwjglVersion"))
 
+	implementation("it.unimi.dsi", "fastutil", "8.5.4")
+
 	implementation("org.lwjgl", "lwjgl")
 	implementation("org.lwjgl", "lwjgl-assimp")
 	implementation("org.lwjgl", "lwjgl-glfw")

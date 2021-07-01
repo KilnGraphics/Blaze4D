@@ -263,10 +263,6 @@ class Renderer {
 			}
 		}
 
-		for (shader in usedShaders) {
-			shader.raw.createPool(swapchain)
-		}
-
 		for (instances in engine.renderObjects.values) {
 			for (instance in instances) {
 				instance.rebuild(engine)

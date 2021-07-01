@@ -71,4 +71,8 @@ open class RenderObjectUbo(val device: Device, val memory: Memory, private val r
 	override fun getDescriptors(): DescriptorSet {
 		return descSets
 	}
+
+	override fun setDescriptors(descriptorSets: DescriptorSet) {
+		this.descSets = descriptorSets
+	}
 }

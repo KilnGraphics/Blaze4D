@@ -1,19 +1,21 @@
 package me.hydos.rosella.render.shader
 
+import me.hydos.rosella.Rosella
 import me.hydos.rosella.render.device.Device
 import me.hydos.rosella.render.util.ShaderType
-import me.hydos.rosella.render.util.SpirV
 import me.hydos.rosella.render.util.compileShaderFile
 import me.hydos.rosella.render.util.ok
+import me.hydos.rosella.ubo.DescriptorManager
 import org.lwjgl.system.MemoryStack
 import org.lwjgl.vulkan.VK10
 import org.lwjgl.vulkan.VkShaderModuleCreateInfo
 import java.nio.ByteBuffer
 
-class ShaderProgram(val raw: RawShaderProgram, val device: Device) {
+class ShaderProgram(val raw: RawShaderProgram, val rosella: Rosella, maxObjects: Int) {
 
 	private val fragmentShader by lazy { compileShaderFile(raw.fragmentShader!!, ShaderType.FRAGMENT_SHADER) }
 	private val vertexShader by lazy { compileShaderFile(raw.vertexShader!!, ShaderType.VERTEX_SHADER) }
+	val descriptorManager = DescriptorManager(maxObjects, this, rosella.renderer.swapchain, rosella.device)
 
 	/**
 	 * Create a Vulkan shader module. used during pipeline creation.
@@ -30,11 +32,11 @@ class ShaderProgram(val raw: RawShaderProgram, val device: Device) {
 	}
 
 	fun getVertShaderModule(): Long {
-		return createShader(vertexShader.bytecode(), device)
+		return createShader(vertexShader.bytecode(), rosella.device)
 	}
 
 	fun getFragShaderModule(): Long {
-		return createShader(fragmentShader.bytecode(), device)
+		return createShader(fragmentShader.bytecode(), rosella.device)
 	}
 
 	/**

@@ -106,4 +106,8 @@ class BufferVertexConsumer(override val format: VertexFormat) : VertexConsumer {
 		consumer.vertexSize = this.vertexSize
 		return consumer
 	}
+
+	override fun hashCode(): Int {
+		return Objects.hashCode(bufferConsumerList) * vertexSize
+	}
 }
