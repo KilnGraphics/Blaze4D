@@ -32,9 +32,10 @@ public class InstanceInfo implements MemoryCloseable {
      * @param rosella The active instance of the Renderer
      */
     public void rebuild(@NotNull Rosella rosella) {
-        if(ubo.getUniformBuffers().size() == 0) {
+        material.shader.getDescriptorManager().freeDescriptorSet(ubo.getDescriptors());
+        if (ubo.getUniformBuffers().size() == 0) {
             ubo.create(rosella.getRenderer().swapchain);
         }
-        material.shader.getRaw().createDescriptorSets(rosella, this);
+        material.shader.getDescriptorManager().createNewDescriptor(material.texture, ubo);
     }
 }

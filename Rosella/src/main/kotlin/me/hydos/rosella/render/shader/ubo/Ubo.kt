@@ -48,4 +48,6 @@ abstract class Ubo : MemoryCloseable {
 	override fun free(device: Device?, memory: Memory?) {
 		free()
 	}
+
+	abstract fun setDescriptors(descriptorSets: DescriptorSet)
 }

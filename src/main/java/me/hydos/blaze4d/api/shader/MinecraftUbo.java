@@ -37,7 +37,6 @@ public class MinecraftUbo extends Ubo {
     public Vec3f shaderLightDirections0;
     public Vec3f shaderLightDirections1;
 
-
     public MinecraftUbo(@NotNull Device device, @NotNull Memory memory, Material material) {
         this.memory = memory;
         this.descSets = new DescriptorSet(material.shader.getRaw().getDescriptorPool());
@@ -203,5 +202,10 @@ public class MinecraftUbo extends Ubo {
     @Override
     public DescriptorSet getDescriptors() {
         return descSets;
+    }
+
+    @Override
+    public void setDescriptors(@NotNull DescriptorSet descriptorSets) {
+        this.descSets = descriptorSets;
     }
 }

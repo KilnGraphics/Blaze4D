@@ -19,7 +19,6 @@ public class Blaze4D implements ClientModInitializer {
 
     public static void finishAndRender() {
         rosella.getRenderer().rebuildCommandBuffers(rosella.getRenderer().renderPass, rosella);
-        window.onMainLoop(() -> rosella.getRenderer().render(rosella));
     }
 
     @Override

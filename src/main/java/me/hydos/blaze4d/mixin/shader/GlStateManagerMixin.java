@@ -131,6 +131,7 @@ public class GlStateManagerMixin {
         RawShaderProgram program = GlobalRenderSystem.SHADER_PROGRAM_MAP.get(programId);
         if (program == null) {
             program = new RawShaderProgram(null, null, Blaze4D.rosella.getDevice(), Blaze4D.rosella.getMemory(), GlobalRenderSystem.DEFAULT_MAX_OBJECTS);
+            GlobalRenderSystem.SHADER_PROGRAM_MAP.put(programId, program);
         }
 
         if (shader.rosellaShaderType == ShaderType.VERTEX_SHADER) {

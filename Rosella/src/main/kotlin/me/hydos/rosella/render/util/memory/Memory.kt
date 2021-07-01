@@ -17,6 +17,7 @@ import org.lwjgl.vulkan.*
 import org.lwjgl.vulkan.VK11.VK_API_VERSION_1_1
 import java.nio.ByteBuffer
 import java.nio.LongBuffer
+import java.util.concurrent.Executors
 
 /**
  * Used for managing CPU and GPU memory.
@@ -24,10 +25,12 @@ import java.nio.LongBuffer
  */
 class Memory(val device: Device, private val instance: VkInstance) {
 
-	val mappedMemory = ArrayList<Long>()
-	val buffers = ArrayList<BufferInfo>()
+	private val threadCount = 3
+	private val executorService = Executors.newFixedThreadPool(threadCount)
+	private val mappedMemory = ArrayList<Long>()
+	private val buffers = ArrayList<BufferInfo>()
 
-	val allocator: Long = stackPush().use {
+	private val allocator: Long = stackPush().use {
 		val vulkanFunctions: VmaVulkanFunctions = VmaVulkanFunctions.callocStack(it)
 			.set(instance, device.device)
 
@@ -57,7 +60,9 @@ class Memory(val device: Device, private val instance: VkInstance) {
 	 * Unmaps allocated memory. this should usually be called on close
 	 */
 	fun unmap(allocation: Long) {
-		Vma.vmaUnmapMemory(allocator, allocation)
+		executorService.submit {
+			Vma.vmaUnmapMemory(allocator, allocation)
+		}
 	}
 
 	/**
@@ -195,7 +200,9 @@ class Memory(val device: Device, private val instance: VkInstance) {
 	 * Forces a buffer to be freed
 	 */
 	fun freeBuffer(buffer: BufferInfo) {
-		Vma.vmaDestroyBuffer(allocator, buffer.buffer, buffer.allocation)
+		executorService.submit {
+			Vma.vmaDestroyBuffer(allocator, buffer.buffer, buffer.allocation)
+		}
 	}
 
 	/**

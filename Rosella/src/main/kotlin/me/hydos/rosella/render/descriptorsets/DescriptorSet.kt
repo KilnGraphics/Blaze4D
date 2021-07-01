@@ -7,8 +7,12 @@ class DescriptorSet(var descriptorPool: Long = 0L) {
 	var descriptorSets = ArrayList<Long>()
 
 	fun free(device: Device) {
-		for (descriptorSet in descriptorSets) {
-			VK10.vkFreeDescriptorSets(device.device, descriptorPool, descriptorSet)
+		if (descriptorPool != 0L) {
+			for (descriptorSet in descriptorSets) {
+				if (descriptorSet != 0L) {
+					VK10.vkFreeDescriptorSets(device.device, descriptorPool, descriptorSet)
+				}
+			}
 		}
 	}
 

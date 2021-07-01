@@ -5,8 +5,6 @@ import it.unimi.dsi.fastutil.objects.ObjectArrayList;
 import me.hydos.blaze4d.Blaze4D;
 import me.hydos.blaze4d.api.shader.ShaderContext;
 import me.hydos.blaze4d.api.vertex.ConsumerRenderObject;
-import me.hydos.rosella.render.info.InstanceInfo;
-import me.hydos.rosella.render.object.Renderable;
 import me.hydos.rosella.render.resource.Identifier;
 import me.hydos.rosella.render.shader.RawShaderProgram;
 import me.hydos.rosella.render.shader.ShaderProgram;
@@ -15,7 +13,6 @@ import org.joml.Matrix4f;
 import org.joml.Vector3f;
 import org.lwjgl.vulkan.VK10;
 
-import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 
@@ -62,22 +59,27 @@ public class GlobalRenderSystem {
     //=================
 
     public static void beginCaptureRenderObjects() {
-        VK10.vkDeviceWaitIdle(Blaze4D.rosella.getDevice().getDevice());
-        if (Blaze4D.rosella.getRenderObjects().size() != 0) {
-            Blaze4D.rosella.freeScene();
-            Blaze4D.rosella.getRenderObjects().clear();
-        }
+//        if(i < 50) {
+            VK10.vkDeviceWaitIdle(Blaze4D.rosella.getDevice().getDevice());
+            if (Blaze4D.rosella.getRenderObjects().size() != 0) {
+                Blaze4D.rosella.freeScene();
+                Blaze4D.rosella.getRenderObjects().clear();
+            }
+//        }
     }
+
+    static int i = 0;
 
     /**
      * Called when a frame is flipped. used to send all buffers to the engine to draw. Also allows for caching
      */
     public static void render() {
-        VK10.vkDeviceWaitIdle(Blaze4D.rosella.getDevice().getDevice());
-
-        for (ConsumerRenderObject renderObject : frameObjects) {
-            Blaze4D.rosella.addToScene(renderObject);
-        }
+//        i++;
+//        if(i < 50) {
+            for (ConsumerRenderObject renderObject : frameObjects) {
+                Blaze4D.rosella.addToScene(renderObject);
+            }
+//        }
 
         if (frameObjects.size() != 0) {
             Blaze4D.rosella.getRenderer().rebuildCommandBuffers(Blaze4D.rosella.getRenderer().renderPass, Blaze4D.rosella);
@@ -85,6 +87,7 @@ public class GlobalRenderSystem {
 
         frameObjects.clear();
         Blaze4D.window.forceMainLoop();
+        Blaze4D.rosella.getRenderer().render(Blaze4D.rosella);
     }
 
     public static void uploadObject(ConsumerRenderObject renderObject) {

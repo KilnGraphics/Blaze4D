@@ -87,7 +87,7 @@ class Rosella(
 
 		createSurface()
 		this.device = Device(this, validationLayers)
-		this.shaderManager = ShaderManager(device)
+		this.shaderManager = ShaderManager(this)
 		this.textureManager = TextureManager(device)
 		this.memory = Memory(device, vulkanInstance)
 		renderer.initialize(this)
