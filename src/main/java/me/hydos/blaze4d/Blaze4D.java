@@ -3,12 +3,11 @@ package me.hydos.blaze4d;
 import me.hydos.rosella.Rosella;
 import me.hydos.rosella.render.io.Window;
 import net.fabricmc.api.ClientModInitializer;
-import net.fabricmc.loader.api.FabricLoader;
 import org.apache.logging.log4j.Level;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.StringFormatterMessageFactory;
-import org.lwjgl.system.Configuration;
+
 
 public class Blaze4D implements ClientModInitializer {
     public static final Logger LOGGER = LogManager.getLogger("Blaze4D", new StringFormatterMessageFactory());
