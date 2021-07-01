@@ -36,7 +36,7 @@ public class GlobalRenderSystem {
     public static Set<ConsumerRenderObject> currentFrameObjects = new ObjectOpenHashSet<>();
 
     // Active Fields
-    public static net.minecraft.util.Identifier boundTexture = new net.minecraft.util.Identifier("minecraft", "empty");
+    public static int boundTextureId = -1; // TODO: generate an identifier instead of using int id, or switch everything over to ints
     public static ShaderProgram activeShader;
 
     // Uniforms FIXME FIXME FIXME: to add support for custom uniforms and add support for mods like iris & lambdynamic lights, we need to do this

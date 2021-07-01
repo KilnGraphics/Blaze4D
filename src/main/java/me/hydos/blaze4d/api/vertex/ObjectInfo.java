@@ -19,7 +19,7 @@ public class ObjectInfo {
     public final VertexConsumer consumer;
     public final VertexFormat.DrawMode drawMode;
     public final VertexFormat format;
-    public final UploadableImage image;
+    public final int textureId;
     public final Matrix4f projMatrix;
     public final Matrix4f viewMatrix;
     public final Vector3f chunkOffset;
@@ -27,11 +27,11 @@ public class ObjectInfo {
     public final Vec3f shaderLightDirections1;
     public List<Integer> indices;
 
-    public ObjectInfo(VertexConsumer consumer, VertexFormat.DrawMode drawMode, VertexFormat format, ShaderProgram shader, UploadableImage image, Matrix4f projMatrix, Matrix4f viewMatrix, Vector3f chunkOffset, Vec3f shaderLightDirections0, Vec3f shaderLightDirections1, List<Integer> indices) {
+    public ObjectInfo(VertexConsumer consumer, VertexFormat.DrawMode drawMode, VertexFormat format, ShaderProgram shader, int textureId, Matrix4f projMatrix, Matrix4f viewMatrix, Vector3f chunkOffset, Vec3f shaderLightDirections0, Vec3f shaderLightDirections1, List<Integer> indices) {
         this.consumer = consumer;
         this.drawMode = drawMode;
         this.format = format;
-        this.image = image;
+        this.textureId = textureId;
         this.projMatrix = projMatrix;
         this.viewMatrix = viewMatrix;
         this.chunkOffset = chunkOffset;
@@ -47,11 +47,11 @@ public class ObjectInfo {
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
         ObjectInfo that = (ObjectInfo) o;
-        return shader.equals(that.shader) && consumer.equals(that.consumer) && drawMode == that.drawMode && format.equals(that.format) && image.equals(that.image) && projMatrix.equals(that.projMatrix) && viewMatrix.equals(that.viewMatrix) && chunkOffset.equals(that.chunkOffset) && shaderLightDirections0.equals(that.shaderLightDirections0) && shaderLightDirections1.equals(that.shaderLightDirections1) && indices.equals(that.indices);
+        return shader.equals(that.shader) && consumer.equals(that.consumer) && drawMode == that.drawMode && format.equals(that.format) && textureId == that.textureId && projMatrix.equals(that.projMatrix) && viewMatrix.equals(that.viewMatrix) && chunkOffset.equals(that.chunkOffset) && shaderLightDirections0.equals(that.shaderLightDirections0) && shaderLightDirections1.equals(that.shaderLightDirections1) && indices.equals(that.indices);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(shader, drawMode, format, image, projMatrix, viewMatrix, chunkOffset, shaderLightDirections0, shaderLightDirections1, consumer);
+        return Objects.hash(shader, drawMode, format, textureId, projMatrix, viewMatrix, chunkOffset, shaderLightDirections0, shaderLightDirections1, consumer);
     }
 }

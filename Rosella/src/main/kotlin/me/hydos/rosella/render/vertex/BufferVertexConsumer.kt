@@ -108,6 +108,20 @@ class BufferVertexConsumer(override val format: VertexFormat) : VertexConsumer {
 	}
 
 	override fun hashCode(): Int {
-		return Objects.hashCode(bufferConsumerList) * vertexSize
+		return Objects.hash(bufferConsumerList, vertexSize, format)
 	}
+
+	override fun equals(other: Any?): Boolean {
+		if (this === other) return true
+		if (javaClass != other?.javaClass) return false
+
+		other as BufferVertexConsumer
+
+		if (format != other.format) return false
+		if (bufferConsumerList != other.bufferConsumerList) return false
+		if (vertexSize != other.vertexSize) return false
+
+		return true
+	}
+
 }
