@@ -5,7 +5,6 @@
   "compatibilityLevel": "JAVA_16",
   "mixins": [
     "blaze3d.RenderSystemMixin",
-    "blaze3d.platform.TextureUtilMixin",
     "integration.FramebufferMixin",
     "integration.GlDebugMixin",
     "integration.GlStateManagerMixin",

@@ -157,12 +157,8 @@ public abstract class BufferBuilderMixin extends FixedColorVertexConsumer implem
     }
 
     @Override
-    public UploadableImage getImage() {
-        UploadableImage image = (UploadableImage) MinecraftClient.getInstance().getTextureManager().getTexture(GlobalRenderSystem.boundTexture);
-        if (image == null) {
-            throw new RuntimeException("Image is Null");
-        }
-        return image;
+    public int getTextureId() {
+        return GlobalRenderSystem.boundTextureId;
     }
 
     @Override
@@ -201,7 +197,7 @@ public abstract class BufferBuilderMixin extends FixedColorVertexConsumer implem
                     drawMode,
                     format,
                     getShader(),
-                    getImage(),
+                    getTextureId(),
                     projMatrix,
                     viewMatrix,
                     chunkOffset,

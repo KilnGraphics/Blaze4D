@@ -1,8 +1,7 @@
 package me.hydos.rosella.render.texture
 
-import it.unimi.dsi.fastutil.ints.IntArrayIndirectPriorityQueue
 import it.unimi.dsi.fastutil.ints.IntArrayPriorityQueue
-import it.unimi.dsi.fastutil.ints.IntPriorityQueue
+import it.unimi.dsi.fastutil.ints.IntPriorityQueues
 import me.hydos.rosella.Rosella
 import me.hydos.rosella.render.createTextureImage
 import me.hydos.rosella.render.createTextureImageView
@@ -16,14 +15,14 @@ class TextureManager(val device: Device) { // TODO: add layers, maybe not in thi
 	private val textureMap = HashMap<Int, Texture>()
 	private val samplerCache = HashMap<SamplerCreateInfo, TextureSampler>() // bro there's like 3 options for this
 
-	private val reusableTexIds = IntArrayPriorityQueue() // may need to eventually swap to longs
-	private var largestTexId : Int = 0;
+	private val reusableTexIds = IntPriorityQueues.synchronize(IntArrayPriorityQueue())
+	private var nextTexId : Int = 0;
 
 	fun generateTextureId(): Int {
 		return if (!reusableTexIds.isEmpty) {
 			reusableTexIds.dequeueInt()
 		} else {
-			largestTexId++
+			nextTexId++
 		}
 	}
 
@@ -33,7 +32,7 @@ class TextureManager(val device: Device) { // TODO: add layers, maybe not in thi
 	}
 
 	fun getTexture(textureId: Int): Texture? {
-		return textureMap.get(textureId);
+		return textureMap[textureId];
 	}
 
 	// TODO: add variant of this method which accepts a pointer or a buffer directly
