@@ -64,7 +64,10 @@ public abstract class BufferBuilderMixin extends FixedColorVertexConsumer implem
             consumer = new me.hydos.rosella.render.vertex.BufferVertexConsumer(me.hydos.rosella.render.vertex.VertexFormats.Companion.getPOSITION_COLOR4_UV_UV0_LIGHT_NORMAL());
         } else if (format == VertexFormats.POSITION_TEXTURE_COLOR_NORMAL) {
             consumer = new me.hydos.rosella.render.vertex.BufferVertexConsumer(me.hydos.rosella.render.vertex.VertexFormats.Companion.getPOSITION_UV_COLOR4_NORMAL());
-        } else {
+        } else if (format == VertexFormats.POSITION_TEXTURE_COLOR_LIGHT) {
+            consumer = new me.hydos.rosella.render.vertex.BufferVertexConsumer(me.hydos.rosella.render.vertex.VertexFormats.Companion.getPOSITION_UV_COLOR4_LIGHT());
+        }
+        else {
             // Check if its text
             List<VertexFormatElement> elements = format.getElements();
             if (elements.size() == 4 && elements.get(0) == VertexFormats.POSITION_ELEMENT && elements.get(1) == VertexFormats.COLOR_ELEMENT && elements.get(2) == VertexFormats.TEXTURE_0_ELEMENT && elements.get(3).getByteLength() == 4) {

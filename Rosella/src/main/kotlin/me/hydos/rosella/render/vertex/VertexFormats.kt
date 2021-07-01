@@ -14,6 +14,7 @@ class VertexFormats {
 		val POSITION_COLOR4_UV = create(of(VertexFormat.Element.POSITION, 0), of(VertexFormat.Element.COLOR4, 1), of(VertexFormat.Element.UVf, 2))
 		val POSITION_UV_COLOR4 = create(of(VertexFormat.Element.POSITION, 0), of(VertexFormat.Element.UVf, 1), of(VertexFormat.Element.COLOR4, 2))
 		val POSITION_UV_COLOR4_NORMAL = create(of(VertexFormat.Element.POSITION, 0), of(VertexFormat.Element.UVf, 1), of(VertexFormat.Element.COLOR4, 2), of(VertexFormat.Element.NORMAL, 3))
+		val POSITION_UV_COLOR4_LIGHT = create(of(VertexFormat.Element.POSITION, 0), of(VertexFormat.Element.UVf, 1), of(VertexFormat.Element.COLOR4, 2), of(VertexFormat.Element.LIGHT, 3))
 		val POSITION_COLOR4_UV_LIGHT = create(of(VertexFormat.Element.POSITION, 0), of(VertexFormat.Element.COLOR4, 1), of(VertexFormat.Element.UVf, 2), of(VertexFormat.Element.LIGHT, 3))
 		val POSITION_COLOR4_UV_LIGHT_NORMAL = create(of(VertexFormat.Element.POSITION, 0), of(VertexFormat.Element.COLOR4, 1), of(VertexFormat.Element.UVf, 2), of(VertexFormat.Element.LIGHT, 3), of(VertexFormat.Element.NORMAL, 4))
 		val POSITION_COLOR4_UV_UV0_LIGHT_NORMAL = create(of(VertexFormat.Element.POSITION, 0), of(VertexFormat.Element.COLOR4, 1), of(VertexFormat.Element.UVf, 2), of(VertexFormat.Element.UVs, 3), of(VertexFormat.Element.LIGHT, 4), of(VertexFormat.Element.NORMAL, 5))

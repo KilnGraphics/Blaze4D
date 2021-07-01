@@ -31,7 +31,7 @@ public class RenderSystemMixin {
                 matrix4f.a32,
                 matrix4f.a03,
                 -matrix4f.a13,
-                (matrix4f.a23) / 2.0F,
+                matrix4f.a23 / 2.0F,
                 matrix4f.a33
         );
         ci.cancel();
