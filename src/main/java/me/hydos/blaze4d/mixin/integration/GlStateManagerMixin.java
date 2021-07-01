@@ -57,6 +57,22 @@ public class GlStateManagerMixin {
         ci.cancel();
     }
 
+    @Inject(method = "_genTextures", at = @At("HEAD"), cancellable = true)
+    private static void genTextures(int[] is, CallbackInfo ci) {
+        for (int i = 0; i < is.length; i++) {
+            is[i] = Blaze4D.rosella.getTextureManager().generateTextureId();
+        }
+        ci.cancel();
+    }
+
+    @Inject(method = "_deleteTextures", at = @At("HEAD"), cancellable = true)
+    private static void deleteTextures(int[] is, CallbackInfo ci) {
+        for (int textureId : is) {
+            Blaze4D.rosella.getTextureManager().deleteTexture(textureId);
+        }
+        ci.cancel();
+    }
+
     /**
      * @author Blaze4D
      * @reason Clear Color Integration

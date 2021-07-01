@@ -42,11 +42,13 @@ class TextureManager(val device: Device) { // TODO: add layers, maybe not in thi
 		engine: Rosella,
 		textureId: Int,
 		image: UploadableImage,
+		offsetX: Int,
+		offsetY: Int,
 		imgFormat: Int,
 		samplerCreateInfo: SamplerCreateInfo
 	) {
 		val textureImage = TextureImage(0, 0, 0)
-		createTextureImage(device, image, engine.renderer, engine.memory, imgFormat, textureImage)
+		createTextureImage(device, image, offsetX, offsetY, engine.renderer, engine.memory, imgFormat, textureImage)
 		textureImage.view = createTextureImageView(device, imgFormat, textureImage.textureImage)
 
 		val textureSampler = samplerCache.computeIfAbsent(samplerCreateInfo) {

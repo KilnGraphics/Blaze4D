@@ -300,6 +300,8 @@ fun transitionImageLayout(
 fun createTextureImage(
 	device: Device,
 	image: UploadableImage,
+	offsetX: Int,
+	offsetY: Int,
 	renderer: Renderer,
 	memory: Memory,
 	imgFormat: Int,
@@ -352,6 +354,7 @@ fun createTextureImage(
 			textureImage.textureImage,
 			image.getWidth(),
 			image.getHeight(),
+			((offsetY * image.getWidth() + offsetX) * image.getChannels() * Float.SIZE_BYTES).toLong(),
 			device,
 			renderer
 		)
@@ -368,11 +371,11 @@ fun createTextureImage(
 	}
 }
 
-private fun copyBufferToImage(buffer: Long, image: Long, width: Int, height: Int, device: Device, renderer: Renderer) {
+private fun copyBufferToImage(buffer: Long, image: Long, width: Int, height: Int, offset: Long, device: Device, renderer: Renderer) {
 	MemoryStack.stackPush().use { stack ->
 		val commandBuffer: VkCommandBuffer = beginSingleTimeCommands(renderer)
 		val region = VkBufferImageCopy.callocStack(1, stack)
-			.bufferOffset(0)
+			.bufferOffset(offset)
 			.bufferRowLength(0)
 			.bufferImageHeight(0)
 		region.imageSubresource()

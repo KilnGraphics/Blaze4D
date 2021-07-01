@@ -50,6 +50,8 @@ public abstract class NativeImageMixin implements UploadableImage {
                 Blaze4D.rosella,
                 GlobalRenderSystem.boundTextureId,
                 this,
+                offsetX,
+                offsetY,
                 switch (getFormat()) {
                     case ABGR -> VK10.VK_FORMAT_R32G32B32A32_SFLOAT;
                     case BGR -> VK10.VK_FORMAT_R32G32B32_SFLOAT;
