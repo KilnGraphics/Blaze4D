@@ -16,24 +16,23 @@ public class RenderSystemMixin {
 
     @Inject(method = "setProjectionMatrix", at = @At("HEAD"), cancellable = true)
     private static void convertAndSetProjection(Matrix4f matrix4f, CallbackInfo ci) {
-        // 0 = not confident, 1 = pretty confident, 2 = fully confident
         GlobalRenderSystem.projectionMatrix = new org.joml.Matrix4f(
-                matrix4f.a00, //2
-                matrix4f.a10, //0
-                matrix4f.a20, //0
-                matrix4f.a30, //0
-                matrix4f.a01, //0
-                -matrix4f.a11, //1
-                matrix4f.a21, //0
-                matrix4f.a31, //0
-                matrix4f.a02, //0
-                matrix4f.a12, //0
-                matrix4f.a22 / 2.0F, //2
-                matrix4f.a32, //0
-                matrix4f.a03, //2
-                -matrix4f.a13, //2
-                (matrix4f.a23) / 2.0F, //2
-                matrix4f.a33 //1
+                matrix4f.a00,
+                matrix4f.a10,
+                matrix4f.a20,
+                matrix4f.a30,
+                matrix4f.a01,
+                -matrix4f.a11,
+                matrix4f.a21,
+                matrix4f.a31,
+                matrix4f.a02,
+                matrix4f.a12,
+                matrix4f.a22 / 2.0F,
+                matrix4f.a32,
+                matrix4f.a03,
+                -matrix4f.a13,
+                (matrix4f.a23) / 2.0F,
+                matrix4f.a33
         );
         ci.cancel();
     }
