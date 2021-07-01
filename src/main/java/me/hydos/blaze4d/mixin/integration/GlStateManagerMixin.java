@@ -10,7 +10,7 @@ import org.spongepowered.asm.mixin.injection.Inject;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 
 @Mixin(value = GlStateManager.class, remap = false)
-public class GLStateManagerMixin {
+public class GlStateManagerMixin {
 
     @Inject(method = {
             "_clearDepth",

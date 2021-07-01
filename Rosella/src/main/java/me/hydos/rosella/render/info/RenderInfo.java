@@ -83,7 +83,11 @@ public class RenderInfo implements MemoryCloseable {
 
     @Override
     public void free(Device device, Memory memory) {
-        memory.freeBuffer(vertexBuffer);
-        memory.freeBuffer(indexBuffer);
+        if(vertexBuffer != null) {
+            memory.freeBuffer(vertexBuffer);
+        }
+        if(indexBuffer != null) {
+            memory.freeBuffer(indexBuffer);
+        }
     }
 }
