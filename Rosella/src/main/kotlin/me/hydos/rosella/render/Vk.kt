@@ -9,6 +9,7 @@ import me.hydos.rosella.render.renderer.Renderer
 import me.hydos.rosella.render.swapchain.DepthBuffer
 import me.hydos.rosella.render.swapchain.RenderPass
 import me.hydos.rosella.render.swapchain.Swapchain
+import me.hydos.rosella.render.texture.ImageRegion
 import me.hydos.rosella.render.texture.StbiImage
 import me.hydos.rosella.render.texture.TextureImage
 import me.hydos.rosella.render.texture.UploadableImage
@@ -300,8 +301,7 @@ fun transitionImageLayout(
 fun createTextureImage(
 	device: Device,
 	image: UploadableImage,
-	offsetX: Int,
-	offsetY: Int,
+	region:  ImageRegion,
 	renderer: Renderer,
 	memory: Memory,
 	imgFormat: Int,
@@ -354,10 +354,15 @@ fun createTextureImage(
 			textureImage.textureImage,
 			image.getWidth(),
 			image.getHeight(),
-			((offsetY * image.getWidth() + offsetX) * image.getChannels() * Float.SIZE_BYTES).toLong(),
+			region.width,
+			region.height,
+			region.xOffset,
+			region.yOffset,
+			image.getChannels() * Float.SIZE_BYTES,
 			device,
 			renderer
 		)
+		memory.freeBuffer(stagingBuf)
 		transitionImageLayout(
 			textureImage.textureImage,
 			imgFormat,
@@ -367,24 +372,23 @@ fun createTextureImage(
 			renderer.device,
 			renderer
 		)
-		memory.freeBuffer(stagingBuf)
 	}
 }
 
-private fun copyBufferToImage(buffer: Long, image: Long, width: Int, height: Int, offset: Long, device: Device, renderer: Renderer) {
+private fun copyBufferToImage(buffer: Long, image: Long, textureWidth: Int, textureHeight: Int, regionWidth: Int, regionHeight: Int, xOffset: Int, yOffset: Int, perPixelSize: Int, device: Device, renderer: Renderer) {
 	MemoryStack.stackPush().use { stack ->
 		val commandBuffer: VkCommandBuffer = beginSingleTimeCommands(renderer)
 		val region = VkBufferImageCopy.callocStack(1, stack)
-			.bufferOffset(offset)
-			.bufferRowLength(0)
-			.bufferImageHeight(0)
+			.bufferOffset(((yOffset * textureWidth + xOffset) * perPixelSize).toLong())
+			.bufferRowLength(textureWidth)
+			.bufferImageHeight(textureHeight)
+		region.imageExtent().set(regionWidth, regionHeight, 1)
+		region.imageOffset().set(xOffset, yOffset, 0)
 		region.imageSubresource()
 			.aspectMask(VK_IMAGE_ASPECT_COLOR_BIT)
 			.mipLevel(0)
 			.baseArrayLayer(0)
 			.layerCount(1)
-		region.imageOffset().set(0, 0, 0)
-		region.imageExtent(VkExtent3D.callocStack(stack).set(width, height, 1))
 		vkCmdCopyBufferToImage(commandBuffer, buffer, image, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, region)
 		endSingleTimeCommands(commandBuffer, device, renderer)
 	}

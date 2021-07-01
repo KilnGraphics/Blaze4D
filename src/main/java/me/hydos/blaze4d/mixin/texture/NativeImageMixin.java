@@ -2,6 +2,7 @@ package me.hydos.blaze4d.mixin.texture;
 
 import me.hydos.blaze4d.Blaze4D;
 import me.hydos.blaze4d.api.GlobalRenderSystem;
+import me.hydos.rosella.render.texture.ImageRegion;
 import me.hydos.rosella.render.texture.SamplerCreateInfo;
 import me.hydos.rosella.render.texture.TextureFilter;
 import me.hydos.rosella.render.texture.UploadableImage;
@@ -50,8 +51,7 @@ public abstract class NativeImageMixin implements UploadableImage {
                 Blaze4D.rosella,
                 GlobalRenderSystem.boundTextureId,
                 this,
-                offsetX,
-                offsetY,
+                new ImageRegion(width, height, offsetX, offsetY),
                 switch (getFormat()) {
                     case ABGR -> VK10.VK_FORMAT_R32G32B32A32_SFLOAT;
                     case BGR -> VK10.VK_FORMAT_R32G32B32_SFLOAT;

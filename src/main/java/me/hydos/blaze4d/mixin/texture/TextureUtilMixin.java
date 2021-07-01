@@ -23,8 +23,6 @@ public class TextureUtilMixin {
                 Blaze4D.rosella,
                 id,
                 BlankTextures.getOrCreateTex(width, height, internalFormat),
-                0,
-                0,
                 switch (internalFormat) {
                     case ABGR -> VK10.VK_FORMAT_R32G32B32A32_SFLOAT;
                     case BGR -> VK10.VK_FORMAT_R32G32B32_SFLOAT;

@@ -17,8 +17,6 @@
     "shader.GlStateManagerMixin",
     "shader.RenderSystemMixin",
     "shader.WorldRendererMixin",
-    "testing.screens.RotatingCubeMapRendererMixin",
-    "testing.screens.TitleScreenMixin",
     "texture.NativeImageMixin",
     "texture.RenderSystemMixin",
     "texture.TextureManagerMixin",

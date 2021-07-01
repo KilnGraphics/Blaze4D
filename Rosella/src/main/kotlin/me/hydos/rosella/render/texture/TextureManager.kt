@@ -42,13 +42,49 @@ class TextureManager(val device: Device) { // TODO: add layers, maybe not in thi
 		engine: Rosella,
 		textureId: Int,
 		image: UploadableImage,
-		offsetX: Int,
-		offsetY: Int,
+		imageRegion: ImageRegion,
 		imgFormat: Int,
 		samplerCreateInfo: SamplerCreateInfo
 	) {
 		val textureImage = TextureImage(0, 0, 0)
-		createTextureImage(device, image, offsetX, offsetY, engine.renderer, engine.memory, imgFormat, textureImage)
+		createTextureImage(device, image, imageRegion, engine.renderer, engine.memory, imgFormat, textureImage)
+		textureImage.view = createTextureImageView(device, imgFormat, textureImage.textureImage)
+
+		val textureSampler = samplerCache.computeIfAbsent(samplerCreateInfo) {
+			TextureSampler(samplerCreateInfo, engine.device)
+		}
+
+		textureMap[textureId] = Texture(imgFormat, textureImage, textureSampler.pointer);
+	}
+
+	fun uploadTextureToId(
+		engine: Rosella,
+		textureId: Int,
+		image: UploadableImage,
+		imgFormat: Int,
+		samplerCreateInfo: SamplerCreateInfo
+	) {
+		val textureImage = TextureImage(0, 0, 0)
+		createTextureImage(device, image, ImageRegion(image.getWidth(), image.getHeight(), 0, 0), engine.renderer, engine.memory, imgFormat, textureImage)
+		textureImage.view = createTextureImageView(device, imgFormat, textureImage.textureImage)
+
+		val textureSampler = samplerCache.computeIfAbsent(samplerCreateInfo) {
+			TextureSampler(samplerCreateInfo, engine.device)
+		}
+
+		textureMap[textureId] = Texture(imgFormat, textureImage, textureSampler.pointer);
+	}
+
+	fun drawToExistingTexture(
+		engine: Rosella,
+		textureId: Int,
+		image: UploadableImage,
+		imageRegion: ImageRegion,
+		imgFormat: Int,
+		samplerCreateInfo: SamplerCreateInfo
+	) {
+		val textureImage = TextureImage(0, 0, 0)
+		createTextureImage(device, image, ImageRegion(image.getWidth(), image.getHeight(), 0, 0), engine.renderer, engine.memory, imgFormat, textureImage)
 		textureImage.view = createTextureImageView(device, imgFormat, textureImage.textureImage)
 
 		val textureSampler = samplerCache.computeIfAbsent(samplerCreateInfo) {
