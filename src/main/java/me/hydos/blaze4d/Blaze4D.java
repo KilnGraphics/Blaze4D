@@ -13,6 +13,7 @@ import org.lwjgl.system.Configuration;
 public class Blaze4D implements ClientModInitializer {
     public static final Logger LOGGER = LogManager.getLogger("Blaze4D", new StringFormatterMessageFactory());
     public static final boolean VALIDATION_ENABLED = false;
+    public static final boolean RENDERDOC_ENABLED = false;
 
     public static Rosella rosella;
     public static Window window;
@@ -27,7 +28,7 @@ public class Blaze4D implements ClientModInitializer {
 //        Configuration.DEBUG_MEMORY_ALLOCATOR.set(true);
 
         try {
-            if (!VALIDATION_ENABLED && FabricLoader.getInstance().isDevelopmentEnvironment()) {
+            if (RENDERDOC_ENABLED) {
                 System.loadLibrary("renderdoc");
             }
         } catch (UnsatisfiedLinkError e) {
