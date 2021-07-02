@@ -34,3 +34,6 @@ run/
 
 # random log files
 *.log
+
+# renderdoc captures
+*.cap
