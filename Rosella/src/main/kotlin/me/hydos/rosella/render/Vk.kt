@@ -381,7 +381,6 @@ fun drawToTexture(
 	}
 }
 
-// TODO: regionWidth and regionHeight aren't reliable because the buffer may contain extra data
 fun copyBufferToImage(
 	buffer: Long,
 	image: Long,
