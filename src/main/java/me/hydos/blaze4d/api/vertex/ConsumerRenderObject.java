@@ -52,7 +52,7 @@ public class ConsumerRenderObject implements Renderable {
                 }
             }
 
-            case TRIANGLE_STRIP -> {
+            case TRIANGLE_STRIP, DEBUG_LINE_STRIP -> {
                 if (format == net.minecraft.client.render.VertexFormats.POSITION) {
                     returnValue = Materials.TRIANGLE_STRIP.build(shader, textureId, renderInfo.consumer.getFormat());
                 }
@@ -60,7 +60,7 @@ public class ConsumerRenderObject implements Renderable {
 
             case TRIANGLE_FAN -> returnValue = Materials.TRIANGLE_FAN.build(shader, textureId, renderInfo.consumer.getFormat());
 
-            case LINES -> returnValue = Materials.LINES.build(shader, textureId, renderInfo.consumer.getFormat());
+            case LINES, DEBUG_LINES -> returnValue = Materials.LINES.build(shader, textureId, renderInfo.consumer.getFormat());
 
             default -> throw new RuntimeException("Unsupported Draw Mode:  " + drawMode);
         }

@@ -98,7 +98,7 @@ class Swapchain(
 
 	private fun chooseSwapPresentMode(availablePresentModes: IntBuffer): Int {
 		for (i in 0 until availablePresentModes.capacity()) {
-			if (availablePresentModes[i] == VK_PRESENT_MODE_MAILBOX_KHR) {
+			if (availablePresentModes[i] == VK_PRESENT_MODE_IMMEDIATE_KHR) { // Vsync = VK_PRESENT_MODE_MAILBOX_KHR
 				return availablePresentModes[i]
 			}
 		}
