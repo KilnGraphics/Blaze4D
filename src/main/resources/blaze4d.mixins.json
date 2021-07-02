@@ -4,6 +4,7 @@
   "package": "me.hydos.blaze4d.mixin",
   "compatibilityLevel": "JAVA_16",
   "mixins": [
+    "buffers.GlStateManagerMixin",
     "debug.TextureManagerMixin"
   ],
   "client": [

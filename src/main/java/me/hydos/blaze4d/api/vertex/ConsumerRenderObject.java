@@ -9,20 +9,14 @@ import me.hydos.rosella.render.info.RenderInfo;
 import me.hydos.rosella.render.material.Material;
 import me.hydos.rosella.render.object.Renderable;
 import me.hydos.rosella.render.shader.ShaderProgram;
-import me.hydos.rosella.render.texture.UploadableImage;
 import me.hydos.rosella.render.util.memory.Memory;
 import me.hydos.rosella.render.vertex.BufferVertexConsumer;
-import me.hydos.rosella.render.vertex.VertexConsumer;
 import me.hydos.rosella.render.vertex.VertexFormats;
 import net.minecraft.client.render.VertexFormat;
-import net.minecraft.util.math.Vec3f;
 import org.jetbrains.annotations.NotNull;
-import org.joml.Matrix4f;
-import org.joml.Vector3f;
 
 public class ConsumerRenderObject implements Renderable {
 
-    private final net.minecraft.client.render.VertexFormat.DrawMode drawMode;
     private final VertexFormat format;
     private final int textureId;
     private final ShaderProgram shader;
@@ -33,7 +27,7 @@ public class ConsumerRenderObject implements Renderable {
 
     public ConsumerRenderObject(ObjectInfo info, Rosella rosella) {
         this.renderInfo.consumer = info.consumer;
-        this.drawMode = info.drawMode;
+        VertexFormat.DrawMode drawMode = info.drawMode;
         this.format = info.format;
         this.shader = info.shader;
         this.textureId = info.textureId;

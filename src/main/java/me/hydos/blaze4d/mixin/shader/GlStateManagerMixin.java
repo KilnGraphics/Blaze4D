@@ -11,6 +11,7 @@ import me.hydos.rosella.render.resource.Resource;
 import me.hydos.rosella.render.shader.RawShaderProgram;
 import me.hydos.rosella.render.util.ShaderType;
 import org.lwjgl.opengl.GL20;
+import org.lwjgl.opengl.GL20C;
 import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.Overwrite;
 
@@ -80,7 +81,7 @@ public class GlStateManagerMixin {
     @Overwrite
     public static int glGetShaderi(int shader, int pname) {
         RenderSystem.assertThread(RenderSystem::isOnRenderThread);
-        return 1;
+        return GL20C.GL_TRUE;
     }
 
     //========================
