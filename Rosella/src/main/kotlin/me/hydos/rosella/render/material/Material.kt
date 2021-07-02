@@ -5,9 +5,7 @@ import me.hydos.rosella.render.Topology
 import me.hydos.rosella.render.resource.Identifier
 import me.hydos.rosella.render.resource.Resource
 import me.hydos.rosella.render.shader.ShaderProgram
-import me.hydos.rosella.render.texture.SamplerCreateInfo
-import me.hydos.rosella.render.texture.StbiImage
-import me.hydos.rosella.render.texture.Texture
+import me.hydos.rosella.render.texture.*
 import me.hydos.rosella.render.vertex.VertexFormat
 
 /**
@@ -38,9 +36,11 @@ open class Material(
 
 	open fun loadTextures(engine: Rosella) {
 		if (resource != Resource.Empty) {
-			val test = engine.textureManager.generateTextureId() // FIXME this is temporary
-			engine.textureManager.uploadTextureToId(engine, test, StbiImage(resource), imgFormat, samplerCreateInfo)
-			texture = engine.textureManager.getTexture(test)!!
+			val textureId = engine.textureManager.generateTextureId() // FIXME this texture can't be removed
+			val image: UploadableImage = StbiImage(resource)
+			engine.textureManager.createTexture(engine, textureId, image.getWidth(), image.getHeight(), imgFormat, samplerCreateInfo)
+			engine.textureManager.drawToExistingTexture(engine, textureId, image)
+			texture = engine.textureManager.getTexture(textureId)!!
 		}
 	}
 }

@@ -6,6 +6,7 @@ import me.hydos.rosella.Rosella
 import me.hydos.rosella.render.createTextureImage
 import me.hydos.rosella.render.createTextureImageView
 import me.hydos.rosella.render.device.Device
+import me.hydos.rosella.render.drawToTextureImage
 
 /**
  * Caches Textures and other texture related objects
@@ -35,19 +36,16 @@ class TextureManager(val device: Device) { // TODO: add layers, maybe not in thi
 		return textureMap[textureId];
 	}
 
-	// TODO: add variant of this method which accepts a pointer or a buffer directly
-	// probably wont work if we need to mess with the buffer for the capacity and location and stuff for vulkan
-	// for nativeimage, we could also change the format so we don't have to change the channels
-	fun uploadTextureToId(
+	fun createTexture(
 		engine: Rosella,
 		textureId: Int,
-		image: UploadableImage,
-		imageRegion: ImageRegion,
+		width: Int,
+		height: Int,
 		imgFormat: Int,
 		samplerCreateInfo: SamplerCreateInfo
 	) {
 		val textureImage = TextureImage(0, 0, 0)
-		createTextureImage(device, image, imageRegion, engine.renderer, engine.memory, imgFormat, textureImage)
+		createTextureImage(engine.renderer, width, height, imgFormat, textureImage)
 		textureImage.view = createTextureImageView(device, imgFormat, textureImage.textureImage)
 
 		val textureSampler = samplerCache.computeIfAbsent(samplerCreateInfo) {
@@ -57,22 +55,16 @@ class TextureManager(val device: Device) { // TODO: add layers, maybe not in thi
 		textureMap[textureId] = Texture(imgFormat, textureImage, textureSampler.pointer);
 	}
 
-	fun uploadTextureToId(
+	fun applySamplerInfoToTexture(
 		engine: Rosella,
 		textureId: Int,
-		image: UploadableImage,
-		imgFormat: Int,
 		samplerCreateInfo: SamplerCreateInfo
 	) {
-		val textureImage = TextureImage(0, 0, 0)
-		createTextureImage(device, image, ImageRegion(image.getWidth(), image.getHeight(), 0, 0), engine.renderer, engine.memory, imgFormat, textureImage)
-		textureImage.view = createTextureImageView(device, imgFormat, textureImage.textureImage)
-
 		val textureSampler = samplerCache.computeIfAbsent(samplerCreateInfo) {
 			TextureSampler(samplerCreateInfo, engine.device)
 		}
 
-		textureMap[textureId] = Texture(imgFormat, textureImage, textureSampler.pointer);
+		textureMap[textureId]?.textureSampler = textureSampler.pointer
 	}
 
 	fun drawToExistingTexture(
@@ -80,17 +72,15 @@ class TextureManager(val device: Device) { // TODO: add layers, maybe not in thi
 		textureId: Int,
 		image: UploadableImage,
 		imageRegion: ImageRegion,
-		imgFormat: Int,
-		samplerCreateInfo: SamplerCreateInfo
 	) {
-		val textureImage = TextureImage(0, 0, 0)
-		createTextureImage(device, image, ImageRegion(image.getWidth(), image.getHeight(), 0, 0), engine.renderer, engine.memory, imgFormat, textureImage)
-		textureImage.view = createTextureImageView(device, imgFormat, textureImage.textureImage)
+		drawToTextureImage(engine.device, image, imageRegion, engine.renderer, engine.memory, getTexture(textureId)!!.textureImage)
+	}
 
-		val textureSampler = samplerCache.computeIfAbsent(samplerCreateInfo) {
-			TextureSampler(samplerCreateInfo, engine.device)
-		}
-
-		textureMap[textureId] = Texture(imgFormat, textureImage, textureSampler.pointer);
+	fun drawToExistingTexture(
+		engine: Rosella,
+		textureId: Int,
+		image: UploadableImage
+	) {
+		drawToTextureImage(engine.device, image, ImageRegion(0, 0, image.getWidth(), image.getHeight()), engine.renderer, engine.memory, getTexture(textureId)!!.textureImage)
 	}
 }

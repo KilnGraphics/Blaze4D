@@ -126,7 +126,7 @@ class RawShaderProgram(
 			val imageInfo = VkDescriptorImageInfo.callocStack(1, stack)
 				.imageLayout(VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL)
 				.imageView(texture.textureImage.view)
-				.sampler(texture.textureSampler)
+				.sampler(texture.textureSampler!!)
 
 			val descriptorWrites = VkWriteDescriptorSet.callocStack(poolObjects.size, stack)
 

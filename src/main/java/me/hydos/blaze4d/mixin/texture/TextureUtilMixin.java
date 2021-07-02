@@ -3,7 +3,6 @@ package me.hydos.blaze4d.mixin.texture;
 import com.mojang.blaze3d.platform.TextureUtil;
 import me.hydos.blaze4d.Blaze4D;
 import me.hydos.blaze4d.api.GlobalRenderSystem;
-import me.hydos.blaze4d.api.texture.BlankTextures;
 import me.hydos.rosella.render.texture.SamplerCreateInfo;
 import me.hydos.rosella.render.texture.TextureFilter;
 import net.minecraft.client.texture.NativeImage;
@@ -17,12 +16,13 @@ import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 public class TextureUtilMixin {
 
     @Inject(method = "prepareImage(Lnet/minecraft/client/texture/NativeImage$GLFormat;IIII)V", at = @At("HEAD"), cancellable = true)
-    private static void loadTextureIntoRosella(NativeImage.GLFormat internalFormat, int id, int maxLevel, int width, int height, CallbackInfo ci) {
+    private static void createRosellaTexture(NativeImage.GLFormat internalFormat, int id, int maxLevel, int width, int height, CallbackInfo ci) {
         GlobalRenderSystem.boundTextureId = id;
-        Blaze4D.rosella.getTextureManager().uploadTextureToId(
+        Blaze4D.rosella.getTextureManager().createTexture(
                 Blaze4D.rosella,
                 id,
-                BlankTextures.getOrCreateTex(width, height, internalFormat),
+                width,
+                height,
                 switch (internalFormat) {
                     case ABGR -> VK10.VK_FORMAT_R32G32B32A32_SFLOAT;
                     case BGR -> VK10.VK_FORMAT_R32G32B32_SFLOAT;
@@ -31,6 +31,7 @@ public class TextureUtilMixin {
                 },
                 new SamplerCreateInfo(TextureFilter.NEAREST) // TODO: hmm...
         );
+        GlobalRenderSystem.boundTextureId = id;
         ci.cancel();
     }
 }
