@@ -227,7 +227,7 @@ class Rosella(
 		try {
 			renderObjects[obj.renderInfo]!!.add(obj.instanceInfo)
 		} catch (e : Exception) {
-			System.err.println("Something not good happened")
+//			System.err.println("Something not good happened")
 		}
 	}
 

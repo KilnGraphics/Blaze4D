@@ -3,10 +3,9 @@ package me.hydos.rosella.render.texture
 import it.unimi.dsi.fastutil.ints.IntArrayPriorityQueue
 import it.unimi.dsi.fastutil.ints.IntPriorityQueues
 import me.hydos.rosella.Rosella
-import me.hydos.rosella.render.createTextureImage
-import me.hydos.rosella.render.createTextureImageView
+import me.hydos.rosella.render.*
 import me.hydos.rosella.render.device.Device
-import me.hydos.rosella.render.drawToTexture
+import me.hydos.rosella.render.renderer.Renderer
 
 /**
  * Caches Textures and other texture related objects
@@ -15,6 +14,8 @@ class TextureManager(val device: Device) { // TODO: add layers, maybe not in thi
 
 	private val textureMap = HashMap<Int, Texture>()
 	private val samplerCache = HashMap<SamplerCreateInfo, TextureSampler>() // bro there's like 3 options for this
+
+	private val testSet = HashSet<Texture>()
 
 	private val reusableTexIds = IntPriorityQueues.synchronize(IntArrayPriorityQueue())
 	private var nextTexId : Int = 0;
@@ -73,7 +74,12 @@ class TextureManager(val device: Device) { // TODO: add layers, maybe not in thi
 		image: UploadableImage,
 		imageRegion: ImageRegion,
 	) {
-		drawToTexture(engine.device, image, imageRegion, engine.renderer, engine.memory, getTexture(textureId)!!)
+		val texture = getTexture(textureId)!!
+		if (testSet.contains(texture)) {
+			undoTestLol(engine.renderer, texture.textureImage.textureImage, texture.imgFormat)
+			testSet.remove(texture)
+		}
+		drawToTexture(engine.device, image, imageRegion, engine.renderer, engine.memory, texture)
 	}
 
 	fun drawToExistingTexture(
@@ -81,6 +87,13 @@ class TextureManager(val device: Device) { // TODO: add layers, maybe not in thi
 		textureId: Int,
 		image: UploadableImage
 	) {
-		drawToTexture(engine.device, image, ImageRegion(0, 0, image.getWidth(), image.getHeight()), engine.renderer, engine.memory, getTexture(textureId)!!)
+		drawToExistingTexture(engine, textureId, image, ImageRegion(0, 0, image.getWidth(), image.getHeight()))
+	}
+
+	fun prepareTexture(renderer: Renderer, texture: Texture) {
+		if (!testSet.contains(texture)) {
+			prepareTextureForRender(renderer, texture.textureImage.textureImage, texture.imgFormat)
+			testSet.add(texture)
+		}
 	}
 }

@@ -79,8 +79,8 @@ public class GlobalRenderSystem {
         Blaze4D.window.forceMainLoop();
         Blaze4D.rosella.getRenderer().render(Blaze4D.rosella);
 
-        currentFrameObjects.forEach(consumerRenderObject -> consumerRenderObject.free(Blaze4D.rosella.getMemory(), Blaze4D.rosella.getDevice()));
-        currentFrameObjects.clear();
+//        currentFrameObjects.forEach(consumerRenderObject -> consumerRenderObject.free(Blaze4D.rosella.getMemory(), Blaze4D.rosella.getDevice()));
+//        currentFrameObjects.clear();
     }
 
     public static void uploadObject(ObjectInfo objectInfo, Rosella rosella) {

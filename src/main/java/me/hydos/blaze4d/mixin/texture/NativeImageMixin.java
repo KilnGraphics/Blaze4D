@@ -57,7 +57,7 @@ public abstract class NativeImageMixin implements UploadableImage {
                 Blaze4D.rosella,
                 GlobalRenderSystem.boundTextureId,
                 this,
-                new ImageRegion(width, height, offsetX, offsetY)
+                new ImageRegion(width, height, unpackSkipPixels, unpackSkipRows)
         );
         if (close) {
             this.close();

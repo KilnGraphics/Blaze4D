@@ -39,7 +39,7 @@ public class InstanceInfo implements MemoryCloseable {
             ubo.create(rosella.getRenderer().swapchain);
         }
 
-        RosellaVk.prepareTextureForRender(rosella.getRenderer(), material.texture.getTextureImage().getTextureImage(), material.getImgFormat());
+        rosella.getTextureManager().prepareTexture(rosella.getRenderer(), material.texture);
 
         material.shader.getDescriptorManager().createNewDescriptor(material.texture, ubo);
     }

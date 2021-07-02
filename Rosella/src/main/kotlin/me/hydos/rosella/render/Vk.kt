@@ -392,13 +392,13 @@ fun copyBufferToImage(buffer: Long, image: Long, textureWidth: Int, textureHeigh
 			.bufferOffset(((yOffset * textureWidth + xOffset) * perPixelSize).toLong())
 			.bufferRowLength(textureWidth)
 			.bufferImageHeight(textureHeight)
-		region.imageExtent().set(regionWidth, regionHeight, 1)
 		region.imageOffset().set(xOffset, yOffset, 0)
 		region.imageSubresource()
 			.aspectMask(VK_IMAGE_ASPECT_COLOR_BIT)
 			.mipLevel(0)
 			.baseArrayLayer(0)
 			.layerCount(1)
+		region.imageExtent().set(regionWidth, regionHeight, 1)
 		vkCmdCopyBufferToImage(commandBuffer, buffer, image, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, region)
 		endSingleTimeCommands(commandBuffer, device, renderer)
 	}
@@ -413,6 +413,21 @@ fun prepareTextureForRender(renderer: Renderer, image: Long, imgFormat: Int) {
 		imgFormat,
 		VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
 		VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL,
+		renderer.depthBuffer,
+		renderer.device,
+		renderer
+	)
+}
+
+/**
+ * Utility method for final image layout transition undo.
+ */
+fun undoTestLol(renderer: Renderer, image: Long, imgFormat: Int) {
+	transitionImageLayout(
+		image,
+		imgFormat,
+		VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL,
+		VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
 		renderer.depthBuffer,
 		renderer.device,
 		renderer

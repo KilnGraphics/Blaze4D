@@ -11,7 +11,7 @@ import org.apache.logging.log4j.message.StringFormatterMessageFactory;
 
 public class Blaze4D implements ClientModInitializer {
     public static final Logger LOGGER = LogManager.getLogger("Blaze4D", new StringFormatterMessageFactory());
-    public static final boolean VALIDATION_ENABLED = false;
+    public static final boolean VALIDATION_ENABLED = true;
     public static final boolean RENDERDOC_ENABLED = false;
 
     public static Rosella rosella;
