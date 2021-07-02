@@ -4,10 +4,10 @@
   "package": "me.hydos.blaze4d.mixin",
   "compatibilityLevel": "JAVA_16",
   "mixins": [
-    "debug.TextureManagerMixin"
   ],
   "client": [
     "blaze3d.RenderSystemMixin",
+    "debug.TextureManagerMixin",
     "integration.FramebufferMixin",
     "integration.GlDebugMixin",
     "integration.GlStateManagerMixin",
@@ -16,9 +16,10 @@
     "integration.WindowFramebufferMixin",
     "integration.WindowMixin",
     "matrices.RenderSystemMixin",
-    "shader.GLImportProcessorMixin",
     "shader.GlStateManagerMixin",
     "shader.RenderSystemMixin",
+    "shader.ShaderAccessor",
+    "shader.ShaderMixin",
     "shader.WorldRendererMixin",
     "testing.screens.RotatingCubeMapRendererMixin",
     "testing.screens.TitleScreenMixin",
