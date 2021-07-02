@@ -10,10 +10,7 @@ import me.hydos.rosella.render.renderer.Renderer
 import me.hydos.rosella.render.swapchain.DepthBuffer
 import me.hydos.rosella.render.swapchain.RenderPass
 import me.hydos.rosella.render.swapchain.Swapchain
-import me.hydos.rosella.render.texture.ImageRegion
-import me.hydos.rosella.render.texture.StbiImage
-import me.hydos.rosella.render.texture.TextureImage
-import me.hydos.rosella.render.texture.UploadableImage
+import me.hydos.rosella.render.texture.*
 import me.hydos.rosella.render.util.memory.Memory
 import me.hydos.rosella.render.util.ok
 import org.lwjgl.PointerBuffer
@@ -349,13 +346,13 @@ fun createTextureImage(
 	}
 }
 
-fun drawToTextureImage(
+fun drawToTexture(
 	device: Device,
 	image: UploadableImage,
 	region:  ImageRegion,
 	renderer: Renderer,
 	memory: Memory,
-	textureImage: TextureImage
+	texture: Texture
 ) {
 	MemoryStack.stackPush().use { stack ->
 		val pBuffer = stack.mallocLong(1)
@@ -371,9 +368,9 @@ fun drawToTextureImage(
 
 		copyBufferToImage(
 			stagingBuf.buffer,
-			textureImage.textureImage,
-			image.getWidth(),
-			image.getHeight(),
+			texture.textureImage.textureImage,
+			texture.width,
+			texture.height,
 			region.width,
 			region.height,
 			region.xOffset,
@@ -387,6 +384,7 @@ fun drawToTextureImage(
 	}
 }
 
+// TODO: regionWidth and regionHeight aren't reliable because the buffer may contain extra data
 fun copyBufferToImage(buffer: Long, image: Long, textureWidth: Int, textureHeight: Int, regionWidth: Int, regionHeight: Int, xOffset: Int, yOffset: Int, perPixelSize: Int, device: Device, renderer: Renderer) {
 	MemoryStack.stackPush().use { stack ->
 		val commandBuffer: VkCommandBuffer = beginSingleTimeCommands(renderer)

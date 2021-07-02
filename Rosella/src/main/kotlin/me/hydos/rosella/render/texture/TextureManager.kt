@@ -6,7 +6,7 @@ import me.hydos.rosella.Rosella
 import me.hydos.rosella.render.createTextureImage
 import me.hydos.rosella.render.createTextureImageView
 import me.hydos.rosella.render.device.Device
-import me.hydos.rosella.render.drawToTextureImage
+import me.hydos.rosella.render.drawToTexture
 
 /**
  * Caches Textures and other texture related objects
@@ -52,7 +52,7 @@ class TextureManager(val device: Device) { // TODO: add layers, maybe not in thi
 			TextureSampler(samplerCreateInfo, engine.device)
 		}
 
-		textureMap[textureId] = Texture(imgFormat, textureImage, textureSampler.pointer);
+		textureMap[textureId] = Texture(imgFormat, width, height, textureImage, textureSampler.pointer);
 	}
 
 	fun applySamplerInfoToTexture(
@@ -73,7 +73,7 @@ class TextureManager(val device: Device) { // TODO: add layers, maybe not in thi
 		image: UploadableImage,
 		imageRegion: ImageRegion,
 	) {
-		drawToTextureImage(engine.device, image, imageRegion, engine.renderer, engine.memory, getTexture(textureId)!!.textureImage)
+		drawToTexture(engine.device, image, imageRegion, engine.renderer, engine.memory, getTexture(textureId)!!)
 	}
 
 	fun drawToExistingTexture(
@@ -81,6 +81,6 @@ class TextureManager(val device: Device) { // TODO: add layers, maybe not in thi
 		textureId: Int,
 		image: UploadableImage
 	) {
-		drawToTextureImage(engine.device, image, ImageRegion(0, 0, image.getWidth(), image.getHeight()), engine.renderer, engine.memory, getTexture(textureId)!!.textureImage)
+		drawToTexture(engine.device, image, ImageRegion(0, 0, image.getWidth(), image.getHeight()), engine.renderer, engine.memory, getTexture(textureId)!!)
 	}
 }
