@@ -17,7 +17,7 @@ public class TextureUtilMixin {
 
     @Inject(method = "prepareImage(Lnet/minecraft/client/texture/NativeImage$GLFormat;IIII)V", at = @At("HEAD"), cancellable = true)
     private static void createRosellaTexture(NativeImage.GLFormat internalFormat, int id, int maxLevel, int width, int height, CallbackInfo ci) {
-        GlobalRenderSystem.boundTextureId = id;
+        GlobalRenderSystem.boundTextureIds[GlobalRenderSystem.activeTexture] = id;
         Blaze4D.rosella.getTextureManager().createTexture(
                 Blaze4D.rosella,
                 id,
@@ -31,7 +31,6 @@ public class TextureUtilMixin {
                 },
                 new SamplerCreateInfo(TextureFilter.NEAREST) // TODO: hmm...
         );
-        GlobalRenderSystem.boundTextureId = id;
         ci.cancel();
     }
 }

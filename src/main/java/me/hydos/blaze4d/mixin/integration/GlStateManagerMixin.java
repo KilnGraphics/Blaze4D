@@ -20,7 +20,6 @@ public class GlStateManagerMixin {
             "_texParameter(III)V",
             "_texImage2D",
             "_depthFunc",
-            "_activeTexture",
             "_clear",
             "_disableScissorTest",
             "_enableScissorTest",
@@ -42,7 +41,18 @@ public class GlStateManagerMixin {
 
     @Inject(method = "_bindTexture", at = @At("HEAD"), cancellable = true)
     private static void bindTexture(int texture, CallbackInfo ci) {
-        GlobalRenderSystem.boundTextureId = texture;
+        GlobalRenderSystem.boundTextureIds[GlobalRenderSystem.activeTexture] = texture;
+        ci.cancel();
+    }
+
+    @Inject(method = "_getActiveTexture", at = @At("HEAD"), cancellable = true)
+    private static void getActiveTexture(CallbackInfoReturnable<Integer> cir) {
+        cir.setReturnValue(GlobalRenderSystem.activeTexture);
+    }
+
+    @Inject(method = "_activeTexture", at = @At("HEAD"), cancellable = true)
+    private static void activeTexture(int texture, CallbackInfo ci) {
+        GlobalRenderSystem.activeTexture = texture - '蓀';
         ci.cancel();
     }
 
