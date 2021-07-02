@@ -10,7 +10,7 @@ class StbiImage(resource: Resource) : UploadableImage {
 	private var height: Int
 	private var width: Int
 	private var channels: Int
-	private var imageSize: Int
+	private var pixelSize: Int
 	private var pixels: ByteBuffer
 
 	init {
@@ -32,10 +32,7 @@ class StbiImage(resource: Resource) : UploadableImage {
 			this.height = pHeight[0]
 			this.channels = pChannels[0]
 			this.pixels = pixels
-			this.imageSize = width * height * 4 // ARGB = 4?
-			if (imageSize == 0) {
-				throw RuntimeException("ImageSize is equal to 0")
-			}
+			this.pixelSize = 4 // ARGB = 4?
 		}
 	}
 
@@ -52,11 +49,11 @@ class StbiImage(resource: Resource) : UploadableImage {
 		return channels
 	}
 
-	override fun getImageSize(): Int {
-		return imageSize
+	override fun getBytesPerPixel(): Int {
+		return pixelSize
 	}
 
-	override fun getPixels(): ByteBuffer {
-		return pixels
+	override fun getPixels(region: ImageRegion): ByteBuffer {
+		return pixels //FIXME use image size
 	}
 }

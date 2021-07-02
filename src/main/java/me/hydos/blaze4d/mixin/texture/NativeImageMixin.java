@@ -31,9 +31,6 @@ public abstract class NativeImageMixin implements UploadableImage {
     private int height;
 
     @Shadow
-    public abstract NativeImage.Format getFormat();
-
-    @Shadow
     public abstract void close();
 
     @Shadow public abstract int getPixelColor(int x, int y);
@@ -57,6 +54,7 @@ public abstract class NativeImageMixin implements UploadableImage {
                 Blaze4D.rosella,
                 GlobalRenderSystem.boundTextureIds[GlobalRenderSystem.activeTexture],
                 this,
+                new ImageRegion(width, height, unpackSkipPixels, unpackSkipRows),
                 new ImageRegion(width, height, offsetX, offsetY)
         );
         if (close) {
@@ -81,10 +79,11 @@ public abstract class NativeImageMixin implements UploadableImage {
     }
 
     @Override
-    public ByteBuffer getPixels() {
-        ByteBuffer pixels = MemoryUtil.memAlloc(getImageSize());
-        for (int y = 0; y < getHeight(); y++) {
-            for (int x = 0; x < getWidth(); x++) {
+    public ByteBuffer getPixels(ImageRegion region) {
+        int imageSize = region.getWidth() * region.getHeight() * getBytesPerPixel();
+        ByteBuffer pixels = MemoryUtil.memAlloc(imageSize);
+        for (int y = region.getYOffset(); y < region.getHeight() + region.getYOffset(); y++) {
+            for (int x = region.getXOffset(); x < region.getWidth() + region.getXOffset(); x++) {
                 int pixelColor = getPixelColor(x, y);
                 pixels.putFloat(NativeImage.getRed(pixelColor) / 255F);
                 pixels.putFloat(NativeImage.getGreen(pixelColor) / 255F);
@@ -92,15 +91,15 @@ public abstract class NativeImageMixin implements UploadableImage {
                 pixels.putFloat(NativeImage.getAlpha(pixelColor) / 255F);
             }
         }
-        if (pixels.capacity() != getImageSize()) {
-            throw new IllegalStateException("Image has wrong size! Expected: " + getImageSize() + " but got " + pixels.capacity());
+        if (pixels.capacity() != imageSize) {
+            throw new IllegalStateException("Image has wrong size! Expected: " + imageSize + " but got " + pixels.capacity());
         }
 
         return pixels;
     }
 
     @Override
-    public int getImageSize() {
-        return getWidth() * getHeight() * getChannels() * Float.BYTES;
+    public int getBytesPerPixel() {
+        return getChannels() * Float.BYTES;
     }
 }

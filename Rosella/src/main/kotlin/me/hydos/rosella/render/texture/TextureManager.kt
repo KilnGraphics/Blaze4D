@@ -72,14 +72,15 @@ class TextureManager(val device: Device) { // TODO: add layers, maybe not in thi
 		engine: Rosella,
 		textureId: Int,
 		image: UploadableImage,
-		imageRegion: ImageRegion,
+		srcRegion: ImageRegion,
+		dstRegion: ImageRegion,
 	) {
 		val texture = getTexture(textureId)!!
 		if (testSet.contains(texture)) {
 			undoTestLol(engine.renderer, texture.textureImage.textureImage, texture.imgFormat)
 			testSet.remove(texture)
 		}
-		drawToTexture(engine.device, image, imageRegion, engine.renderer, engine.memory, texture)
+		drawToTexture(engine.device, image, srcRegion, dstRegion, engine.renderer, engine.memory, texture)
 	}
 
 	fun drawToExistingTexture(
@@ -87,7 +88,8 @@ class TextureManager(val device: Device) { // TODO: add layers, maybe not in thi
 		textureId: Int,
 		image: UploadableImage
 	) {
-		drawToExistingTexture(engine, textureId, image, ImageRegion(0, 0, image.getWidth(), image.getHeight()))
+		val region = ImageRegion(0, 0, image.getWidth(), image.getHeight())
+		drawToExistingTexture(engine, textureId, image, region, region)
 	}
 
 	fun prepareTexture(renderer: Renderer, texture: Texture) {

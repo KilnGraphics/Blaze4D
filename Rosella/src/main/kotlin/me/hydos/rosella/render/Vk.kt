@@ -14,7 +14,6 @@ import me.hydos.rosella.render.texture.*
 import me.hydos.rosella.render.util.memory.Memory
 import me.hydos.rosella.render.util.ok
 import org.lwjgl.PointerBuffer
-import org.lwjgl.stb.STBImage
 import org.lwjgl.system.MemoryStack
 import org.lwjgl.vulkan.*
 import org.lwjgl.vulkan.VK10.*
@@ -349,7 +348,8 @@ fun createTextureImage(
 fun drawToTexture(
 	device: Device,
 	image: UploadableImage,
-	region:  ImageRegion,
+	srcRegion:  ImageRegion,
+	dstRegion:  ImageRegion,
 	renderer: Renderer,
 	memory: Memory,
 	texture: Texture
@@ -357,11 +357,11 @@ fun drawToTexture(
 	MemoryStack.stackPush().use { stack ->
 		val pBuffer = stack.mallocLong(1)
 		val stagingBuf = memory.createStagingBuf(
-			image.getImageSize(),
+			srcRegion.width * srcRegion.height * image.getBytesPerPixel(),
 			pBuffer,
 			stack
 		) { data ->
-			val pixels = image.getPixels()!!
+			val pixels = image.getPixels(srcRegion)!!
 			val newData = data.getByteBuffer(0, pixels.limit())
 			newData.put(0, pixels, 0, pixels.limit())
 		}
@@ -371,11 +371,11 @@ fun drawToTexture(
 			texture.textureImage.textureImage,
 			texture.width,
 			texture.height,
-			region.width,
-			region.height,
-			region.xOffset,
-			region.yOffset,
-			image.getChannels() * Float.SIZE_BYTES,
+			dstRegion.width,
+			dstRegion.height,
+			dstRegion.xOffset,
+			dstRegion.yOffset,
+			image.getBytesPerPixel(),
 			device,
 			renderer
 		)
@@ -385,14 +385,14 @@ fun drawToTexture(
 }
 
 // TODO: regionWidth and regionHeight aren't reliable because the buffer may contain extra data
-fun copyBufferToImage(buffer: Long, image: Long, textureWidth: Int, textureHeight: Int, regionWidth: Int, regionHeight: Int, xOffset: Int, yOffset: Int, perPixelSize: Int, device: Device, renderer: Renderer) {
+fun copyBufferToImage(buffer: Long, image: Long, dstFullWidth: Int, dstFullHeight: Int, regionWidth: Int, regionHeight: Int, dstXOffset: Int, dstYOffset: Int, perPixelSize: Int, device: Device, renderer: Renderer) {
 	MemoryStack.stackPush().use { stack ->
 		val commandBuffer: VkCommandBuffer = beginSingleTimeCommands(renderer)
 		val region = VkBufferImageCopy.callocStack(1, stack)
-			.bufferOffset(((yOffset * textureWidth + xOffset) * perPixelSize).toLong())
-			.bufferRowLength(textureWidth)
-			.bufferImageHeight(textureHeight)
-		region.imageOffset().set(xOffset, yOffset, 0)
+			.bufferOffset(((dstYOffset * dstFullWidth + dstXOffset) * perPixelSize).toLong())
+			.bufferRowLength(dstFullWidth)
+			.bufferImageHeight(dstFullHeight)
+		region.imageOffset().set(dstXOffset, dstYOffset, 0)
 		region.imageSubresource()
 			.aspectMask(VK_IMAGE_ASPECT_COLOR_BIT)
 			.mipLevel(0)
