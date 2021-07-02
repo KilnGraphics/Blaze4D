@@ -369,13 +369,10 @@ fun drawToTexture(
 		copyBufferToImage(
 			stagingBuf.buffer,
 			texture.textureImage.textureImage,
-			texture.width,
-			texture.height,
 			dstRegion.width,
 			dstRegion.height,
 			dstRegion.xOffset,
 			dstRegion.yOffset,
-			image.getBytesPerPixel(),
 			device,
 			renderer
 		)
@@ -385,13 +382,22 @@ fun drawToTexture(
 }
 
 // TODO: regionWidth and regionHeight aren't reliable because the buffer may contain extra data
-fun copyBufferToImage(buffer: Long, image: Long, dstFullWidth: Int, dstFullHeight: Int, regionWidth: Int, regionHeight: Int, dstXOffset: Int, dstYOffset: Int, perPixelSize: Int, device: Device, renderer: Renderer) {
+fun copyBufferToImage(
+	buffer: Long,
+	image: Long,
+	regionWidth: Int,
+	regionHeight: Int,
+	dstXOffset: Int,
+	dstYOffset: Int,
+	device: Device,
+	renderer: Renderer
+) {
 	MemoryStack.stackPush().use { stack ->
 		val commandBuffer: VkCommandBuffer = beginSingleTimeCommands(renderer)
 		val region = VkBufferImageCopy.callocStack(1, stack)
-			.bufferOffset(((dstYOffset * dstFullWidth + dstXOffset) * perPixelSize).toLong())
-			.bufferRowLength(dstFullWidth)
-			.bufferImageHeight(dstFullHeight)
+			.bufferOffset(0)
+			.bufferRowLength(regionWidth)
+			.bufferImageHeight(regionHeight)
 		region.imageOffset().set(dstXOffset, dstYOffset, 0)
 		region.imageSubresource()
 			.aspectMask(VK_IMAGE_ASPECT_COLOR_BIT)
