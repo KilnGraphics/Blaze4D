@@ -35,13 +35,7 @@ public abstract class NativeImageMixin implements UploadableImage {
 
     @Shadow public abstract int getPixelColor(int x, int y);
 
-    @Unique
-    private int channels = 4;
-
-    @Inject(method = "<init>(Lnet/minecraft/client/texture/NativeImage$Format;IIZJ)V", at = @At("TAIL"))
-    private void setExtraArgs(NativeImage.Format format, int width, int height, boolean useStb, long pointer, CallbackInfo ci) {
-        this.channels = format.getChannelCount();
-    }
+    @Shadow @Final private NativeImage.Format format;
 
     @Inject(method = "uploadInternal", at = @At("HEAD"), cancellable = true)
     private void uploadToRosella(int level, int offsetX, int offsetY, int unpackSkipPixels, int unpackSkipRows, int width, int height, boolean blur, boolean clamp, boolean mipmap, boolean close, CallbackInfo ci) {
@@ -75,7 +69,7 @@ public abstract class NativeImageMixin implements UploadableImage {
 
     @Override
     public int getChannels() {
-        return channels;
+        return format.getChannelCount();
     }
 
     @Override
