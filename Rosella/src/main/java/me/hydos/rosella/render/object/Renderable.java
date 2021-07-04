@@ -5,6 +5,7 @@ import me.hydos.rosella.render.device.Device;
 import me.hydos.rosella.render.info.InstanceInfo;
 import me.hydos.rosella.render.info.RenderInfo;
 import me.hydos.rosella.render.util.memory.Memory;
+import me.hydos.rosella.vkobjects.VkCommon;
 
 /**
  * Contains data for what you want to render
@@ -14,9 +15,9 @@ public interface Renderable {
     /**
      * Called when the Application asked {@link Rosella} to add this to the scene.
      *
-     * @param rosella the instance of the {@link Rosella} engine used.
+     * @param common the common fields used by {@link Rosella}
      */
-    void onAddedToScene(Rosella rosella);
+    void onAddedToScene(VkCommon common, Memory memory);
 
     /**
      * Called when an object's memory can be freed' safely

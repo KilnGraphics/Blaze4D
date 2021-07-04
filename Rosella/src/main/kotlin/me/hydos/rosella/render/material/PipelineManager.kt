@@ -1,5 +1,6 @@
 package me.hydos.rosella.render.material
 
+import me.hydos.rosella.Rosella
 import me.hydos.rosella.render.Topology
 import me.hydos.rosella.render.device.Device
 import me.hydos.rosella.render.renderer.Renderer

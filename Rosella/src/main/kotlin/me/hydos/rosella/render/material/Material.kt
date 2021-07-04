@@ -1,7 +1,7 @@
 package me.hydos.rosella.render.material
 
+import me.hydos.rosella.Rosella
 import me.hydos.rosella.render.Topology
-import me.hydos.rosella.render.resource.Identifier
 import me.hydos.rosella.render.resource.Resource
 import me.hydos.rosella.render.shader.ShaderProgram
 import me.hydos.rosella.render.texture.SamplerCreateInfo
@@ -16,7 +16,7 @@ import me.hydos.rosella.render.vertex.VertexFormat
  */
 open class Material(
 	val resource: Resource,
-	val shaderId: Identifier,
+	val shader: ShaderProgram,
 	val imgFormat: Int,
 	val useBlend: Boolean,
 	val topology: Topology,
@@ -25,15 +25,7 @@ open class Material(
 ) {
 	lateinit var pipeline: PipelineInfo
 
-	lateinit var shader: ShaderProgram
-
 	lateinit var texture: Texture
-
-	open fun loadShaders(engine: Rosella) {
-		val retrievedShader = engine.shaderManager.getOrCreateShader(shaderId)
-			?: error("The shader $shaderId couldn't be found. (Are you registering it?)")
-		this.shader = retrievedShader
-	}
 
 	open fun loadTextures(engine: Rosella) {
 		if (resource != Resource.Empty) {

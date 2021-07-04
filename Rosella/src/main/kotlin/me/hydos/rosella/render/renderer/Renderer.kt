@@ -1,5 +1,6 @@
 package me.hydos.rosella.render.renderer
 
+import me.hydos.rosella.Rosella
 import me.hydos.rosella.device.Queues
 import me.hydos.rosella.render.*
 import me.hydos.rosella.render.camera.Camera
@@ -256,9 +257,9 @@ class Renderer(common: VkCommon) {
 	/**
 	 * Create the Command Buffers
 	 */
-	fun rebuildCommandBuffers(renderPass: RenderPass, engine: Rosella) {
+	fun rebuildCommandBuffers(renderPass: RenderPass, rosella: Rosella) {
 		val usedShaders = ArrayList<ShaderProgram>()
-		for (material in engine.materials.values) {
+		for (material in rosella.materials) {
 			if (!usedShaders.contains(material.shader)) {
 				usedShaders.add(material.shader)
 			}

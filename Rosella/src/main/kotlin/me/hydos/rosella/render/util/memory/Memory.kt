@@ -1,6 +1,6 @@
 package me.hydos.rosella.render.util.memory
 
-import me.hydos.rosella.render.device.Device
+import me.hydos.rosella.Rosella
 import me.hydos.rosella.render.util.ok
 import me.hydos.rosella.render.vertex.BufferVertexConsumer
 import me.hydos.rosella.render.vertex.VertexConsumer
@@ -32,14 +32,14 @@ class Memory(val common: VkCommon) {
 
 	private val allocator: Long = stackPush().use {
 		val vulkanFunctions: VmaVulkanFunctions = VmaVulkanFunctions.callocStack(it)
-			.set(instance, device.device)
+			.set(common.vkInstance.rawInstance, common.device.rawDevice)
 
 		val createInfo: VmaAllocatorCreateInfo = VmaAllocatorCreateInfo.callocStack(it)
-			.physicalDevice(device.physicalDevice)
-			.device(device.device)
+			.physicalDevice(common.device.physicalDevice)
+			.device(common.device.rawDevice)
 			.pVulkanFunctions(vulkanFunctions)
-			.instance(instance)
-			.vulkanApiVersion(VK_API_VERSION_1_1)
+			.instance(common.vkInstance.rawInstance)
+			.vulkanApiVersion(Rosella.VULKAN_VERSION)
 
 		val pAllocator = it.mallocPointer(1)
 		Vma.vmaCreateAllocator(createInfo, pAllocator)
@@ -124,7 +124,7 @@ class Memory(val common: VkCommon) {
 	/**
 	 * Copies a buffer from one place to another. usually used to copy a staging buffer into GPU mem
 	 */
-	private fun copyBuffer(srcBuffer: Long, dstBuffer: Long, size: Int, engine: Rosella, device: Device) {
+	private fun copyBuffer(srcBuffer: Long, dstBuffer: Long, size: Int, common: VkCommon) {
 		stackPush().use {
 			val pCommandBuffer = it.mallocPointer(1)
 			val commandBuffer = engine.renderer.beginCmdBuffer(it, pCommandBuffer)

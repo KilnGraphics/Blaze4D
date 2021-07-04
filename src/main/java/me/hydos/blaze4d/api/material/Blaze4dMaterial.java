@@ -10,10 +10,8 @@ import me.hydos.rosella.render.shader.ShaderProgram;
 import me.hydos.rosella.render.texture.SamplerCreateInfo;
 import me.hydos.rosella.render.texture.Texture;
 import me.hydos.rosella.render.texture.TextureFilter;
-import me.hydos.rosella.render.texture.UploadableImage;
 import me.hydos.rosella.render.vertex.VertexFormat;
 import net.minecraft.client.texture.MissingSprite;
-import net.minecraft.client.texture.NativeImage;
 import net.minecraft.client.texture.NativeImageBackedTexture;
 import org.jetbrains.annotations.NotNull;
 
@@ -30,7 +28,7 @@ public class Blaze4dMaterial extends Material {
     private final int textureId;
 
     public Blaze4dMaterial(Material old, int textureId) {
-        super(EmptyResource.EMPTY, old.getShaderId(), old.getImgFormat(), old.getUseBlend(), old.getTopology(), old.getVertexFormat(), new SamplerCreateInfo(TextureFilter.NEAREST));
+        super(EmptyResource.EMPTY, old.getShader(), old.getImgFormat(), old.getUseBlend(), old.getTopology(), old.getVertexFormat(), new SamplerCreateInfo(TextureFilter.NEAREST));
         this.textureId = textureId;
         this.shader = old.shader;
         if (this.shader == null) {

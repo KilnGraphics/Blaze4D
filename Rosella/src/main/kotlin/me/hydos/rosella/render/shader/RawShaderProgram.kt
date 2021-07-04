@@ -1,7 +1,8 @@
 package me.hydos.rosella.render.shader
 
+import me.hydos.rosella.Rosella
+import me.hydos.rosella.device.VulkanDevice
 import me.hydos.rosella.render.descriptorsets.DescriptorSet
-import me.hydos.rosella.render.device.Device
 import me.hydos.rosella.render.resource.Resource
 import me.hydos.rosella.render.shader.ubo.Ubo
 import me.hydos.rosella.render.swapchain.Swapchain
@@ -15,7 +16,7 @@ import org.lwjgl.vulkan.VK10.*
 class RawShaderProgram(
 	var vertexShader: Resource?,
 	var fragmentShader: Resource?,
-	val device: Device,
+	val device: VulkanDevice,
 	val memory: Memory,
 	var maxObjCount: Int,
 	vararg var poolObjects: PoolObjType
@@ -36,7 +37,7 @@ class RawShaderProgram(
 
 	fun createPool(swapchain: Swapchain) {
 		if(descriptorPool != 0L) {
-			vkDestroyDescriptorPool(device.device, descriptorPool, null)
+			vkDestroyDescriptorPool(device.rawDevice, descriptorPool, null)
 		}
 		MemoryStack.stackPush().use { stack ->
 			val poolSizes = VkDescriptorPoolSize.callocStack(poolObjects.size, stack)
@@ -55,7 +56,7 @@ class RawShaderProgram(
 
 			val pDescriptorPool = stack.mallocLong(1)
 			vkCreateDescriptorPool(
-				device.device,
+				device.rawDevice,
 				poolInfo,
 				null,
 				pDescriptorPool
@@ -83,7 +84,7 @@ class RawShaderProgram(
 			layoutInfo.pBindings(bindings)
 			val pDescriptorSetLayout = it.mallocLong(1)
 			vkCreateDescriptorSetLayout(
-				device.device,
+				device.rawDevice,
 				layoutInfo,
 				null,
 				pDescriptorSetLayout
@@ -112,7 +113,7 @@ class RawShaderProgram(
 				.pSetLayouts(layouts)
 			val pDescriptorSets = stack.mallocLong(swapchain.swapChainImages.size)
 
-			vkAllocateDescriptorSets(device.device, allocInfo, pDescriptorSets)
+			vkAllocateDescriptorSets(device.rawDevice, allocInfo, pDescriptorSets)
 				.ok("Failed to allocate descriptor sets")
 
 			val descriptorSets = DescriptorSet(descriptorPool)
@@ -151,7 +152,7 @@ class RawShaderProgram(
 					}
 					descriptorWrite.dstSet(descriptorSet)
 				}
-				vkUpdateDescriptorSets(device.device, descriptorWrites, null)
+				vkUpdateDescriptorSets(device.rawDevice, descriptorWrites, null)
 				descriptorSets.descriptorPool = descriptorPool
 				descriptorSets.add(descriptorSet)
 			}
@@ -161,8 +162,8 @@ class RawShaderProgram(
 	}
 
 	fun free() {
-		vkDestroyDescriptorSetLayout(device.device, descriptorSetLayout, null)
-		vkDestroyDescriptorPool(device.device, descriptorPool, null)
+		vkDestroyDescriptorSetLayout(device.rawDevice, descriptorSetLayout, null)
+		vkDestroyDescriptorPool(device.rawDevice, descriptorPool, null)
 	}
 
 	enum class PoolObjType(val vkType: Int, val vkShader: Int) {

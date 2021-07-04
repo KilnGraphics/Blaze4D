@@ -24,6 +24,8 @@ import org.lwjgl.system.MemoryStack;
 import org.lwjgl.vulkan.VkLayerProperties;
 
 import java.nio.IntBuffer;
+import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
 import java.util.Set;
 import java.util.stream.Collectors;
@@ -31,6 +33,7 @@ import java.util.stream.Collectors;
 import static me.hydos.rosella.render.util.VkUtilsKt.ok;
 import static org.lwjgl.vulkan.KHRSurface.vkDestroySurfaceKHR;
 import static org.lwjgl.vulkan.VK10.*;
+import static org.lwjgl.vulkan.VK12.VK_API_VERSION_1_2;
 
 /**
  * Main Rosella class. If your interacting with the engine from here, You will most likely be safe.
@@ -38,6 +41,7 @@ import static org.lwjgl.vulkan.VK10.*;
 public class Rosella {
 
     public static final Logger LOGGER = LogManager.getLogger("Rosella");
+    public static final int VULKAN_VERSION = VK_API_VERSION_1_2;
     public static final int POLYGON_MODE = VK_POLYGON_MODE_FILL;
     public final VkCommon common = new VkCommon();
     public final ShaderManager shaderManager;
@@ -46,8 +50,12 @@ public class Rosella {
     public final Renderer renderer;
     public final PipelineManager pipelineManager;
 
-    public Rosella(Display display, List<String> requestedValidationLayers, String applicationName) {
-        this(display, requestedValidationLayers, applicationName, new DefaultDebugLogger());
+    //TODO: put this into a Material Manager. also make materials have custom properties or smth like that
+    public final List<Material> materials = new ArrayList<>();
+    public final List<Material> unprocessedMaterials = new ArrayList<>();
+
+    public Rosella(Display display, String applicationName, boolean enableBasicValidation) {
+        this(display, enableBasicValidation ? Collections.singletonList("KHR_KHRONOS_VALIDATION") : new Collections.emptyList(), applicationName, new DefaultDebugLogger());
     }
 
     public Rosella(Display display, List<String> requestedValidationLayers, String applicationName, DebugLogger debugLogger) {
@@ -82,7 +90,7 @@ public class Rosella {
      *
      * @param renderable the material to add to the scene
      */
-    public void addObject(Renderable renderable) {
+    public Renderable addObject(Renderable renderable) {
 
     }
 
@@ -91,7 +99,7 @@ public class Rosella {
      *
      * @param material the material to register
      */
-    public void registerMaterial(Material material) {
+    public Material registerMaterial(Material material) {
 
     }
 
@@ -100,7 +108,7 @@ public class Rosella {
      *
      * @param program the program to register
      */
-    public void addShader(RawShaderProgram program) {
+    public ShaderProgram addShader(RawShaderProgram program) {
 
     }
 
@@ -109,8 +117,22 @@ public class Rosella {
      *
      * @param program the program to register
      */
-    public void addShader(ShaderProgram program) {
+    public ShaderProgram addShader(ShaderProgram program) {
 
+    }
+
+    /**
+     * Called when new materials are ready to be processed.
+     */
+    public void submitMaterials() {
+        for (Material material : unprocessedMaterials) {
+            if (material.getShader().getRaw().getDescriptorSetLayout() == 0L) {
+                material.getShader().getRaw().createDescriptorSetLayout();
+                material.pipeline = pipelineManager.getPipeline(material, renderer, this);
+                materials.add(material);
+            }
+        }
+        unprocessedMaterials.clear();
     }
 
     /**
@@ -120,6 +142,10 @@ public class Rosella {
         waitForIdle();
 
         // Free the Scene
+        for (Material material : materials) {
+            material.getShader().free();
+        }
+        materials.clear();
 
         // Free Material related stuff
         shaderManager.free();
