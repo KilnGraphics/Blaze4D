@@ -6,6 +6,7 @@ import me.hydos.rosella.Rosella
 import me.hydos.rosella.render.*
 import me.hydos.rosella.render.device.Device
 import me.hydos.rosella.render.renderer.Renderer
+import org.lwjgl.vulkan.VK10
 
 /**
  * Caches Textures and other texture related objects
@@ -15,7 +16,7 @@ class TextureManager(val device: Device) { // TODO: add layers, maybe not in thi
 	private val textureMap = HashMap<Int, Texture>()
 	private val samplerCache = HashMap<SamplerCreateInfo, TextureSampler>() // bro there's like 3 options for this
 
-	private val testSet = HashSet<Texture>()
+	private val preparedTextures = HashSet<Texture>()
 
 	private val reusableTexIds = IntPriorityQueues.synchronize(IntArrayPriorityQueue())
 	private var nextTexId : Int = 0;
@@ -29,7 +30,8 @@ class TextureManager(val device: Device) { // TODO: add layers, maybe not in thi
 	}
 
 	fun deleteTexture(textureId: Int) {
-		textureMap.remove(textureId)
+		val removedTex = textureMap.remove(textureId)
+		preparedTextures.remove(removedTex)
 		reusableTexIds.enqueue(textureId)
 	}
 
@@ -57,12 +59,12 @@ class TextureManager(val device: Device) { // TODO: add layers, maybe not in thi
 	}
 
 	fun applySamplerInfoToTexture(
-		engine: Rosella,
+		device: Device,
 		textureId: Int,
 		samplerCreateInfo: SamplerCreateInfo
 	) {
 		val textureSampler = samplerCache.computeIfAbsent(samplerCreateInfo) {
-			TextureSampler(samplerCreateInfo, engine.device)
+			TextureSampler(samplerCreateInfo, device)
 		}
 
 		textureMap[textureId]?.textureSampler = textureSampler.pointer
@@ -76,9 +78,17 @@ class TextureManager(val device: Device) { // TODO: add layers, maybe not in thi
 		dstRegion: ImageRegion,
 	) {
 		val texture = getTexture(textureId)!!
-		if (testSet.contains(texture)) {
-			undoTestLol(engine.renderer, texture.textureImage.textureImage, texture.imgFormat)
-			testSet.remove(texture)
+		if (preparedTextures.contains(texture)) {
+			transitionImageLayout(
+				texture.textureImage.textureImage,
+				texture.imgFormat,
+				VK10.VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL,
+				VK10.VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
+				engine.renderer.depthBuffer,
+				engine.renderer.device,
+				engine.renderer
+			)
+			preparedTextures.remove(texture)
 		}
 		drawToTexture(engine.device, image, srcRegion, dstRegion, engine.renderer, engine.memory, texture)
 	}
@@ -93,9 +103,17 @@ class TextureManager(val device: Device) { // TODO: add layers, maybe not in thi
 	}
 
 	fun prepareTexture(renderer: Renderer, texture: Texture) {
-		if (!testSet.contains(texture)) {
-			prepareTextureForRender(renderer, texture.textureImage.textureImage, texture.imgFormat)
-			testSet.add(texture)
+		if (!preparedTextures.contains(texture)) {
+			transitionImageLayout(
+				texture.textureImage.textureImage,
+				texture.imgFormat,
+				VK10.VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
+				VK10.VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL,
+				renderer.depthBuffer,
+				renderer.device,
+				renderer
+			)
+			preparedTextures.add(texture)
 		}
 	}
 }

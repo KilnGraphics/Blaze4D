@@ -408,33 +408,3 @@ fun copyBufferToImage(
 		endSingleTimeCommands(commandBuffer, device, renderer)
 	}
 }
-
-/**
- * Utility method for final image layout transition.
- */
-fun prepareTextureForRender(renderer: Renderer, image: Long, imgFormat: Int) {
-	transitionImageLayout(
-		image,
-		imgFormat,
-		VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
-		VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL,
-		renderer.depthBuffer,
-		renderer.device,
-		renderer
-	)
-}
-
-/**
- * Utility method for final image layout transition undo.
- */
-fun undoTestLol(renderer: Renderer, image: Long, imgFormat: Int) {
-	transitionImageLayout(
-		image,
-		imgFormat,
-		VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL,
-		VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
-		renderer.depthBuffer,
-		renderer.device,
-		renderer
-	)
-}
