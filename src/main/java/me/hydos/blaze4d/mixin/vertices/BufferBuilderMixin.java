@@ -1,13 +1,13 @@
 package me.hydos.blaze4d.mixin.vertices;
 
-import java.util.*;
-
 import me.hydos.blaze4d.Blaze4D;
 import me.hydos.blaze4d.api.GlobalRenderSystem;
 import me.hydos.blaze4d.api.vertex.ConsumerCreationInfo;
 import me.hydos.blaze4d.api.vertex.ObjectInfo;
 import me.hydos.blaze4d.api.vertex.UploadableConsumer;
 import me.hydos.rosella.render.shader.ShaderProgram;
+import net.minecraft.client.render.*;
+import net.minecraft.util.math.Vec3f;
 import org.joml.Matrix4f;
 import org.joml.Vector3f;
 import org.spongepowered.asm.mixin.Mixin;
@@ -15,13 +15,12 @@ import org.spongepowered.asm.mixin.injection.At;
 import org.spongepowered.asm.mixin.injection.Inject;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 
-import net.minecraft.client.render.*;
-import net.minecraft.util.math.Vec3f;
+import java.util.*;
 
 @Mixin(BufferBuilder.class)
 public abstract class BufferBuilderMixin extends FixedColorVertexConsumer implements UploadableConsumer {
 
-    private Map<ConsumerCreationInfo, me.hydos.rosella.render.vertex.BufferVertexConsumer> consumers = new HashMap<>();
+    private final Map<ConsumerCreationInfo, me.hydos.rosella.render.vertex.BufferVertexConsumer> consumers = new HashMap<>();
     private me.hydos.rosella.render.vertex.BufferVertexConsumer consumer;
 
     @Inject(method = "begin", at = @At("HEAD"))
@@ -157,54 +156,7 @@ public abstract class BufferBuilderMixin extends FixedColorVertexConsumer implem
 
     @Override
     public void draw() {
-        for (Map.Entry<ConsumerCreationInfo, me.hydos.rosella.render.vertex.BufferVertexConsumer> entry : consumers.entrySet()) {
-            me.hydos.rosella.render.vertex.BufferVertexConsumer consumer = entry.getValue();
-            List<Integer> indices = new ArrayList<>();
-            ConsumerCreationInfo creationInfo = entry.getKey();
-
-            if (creationInfo.drawMode() == VertexFormat.DrawMode.QUADS) {
-                // Convert Quads to Triangle Strips
-                //  0, 1, 2
-                //  0, 2, 3
-                //        v0_________________v1
-                //         / \               /
-                //        /     \           /
-                //       /         \       /
-                //      /             \   /
-                //    v2-----------------v3
-
-                for (int i = 0; i < consumer.getVertexCount(); i += 4) {
-                    indices.add(i);
-                    indices.add(1 + i);
-                    indices.add(2 + i);
-
-                    indices.add(2 + i);
-                    indices.add(3 + i);
-                    indices.add(i);
-                }
-            } else {
-                for (int i = 0; i < consumer.getVertexCount(); i++) {
-                    indices.add(i);
-                }
-            }
-
-            if (consumer.getVertexCount() != 0) {
-                ObjectInfo objectInfo = new ObjectInfo(
-                        consumer,
-                        creationInfo.drawMode(),
-                        creationInfo.format(),
-                        creationInfo.shader(),
-                        creationInfo.boundTextureId(),
-                        creationInfo.projMatrix(),
-                        creationInfo.viewMatrix(),
-                        creationInfo.chunkOffset(),
-                        creationInfo.shaderLightDirections0(),
-                        creationInfo.shaderLightDirections1(),
-                        Collections.unmodifiableList(indices)
-                );
-                GlobalRenderSystem.uploadObject(objectInfo, Blaze4D.rosella);
-            }
-        }
+        GlobalRenderSystem.renderConsumers(consumers);
         consumers.clear();
     }
 
@@ -235,5 +187,10 @@ public abstract class BufferBuilderMixin extends FixedColorVertexConsumer implem
         newMatrix.m33(mat4f.m33());
 
         return newMatrix;
+    }
+
+    @Override
+    public Map<ConsumerCreationInfo, me.hydos.rosella.render.vertex.BufferVertexConsumer> getConsumers() {
+        return consumers;
     }
 }

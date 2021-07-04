@@ -1,6 +1,5 @@
 package me.hydos.rosella.render.resource
 
-import me.hydos.rosella.Rosella
 import java.awt.image.BufferedImage
 import java.io.ByteArrayInputStream
 import java.io.ByteArrayOutputStream

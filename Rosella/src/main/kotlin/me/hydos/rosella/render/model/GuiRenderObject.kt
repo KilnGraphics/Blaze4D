@@ -1,6 +1,5 @@
 package me.hydos.rosella.render.model
 
-import me.hydos.rosella.Rosella
 import me.hydos.rosella.render.`object`.RenderObject
 import me.hydos.rosella.render.resource.Identifier
 import me.hydos.rosella.render.resource.Resource

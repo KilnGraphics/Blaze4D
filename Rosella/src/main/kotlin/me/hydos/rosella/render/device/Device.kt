@@ -1,9 +1,8 @@
 package me.hydos.rosella.render.device
 
-import me.hydos.rosella.Rosella
 import me.hydos.rosella.render.findQueueFamilies
-import me.hydos.rosella.render.swapchain.Swapchain.Companion.querySwapChainSupport
-import me.hydos.rosella.render.swapchain.SwapChainSupportDetails
+import me.hydos.rosella.render.swapchain.Swapchain.Companion.querySwapchainSupport
+import me.hydos.rosella.render.swapchain.SwapchainSupportDetails
 import me.hydos.rosella.render.util.ok
 import org.lwjgl.PointerBuffer
 import org.lwjgl.system.MemoryStack.stackPush
@@ -77,10 +76,10 @@ class Device(private val engine: Rosella, private val layers: Set<String>) {
 
 			val pQueue: PointerBuffer = it.pointers(VK_NULL_HANDLE)
 
-			vkGetDeviceQueue(device, indices.graphicsFamily!!, 0, pQueue)
+			vkGetDeviceQueue(device, indices.graphicsFamily, 0, pQueue)
 			engine.renderer.queues.graphicsQueue = VkQueue(pQueue[0], device)
 
-			vkGetDeviceQueue(device, indices.presentFamily!!, 0, pQueue)
+			vkGetDeviceQueue(device, indices.presentFamily, 0, pQueue)
 			engine.renderer.queues.presentQueue = VkQueue(pQueue[0], device)
 		}
 	}
@@ -95,9 +94,9 @@ class Device(private val engine: Rosella, private val layers: Set<String>) {
 
 		if (extensionsSupported) {
 			stackPush().use {
-				val swapChainSupport: SwapChainSupportDetails = querySwapChainSupport(device, it, engine.surface)
+				val swapchainSupport: SwapchainSupportDetails = querySwapchainSupport(device, it, engine.surface)
 				swapChainAdequate =
-					swapChainSupport.formats.hasRemaining() && swapChainSupport.presentModes.hasRemaining()
+					swapchainSupport.formats.hasRemaining() && swapchainSupport.presentModes.hasRemaining()
 				val supportedFeatures: VkPhysicalDeviceFeatures = VkPhysicalDeviceFeatures.mallocStack(it)
 				vkGetPhysicalDeviceFeatures(device, supportedFeatures)
 				anisotropySupported = supportedFeatures.samplerAnisotropy()

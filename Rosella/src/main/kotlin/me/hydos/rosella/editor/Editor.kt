@@ -1,6 +1,5 @@
 package me.hydos.rosella.editor
 
-import me.hydos.rosella.Rosella
 import me.hydos.rosella.gui.Canvas
 import me.hydos.rosella.gui.Layer
 import me.hydos.rosella.render.io.Window

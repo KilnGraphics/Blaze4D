@@ -1,6 +1,5 @@
 package me.hydos.rosella.render.swapchain
 
-import me.hydos.rosella.Rosella
 import me.hydos.rosella.render.device.Device
 import me.hydos.rosella.render.util.ok
 import org.lwjgl.system.MemoryStack.stackPush

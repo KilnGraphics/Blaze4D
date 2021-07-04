@@ -1,6 +1,5 @@
 package me.hydos.rosella.render.shader
 
-import me.hydos.rosella.Rosella
 import me.hydos.rosella.render.descriptorsets.DescriptorSet
 import me.hydos.rosella.render.device.Device
 import me.hydos.rosella.render.resource.Resource

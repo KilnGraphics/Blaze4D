@@ -2,15 +2,14 @@ package me.hydos.rosella.render.texture
 
 import it.unimi.dsi.fastutil.ints.IntArrayPriorityQueue
 import it.unimi.dsi.fastutil.ints.IntPriorityQueues
-import me.hydos.rosella.Rosella
 import me.hydos.rosella.render.createTextureImage
 import me.hydos.rosella.render.createTextureImageView
-import me.hydos.rosella.render.device.Device
+import me.hydos.rosella.vkobjects.VkCommon
 
 /**
  * Caches Textures and other texture related objects
  */
-class TextureManager(val device: Device) { // TODO: add layers, maybe not in this class but somewhere
+class TextureManager(val common: VkCommon) { // TODO: add layers, maybe not in this class but somewhere
 
 	private val textureMap = HashMap<Int, Texture>()
 	private val samplerCache = HashMap<SamplerCreateInfo, TextureSampler>() // bro there's like 3 options for this

@@ -1,6 +1,5 @@
 package me.hydos.rosella.example
 
-import me.hydos.rosella.Rosella
 import me.hydos.rosella.audio.SoundManager
 import me.hydos.rosella.render.Topology
 import me.hydos.rosella.render.io.Window

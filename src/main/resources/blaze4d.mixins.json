@@ -5,7 +5,8 @@
   "compatibilityLevel": "JAVA_16",
   "mixins": [
     "buffers.GlStateManagerMixin",
-    "debug.TextureManagerMixin"
+    "debug.TextureManagerMixin",
+    "vertices.VertexBufferMixin"
   ],
   "client": [
     "blaze3d.RenderSystemMixin",
@@ -21,8 +22,6 @@
     "shader.GlStateManagerMixin",
     "shader.RenderSystemMixin",
     "shader.WorldRendererMixin",
-    "testing.screens.RotatingCubeMapRendererMixin",
-    "testing.screens.TitleScreenMixin",
     "texture.NativeImageMixin",
     "texture.RenderSystemMixin",
     "texture.TextureManagerMixin",

@@ -1,6 +1,5 @@
 package me.hydos.rosella.render.swapchain
 
-import me.hydos.rosella.Rosella
 import me.hydos.rosella.render.device.QueueFamilyIndices
 import me.hydos.rosella.render.findQueueFamilies
 import me.hydos.rosella.render.io.Window
@@ -30,17 +29,17 @@ class Swapchain(
 
 	init {
 		MemoryStack.stackPush().use {
-			val swapChainSupport: SwapChainSupportDetails = querySwapChainSupport(physicalDevice, it, surface)
+			val swapchainSupport: SwapchainSupportDetails = querySwapchainSupport(physicalDevice, it, surface)
 
-			val surfaceFormat: VkSurfaceFormatKHR = chooseSwapSurfaceFormat(swapChainSupport.formats)!!
-			val presentMode: Int = chooseSwapPresentMode(swapChainSupport.presentModes)
-			val extent: VkExtent2D = chooseSwapExtent(swapChainSupport.capabilities, engine.window)!!
+			val surfaceFormat: VkSurfaceFormatKHR = chooseSwapSurfaceFormat(swapchainSupport.formats)!!
+			val presentMode: Int = chooseSwapPresentMode(swapchainSupport.presentModes)
+			val extent: VkExtent2D = chooseSwapExtent(swapchainSupport.capabilities, engine.window)!!
 
-			val imageCount: IntBuffer = it.ints(swapChainSupport.capabilities.minImageCount() + 1)
+			val imageCount: IntBuffer = it.ints(swapchainSupport.capabilities.minImageCount() + 1)
 			engine.maxImages = imageCount
 
-			if (swapChainSupport.capabilities.maxImageCount() > 0 && imageCount[0] > swapChainSupport.capabilities.maxImageCount()) {
-				imageCount.put(0, swapChainSupport.capabilities.maxImageCount())
+			if (swapchainSupport.capabilities.maxImageCount() > 0 && imageCount[0] > swapchainSupport.capabilities.maxImageCount()) {
+				imageCount.put(0, swapchainSupport.capabilities.maxImageCount())
 			}
 
 			val createInfo: VkSwapchainCreateInfoKHR = VkSwapchainCreateInfoKHR.callocStack(it)
@@ -64,7 +63,7 @@ class Swapchain(
 				createInfo.imageSharingMode(VK_SHARING_MODE_EXCLUSIVE)
 			}
 
-			createInfo.preTransform(swapChainSupport.capabilities.currentTransform())
+			createInfo.preTransform(swapchainSupport.capabilities.currentTransform())
 				.compositeAlpha(VK_COMPOSITE_ALPHA_OPAQUE_BIT_KHR)
 				.presentMode(presentMode)
 				.clipped(true)
@@ -130,8 +129,8 @@ class Swapchain(
 	companion object {
 		private const val UINT32_MAX = -0x1
 
-		fun querySwapChainSupport(device: VkPhysicalDevice, stack: MemoryStack, surface: Long): SwapChainSupportDetails {
-			val details = SwapChainSupportDetails()
+		fun querySwapchainSupport(device: VkPhysicalDevice, stack: MemoryStack, surface: Long): SwapchainSupportDetails {
+			val details = SwapchainSupportDetails()
 			details.capabilities = VkSurfaceCapabilitiesKHR.mallocStack(stack)
 			vkGetPhysicalDeviceSurfaceCapabilitiesKHR(device, surface, details.capabilities).ok()
 			val count = stack.ints(0)

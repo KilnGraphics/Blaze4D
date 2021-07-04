@@ -1,6 +1,5 @@
 package me.hydos.rosella.render.material
 
-import me.hydos.rosella.Rosella
 import me.hydos.rosella.render.Topology
 import me.hydos.rosella.render.device.Device
 import me.hydos.rosella.render.renderer.Renderer
@@ -9,12 +8,13 @@ import me.hydos.rosella.render.swapchain.RenderPass
 import me.hydos.rosella.render.swapchain.Swapchain
 import me.hydos.rosella.render.util.ok
 import me.hydos.rosella.render.vertex.VertexFormat
+import me.hydos.rosella.vkobjects.VkCommon
 import org.lwjgl.system.MemoryStack
 import org.lwjgl.vulkan.*
 import java.nio.ByteBuffer
 import java.nio.LongBuffer
 
-class PipelineManager(var swapchain: Swapchain, val device: Device) {
+class PipelineManager(var common: VkCommon, val renderer: Renderer) {
 
 	private val pipelines = HashMap<PipelineCreateInfo, PipelineInfo>()
 

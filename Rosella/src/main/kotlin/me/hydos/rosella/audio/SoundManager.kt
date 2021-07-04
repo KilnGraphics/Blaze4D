@@ -1,6 +1,5 @@
 package me.hydos.rosella.audio
 
-import me.hydos.rosella.Rosella
 import me.hydos.rosella.render.resource.Resource
 import org.apache.logging.log4j.LogManager
 import org.lwjgl.BufferUtils

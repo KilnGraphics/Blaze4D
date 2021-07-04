@@ -1,10 +1,10 @@
 package me.hydos.rosella.render.util.memory
 
-import me.hydos.rosella.Rosella
 import me.hydos.rosella.render.device.Device
 import me.hydos.rosella.render.util.ok
 import me.hydos.rosella.render.vertex.BufferVertexConsumer
 import me.hydos.rosella.render.vertex.VertexConsumer
+import me.hydos.rosella.vkobjects.VkCommon
 import org.lwjgl.PointerBuffer
 import org.lwjgl.system.MemoryStack
 import org.lwjgl.system.MemoryStack.stackPush
@@ -23,7 +23,7 @@ import java.util.concurrent.Executors
  * Used for managing CPU and GPU memory.
  * This class will try to handle most vma stuff for the user so they dont have to touch much memory related stuff
  */
-class Memory(val device: Device, private val instance: VkInstance) {
+class Memory(val common: VkCommon) {
 
 	private val threadCount = 3
 	private val executorService = Executors.newFixedThreadPool(threadCount)

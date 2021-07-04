@@ -1,9 +1,9 @@
 package me.hydos.rosella.render.shader
 
-import me.hydos.rosella.Rosella
 import me.hydos.rosella.render.resource.Identifier
+import me.hydos.rosella.vkobjects.VkCommon
 
-class ShaderManager(val rosella: Rosella) {
+class ShaderManager(val common: VkCommon) {
 
 	var shaders = HashMap<Identifier, RawShaderProgram>()
 	var cachedShaders = HashMap<Identifier, ShaderProgram>()

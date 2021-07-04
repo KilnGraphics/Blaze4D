@@ -1,18 +1,20 @@
 package me.hydos.blaze4d.api;
 
-import java.util.Map;
-import java.util.Set;
+import java.util.*;
 
 import it.unimi.dsi.fastutil.ints.Int2ObjectOpenHashMap;
 import it.unimi.dsi.fastutil.objects.ObjectOpenHashSet;
 import me.hydos.blaze4d.Blaze4D;
 import me.hydos.blaze4d.api.shader.ShaderContext;
+import me.hydos.blaze4d.api.vertex.ConsumerCreationInfo;
 import me.hydos.blaze4d.api.vertex.ConsumerRenderObject;
 import me.hydos.blaze4d.api.vertex.ObjectInfo;
 import me.hydos.rosella.Rosella;
 import me.hydos.rosella.render.resource.Identifier;
 import me.hydos.rosella.render.shader.RawShaderProgram;
 import me.hydos.rosella.render.shader.ShaderProgram;
+import me.hydos.rosella.render.vertex.BufferVertexConsumer;
+import net.minecraft.client.render.VertexFormat;
 import org.joml.Matrix4f;
 import org.joml.Vector3f;
 
@@ -37,7 +39,7 @@ public class GlobalRenderSystem {
     public static int boundTextureId = -1; // TODO: generate an identifier instead of using int id, or switch everything over to ints
     public static ShaderProgram activeShader;
 
-    // Uniforms FIXME FIXME FIXME: to add support for custom uniforms and add support for mods like iris & lambdynamic lights, we need to do this
+    // Uniforms FIXME FIXME FIXME: to add support for custom uniforms and add support for mods like iris, we need to do this
     public static Matrix4f projectionMatrix = new Matrix4f();
     public static Matrix4f modelViewMatrix = new Matrix4f();
     public static Vector3f chunkOffset = new Vector3f();
@@ -86,5 +88,58 @@ public class GlobalRenderSystem {
     public static void uploadObject(ObjectInfo objectInfo, Rosella rosella) {
         ConsumerRenderObject renderObject = new ConsumerRenderObject(objectInfo, rosella);
         currentFrameObjects.add(renderObject);
+    }
+
+    public static void renderConsumers(Map<ConsumerCreationInfo, BufferVertexConsumer> consumers) {
+        for (Map.Entry<ConsumerCreationInfo, BufferVertexConsumer> entry : consumers.entrySet()) {
+            BufferVertexConsumer consumer = entry.getValue();
+            List<Integer> indices = new ArrayList<>();
+            ConsumerCreationInfo creationInfo = entry.getKey();
+
+            if (creationInfo.drawMode() == VertexFormat.DrawMode.QUADS) {
+                // Convert Quads to Triangle Strips
+                //  0, 1, 2
+                //  0, 2, 3
+                //        v0_________________v1
+                //         / \               /
+                //        /     \           /
+                //       /         \       /
+                //      /             \   /
+                //    v2-----------------v3
+
+                for (int i = 0; i < consumer.getVertexCount(); i += 4) {
+                    indices.add(i);
+                    indices.add(1 + i);
+                    indices.add(2 + i);
+
+                    indices.add(2 + i);
+                    indices.add(3 + i);
+                    indices.add(i);
+                }
+            } else {
+                for (int i = 0; i < consumer.getVertexCount(); i++) {
+                    indices.add(i);
+                }
+            }
+
+            if (consumer.getVertexCount() != 0) {
+                ObjectInfo objectInfo = new ObjectInfo(
+                        consumer,
+                        creationInfo.drawMode(),
+                        creationInfo.format(),
+                        creationInfo.shader(),
+                        creationInfo.boundTextureId(),
+                        creationInfo.projMatrix(),
+                        creationInfo.viewMatrix(),
+                        creationInfo.chunkOffset(),
+                        creationInfo.shaderLightDirections0(),
+                        creationInfo.shaderLightDirections1(),
+                        Collections.unmodifiableList(indices)
+                );
+                if (creationInfo.shader() != null) {
+                    GlobalRenderSystem.uploadObject(objectInfo, Blaze4D.rosella);
+                }
+            }
+        }
     }
 }

@@ -3,8 +3,8 @@
  */
 package me.hydos.rosella.render
 
+import me.hydos.rosella.device.QueueFamilyIndices
 import me.hydos.rosella.render.device.Device
-import me.hydos.rosella.render.device.QueueFamilyIndices
 import me.hydos.rosella.render.renderer.Renderer
 import me.hydos.rosella.render.swapchain.DepthBuffer
 import me.hydos.rosella.render.swapchain.RenderPass

@@ -1,10 +1,9 @@
 package me.hydos.rosella.render.renderer
 
-import me.hydos.rosella.Rosella
+import me.hydos.rosella.device.Queues
 import me.hydos.rosella.render.*
 import me.hydos.rosella.render.camera.Camera
 import me.hydos.rosella.render.device.Device
-import me.hydos.rosella.render.device.Queues
 import me.hydos.rosella.render.info.InstanceInfo
 import me.hydos.rosella.render.info.RenderInfo
 import me.hydos.rosella.render.io.JUnit
@@ -14,15 +13,17 @@ import me.hydos.rosella.render.swapchain.DepthBuffer
 import me.hydos.rosella.render.swapchain.Frame
 import me.hydos.rosella.render.swapchain.RenderPass
 import me.hydos.rosella.render.swapchain.Swapchain
+import me.hydos.rosella.render.util.memory.Memory
 import me.hydos.rosella.render.util.memory.asPointerBuffer
 import me.hydos.rosella.render.util.ok
+import me.hydos.rosella.vkobjects.VkCommon
 import org.lwjgl.PointerBuffer
 import org.lwjgl.glfw.GLFW
 import org.lwjgl.system.MemoryStack
 import org.lwjgl.vulkan.*
 import org.lwjgl.vulkan.VK10.*
 
-class Renderer {
+class Renderer(common: VkCommon) {
 
 	var depthBuffer = DepthBuffer()
 
@@ -160,7 +161,7 @@ class Renderer {
 		camera.createViewAndProj(swapchain)
 	}
 
-	fun freeSwapChain(engine: Rosella) {
+	fun freeSwapChain(memory: Memory) {
 		for (shaderPair in engine.shaderManager.shaders.values) {
 			vkDestroyDescriptorPool(device.device, shaderPair.descriptorPool, null)
 		}

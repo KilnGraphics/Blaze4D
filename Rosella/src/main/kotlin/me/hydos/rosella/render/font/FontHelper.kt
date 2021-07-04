@@ -1,6 +1,5 @@
 package me.hydos.rosella.render.font
 
-import me.hydos.rosella.Rosella
 import me.hydos.rosella.render.resource.Resource
 import java.awt.Font
 
