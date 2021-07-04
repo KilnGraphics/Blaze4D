@@ -1,6 +1,8 @@
 package me.hydos.rosella.render.util.memory
 
 import me.hydos.rosella.Rosella
+import me.hydos.rosella.device.VulkanDevice
+import me.hydos.rosella.render.renderer.Renderer
 import me.hydos.rosella.render.util.ok
 import me.hydos.rosella.render.vertex.BufferVertexConsumer
 import me.hydos.rosella.render.vertex.VertexConsumer
@@ -13,8 +15,10 @@ import org.lwjgl.util.vma.Vma
 import org.lwjgl.util.vma.VmaAllocationCreateInfo
 import org.lwjgl.util.vma.VmaAllocatorCreateInfo
 import org.lwjgl.util.vma.VmaVulkanFunctions
-import org.lwjgl.vulkan.*
-import org.lwjgl.vulkan.VK11.VK_API_VERSION_1_1
+import org.lwjgl.vulkan.VK10
+import org.lwjgl.vulkan.VkBufferCopy
+import org.lwjgl.vulkan.VkBufferCreateInfo
+import org.lwjgl.vulkan.VkSubmitInfo
 import java.nio.ByteBuffer
 import java.nio.LongBuffer
 import java.util.concurrent.Executors
@@ -124,10 +128,10 @@ class Memory(val common: VkCommon) {
 	/**
 	 * Copies a buffer from one place to another. usually used to copy a staging buffer into GPU mem
 	 */
-	private fun copyBuffer(srcBuffer: Long, dstBuffer: Long, size: Int, common: VkCommon) {
+	private fun copyBuffer(srcBuffer: Long, dstBuffer: Long, size: Int, renderer: Renderer, device: VulkanDevice) {
 		stackPush().use {
 			val pCommandBuffer = it.mallocPointer(1)
-			val commandBuffer = engine.renderer.beginCmdBuffer(it, pCommandBuffer)
+			val commandBuffer = renderer.beginCmdBuffer(it, pCommandBuffer)
 			run {
 				val copyRegion = VkBufferCopy.callocStack(1, it)
 				copyRegion.size(size.toLong())
@@ -137,9 +141,9 @@ class Memory(val common: VkCommon) {
 			val submitInfo = VkSubmitInfo.callocStack(it)
 				.sType(VK10.VK_STRUCTURE_TYPE_SUBMIT_INFO)
 				.pCommandBuffers(pCommandBuffer)
-			VK10.vkQueueSubmit(engine.renderer.queues.graphicsQueue, submitInfo, VK10.VK_NULL_HANDLE).ok()
-			VK10.vkQueueWaitIdle(engine.renderer.queues.graphicsQueue).ok()
-			VK10.vkFreeCommandBuffers(device.device, engine.renderer.commandPool, pCommandBuffer)
+			VK10.vkQueueSubmit(renderer.queues.graphicsQueue, submitInfo, VK10.VK_NULL_HANDLE).ok()
+			VK10.vkQueueWaitIdle(renderer.queues.graphicsQueue).ok()
+			VK10.vkFreeCommandBuffers(device.rawDevice, renderer.commandPool, pCommandBuffer)
 		}
 	}
 
@@ -160,7 +164,7 @@ class Memory(val common: VkCommon) {
 				pBuffer
 			)
 			val indexBuffer = pBuffer[0]
-			copyBuffer(stagingBuffer.buffer, indexBuffer, size, engine, device)
+			copyBuffer(stagingBuffer.buffer, indexBuffer, size, engine.renderer, engine.common.device)
 			freeBuffer(stagingBuffer)
 			return indexBufferInfo
 		}
@@ -187,7 +191,7 @@ class Memory(val common: VkCommon) {
 					pBuffer
 				)
 				val vertexBuffer = pBuffer[0]
-				copyBuffer(stagingBuffer.buffer, vertexBuffer, size, engine, device)
+				copyBuffer(stagingBuffer.buffer, vertexBuffer, size, engine.renderer, engine.common.device)
 				freeBuffer(stagingBuffer)
 				return vertexBufferInfo
 			} else {

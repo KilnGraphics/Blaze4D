@@ -2,7 +2,6 @@ package me.hydos.rosella.render.material
 
 import me.hydos.rosella.Rosella
 import me.hydos.rosella.render.Topology
-import me.hydos.rosella.render.device.Device
 import me.hydos.rosella.render.renderer.Renderer
 import me.hydos.rosella.render.shader.ShaderProgram
 import me.hydos.rosella.render.swapchain.RenderPass
@@ -22,8 +21,8 @@ class PipelineManager(var common: VkCommon, val renderer: Renderer) {
 	private fun getPipeline(createInfo: PipelineCreateInfo): PipelineInfo {
 		if (!pipelines.containsKey(createInfo)) {
 			pipelines[createInfo] = createPipeline(
-				device,
-				swapchain,
+				common.device,
+				renderer.swapchain,
 				createInfo.renderPass,
 				createInfo.descriptorSetLayout,
 				createInfo.polygonMode,
@@ -36,11 +35,11 @@ class PipelineManager(var common: VkCommon, val renderer: Renderer) {
 		return pipelines[createInfo]!!
 	}
 
-	fun getPipeline(material: Material, renderer: Renderer, rosella: Rosella): PipelineInfo {
+	fun getPipeline(material: Material, renderer: Renderer): PipelineInfo {
 		val createInfo = PipelineCreateInfo(
 			renderer.renderPass,
 			material.shader.raw.descriptorSetLayout,
-			rosella.polygonMode,
+			Rosella.POLYGON_MODE,
 			material.shader,
 			material.topology,
 			material.vertexFormat,

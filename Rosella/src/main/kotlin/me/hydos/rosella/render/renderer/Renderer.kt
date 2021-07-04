@@ -55,7 +55,7 @@ class Renderer(common: VkCommon) {
 		this.renderPass = RenderPass(device, swapchain, engine)
 		createImgViews(swapchain, device)
 		for (material in engine.materials.values) {
-			material.pipeline = engine.pipelineManager.getPipeline(material, this, engine)
+			material.pipeline = engine.pipelineManager.getPipeline(material, this)
 		}
 		depthBuffer.createDepthResources(device, swapchain, this)
 		createFrameBuffers()

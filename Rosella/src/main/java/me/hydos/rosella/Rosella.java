@@ -128,7 +128,7 @@ public class Rosella {
         for (Material material : unprocessedMaterials) {
             if (material.getShader().getRaw().getDescriptorSetLayout() == 0L) {
                 material.getShader().getRaw().createDescriptorSetLayout();
-                material.pipeline = pipelineManager.getPipeline(material, renderer, this);
+                material.pipeline = pipelineManager.getPipeline(material, renderer);
                 materials.add(material);
             }
         }
