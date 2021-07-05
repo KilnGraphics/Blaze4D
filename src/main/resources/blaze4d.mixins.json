@@ -4,12 +4,11 @@
   "package": "me.hydos.blaze4d.mixin",
   "compatibilityLevel": "JAVA_16",
   "mixins": [
-    "buffers.GlStateManagerMixin",
-    "debug.TextureManagerMixin",
-    "vertices.VertexBufferMixin"
   ],
   "client": [
     "blaze3d.RenderSystemMixin",
+    "buffers.GlStateManagerMixin",
+    "debug.TextureManagerMixin",
     "integration.FramebufferMixin",
     "integration.GlDebugMixin",
     "integration.GlStateManagerMixin",
@@ -18,15 +17,17 @@
     "integration.WindowFramebufferMixin",
     "integration.WindowMixin",
     "matrices.RenderSystemMixin",
-    "shader.GLImportProcessorMixin",
     "shader.GlStateManagerMixin",
     "shader.RenderSystemMixin",
+    "shader.ShaderAccessor",
+    "shader.ShaderMixin",
     "shader.WorldRendererMixin",
     "texture.NativeImageMixin",
     "texture.RenderSystemMixin",
     "texture.TextureManagerMixin",
     "texture.TextureUtilMixin",
-    "vertices.BufferBuilderMixin"
+    "vertices.BufferBuilderMixin",
+    "vertices.VertexBufferMixin"
   ],
   "injectors": {
     "defaultRequire": 1

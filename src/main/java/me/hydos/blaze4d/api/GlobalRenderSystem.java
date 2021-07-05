@@ -9,6 +9,7 @@ import me.hydos.blaze4d.api.shader.ShaderContext;
 import me.hydos.blaze4d.api.vertex.ConsumerCreationInfo;
 import me.hydos.blaze4d.api.vertex.ConsumerRenderObject;
 import me.hydos.blaze4d.api.vertex.ObjectInfo;
+import me.hydos.blaze4d.mixin.shader.ShaderAccessor;
 import me.hydos.rosella.Rosella;
 import me.hydos.rosella.render.resource.Identifier;
 import me.hydos.rosella.render.shader.RawShaderProgram;
@@ -28,6 +29,7 @@ public class GlobalRenderSystem {
     // Shader Fields
     public static final Map<Integer, ShaderContext> SHADER_MAP = new Int2ObjectOpenHashMap<>();
     public static final Map<Integer, RawShaderProgram> SHADER_PROGRAM_MAP = new Int2ObjectOpenHashMap<>();
+
     public static final int DEFAULT_MAX_OBJECTS = 8092;
     public static String programErrorLog = "none";
     public static int nextShaderId = 1; // Minecraft is a special snowflake and needs shader's to start at 1
@@ -40,12 +42,16 @@ public class GlobalRenderSystem {
     public static int boundTextureId = -1; // TODO: generate an identifier instead of using int id, or switch everything over to ints
     public static ShaderProgram activeShader;
 
-    // Uniforms FIXME FIXME FIXME: to add support for custom uniforms and add support for mods like iris, we need to do this
+    // Uniforms FIXME FIXME FIXME: to add support for custom uniforms and add support for mods like iris & lambdynamic lights, we need to do this
+    // TODO: Custom uniforms are complete, but support for stuff like lambdynamic lights and iris is needed
     public static Matrix4f projectionMatrix = new Matrix4f();
     public static Matrix4f modelViewMatrix = new Matrix4f();
     public static Vector3f chunkOffset = new Vector3f();
     public static Vec3f shaderLightDirections0 = new Vec3f();
     public static Vec3f shaderLightDirections1 = new Vec3f();
+
+    // Captured Shader for more dynamic uniforms and samplers
+    public static ShaderAccessor blaze4d$capturedShader = null;
 
     //=================
     // Shader Methods

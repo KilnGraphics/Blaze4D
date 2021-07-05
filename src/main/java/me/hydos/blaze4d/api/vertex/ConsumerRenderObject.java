@@ -1,6 +1,7 @@
 package me.hydos.blaze4d.api.vertex;
 
 import me.hydos.blaze4d.api.Materials;
+import me.hydos.blaze4d.api.shader.MinecraftShaderProgram;
 import me.hydos.blaze4d.api.shader.MinecraftUbo;
 import me.hydos.rosella.Rosella;
 import me.hydos.rosella.device.VulkanDevice;
@@ -15,6 +16,7 @@ import me.hydos.rosella.render.vertex.VertexFormats;
 import me.hydos.rosella.scene.object.Renderable;
 import me.hydos.rosella.vkobjects.VkCommon;
 import net.minecraft.client.render.VertexFormat;
+
 import org.jetbrains.annotations.NotNull;
 
 public class ConsumerRenderObject implements Renderable {
@@ -34,7 +36,7 @@ public class ConsumerRenderObject implements Renderable {
         this.shader = info.shader;
         this.textureId = info.textureId;
         Material material = getMaterial(drawMode);
-        instanceInfo = new InstanceInfo(new MinecraftUbo(rosella.common.device, rosella.memory, material), material);
+        instanceInfo = new InstanceInfo(((MinecraftShaderProgram) info.shader.getRaw()).createMinecraftUbo(rosella.memory, material), material);
         ((MinecraftUbo) instanceInfo.ubo).setUniforms(info.projMatrix, info.viewMatrix, info.chunkOffset, info.shaderLightDirections0, info.shaderLightDirections1);
         this.renderInfo.indices = info.indices;
     }
