@@ -55,6 +55,6 @@ class TextureManager(val common: VkCommon) { // TODO: add layers, maybe not in t
 			TextureSampler(samplerCreateInfo, common.device)
 		}
 
-		textureMap[textureId] = Texture(imgFormat, textureImage, textureSampler.pointer);
+		textureMap[textureId] = Texture(imgFormat, textureImage, textureSampler.pointer)
 	}
 }

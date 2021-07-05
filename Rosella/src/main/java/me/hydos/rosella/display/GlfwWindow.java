@@ -1,5 +1,6 @@
 package me.hydos.rosella.display;
 
+import me.hydos.rosella.Rosella;
 import me.hydos.rosella.vkobjects.VkCommon;
 import org.lwjgl.PointerBuffer;
 import org.lwjgl.glfw.GLFWVidMode;
@@ -69,9 +70,10 @@ public class GlfwWindow extends Display {
     }
 
     @Override
-    public void startAutomaticLoop() {
+    public void startAutomaticLoop(Rosella rosella) {
         while (!glfwWindowShouldClose(pWindow)) {
             update();
+            rosella.renderer.render(rosella);
         }
     }
 
@@ -106,7 +108,7 @@ public class GlfwWindow extends Display {
         frameCount++;
         if (currentTime - previousTime >= 1.0) {
             fps = frameCount;
-
+            System.out.println(fps);
             frameCount = 0;
             previousTime = currentTime;
         }

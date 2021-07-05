@@ -45,24 +45,20 @@ class Renderer(val common: VkCommon, display: Display, rosella: Rosella) {
 
 	init {
 		createCmdPool(common.device, this, common.surface)
-		createSwapChain(common, display, rosella.objectManager as SimpleObjectManager?)
+		createSwapChain(common, display, rosella.objectManager as SimpleObjectManager)
 	}
 
-	private fun createSwapChain(common: VkCommon, display: Display, objectManager: SimpleObjectManager?) {
+	private fun createSwapChain(common: VkCommon, display: Display, objectManager: SimpleObjectManager) {
 		this.swapchain = Swapchain(display, common.device.rawDevice, common.device.physicalDevice, common.surface)
 		this.renderPass = RenderPass(common.device, swapchain, this)
 		createImgViews(swapchain, common.device)
-		if (objectManager != null) {
-			for (material in objectManager.materials) {
-				material.pipeline = objectManager.pipelineManager.getPipeline(material, this)
-			}
+		for (material in objectManager.materials) {
+			material.pipeline = objectManager.pipelineManager.getPipeline(material, this)
 		}
 		depthBuffer.createDepthResources(common.device, swapchain, this)
 		createFrameBuffers()
 //		engine.camera.createViewAndProj(swapchain)
-		if (objectManager != null) {
-			rebuildCommandBuffers(renderPass, objectManager)
-		}
+		rebuildCommandBuffers(renderPass, objectManager)
 		createSyncObjects()
 	}
 
@@ -104,7 +100,7 @@ class Renderer(val common: VkCommon, display: Display, rosella: Rosella) {
 
 			val imageIndex = pImageIndex[0]
 
-			for (shader in (rosella.objectManager as SimpleObjectManager).shaderManager.shaders.values) {
+			for (shader in (rosella.objectManager as SimpleObjectManager).shaderManager.cachedShaders.keys) {
 				shader.updateUbos(imageIndex, swapchain, rosella.objectManager)
 			}
 
@@ -164,7 +160,7 @@ class Renderer(val common: VkCommon, display: Display, rosella: Rosella) {
 	}
 
 	fun freeSwapChain(rosella: Rosella) {
-		for (shaderPair in (rosella.objectManager as SimpleObjectManager).shaderManager.shaders.values) {
+		for (shaderPair in (rosella.objectManager as SimpleObjectManager).shaderManager.cachedShaders.keys) {
 			vkDestroyDescriptorPool(rosella.common.device.rawDevice, shaderPair.descriptorPool, null)
 		}
 

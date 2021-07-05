@@ -52,5 +52,12 @@ public interface ObjectManager {
      * @param rosella the instance of rosella
      */
     void free(Rosella rosella);
+
+    /**
+     * Called after an instance of the renderer is cretyed
+     *
+     * @param renderer the renderer
+     */
+    void postInit(Renderer renderer);
 }
 

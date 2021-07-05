@@ -1,5 +1,6 @@
 package me.hydos.rosella.display;
 
+import me.hydos.rosella.Rosella;
 import me.hydos.rosella.vkobjects.VkCommon;
 
 import java.util.ArrayList;
@@ -27,7 +28,7 @@ public abstract class Display {
     /**
      * This method will handle looping for you, meaning you will not have to call update() every frame manually.
      */
-    public abstract void startAutomaticLoop();
+    public abstract void startAutomaticLoop(Rosella rosella);
 
     /**
      * Exit's the {@link Display}. should be called after {@link me.hydos.rosella.Rosella} exit's

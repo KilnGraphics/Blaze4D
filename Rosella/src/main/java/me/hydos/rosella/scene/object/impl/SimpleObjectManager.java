@@ -26,19 +26,21 @@ import java.util.Map;
 public class SimpleObjectManager implements ObjectManager {
 
     public Renderer renderer;
+    private final VkCommon common;
+    private final Rosella rosella;
     public final ShaderManager shaderManager;
     public final TextureManager textureManager;
-    public final PipelineManager pipelineManager;
+    public PipelineManager pipelineManager;
     public final Map<RenderInfo, List<InstanceInfo>> renderObjects = new Object2ObjectArrayMap<>();
 
     public final List<Material> materials = new ArrayList<>();
     public final List<Material> unprocessedMaterials = new ArrayList<>();
 
-    public SimpleObjectManager(Rosella rosella, VkCommon common, Renderer renderer) {
+    public SimpleObjectManager(Rosella rosella, VkCommon common) {
         this.shaderManager = new ShaderManager(rosella);
         this.textureManager = new TextureManager(common);
-        this.pipelineManager = new PipelineManager(common, renderer);
-        this.renderer = renderer;
+        this.rosella = rosella;
+        this.common = common;
     }
 
     @Override
@@ -47,12 +49,18 @@ public class SimpleObjectManager implements ObjectManager {
     }
 
     @Override
-    public Renderable addObject(Renderable renderable) {
-        return renderable;
+    public Renderable addObject(Renderable obj) {
+        if (!renderObjects.containsKey(obj.getRenderInfo()) && !obj.isReady()) {
+            obj.getRenderInfo().createBuffers(rosella.memory, rosella);
+            renderObjects.put(obj.getRenderInfo(), new ArrayList<>());
+        }
+        obj.onAddedToScene(common, renderer, rosella.memory);
+        return obj;
     }
 
     @Override
     public Material registerMaterial(Material material) {
+        material.loadTextures(this, rosella); //TODO: ew ew ew ew ew ew ew ew ew ew ew ew ew ew ew ew ew ew ew ew ew ew ew ew ew ew
         return material;
     }
 
@@ -81,5 +89,11 @@ public class SimpleObjectManager implements ObjectManager {
         materials.clear();
 
         shaderManager.free();
+    }
+
+    @Override
+    public void postInit(Renderer renderer) {
+        this.renderer = renderer;
+        this.pipelineManager = new PipelineManager(common, renderer);
     }
 }

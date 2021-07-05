@@ -6,15 +6,20 @@ import me.hydos.rosella.render.resource.Resource
 import me.hydos.rosella.render.util.memory.Memory
 import me.hydos.rosella.scene.`object`.RenderObject
 import me.hydos.rosella.vkobjects.VkCommon
+import org.joml.Matrix4f
 import org.joml.Vector3f
 
 open class GuiRenderObject(
 	material: Material,
 	var z: Float = -1f,
-	var colour: Vector3f = Vector3f(0f, 0f, 0f)
-) : RenderObject(Resource.Empty, material) {
+	var colour: Vector3f = Vector3f(0f, 0f, 0f),
+	viewMatrix: Matrix4f,
+	projectionMatrix: Matrix4f
+) : RenderObject(Resource.Empty, material, viewMatrix, projectionMatrix) {
 
-	constructor(material: Material, z: Float, colour: Vector3f, scaleX: Float, scaleZ: Float) : this(material, z, colour) {
+	constructor(
+		material: Material, z: Float, colour: Vector3f, scaleX: Float, scaleZ: Float, viewMatrix: Matrix4f, projectionMatrix: Matrix4f
+	) : this(material, z, colour, viewMatrix, projectionMatrix) {
 		scale(scaleX, scaleZ)
 	}
 
@@ -25,8 +30,10 @@ open class GuiRenderObject(
 		scaleX: Float,
 		scaleZ: Float,
 		translateX: Float,
-		translateZ: Float
-	) : this(material, z, colour, scaleX, scaleZ) {
+		translateZ: Float,
+		viewMatrix: Matrix4f,
+		projectionMatrix: Matrix4f
+	) : this(material, z, colour, scaleX, scaleZ, viewMatrix, projectionMatrix) {
 		translate(translateX, translateZ)
 	}
 

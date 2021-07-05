@@ -61,8 +61,9 @@ public class Rosella {
 
         // Setup the object manager
         this.memory = new Memory(common);
+        this.objectManager = new SimpleObjectManager(this, common);
         this.renderer = new Renderer(common, display, this); //TODO: make swapchain, etc initialization happen outside of the renderer and in here
-        this.objectManager = new SimpleObjectManager(this, common, renderer);
+        this.objectManager.postInit(renderer);
 
         // Tell the display we are initialized
         display.onReady();

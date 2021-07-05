@@ -28,13 +28,15 @@ public class RenderObject implements Renderable {
     public final RenderInfo renderInfo = new RenderInfo(new BufferVertexConsumer(VertexFormats.Companion.getPOSITION_COLOR_UV()));
     public InstanceInfo instanceInfo;
 
-    public Matrix4f modelMatrix = new Matrix4f();
-    public Matrix4f viewMatrix = new Matrix4f();
-    public Matrix4f projectionMatrix = new Matrix4f();
+    public final Matrix4f modelMatrix = new Matrix4f();
+    public final Matrix4f viewMatrix;
+    public final Matrix4f projectionMatrix;
 
-    public RenderObject(Resource model, Material material) {
+    public RenderObject(Resource model, Material material, Matrix4f projectionMatrix, Matrix4f viewMatrix) {
         this.material = material;
         this.modelId = model;
+        this.projectionMatrix = projectionMatrix;
+        this.viewMatrix = viewMatrix;
         loadModelInfo();
     }
 
@@ -61,7 +63,6 @@ public class RenderObject implements Renderable {
     @Override
     public void onAddedToScene(VkCommon common, Renderer renderer, Memory memory) {
         instanceInfo = new InstanceInfo(new RenderObjectUbo(common.device, memory, this, material.getShader()), material);
-        throw new RuntimeException("E");
 //        this.projectionMatrix = rosella.getCamera().getProj();
 //        this.viewMatrix = rosella.getCamera().getView();
     }
