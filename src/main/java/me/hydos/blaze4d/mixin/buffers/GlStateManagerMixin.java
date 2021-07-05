@@ -12,7 +12,7 @@ import java.nio.ByteBuffer;
  * Buffer Implementation just in case mods use it
  * TODO: this implementation can stay just in case, but i want to make IndexBuffer in RenderSystem work properly
  */
-@Mixin(GlStateManager.class)
+@Mixin(value = GlStateManager.class, remap = false)
 public class GlStateManagerMixin {
 
     /**
