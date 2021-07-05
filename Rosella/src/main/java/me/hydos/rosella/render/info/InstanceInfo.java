@@ -1,9 +1,10 @@
 package me.hydos.rosella.render.info;
 
 import me.hydos.rosella.Rosella;
+import me.hydos.rosella.device.VulkanDevice;
 import me.hydos.rosella.memory.MemoryCloseable;
-import me.hydos.rosella.render.device.Device;
 import me.hydos.rosella.render.material.Material;
+import me.hydos.rosella.render.renderer.Renderer;
 import me.hydos.rosella.render.shader.ubo.Ubo;
 import me.hydos.rosella.render.util.memory.Memory;
 import org.jetbrains.annotations.NotNull;
@@ -22,9 +23,9 @@ public class InstanceInfo implements MemoryCloseable {
     }
 
     @Override
-    public void free(Device device, Memory memory) {
+    public void free(VulkanDevice device, Memory memory) {
         ubo.free(device, memory);
-        material.shader.getDescriptorManager().freeDescriptorSet(ubo.getDescriptors());
+        material.getShader().getDescriptorManager().freeDescriptorSet(ubo.getDescriptors());
     }
 
     /**
@@ -32,11 +33,11 @@ public class InstanceInfo implements MemoryCloseable {
      *
      * @param rosella The active instance of the Renderer
      */
-    public void rebuild(@NotNull Rosella rosella) {
-        material.shader.getDescriptorManager().freeDescriptorSet(ubo.getDescriptors());
+    public void rebuild(@NotNull Renderer renderer) {
+        material.getShader().getDescriptorManager().freeDescriptorSet(ubo.getDescriptors());
         if (ubo.getUniformBuffers().size() == 0) {
-            ubo.create(rosella.getRenderer().swapchain);
+            ubo.create(renderer.swapchain);
         }
-        material.shader.getDescriptorManager().createNewDescriptor(material.texture, ubo);
+        material.getShader().getDescriptorManager().createNewDescriptor(material.texture, ubo);
     }
 }

@@ -1,11 +1,12 @@
-package me.hydos.rosella.render.object;
+package me.hydos.rosella.scene.object;
 
 import me.hydos.rosella.Rosella;
-import me.hydos.rosella.render.device.Device;
+import me.hydos.rosella.device.VulkanDevice;
 import me.hydos.rosella.render.info.InstanceInfo;
 import me.hydos.rosella.render.info.RenderInfo;
 import me.hydos.rosella.render.material.Material;
 import me.hydos.rosella.render.model.ModelLoader;
+import me.hydos.rosella.render.renderer.Renderer;
 import me.hydos.rosella.render.resource.Resource;
 import me.hydos.rosella.render.shader.ubo.RenderObjectUbo;
 import me.hydos.rosella.render.util.memory.Memory;
@@ -58,22 +59,22 @@ public class RenderObject implements Renderable {
     }
 
     @Override
-    public void onAddedToScene(VkCommon common, Memory memory) {
-        instanceInfo = new InstanceInfo(new RenderObjectUbo(common.device, memory, this, material.shader), material);
+    public void onAddedToScene(VkCommon common, Renderer renderer, Memory memory) {
+        instanceInfo = new InstanceInfo(new RenderObjectUbo(common.device, memory, this, material.getShader()), material);
         throw new RuntimeException("E");
 //        this.projectionMatrix = rosella.getCamera().getProj();
 //        this.viewMatrix = rosella.getCamera().getView();
     }
 
     @Override
-    public void free(Memory memory, Device device) {
+    public void free(Memory memory, VulkanDevice device) {
         instanceInfo.free(device, memory);
         renderInfo.free(device, memory);
     }
 
     @Override
     public void rebuild(Rosella rosella) {
-        instanceInfo.rebuild(rosella);
+        instanceInfo.rebuild(rosella.renderer);
     }
 
     @Override

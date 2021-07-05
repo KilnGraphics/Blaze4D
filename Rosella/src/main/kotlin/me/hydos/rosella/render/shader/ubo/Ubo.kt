@@ -1,8 +1,8 @@
 package me.hydos.rosella.render.shader.ubo
 
+import me.hydos.rosella.device.VulkanDevice
 import me.hydos.rosella.memory.MemoryCloseable
 import me.hydos.rosella.render.descriptorsets.DescriptorSet
-import me.hydos.rosella.render.device.Device
 import me.hydos.rosella.render.swapchain.Swapchain
 import me.hydos.rosella.render.util.memory.BufferInfo
 import me.hydos.rosella.render.util.memory.Memory
@@ -45,7 +45,7 @@ abstract class Ubo : MemoryCloseable {
 	/**
 	 * Called when the program is closing and free's memory
 	 */
-	override fun free(device: Device?, memory: Memory?) {
+	override fun free(device: VulkanDevice?, memory: Memory?) {
 		free()
 	}
 

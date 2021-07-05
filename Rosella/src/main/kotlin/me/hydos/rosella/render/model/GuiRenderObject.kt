@@ -1,9 +1,10 @@
 package me.hydos.rosella.render.model
 
-import me.hydos.rosella.render.`object`.RenderObject
 import me.hydos.rosella.render.material.Material
+import me.hydos.rosella.render.renderer.Renderer
 import me.hydos.rosella.render.resource.Resource
 import me.hydos.rosella.render.util.memory.Memory
+import me.hydos.rosella.scene.`object`.RenderObject
 import me.hydos.rosella.vkobjects.VkCommon
 import org.joml.Vector3f
 
@@ -67,8 +68,8 @@ open class GuiRenderObject(
 		renderInfo.indices.add(0)
 	}
 
-	override fun onAddedToScene(common: VkCommon, memory: Memory) {
-		super.onAddedToScene(common, memory)
+	override fun onAddedToScene(common: VkCommon, renderer: Renderer, memory: Memory) {
+		super.onAddedToScene(common, renderer, memory)
 		modelMatrix.translate(0f, 0f, z)
 	}
 

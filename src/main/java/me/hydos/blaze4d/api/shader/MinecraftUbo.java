@@ -1,8 +1,8 @@
 package me.hydos.blaze4d.api.shader;
 
 import com.mojang.blaze3d.systems.RenderSystem;
+import me.hydos.rosella.device.VulkanDevice;
 import me.hydos.rosella.render.descriptorsets.DescriptorSet;
-import me.hydos.rosella.render.device.Device;
 import me.hydos.rosella.render.material.Material;
 import me.hydos.rosella.render.shader.ubo.Ubo;
 import me.hydos.rosella.render.swapchain.Swapchain;
@@ -37,9 +37,9 @@ public class MinecraftUbo extends Ubo {
     public Vec3f shaderLightDirections0;
     public Vec3f shaderLightDirections1;
 
-    public MinecraftUbo(@NotNull Device device, @NotNull Memory memory, Material material) {
+    public MinecraftUbo(@NotNull VulkanDevice device, @NotNull Memory memory, Material material) {
         this.memory = memory;
-        this.descSets = new DescriptorSet(material.shader.getRaw().getDescriptorPool());
+        this.descSets = new DescriptorSet(material.getShader().getRaw().getDescriptorPool());
     }
 
     @Override

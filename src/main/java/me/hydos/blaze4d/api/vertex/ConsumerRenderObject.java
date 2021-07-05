@@ -3,15 +3,17 @@ package me.hydos.blaze4d.api.vertex;
 import me.hydos.blaze4d.api.Materials;
 import me.hydos.blaze4d.api.shader.MinecraftUbo;
 import me.hydos.rosella.Rosella;
-import me.hydos.rosella.render.device.Device;
+import me.hydos.rosella.device.VulkanDevice;
 import me.hydos.rosella.render.info.InstanceInfo;
 import me.hydos.rosella.render.info.RenderInfo;
 import me.hydos.rosella.render.material.Material;
-import me.hydos.rosella.render.object.Renderable;
+import me.hydos.rosella.render.renderer.Renderer;
 import me.hydos.rosella.render.shader.ShaderProgram;
 import me.hydos.rosella.render.util.memory.Memory;
 import me.hydos.rosella.render.vertex.BufferVertexConsumer;
 import me.hydos.rosella.render.vertex.VertexFormats;
+import me.hydos.rosella.scene.object.Renderable;
+import me.hydos.rosella.vkobjects.VkCommon;
 import net.minecraft.client.render.VertexFormat;
 import org.jetbrains.annotations.NotNull;
 
@@ -32,7 +34,7 @@ public class ConsumerRenderObject implements Renderable {
         this.shader = info.shader;
         this.textureId = info.textureId;
         Material material = getMaterial(drawMode);
-        instanceInfo = new InstanceInfo(new MinecraftUbo(rosella.getDevice(), rosella.getMemory(), material), material);
+        instanceInfo = new InstanceInfo(new MinecraftUbo(rosella.common.device, rosella.memory, material), material);
         ((MinecraftUbo) instanceInfo.ubo).setUniforms(info.projMatrix, info.viewMatrix, info.chunkOffset, info.shaderLightDirections0, info.shaderLightDirections1);
         this.renderInfo.indices = info.indices;
     }
@@ -65,21 +67,21 @@ public class ConsumerRenderObject implements Renderable {
     // Render Implementation
     //======================
 
-
-    public void onAddedToScene(@NotNull Rosella rosella) {
-        instanceInfo.rebuild(rosella);
-        instanceInfo.ubo.create(rosella.getRenderer().swapchain);
+    @Override
+    public void onAddedToScene(VkCommon common, Renderer renderer, Memory memory) {
+        instanceInfo.rebuild(renderer);
+        instanceInfo.ubo.create(renderer.swapchain);
     }
 
     @Override
-    public void free(@NotNull Memory memory, @NotNull Device device) {
+    public void free(@NotNull Memory memory, @NotNull VulkanDevice  device) {
         instanceInfo.free(device, memory);
         renderInfo.free(device, memory);
     }
 
     @Override
     public void rebuild(Rosella rosella) {
-        instanceInfo.rebuild(rosella);
+        instanceInfo.rebuild(rosella.renderer);
     }
 
     @Override

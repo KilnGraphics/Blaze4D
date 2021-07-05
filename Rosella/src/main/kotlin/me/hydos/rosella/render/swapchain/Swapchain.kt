@@ -1,12 +1,10 @@
 package me.hydos.rosella.render.swapchain
 
-import me.hydos.rosella.render.device.QueueFamilyIndices
+import me.hydos.rosella.device.QueueFamilyIndices
+import me.hydos.rosella.display.Display
 import me.hydos.rosella.render.findQueueFamilies
-import me.hydos.rosella.render.io.Window
 import me.hydos.rosella.render.util.ok
-import org.lwjgl.glfw.GLFW.glfwGetFramebufferSize
 import org.lwjgl.system.MemoryStack
-import org.lwjgl.system.MemoryStack.stackGet
 import org.lwjgl.vulkan.*
 import org.lwjgl.vulkan.KHRSurface.*
 import org.lwjgl.vulkan.KHRSwapchain.*
@@ -15,11 +13,12 @@ import java.nio.IntBuffer
 import java.nio.LongBuffer
 
 class Swapchain(
-	engine: Rosella,
+	display: Display,
 	device: VkDevice,
 	physicalDevice: VkPhysicalDevice,
 	surface: Long
 ) {
+	var maxImages: IntBuffer
 	var swapChain: Long = 0
 	var swapChainImageViews: MutableList<Long> = ArrayList()
 	var frameBuffers: MutableList<Long> = ArrayList()
@@ -33,10 +32,10 @@ class Swapchain(
 
 			val surfaceFormat: VkSurfaceFormatKHR = chooseSwapSurfaceFormat(swapchainSupport.formats)!!
 			val presentMode: Int = chooseSwapPresentMode(swapchainSupport.presentModes)
-			val extent: VkExtent2D = chooseSwapExtent(swapchainSupport.capabilities, engine.window)!!
+			val extent: VkExtent2D = chooseSwapExtent(swapchainSupport.capabilities, display)!!
 
 			val imageCount: IntBuffer = it.ints(swapchainSupport.capabilities.minImageCount() + 1)
-			engine.maxImages = imageCount
+			this.maxImages = imageCount
 
 			if (swapchainSupport.capabilities.maxImageCount() > 0 && imageCount[0] > swapchainSupport.capabilities.maxImageCount()) {
 				imageCount.put(0, swapchainSupport.capabilities.maxImageCount())
@@ -58,7 +57,7 @@ class Swapchain(
 
 			if (indices.graphicsFamily != indices.presentFamily) {
 				createInfo.imageSharingMode(VK_SHARING_MODE_CONCURRENT)
-					.pQueueFamilyIndices(it.ints(indices.graphicsFamily!!, indices.presentFamily!!))
+					.pQueueFamilyIndices(it.ints(indices.graphicsFamily, indices.presentFamily))
 			} else {
 				createInfo.imageSharingMode(VK_SHARING_MODE_EXCLUSIVE)
 			}
@@ -104,17 +103,12 @@ class Swapchain(
 		return VK_PRESENT_MODE_FIFO_KHR
 	}
 
-	private fun chooseSwapExtent(capabilities: VkSurfaceCapabilitiesKHR, window: Window): VkExtent2D? {
+	private fun chooseSwapExtent(capabilities: VkSurfaceCapabilitiesKHR, display: Display): VkExtent2D? {
 		if (capabilities.currentExtent().width() != UINT32_MAX) {
 			return capabilities.currentExtent()
 		}
 
-		val width = stackGet().ints(0)
-		val height = stackGet().ints(0)
-
-		glfwGetFramebufferSize(window.windowPtr, width, height)
-
-		val actualExtent = VkExtent2D.mallocStack().set(width[0], height[0])
+		val actualExtent = VkExtent2D.mallocStack().set(display.width, display.height)
 		val minExtent = capabilities.minImageExtent()
 		val maxExtent = capabilities.maxImageExtent()
 		actualExtent.width(minExtent.width().coerceIn(maxExtent.width(), actualExtent.width()))

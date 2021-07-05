@@ -1,9 +1,7 @@
 package me.hydos.blaze4d.mixin.vertices;
 
-import me.hydos.blaze4d.Blaze4D;
 import me.hydos.blaze4d.api.GlobalRenderSystem;
 import me.hydos.blaze4d.api.vertex.ConsumerCreationInfo;
-import me.hydos.blaze4d.api.vertex.ObjectInfo;
 import me.hydos.blaze4d.api.vertex.UploadableConsumer;
 import me.hydos.rosella.render.shader.ShaderProgram;
 import net.minecraft.client.render.*;
@@ -15,7 +13,9 @@ import org.spongepowered.asm.mixin.injection.At;
 import org.spongepowered.asm.mixin.injection.Inject;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 
-import java.util.*;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
 
 @Mixin(BufferBuilder.class)
 public abstract class BufferBuilderMixin extends FixedColorVertexConsumer implements UploadableConsumer {

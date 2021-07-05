@@ -5,6 +5,7 @@ import me.hydos.blaze4d.api.GlobalRenderSystem;
 import me.hydos.rosella.render.texture.SamplerCreateInfo;
 import me.hydos.rosella.render.texture.TextureFilter;
 import me.hydos.rosella.render.texture.UploadableImage;
+import me.hydos.rosella.scene.object.impl.SimpleObjectManager;
 import net.minecraft.client.texture.NativeImage;
 import org.lwjgl.system.MemoryUtil;
 import org.lwjgl.vulkan.VK10;
@@ -46,7 +47,7 @@ public abstract class NativeImageMixin implements UploadableImage {
 
     @Inject(method = "uploadInternal", at = @At("HEAD"), cancellable = true)
     private void uploadToRosella(int level, int offsetX, int offsetY, int unpackSkipPixels, int unpackSkipRows, int width, int height, boolean blur, boolean clamp, boolean mipmap, boolean close, CallbackInfo ci) {
-        Blaze4D.rosella.getTextureManager().uploadTextureToId(
+        ((SimpleObjectManager) Blaze4D.rosella.objectManager).textureManager.uploadTextureToId(
                 Blaze4D.rosella,
                 GlobalRenderSystem.boundTextureId,
                 this,

@@ -5,7 +5,7 @@ import me.hydos.rosella.display.GlfwWindow;
 import me.hydos.rosella.render.Topology;
 import me.hydos.rosella.render.material.Material;
 import me.hydos.rosella.render.model.GuiRenderObject;
-import me.hydos.rosella.render.object.Renderable;
+import me.hydos.rosella.scene.object.Renderable;
 import me.hydos.rosella.render.resource.Global;
 import me.hydos.rosella.render.resource.Identifier;
 import me.hydos.rosella.render.shader.RawShaderProgram;
@@ -13,6 +13,7 @@ import me.hydos.rosella.render.shader.ShaderProgram;
 import me.hydos.rosella.render.texture.SamplerCreateInfo;
 import me.hydos.rosella.render.texture.TextureFilter;
 import me.hydos.rosella.render.vertex.VertexFormats;
+import me.hydos.rosella.scene.object.impl.SimpleObjectManager;
 import org.joml.Vector3f;
 import org.lwjgl.glfw.GLFW;
 import org.lwjgl.glfw.GLFWKeyCallback;
@@ -47,17 +48,17 @@ public class PortalJava {
     }
 
     private static void setupMainMenuScene() {
-        rosella.addObject(
+        rosella.objectManager.addObject(
                 new GuiRenderObject(menuBackground, -1f, new Vector3f(0, 0, 0), 1.5f, 1f)
         );
 
-        rosella.addObject(
+        rosella.objectManager.addObject(
                 new GuiRenderObject(portalLogo, -0.9f, new Vector3f(0, 0, 0), 0.4f, 0.1f, -1f, -2.6f)
         );
     }
 
     private static void loadMaterials() {
-        menuBackground = rosella.registerMaterial(
+        menuBackground = rosella.objectManager.registerMaterial(
                 new Material(
                         Global.INSTANCE.ensureResource(new Identifier("example", "textures/background/background01.png")),
                         guiShader,
@@ -69,7 +70,7 @@ public class PortalJava {
                 )
         );
 
-        portalLogo = rosella.registerMaterial(
+        portalLogo = rosella.objectManager.registerMaterial(
                 new Material(
                         Global.INSTANCE.ensureResource(new Identifier("example", "textures/gui/portal2logo.png")),
                         guiShader,
@@ -81,11 +82,11 @@ public class PortalJava {
                 )
         );
 
-        rosella.submitMaterials();
+        rosella.objectManager.submitMaterials();
     }
 
     private static void loadShaders() {
-        basicShader = rosella.addShader(
+        basicShader = rosella.objectManager.addShader(
                 new RawShaderProgram(
                         Global.INSTANCE.ensureResource(new Identifier("rosella", "shaders/base.v.glsl")),
                         Global.INSTANCE.ensureResource(new Identifier("rosella", "shaders/base.f.glsl")),
@@ -97,7 +98,7 @@ public class PortalJava {
                 )
         );
 
-        guiShader = rosella.addShader(
+        guiShader = rosella.objectManager.addShader(
                 new RawShaderProgram(
                         Global.INSTANCE.ensureResource(new Identifier("rosella", "shaders/gui.v.glsl")),
                         Global.INSTANCE.ensureResource(new Identifier("rosella", "shaders/gui.f.glsl")),
@@ -111,7 +112,7 @@ public class PortalJava {
     }
 
     private static void doMainLoop() {
-        rosella.renderer.rebuildCommandBuffers(rosella.renderer.renderPass, rosella);
+        rosella.renderer.rebuildCommandBuffers(rosella.renderer.renderPass, (SimpleObjectManager) rosella.objectManager);
         GLFW.glfwSetKeyCallback(window.pWindow, new GLFWKeyCallback() {
             boolean hasDelet;
 
@@ -121,7 +122,7 @@ public class PortalJava {
                     hasDelet = true;
                     System.out.println("Delet");
 //                    rosella.getRenderObjects().remove("portalLogo");
-//                    rosella.getRenderer().rebuildCommandBuffers(rosella.getRenderer().renderPass, rosella);
+//                    rosella.renderer.rebuildCommandBuffers(rosella.renderer.renderPass, rosella);
                 }
             }
         });

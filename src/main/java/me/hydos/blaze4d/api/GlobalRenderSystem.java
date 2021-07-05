@@ -14,6 +14,7 @@ import me.hydos.rosella.render.resource.Identifier;
 import me.hydos.rosella.render.shader.RawShaderProgram;
 import me.hydos.rosella.render.shader.ShaderProgram;
 import me.hydos.rosella.render.vertex.BufferVertexConsumer;
+import me.hydos.rosella.scene.object.impl.SimpleObjectManager;
 import net.minecraft.client.render.VertexFormat;
 import org.joml.Matrix4f;
 import org.joml.Vector3f;
@@ -66,22 +67,22 @@ public class GlobalRenderSystem {
      * Called when a frame is flipped. used to send all buffers to the engine to draw. Also allows for caching
      */
     public static void render() {
-        Blaze4D.rosella.getRenderObjects().clear();
+        ((SimpleObjectManager) Blaze4D.rosella.objectManager).renderObjects.clear();
         if (currentFrameObjects.size() < 2000) {
             for (ConsumerRenderObject renderObject : currentFrameObjects) {
-                Blaze4D.rosella.addToScene(renderObject);
+                Blaze4D.rosella.objectManager.addObject(renderObject);
             }
         } else {
             Blaze4D.LOGGER.warn("Skipped a frame");
         }
 
 
-        Blaze4D.rosella.getRenderer().rebuildCommandBuffers(Blaze4D.rosella.getRenderer().renderPass, Blaze4D.rosella);
+        Blaze4D.rosella.renderer.rebuildCommandBuffers(Blaze4D.rosella.renderer.renderPass, (SimpleObjectManager) Blaze4D.rosella.objectManager);
 
-        Blaze4D.window.forceMainLoop();
-        Blaze4D.rosella.getRenderer().render(Blaze4D.rosella);
+        Blaze4D.window.update();
+        Blaze4D.rosella.renderer.render(Blaze4D.rosella);
 
-        currentFrameObjects.forEach(consumerRenderObject -> consumerRenderObject.free(Blaze4D.rosella.getMemory(), Blaze4D.rosella.getDevice()));
+        currentFrameObjects.forEach(consumerRenderObject -> consumerRenderObject.free(Blaze4D.rosella.memory, Blaze4D.rosella.common.device));
         currentFrameObjects.clear();
     }
 

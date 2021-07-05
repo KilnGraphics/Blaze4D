@@ -5,16 +5,11 @@ import me.hydos.rosella.device.VulkanQueues;
 import me.hydos.rosella.display.Display;
 import me.hydos.rosella.logging.DebugLogger;
 import me.hydos.rosella.logging.DefaultDebugLogger;
-import me.hydos.rosella.render.material.Material;
-import me.hydos.rosella.render.material.PipelineManager;
-import me.hydos.rosella.render.object.Renderable;
 import me.hydos.rosella.render.renderer.Renderer;
-import me.hydos.rosella.render.shader.RawShaderProgram;
-import me.hydos.rosella.render.shader.ShaderManager;
-import me.hydos.rosella.render.shader.ShaderProgram;
 import me.hydos.rosella.render.swapchain.Frame;
-import me.hydos.rosella.render.texture.TextureManager;
 import me.hydos.rosella.render.util.memory.Memory;
+import me.hydos.rosella.scene.object.ObjectManager;
+import me.hydos.rosella.scene.object.impl.SimpleObjectManager;
 import me.hydos.rosella.vkobjects.VkCommon;
 import me.hydos.rosella.vkobjects.VulkanInstance;
 import org.apache.logging.log4j.Level;
@@ -24,7 +19,6 @@ import org.lwjgl.system.MemoryStack;
 import org.lwjgl.vulkan.VkLayerProperties;
 
 import java.nio.IntBuffer;
-import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 import java.util.Set;
@@ -44,18 +38,12 @@ public class Rosella {
     public static final int VULKAN_VERSION = VK_API_VERSION_1_2;
     public static final int POLYGON_MODE = VK_POLYGON_MODE_FILL;
     public final VkCommon common = new VkCommon();
-    public final ShaderManager shaderManager;
-    public final TextureManager textureManager;
-    public final Memory memory;
     public final Renderer renderer;
-    public final PipelineManager pipelineManager;
-
-    //TODO: put this into a Material Manager. also make materials have custom properties or smth like that
-    public final List<Material> materials = new ArrayList<>();
-    public final List<Material> unprocessedMaterials = new ArrayList<>();
+    public final Memory memory;
+    public final ObjectManager objectManager;
 
     public Rosella(Display display, String applicationName, boolean enableBasicValidation) {
-        this(display, enableBasicValidation ? Collections.singletonList("KHR_KHRONOS_VALIDATION") : new Collections.emptyList(), applicationName, new DefaultDebugLogger());
+        this(display, enableBasicValidation ? Collections.singletonList("VK_LAYER_KHRONOS_validation") : Collections.emptyList(), applicationName, new DefaultDebugLogger());
     }
 
     public Rosella(Display display, List<String> requestedValidationLayers, String applicationName, DebugLogger debugLogger) {
@@ -65,74 +53,19 @@ public class Rosella {
         }
 
         // Setup core vulkan stuff
+        common.display = display;
         common.vkInstance = new VulkanInstance(requestedValidationLayers, requiredExtensions, applicationName, debugLogger);
         common.surface = display.createSurface(common);
         common.device = new VulkanDevice(common, requestedValidationLayers);
         common.queues = new VulkanQueues(common);
 
-        // Setup the engine
-        this.shaderManager = new ShaderManager(common);
-        this.textureManager = new TextureManager(common);
+        // Setup the object manager
         this.memory = new Memory(common);
-        this.renderer = new Renderer(common); //TODO: make swapchain, etc initialization happen outside of the renderer and in here
-        this.pipelineManager = new PipelineManager(common, renderer);
+        this.renderer = new Renderer(common, display, this); //TODO: make swapchain, etc initialization happen outside of the renderer and in here
+        this.objectManager = new SimpleObjectManager(this, common, renderer);
 
         // Tell the display we are initialized
         display.onReady();
-    }
-
-    //=======================//
-    //      Scene Stuff      //
-    //=======================//
-
-    /**
-     * adds an object into the current scene.
-     *
-     * @param renderable the material to add to the scene
-     */
-    public Renderable addObject(Renderable renderable) {
-
-    }
-
-    /**
-     * registers a {@link Material} into the engine.
-     *
-     * @param material the material to register
-     */
-    public Material registerMaterial(Material material) {
-
-    }
-
-    /**
-     * registers a {@link RawShaderProgram} into the engine.
-     *
-     * @param program the program to register
-     */
-    public ShaderProgram addShader(RawShaderProgram program) {
-
-    }
-
-    /**
-     * registers a {@link ShaderProgram} into the engine.
-     *
-     * @param program the program to register
-     */
-    public ShaderProgram addShader(ShaderProgram program) {
-
-    }
-
-    /**
-     * Called when new materials are ready to be processed.
-     */
-    public void submitMaterials() {
-        for (Material material : unprocessedMaterials) {
-            if (material.getShader().getRaw().getDescriptorSetLayout() == 0L) {
-                material.getShader().getRaw().createDescriptorSetLayout();
-                material.pipeline = pipelineManager.getPipeline(material, renderer);
-                materials.add(material);
-            }
-        }
-        unprocessedMaterials.clear();
     }
 
     /**
@@ -140,16 +73,9 @@ public class Rosella {
      */
     public void free() {
         waitForIdle();
+        objectManager.free(this);
 
-        // Free the Scene
-        for (Material material : materials) {
-            material.getShader().free();
-        }
-        materials.clear();
-
-        // Free Material related stuff
-        shaderManager.free();
-        renderer.freeSwapChain(memory);
+        renderer.freeSwapChain(this);
         for (Frame frame : renderer.inFlightFrames) {
             vkDestroySemaphore(common.device.rawDevice, frame.renderFinishedSemaphore(), null);
             vkDestroySemaphore(common.device.rawDevice, frame.imageAvailableSemaphore(), null);

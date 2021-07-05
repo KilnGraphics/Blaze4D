@@ -2,6 +2,7 @@ package me.hydos.rosella.render.texture
 
 import it.unimi.dsi.fastutil.ints.IntArrayPriorityQueue
 import it.unimi.dsi.fastutil.ints.IntPriorityQueues
+import me.hydos.rosella.Rosella
 import me.hydos.rosella.render.createTextureImage
 import me.hydos.rosella.render.createTextureImageView
 import me.hydos.rosella.vkobjects.VkCommon
@@ -47,11 +48,11 @@ class TextureManager(val common: VkCommon) { // TODO: add layers, maybe not in t
 		samplerCreateInfo: SamplerCreateInfo
 	) {
 		val textureImage = TextureImage(0, 0, 0)
-		createTextureImage(device, image, offsetX, offsetY, engine.renderer, engine.memory, imgFormat, textureImage)
-		textureImage.view = createTextureImageView(device, imgFormat, textureImage.textureImage)
+		createTextureImage(common.device, image, offsetX, offsetY, engine.renderer, engine.memory, imgFormat, textureImage)
+		textureImage.view = createTextureImageView(common.device, imgFormat, textureImage.textureImage)
 
 		val textureSampler = samplerCache.computeIfAbsent(samplerCreateInfo) {
-			TextureSampler(samplerCreateInfo, engine.device)
+			TextureSampler(samplerCreateInfo, common.device)
 		}
 
 		textureMap[textureId] = Texture(imgFormat, textureImage, textureSampler.pointer);

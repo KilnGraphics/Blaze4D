@@ -11,8 +11,8 @@ import java.util.List;
 public abstract class Display {
 
     // General Display stuff
-    public final int width;
-    public final int height;
+    public int width;
+    public int height;
     public int fps;
 
     // Scheduling related stuff
@@ -64,5 +64,11 @@ public abstract class Display {
     /**
      * Called when {@link me.hydos.rosella.Rosella} has finished initializing so the display can do what it needs to do
      */
-    public void onReady() {}
+    public void onReady() {
+    }
+
+    /**
+     * When swapchain recreation happens, the size may be 0, 0. we need to wait for the display's size to not be 0, 0. Not doing so may crash {@link me.hydos.rosella.Rosella}
+     */
+    public abstract void waitForNonZeroSize();
 }

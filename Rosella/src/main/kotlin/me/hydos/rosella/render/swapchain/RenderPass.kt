@@ -1,6 +1,7 @@
 package me.hydos.rosella.render.swapchain
 
-import me.hydos.rosella.render.device.Device
+import me.hydos.rosella.device.VulkanDevice
+import me.hydos.rosella.render.renderer.Renderer
 import me.hydos.rosella.render.util.ok
 import org.lwjgl.system.MemoryStack.stackPush
 import org.lwjgl.vulkan.*
@@ -8,8 +9,7 @@ import org.lwjgl.vulkan.KHRSwapchain.VK_IMAGE_LAYOUT_PRESENT_SRC_KHR
 import org.lwjgl.vulkan.VK10.*
 import java.nio.LongBuffer
 
-
-class RenderPass(val device: Device, private val swapchain: Swapchain, private val engine: Rosella) {
+class RenderPass(val device: VulkanDevice, private val swapchain: Swapchain, private val renderer: Renderer) {
 	var renderPass: Long = 0
 
 	init {
@@ -34,7 +34,7 @@ class RenderPass(val device: Device, private val swapchain: Swapchain, private v
 				.layout(VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL)
 
 			attachments[1]
-				.format(engine.renderer.depthBuffer.findDepthFormat(engine.device))
+				.format(renderer.depthBuffer.findDepthFormat(device))
 				.samples(VK_SAMPLE_COUNT_1_BIT)
 				.loadOp(VK_ATTACHMENT_LOAD_OP_CLEAR)
 				.storeOp(VK_ATTACHMENT_STORE_OP_DONT_CARE)
@@ -68,7 +68,7 @@ class RenderPass(val device: Device, private val swapchain: Swapchain, private v
 				.pDependencies(dependency)
 
 			val pRenderPass: LongBuffer = it.mallocLong(1)
-			vkCreateRenderPass(device.device, renderPassInfo, null, pRenderPass).ok()
+			vkCreateRenderPass(device.rawDevice, renderPassInfo, null, pRenderPass).ok()
 			renderPass = pRenderPass[0]
 		}
 	}

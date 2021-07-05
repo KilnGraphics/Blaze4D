@@ -6,7 +6,9 @@ import org.lwjgl.glfw.GLFWVidMode;
 import org.lwjgl.glfw.GLFWVulkan;
 import org.lwjgl.system.MemoryStack;
 
+import java.nio.IntBuffer;
 import java.nio.LongBuffer;
+import java.util.ArrayList;
 import java.util.List;
 
 import static me.hydos.rosella.render.util.VkUtilsKt.ok;
@@ -28,13 +30,14 @@ public class GlfwWindow extends Display {
     public GlfwWindow(int width, int height, String title, boolean canResize) {
         super(width, height);
 
+        if (!glfwInit()) {
+            throw new RuntimeException("Failed to Initialize GLFW");
+        }
+
         if (!GLFWVulkan.glfwVulkanSupported()) {
             throw new RuntimeException("Your machine doesn't support Vulkan :(");
         }
 
-        if (!glfwInit()) {
-            throw new RuntimeException("Failed to Initialize GLFW");
-        }
         glfwWindowHint(GLFW_CLIENT_API, GLFW_NO_API);
         glfwWindowHint(GLFW_VISIBLE, GLFW_FALSE);
         glfwWindowHint(GLFW_RESIZABLE, canResize ? GLFW_TRUE : GLFW_FALSE);
@@ -81,8 +84,11 @@ public class GlfwWindow extends Display {
     @Override
     public List<String> getRequiredExtensions() {
         PointerBuffer requiredExtensions = GLFWVulkan.glfwGetRequiredInstanceExtensions();
-        throw new RuntimeException("Not Implemented!");
-//        return requestedValidationLayers;
+        ArrayList<String> extensions = new ArrayList<>();
+        for (int i = 0; i < requiredExtensions.limit(); i++) {
+            extensions.add(requiredExtensions.getStringUTF8());
+        }
+        return extensions;
     }
 
     @Override
@@ -109,5 +115,22 @@ public class GlfwWindow extends Display {
     @Override
     public void onReady() {
         glfwShowWindow(pWindow);
+    }
+
+    @Override
+    public void waitForNonZeroSize() {
+        try (MemoryStack stack = MemoryStack.stackPush()) {
+            IntBuffer pWidth = stack.ints(0);
+            IntBuffer pHeight = stack.ints(0);
+
+            glfwGetFramebufferSize(pWindow, pWidth, pHeight);
+            this.width = pWidth.get(0);
+            this.height = pHeight.get(0);
+
+            if (this.width == 0 || this.height == 0) {
+                glfwWaitEvents();
+                waitForNonZeroSize();
+            }
+        }
     }
 }

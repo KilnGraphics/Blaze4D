@@ -5,6 +5,7 @@ import me.hydos.blaze4d.Blaze4D;
 import me.hydos.blaze4d.api.GlobalRenderSystem;
 import me.hydos.blaze4d.api.shader.MinecraftUbo;
 import me.hydos.rosella.render.shader.RawShaderProgram;
+import me.hydos.rosella.scene.object.impl.SimpleObjectManager;
 import net.minecraft.client.render.Shader;
 import net.minecraft.client.util.math.MatrixStack;
 import net.minecraft.util.math.Matrix4f;
@@ -46,12 +47,12 @@ public abstract class RenderSystemMixin {
             RenderSystem.recordRenderCall(() -> {
                 RenderSystemMixin.shader = result;
                 RawShaderProgram rawProgram = GlobalRenderSystem.SHADER_PROGRAM_MAP.get(RenderSystemMixin.shader.getProgramRef());
-                GlobalRenderSystem.activeShader = Blaze4D.rosella.getShaderManager().getOrCreateShader(rawProgram);
+                GlobalRenderSystem.activeShader = ((SimpleObjectManager) Blaze4D.rosella.objectManager).shaderManager.getOrCreateShader(rawProgram);
             });
         } else {
             RenderSystemMixin.shader = result;
             RawShaderProgram rawProgram = GlobalRenderSystem.SHADER_PROGRAM_MAP.get(RenderSystemMixin.shader.getProgramRef());
-            GlobalRenderSystem.activeShader = Blaze4D.rosella.getShaderManager().getOrCreateShader(rawProgram);
+            GlobalRenderSystem.activeShader = ((SimpleObjectManager) Blaze4D.rosella.objectManager).shaderManager.getOrCreateShader(rawProgram);
         }
     }
 

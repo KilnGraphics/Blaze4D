@@ -1,6 +1,6 @@
 package me.hydos.rosella.render.texture
 
-import me.hydos.rosella.render.device.Device
+import me.hydos.rosella.device.VulkanDevice
 import org.lwjgl.system.MemoryStack
 import org.lwjgl.vulkan.VK10
 import org.lwjgl.vulkan.VkSamplerCreateInfo
@@ -8,7 +8,7 @@ import org.lwjgl.vulkan.VkSamplerCreateInfo
 /**
  * The creation info for creating a Texture Sampler
  */
-class TextureSampler(private val createInfo: SamplerCreateInfo, device: Device) {
+class TextureSampler(private val createInfo: SamplerCreateInfo, device: VulkanDevice) {
 	var pointer = 0L
 
 	init {
@@ -32,7 +32,7 @@ class TextureSampler(private val createInfo: SamplerCreateInfo, device: Device) 
 				samplerInfo.mipmapMode(VK10.VK_SAMPLER_MIPMAP_MODE_NEAREST)
 			}
 			val pTextureSampler = stack.mallocLong(1)
-			if (VK10.vkCreateSampler(device.device, samplerInfo, null, pTextureSampler) != VK10.VK_SUCCESS) {
+			if (VK10.vkCreateSampler(device.rawDevice, samplerInfo, null, pTextureSampler) != VK10.VK_SUCCESS) {
 				throw RuntimeException("Failed to create texture sampler")
 			}
 			pointer = pTextureSampler[0]

@@ -131,7 +131,7 @@ class Memory(val common: VkCommon) {
 	private fun copyBuffer(srcBuffer: Long, dstBuffer: Long, size: Int, renderer: Renderer, device: VulkanDevice) {
 		stackPush().use {
 			val pCommandBuffer = it.mallocPointer(1)
-			val commandBuffer = renderer.beginCmdBuffer(it, pCommandBuffer)
+			val commandBuffer = renderer.beginCmdBuffer(it, pCommandBuffer, device)
 			run {
 				val copyRegion = VkBufferCopy.callocStack(1, it)
 				copyRegion.size(size.toLong())

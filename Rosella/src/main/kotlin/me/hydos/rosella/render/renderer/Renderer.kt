@@ -2,76 +2,74 @@ package me.hydos.rosella.render.renderer
 
 import me.hydos.rosella.Rosella
 import me.hydos.rosella.device.Queues
+import me.hydos.rosella.device.VulkanDevice
+import me.hydos.rosella.display.Display
 import me.hydos.rosella.render.*
-import me.hydos.rosella.render.camera.Camera
-import me.hydos.rosella.render.device.Device
 import me.hydos.rosella.render.info.InstanceInfo
 import me.hydos.rosella.render.info.RenderInfo
-import me.hydos.rosella.render.io.JUnit
-import me.hydos.rosella.render.io.Window
 import me.hydos.rosella.render.shader.ShaderProgram
 import me.hydos.rosella.render.swapchain.DepthBuffer
 import me.hydos.rosella.render.swapchain.Frame
 import me.hydos.rosella.render.swapchain.RenderPass
 import me.hydos.rosella.render.swapchain.Swapchain
-import me.hydos.rosella.render.util.memory.Memory
 import me.hydos.rosella.render.util.memory.asPointerBuffer
 import me.hydos.rosella.render.util.ok
+import me.hydos.rosella.scene.`object`.impl.SimpleObjectManager
 import me.hydos.rosella.vkobjects.VkCommon
 import org.lwjgl.PointerBuffer
-import org.lwjgl.glfw.GLFW
 import org.lwjgl.system.MemoryStack
 import org.lwjgl.vulkan.*
 import org.lwjgl.vulkan.VK10.*
 
-class Renderer(common: VkCommon) {
+class Renderer(val common: VkCommon, display: Display, rosella: Rosella) {
 
 	var depthBuffer = DepthBuffer()
 
 	lateinit var inFlightFrames: MutableList<Frame>
-	lateinit var imagesInFlight: MutableMap<Int, Frame>
+	private lateinit var imagesInFlight: MutableMap<Int, Frame>
 	private var currentFrame = 0
 
 	private var resizeFramebuffer: Boolean = false
 
-	private var r: Float = 0.3f
-	private var g: Float = 0.3f
-	private var b: Float = 0.3f
+	private var r: Float = 0.2f
+	private var g: Float = 0.2f
+	private var b: Float = 0.2f
 
 	lateinit var swapchain: Swapchain
 	lateinit var renderPass: RenderPass
-
-	lateinit var device: Device
 
 	var queues: Queues = Queues()
 
 	var commandPool: Long = 0
 	lateinit var commandBuffers: ArrayList<VkCommandBuffer>
 
-	var safeQueue = ArrayList<JUnit>()
+	init {
+		createCmdPool(common.device, this, common.surface)
+		createSwapChain(common, display, rosella.objectManager as SimpleObjectManager)
+	}
 
-	private fun createSwapChain(engine: Rosella) {
-		this.swapchain = Swapchain(engine, device.device, device.physicalDevice, engine.surface)
-		this.renderPass = RenderPass(device, swapchain, engine)
-		createImgViews(swapchain, device)
-		for (material in engine.materials.values) {
-			material.pipeline = engine.pipelineManager.getPipeline(material, this)
+	private fun createSwapChain(common: VkCommon, display: Display, objectManager: SimpleObjectManager) {
+		this.swapchain = Swapchain(display, common.device.rawDevice, common.device.physicalDevice, common.surface)
+		this.renderPass = RenderPass(common.device, swapchain, this)
+		createImgViews(swapchain, common.device)
+		for (material in objectManager.materials) {
+			material.pipeline = objectManager.pipelineManager.getPipeline(material, this)
 		}
-		depthBuffer.createDepthResources(device, swapchain, this)
+		depthBuffer.createDepthResources(common.device, swapchain, this)
 		createFrameBuffers()
-		engine.camera.createViewAndProj(swapchain)
-		rebuildCommandBuffers(renderPass, engine)
+//		engine.camera.createViewAndProj(swapchain)
+		rebuildCommandBuffers(renderPass, objectManager)
 		createSyncObjects()
 	}
 
-	fun beginCmdBuffer(stack: MemoryStack, pCommandBuffer: PointerBuffer): VkCommandBuffer {
+	fun beginCmdBuffer(stack: MemoryStack, pCommandBuffer: PointerBuffer, device: VulkanDevice): VkCommandBuffer {
 		val allocInfo = VkCommandBufferAllocateInfo.callocStack(stack)
 			.sType(VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO)
 			.level(VK_COMMAND_BUFFER_LEVEL_PRIMARY)
 			.commandPool(commandPool)
 			.commandBufferCount(1)
-		vkAllocateCommandBuffers(device.device, allocInfo, pCommandBuffer).ok()
-		val commandBuffer = VkCommandBuffer(pCommandBuffer[0], device.device)
+		vkAllocateCommandBuffers(device.rawDevice, allocInfo, pCommandBuffer).ok()
+		val commandBuffer = VkCommandBuffer(pCommandBuffer[0], device.rawDevice)
 		val beginInfo = VkCommandBufferBeginInfo.callocStack(stack)
 			.sType(VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO)
 			.flags(VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT)
@@ -79,20 +77,15 @@ class Renderer(common: VkCommon) {
 		return commandBuffer
 	}
 
-	fun render(engine: Rosella) {
+	fun render(rosella: Rosella) {
 		MemoryStack.stackPush().use { stack ->
 			val thisFrame = inFlightFrames[currentFrame]
-			vkWaitForFences(device.device, thisFrame.pFence(), true, UINT64_MAX).ok()
-
-			for (jUnit in safeQueue) {
-				jUnit.run()
-			}
-			safeQueue.clear()
+			vkWaitForFences(rosella.common.device.rawDevice, thisFrame.pFence(), true, UINT64_MAX).ok()
 
 			val pImageIndex = stack.mallocInt(1)
 
 			var vkResult: Int = KHRSwapchain.vkAcquireNextImageKHR(
-				device.device,
+				rosella.common.device.rawDevice,
 				swapchain.swapChain,
 				UINT64_MAX,
 				thisFrame.imageAvailableSemaphore(),
@@ -101,18 +94,23 @@ class Renderer(common: VkCommon) {
 			)
 
 			if (vkResult == KHRSwapchain.VK_ERROR_OUT_OF_DATE_KHR) {
-				recreateSwapChain(engine.window, engine.camera, engine)
+				recreateSwapChain(rosella.common.display, rosella)
 				return
 			}
 
 			val imageIndex = pImageIndex[0]
 
-			for (shader in engine.shaderManager.shaders.values) {
-				shader.updateUbos(imageIndex, swapchain, engine)
+			for (shader in (rosella.objectManager as SimpleObjectManager).shaderManager.shaders.values) {
+				shader.updateUbos(imageIndex, swapchain, rosella.objectManager)
 			}
 
 			if (imagesInFlight.containsKey(imageIndex)) {
-				vkWaitForFences(device.device, imagesInFlight[imageIndex]!!.fence(), true, UINT64_MAX).ok()
+				vkWaitForFences(
+					rosella.common.device.rawDevice,
+					imagesInFlight[imageIndex]!!.fence(),
+					true,
+					UINT64_MAX
+				).ok()
 			}
 			imagesInFlight[imageIndex] = thisFrame
 			val submitInfo = VkSubmitInfo.callocStack(stack)
@@ -122,7 +120,7 @@ class Renderer(common: VkCommon) {
 				.pWaitDstStageMask(stack.ints(VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT))
 				.pSignalSemaphores(thisFrame.pRenderFinishedSemaphore())
 				.pCommandBuffers(stack.pointers(commandBuffers[imageIndex]))
-			vkResetFences(device.device, thisFrame.pFence()).ok()
+			vkResetFences(rosella.common.device.rawDevice, thisFrame.pFence()).ok()
 			vkQueueSubmit(queues.graphicsQueue, submitInfo, thisFrame.fence()).ok()
 
 			val presentInfo = VkPresentInfoKHR.callocStack(stack)
@@ -136,8 +134,8 @@ class Renderer(common: VkCommon) {
 
 			if (vkResult == KHRSwapchain.VK_ERROR_OUT_OF_DATE_KHR || vkResult == KHRSwapchain.VK_SUBOPTIMAL_KHR || resizeFramebuffer) {
 				resizeFramebuffer = false
-				recreateSwapChain(engine.window, engine.camera, engine)
-				engine.pipelineManager.invalidatePipelines(swapchain, engine)
+				recreateSwapChain(rosella.common.display, rosella)
+				rosella.objectManager.pipelineManager.invalidatePipelines(swapchain, rosella)
 			} else if (vkResult != VK_SUCCESS) {
 				throw RuntimeException("Failed to present swap chain image")
 			}
@@ -146,48 +144,53 @@ class Renderer(common: VkCommon) {
 		}
 	}
 
-	private fun recreateSwapChain(window: Window, camera: Camera, engine: Rosella) {
+	private fun recreateSwapChain(window: Display, rosella: Rosella) {
 		MemoryStack.stackPush().use { stack ->
 			val width = stack.ints(0)
 			val height = stack.ints(0)
 			while (width[0] == 0 && height[0] == 0) {
-				GLFW.glfwGetFramebufferSize(window.windowPtr, width, height)
-				GLFW.glfwWaitEvents()
+				window.waitForNonZeroSize()
 			}
 		}
 
-		vkDeviceWaitIdle(device.device).ok()
-		freeSwapChain(engine)
-		createSwapChain(engine)
-		camera.createViewAndProj(swapchain)
+		vkDeviceWaitIdle(rosella.common.device.rawDevice).ok()
+		freeSwapChain(rosella)
+		createSwapChain(rosella.common, window, rosella.objectManager as SimpleObjectManager)
+//		camera.createViewAndProj(swapchain)
 	}
 
-	fun freeSwapChain(memory: Memory) {
-		for (shaderPair in engine.shaderManager.shaders.values) {
-			vkDestroyDescriptorPool(device.device, shaderPair.descriptorPool, null)
+	fun freeSwapChain(rosella: Rosella) {
+		for (shaderPair in (rosella.objectManager as SimpleObjectManager).shaderManager.shaders.values) {
+			vkDestroyDescriptorPool(rosella.common.device.rawDevice, shaderPair.descriptorPool, null)
 		}
 
-		clearCommandBuffers()
+		clearCommandBuffers(rosella.common.device)
 
 		// Free Depth Buffer
-		depthBuffer.free(device)
+		depthBuffer.free(rosella.common.device)
 
 		swapchain.frameBuffers.forEach { framebuffer ->
 			vkDestroyFramebuffer(
-				device.device,
+				rosella.common.device.rawDevice,
 				framebuffer,
 				null
 			)
 		}
-		vkDestroyRenderPass(device.device, renderPass.renderPass, null)
-		swapchain.swapChainImageViews.forEach { imageView -> vkDestroyImageView(device.device, imageView, null) }
+		vkDestroyRenderPass(rosella.common.device.rawDevice, renderPass.renderPass, null)
+		swapchain.swapChainImageViews.forEach { imageView ->
+			vkDestroyImageView(
+				rosella.common.device.rawDevice,
+				imageView,
+				null
+			)
+		}
 
-		swapchain.free(engine.device.device)
+		swapchain.free(rosella.common.device.rawDevice)
 	}
 
-	fun clearCommandBuffers() {
+	fun clearCommandBuffers(device: VulkanDevice) {
 		if (commandBuffers.size != 0) {
-			vkFreeCommandBuffers(device.device, commandPool, commandBuffers.asPointerBuffer())
+			vkFreeCommandBuffers(device.rawDevice, commandPool, commandBuffers.asPointerBuffer())
 			commandBuffers.clear()
 		}
 	}
@@ -207,18 +210,18 @@ class Renderer(common: VkCommon) {
 			val pFence = stack.mallocLong(1)
 			for (i in 0 until MAX_FRAMES_IN_FLIGHT) {
 				vkCreateSemaphore(
-					device.device,
+					common.device.rawDevice,
 					semaphoreInfo,
 					null,
 					pImageAvailableSemaphore
 				).ok()
 				vkCreateSemaphore(
-					device.device,
+					common.device.rawDevice,
 					semaphoreInfo,
 					null,
 					pRenderFinishedSemaphore
 				).ok()
-				vkCreateFence(device.device, fenceInfo, null, pFence).ok()
+				vkCreateFence(common.device.rawDevice, fenceInfo, null, pFence).ok()
 				inFlightFrames.add(
 					Frame(
 						pImageAvailableSemaphore[0],
@@ -248,7 +251,7 @@ class Renderer(common: VkCommon) {
 			for (imageView in swapchain.swapChainImageViews) {
 				attachments.put(0, imageView)
 				framebufferInfo.pAttachments(attachments)
-				vkCreateFramebuffer(device.device, framebufferInfo, null, pFramebuffer).ok()
+				vkCreateFramebuffer(common.device.rawDevice, framebufferInfo, null, pFramebuffer).ok()
 				swapchain.frameBuffers.add(pFramebuffer[0])
 			}
 		}
@@ -257,17 +260,18 @@ class Renderer(common: VkCommon) {
 	/**
 	 * Create the Command Buffers
 	 */
-	fun rebuildCommandBuffers(renderPass: RenderPass, rosella: Rosella) {
+	fun rebuildCommandBuffers(renderPass: RenderPass, rosella: SimpleObjectManager) {
+		rosella.rebuildCmdBuffers(renderPass, null, null) //TODO: move it into here
 		val usedShaders = ArrayList<ShaderProgram>()
 		for (material in rosella.materials) {
 			if (!usedShaders.contains(material.shader)) {
-				usedShaders.add(material.shader)
+				usedShaders.add(material.shader!!)
 			}
 		}
 
-		for (instances in engine.renderObjects.values) {
+		for (instances in rosella.renderObjects.values) {
 			for (instance in instances) {
-				instance.rebuild(engine)
+				instance.rebuild(this)
 			}
 		}
 
@@ -278,7 +282,7 @@ class Renderer(common: VkCommon) {
 
 			val pCommandBuffers = allocateCmdBuffers(
 				it,
-				device,
+				common.device,
 				commandPool,
 				commandBuffersCount
 			)
@@ -287,7 +291,7 @@ class Renderer(common: VkCommon) {
 				commandBuffers.add(
 					VkCommandBuffer(
 						pCommandBuffers[i],
-						device.device
+						common.device.rawDevice
 					)
 				)
 			}
@@ -306,11 +310,11 @@ class Renderer(common: VkCommon) {
 				renderPassInfo.framebuffer(swapchain.frameBuffers[i])
 
 				vkCmdBeginRenderPass(commandBuffer, renderPassInfo, VK_SUBPASS_CONTENTS_INLINE)
-				for (renderInfo in engine.renderObjects.keys) {
+				for (renderInfo in rosella.renderObjects.keys) {
 					bindRenderInfo(renderInfo, it, commandBuffer)
-					for (instance in engine.renderObjects[renderInfo]!!) {
+					for (instance in rosella.renderObjects[renderInfo]!!) {
 						bindInstanceInfo(instance, it, commandBuffer, i)
-						vkCmdDrawIndexed(commandBuffer, renderInfo.getIndicesSize(), 1, 0, 0, 0)
+						vkCmdDrawIndexed(commandBuffer, renderInfo.indicesSize, 1, 0, 0, 0)
 					}
 				}
 				vkCmdEndRenderPass(commandBuffer)
@@ -352,21 +356,12 @@ class Renderer(common: VkCommon) {
 		)
 	}
 
-	/**
-	 * Called after the vulkan device and instance have been initialized.
-	 */
-	fun initialize(engine: Rosella) {
-		device = engine.device
-		createCmdPool(this, engine.surface)
-		createSwapChain(engine)
-	}
-
 	fun clearColor(red: Float, green: Float, blue: Float, rosella: Rosella) {
 		if (this.r != red || this.g != green || this.b != blue) {
 			this.r = red
 			this.g = green
 			this.b = blue
-			rebuildCommandBuffers(renderPass, rosella)
+			rebuildCommandBuffers(renderPass, rosella.objectManager as SimpleObjectManager)
 		}
 	}
 

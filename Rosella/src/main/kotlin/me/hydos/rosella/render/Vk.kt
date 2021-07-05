@@ -95,7 +95,7 @@ fun createCmdPool(device: VulkanDevice, renderer: Renderer, surface: Long) {
 			.sType(VK_STRUCTURE_TYPE_COMMAND_POOL_CREATE_INFO)
 			.queueFamilyIndex(queueFamilyIndices.graphicsFamily)
 		val pCommandPool = stack.mallocLong(1)
-		vkCreateCommandPool(renderer.device.device, poolInfo, null, pCommandPool).ok()
+		vkCreateCommandPool(device.rawDevice, poolInfo, null, pCommandPool).ok()
 		renderer.commandPool = pCommandPool[0]
 	}
 }
@@ -114,10 +114,10 @@ fun createClearValues(
 	return clearValues
 }
 
-fun beginSingleTimeCommands(renderer: Renderer): VkCommandBuffer {
+fun beginSingleTimeCommands(renderer: Renderer, device: VulkanDevice): VkCommandBuffer {
 	MemoryStack.stackPush().use { stack ->
 		val pCommandBuffer = stack.mallocPointer(1)
-		return renderer.beginCmdBuffer(stack, pCommandBuffer)
+		return renderer.beginCmdBuffer(stack, pCommandBuffer, device)
 	}
 }
 
@@ -138,7 +138,7 @@ fun findQueueFamilies(device: VkDevice, surface: Long): QueueFamilyIndices {
 }
 
 fun findQueueFamilies(device: VulkanDevice, surface: Long): QueueFamilyIndices {
-	return findQueueFamilies(device.rawDevice.physicalDevice, surface)
+	return findQueueFamilies(device.physicalDevice, surface)
 }
 
 fun findQueueFamilies(device: VkPhysicalDevice, surface: Long): QueueFamilyIndices {
@@ -280,7 +280,7 @@ fun transitionImageLayout(
 		} else {
 			throw IllegalArgumentException("Unsupported layout transition")
 		}
-		val commandBuffer: VkCommandBuffer = beginSingleTimeCommands(renderer)
+		val commandBuffer: VkCommandBuffer = beginSingleTimeCommands(renderer, device)
 		vkCmdPipelineBarrier(
 			commandBuffer,
 			sourceStage, destinationStage,
@@ -333,7 +333,7 @@ fun createTextureImage(
 			VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT,
 			pTextureImage,
 			pTextureImageMemory,
-			renderer.device
+			device
 		)
 		textureImage.textureImage = pTextureImage[0]
 		textureImage.textureImageMemory = pTextureImageMemory[0]
@@ -345,7 +345,7 @@ fun createTextureImage(
 			VK_IMAGE_LAYOUT_UNDEFINED,
 			VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
 			renderer.depthBuffer,
-			renderer.device,
+			device,
 			renderer
 		)
 
@@ -364,7 +364,7 @@ fun createTextureImage(
 			VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
 			VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL,
 			renderer.depthBuffer,
-			renderer.device,
+			device,
 			renderer
 		)
 		memory.freeBuffer(stagingBuf)
@@ -373,7 +373,7 @@ fun createTextureImage(
 
 private fun copyBufferToImage(buffer: Long, image: Long, width: Int, height: Int, offset: Long, device: VulkanDevice, renderer: Renderer) {
 	MemoryStack.stackPush().use { stack ->
-		val commandBuffer: VkCommandBuffer = beginSingleTimeCommands(renderer)
+		val commandBuffer: VkCommandBuffer = beginSingleTimeCommands(renderer, device)
 		val region = VkBufferImageCopy.callocStack(1, stack)
 			.bufferOffset(offset)
 			.bufferRowLength(0)

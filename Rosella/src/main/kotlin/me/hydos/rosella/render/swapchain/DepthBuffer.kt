@@ -1,10 +1,10 @@
 package me.hydos.rosella.render.swapchain
 
+import me.hydos.rosella.device.VulkanDevice
 import me.hydos.rosella.render.createImage
 import me.hydos.rosella.render.createImageView
-import me.hydos.rosella.render.transitionImageLayout
-import me.hydos.rosella.render.device.Device
 import me.hydos.rosella.render.renderer.Renderer
+import me.hydos.rosella.render.transitionImageLayout
 import org.lwjgl.system.MemoryStack
 import org.lwjgl.vulkan.VK10.*
 import org.lwjgl.vulkan.VkFormatProperties
@@ -19,7 +19,7 @@ class DepthBuffer {
 	var depthImageMemory: Long = 0
 	var depthImageView: Long = 0
 
-	fun createDepthResources(device: Device, swapchain: Swapchain, renderer: Renderer) {
+	fun createDepthResources(device: VulkanDevice, swapchain: Swapchain, renderer: Renderer) {
 		MemoryStack.stackPush().use { stack ->
 			val depthFormat: Int = findDepthFormat(device)
 			val pDepthImage = stack.mallocLong(1)
@@ -52,7 +52,7 @@ class DepthBuffer {
 		}
 	}
 
-	fun findDepthFormat(device: Device): Int {
+	fun findDepthFormat(device: VulkanDevice): Int {
 		return findSupportedFormat(
 			MemoryStack.stackGet()
 				.ints(VK_FORMAT_D32_SFLOAT, VK_FORMAT_D32_SFLOAT_S8_UINT, VK_FORMAT_D24_UNORM_S8_UINT),
@@ -66,7 +66,7 @@ class DepthBuffer {
 		return format == VK_FORMAT_D32_SFLOAT_S8_UINT || format == VK_FORMAT_D24_UNORM_S8_UINT
 	}
 
-	private fun findSupportedFormat(formatCandidates: IntBuffer, tiling: Int, features: Int, device: Device): Int {
+	private fun findSupportedFormat(formatCandidates: IntBuffer, tiling: Int, features: Int, device: VulkanDevice): Int {
 		MemoryStack.stackPush().use { stack ->
 			val props = VkFormatProperties.callocStack(stack)
 			for (i in 0 until formatCandidates.capacity()) {
@@ -82,9 +82,9 @@ class DepthBuffer {
 		error("Failed to find supported format")
 	}
 
-	fun free(device: Device) {
-		vkDestroyImageView(device.device, depthImageView, null)
-		vkDestroyImage(device.device, depthImage, null)
-		vkFreeMemory(device.device, depthImageMemory, null)
+	fun free(device: VulkanDevice) {
+		vkDestroyImageView(device.rawDevice, depthImageView, null)
+		vkDestroyImage(device.rawDevice, depthImage, null)
+		vkFreeMemory(device.rawDevice, depthImageMemory, null)
 	}
 }
