@@ -2,13 +2,13 @@ package me.hydos.rosella.render.material
 
 import me.hydos.rosella.Rosella
 import me.hydos.rosella.render.Topology
-import me.hydos.rosella.render.resource.Identifier
 import me.hydos.rosella.render.resource.Resource
 import me.hydos.rosella.render.shader.ShaderProgram
 import me.hydos.rosella.render.texture.SamplerCreateInfo
 import me.hydos.rosella.render.texture.StbiImage
 import me.hydos.rosella.render.texture.Texture
 import me.hydos.rosella.render.vertex.VertexFormat
+import me.hydos.rosella.scene.`object`.impl.SimpleObjectManager
 
 /**
  * A Material is like texture information, normal information, and all of those things which give an object character wrapped into one class.
@@ -17,7 +17,7 @@ import me.hydos.rosella.render.vertex.VertexFormat
  */
 open class Material(
 	val resource: Resource,
-	val shaderId: Identifier,
+	var shader: ShaderProgram?,
 	val imgFormat: Int,
 	val useBlend: Boolean,
 	val topology: Topology,
@@ -26,21 +26,13 @@ open class Material(
 ) {
 	lateinit var pipeline: PipelineInfo
 
-	lateinit var shader: ShaderProgram
-
 	lateinit var texture: Texture
 
-	open fun loadShaders(engine: Rosella) {
-		val retrievedShader = engine.shaderManager.getOrCreateShader(shaderId)
-			?: error("The shader $shaderId couldn't be found. (Are you registering it?)")
-		this.shader = retrievedShader
-	}
-
-	open fun loadTextures(engine: Rosella) {
+	open fun loadTextures(objectManager: SimpleObjectManager, rosella: Rosella) { //FIXME this is also temporary
 		if (resource != Resource.Empty) {
-			val test = engine.textureManager.generateTextureId() // FIXME this is temporary
-			engine.textureManager.uploadTextureToId(engine, test, StbiImage(resource), 0, 0, imgFormat, samplerCreateInfo)
-			texture = engine.textureManager.getTexture(test)!!
+			val test = objectManager.textureManager.generateTextureId() // FIXME this is temporary
+			objectManager.textureManager.uploadTextureToId(rosella, test, StbiImage(resource), 0, 0, imgFormat, samplerCreateInfo)
+			texture = objectManager.textureManager.getTexture(test)!!
 		}
 	}
 }

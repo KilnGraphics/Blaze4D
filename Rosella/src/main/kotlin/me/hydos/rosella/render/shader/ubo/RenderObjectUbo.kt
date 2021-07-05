@@ -1,8 +1,8 @@
 package me.hydos.rosella.render.shader.ubo
 
-import me.hydos.rosella.render.`object`.RenderObject
+import me.hydos.rosella.device.VulkanDevice
+import me.hydos.rosella.scene.`object`.RenderObject
 import me.hydos.rosella.render.descriptorsets.DescriptorSet
-import me.hydos.rosella.render.device.Device
 import me.hydos.rosella.render.shader.ShaderProgram
 import me.hydos.rosella.render.swapchain.Swapchain
 import me.hydos.rosella.render.util.alignas
@@ -15,7 +15,7 @@ import org.lwjgl.system.MemoryStack
 import org.lwjgl.util.vma.Vma
 import org.lwjgl.vulkan.VK10
 
-open class RenderObjectUbo(val device: Device, val memory: Memory, private val renderObject: RenderObject, shaderProgram: ShaderProgram) : Ubo() {
+open class RenderObjectUbo(val device: VulkanDevice, val memory: Memory, private val renderObject: RenderObject, shaderProgram: ShaderProgram) : Ubo() {
 
 	var uboFrames: MutableList<BufferInfo> = ArrayList()
 	var descSets: DescriptorSet = DescriptorSet(shaderProgram.raw.descriptorPool)

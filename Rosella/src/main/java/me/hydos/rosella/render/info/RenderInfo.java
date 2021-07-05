@@ -1,8 +1,8 @@
 package me.hydos.rosella.render.info;
 
 import me.hydos.rosella.Rosella;
+import me.hydos.rosella.device.VulkanDevice;
 import me.hydos.rosella.memory.MemoryCloseable;
-import me.hydos.rosella.render.device.Device;
 import me.hydos.rosella.render.util.memory.BufferInfo;
 import me.hydos.rosella.render.util.memory.Memory;
 import me.hydos.rosella.render.vertex.VertexConsumer;
@@ -82,7 +82,7 @@ public class RenderInfo implements MemoryCloseable {
     }
 
     @Override
-    public void free(Device device, Memory memory) {
+    public void free(VulkanDevice device, Memory memory) {
         if(vertexBuffer != null) {
             memory.freeBuffer(vertexBuffer);
         }

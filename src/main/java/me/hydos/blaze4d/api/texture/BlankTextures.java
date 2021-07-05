@@ -10,7 +10,7 @@ import java.util.Map;
 public class BlankTextures {
     private static final Map<TextureData, UploadableImage> textureCache = new HashMap<>();
 
-    public static final UploadableImage getOrCreateTex(int width, int height, NativeImage.Format format) {
+    public static UploadableImage getOrCreateTex(int width, int height, NativeImage.Format format) {
         return textureCache.computeIfAbsent(new TextureData(width, height, format), data -> {
             // all useStb does is calloc, and we want that to initialize all the pixel values to 0
             NativeImage nativeImage = new NativeImage(data.format, data.width, data.height, true);
@@ -19,7 +19,7 @@ public class BlankTextures {
         });
     }
 
-    public static final UploadableImage getOrCreateTex(int width, int height, NativeImage.GLFormat format) {
+    public static UploadableImage getOrCreateTex(int width, int height, NativeImage.GLFormat format) {
         return getOrCreateTex(width, height, NativeImage.Format.getFormat(format.getGlConstant()));
     }
 

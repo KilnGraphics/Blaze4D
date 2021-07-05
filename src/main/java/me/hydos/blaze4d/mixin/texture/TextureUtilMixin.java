@@ -6,6 +6,7 @@ import me.hydos.blaze4d.api.GlobalRenderSystem;
 import me.hydos.blaze4d.api.texture.BlankTextures;
 import me.hydos.rosella.render.texture.SamplerCreateInfo;
 import me.hydos.rosella.render.texture.TextureFilter;
+import me.hydos.rosella.scene.object.impl.SimpleObjectManager;
 import net.minecraft.client.texture.NativeImage;
 import org.lwjgl.vulkan.VK10;
 import org.spongepowered.asm.mixin.Mixin;
@@ -19,7 +20,7 @@ public class TextureUtilMixin {
     @Inject(method = "prepareImage(Lnet/minecraft/client/texture/NativeImage$GLFormat;IIII)V", at = @At("HEAD"), cancellable = true)
     private static void loadTextureIntoRosella(NativeImage.GLFormat internalFormat, int id, int maxLevel, int width, int height, CallbackInfo ci) {
         GlobalRenderSystem.boundTextureId = id;
-        Blaze4D.rosella.getTextureManager().uploadTextureToId(
+        ((SimpleObjectManager) Blaze4D.rosella.objectManager).textureManager.uploadTextureToId(
                 Blaze4D.rosella,
                 id,
                 BlankTextures.getOrCreateTex(width, height, internalFormat),

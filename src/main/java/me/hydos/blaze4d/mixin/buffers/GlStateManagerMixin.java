@@ -2,11 +2,13 @@ package me.hydos.blaze4d.mixin.buffers;
 
 import com.mojang.blaze3d.platform.GlStateManager;
 import com.mojang.blaze3d.systems.RenderSystem;
+import it.unimi.dsi.fastutil.objects.Object2ObjectLinkedOpenHashMap;
 import org.jetbrains.annotations.Nullable;
 import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.Overwrite;
 
 import java.nio.ByteBuffer;
+import java.util.Map;
 
 /**
  * Buffer Implementation just in case mods use it
@@ -15,6 +17,9 @@ import java.nio.ByteBuffer;
 @Mixin(value = GlStateManager.class, remap = false)
 public class GlStateManagerMixin {
 
+    private static final Map<Integer, ByteBuffer> BUFFER_MAP = new Object2ObjectLinkedOpenHashMap<>();
+    private static int NEXT_BUFFER_ID = 1;
+
     /**
      * @author Blaze4D
      * @reason to implement buffers
@@ -22,7 +27,6 @@ public class GlStateManagerMixin {
     @Overwrite
     public static void _glBindBuffer(int target, int buffer) {
         RenderSystem.assertThread(RenderSystem::isOnRenderThreadOrInit);
-//        GL15.glBindBuffer(target, buffer);
     }
 
     /**
@@ -32,8 +36,7 @@ public class GlStateManagerMixin {
     @Overwrite
     public static int _glGenBuffers() {
         RenderSystem.assertThread(RenderSystem::isOnRenderThreadOrInit);
-        return 1;
-//        return GL15.glGenBuffers();
+        return NEXT_BUFFER_ID++;
     }
 
     /**
@@ -43,7 +46,7 @@ public class GlStateManagerMixin {
     @Overwrite
     public static void _glBufferData(int target, long size, int usage) {
         RenderSystem.assertThread(RenderSystem::isOnRenderThreadOrInit);
-//        GL15.glBufferData(target, size, usage);
+        BUFFER_MAP.put(target, ByteBuffer.allocate((int) size));
     }
 
     /**
@@ -54,7 +57,9 @@ public class GlStateManagerMixin {
     @Nullable
     public static ByteBuffer mapBuffer(int target, int access) {
         RenderSystem.assertThread(RenderSystem::isOnRenderThreadOrInit);
-        return ByteBuffer.allocate(80092);
+        ByteBuffer buffer = ByteBuffer.allocate(80092);
+        BUFFER_MAP.put(target, buffer);
+        return buffer;
     }
 
     /**
@@ -64,6 +69,6 @@ public class GlStateManagerMixin {
     @Overwrite
     public static void _glUnmapBuffer(int target) {
         RenderSystem.assertThread(RenderSystem::isOnRenderThreadOrInit);
-//        GL15.glUnmapBuffer(target);
+        BUFFER_MAP.remove(target).clear();
     }
 }

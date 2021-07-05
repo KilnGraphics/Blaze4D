@@ -1,30 +1,32 @@
 package me.hydos.rosella.render.model
 
-import me.hydos.rosella.Rosella
-import me.hydos.rosella.render.`object`.RenderObject
-import me.hydos.rosella.render.resource.Identifier
+import me.hydos.rosella.render.material.Material
+import me.hydos.rosella.render.renderer.Renderer
 import me.hydos.rosella.render.resource.Resource
+import me.hydos.rosella.render.util.memory.Memory
+import me.hydos.rosella.scene.`object`.RenderObject
+import me.hydos.rosella.vkobjects.VkCommon
 import org.joml.Vector3f
 
 open class GuiRenderObject(
-	materialIdentifier: Identifier,
+	material: Material,
 	var z: Float = -1f,
 	var colour: Vector3f = Vector3f(0f, 0f, 0f)
-) : RenderObject(Resource.Empty, materialIdentifier) {
+) : RenderObject(Resource.Empty, material) {
 
-	constructor(matId: Identifier, z: Float, colour: Vector3f, scaleX: Float, scaleZ: Float) : this(matId, z, colour) {
+	constructor(material: Material, z: Float, colour: Vector3f, scaleX: Float, scaleZ: Float) : this(material, z, colour) {
 		scale(scaleX, scaleZ)
 	}
 
 	constructor(
-		matId: Identifier,
+		material: Material,
 		z: Float,
 		colour: Vector3f,
 		scaleX: Float,
 		scaleZ: Float,
 		translateX: Float,
 		translateZ: Float
-	) : this(matId, z, colour, scaleX, scaleZ) {
+	) : this(material, z, colour, scaleX, scaleZ) {
 		translate(translateX, translateZ)
 	}
 
@@ -66,8 +68,8 @@ open class GuiRenderObject(
 		renderInfo.indices.add(0)
 	}
 
-	override fun onAddedToScene(engine: Rosella) {
-		super.onAddedToScene(engine)
+	override fun onAddedToScene(common: VkCommon, renderer: Renderer, memory: Memory) {
+		super.onAddedToScene(common, renderer, memory)
 		modelMatrix.translate(0f, 0f, z)
 	}
 

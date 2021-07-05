@@ -62,12 +62,11 @@ public class Materials {
                         format,
                         textureId
                 );
-                Blaze4D.rosella.registerMaterial(
-                        new Identifier("minecraft", originalPath + "_" + shader.hashCode() + "_" + format.hashCode()),
+                Blaze4D.rosella.objectManager.registerMaterial(
                         material
                 );
-                Blaze4D.rosella.getRenderer().clearCommandBuffers();
-                Blaze4D.rosella.reloadMaterials();
+                Blaze4D.rosella.renderer.clearCommandBuffers(Blaze4D.rosella.common.device);
+                Blaze4D.rosella.objectManager.submitMaterials();
                 return material;
             });
         }

@@ -6,6 +6,7 @@ import me.hydos.rosella.render.vertex.BufferVertexConsumer;
 import net.minecraft.client.render.VertexFormat;
 
 import java.util.List;
+import java.util.Map;
 
 public interface UploadableConsumer {
 
@@ -16,4 +17,6 @@ public interface UploadableConsumer {
     int getTextureId();
 
     void draw();
+
+    Map<ConsumerCreationInfo, BufferVertexConsumer> getConsumers();
 }
