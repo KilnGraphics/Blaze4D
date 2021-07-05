@@ -7,7 +7,6 @@ import me.hydos.rosella.render.util.ShaderType;
  * Contains Data Which is needed for hooking in at low level spots
  */
 public class ShaderContext {
-
     public Resource shader;
     public int glShaderType;
     public ShaderType rosellaShaderType;

@@ -10,7 +10,7 @@ package me.hydos.blaze4d.api.shader;
         uniform mat4 ModelViewMat; X
         uniform mat4 ProjMat; X
 
-        + layout(binding = 0) uniform UniformBufferObject {layout(binding = 0) uniform UniformBufferObject {
+        + layout(binding = 0) uniform UniformBufferObject {
         +     mat4 ModelViewMat;
         +     mat4 ProjMat;
         + } ubo;
@@ -95,11 +95,8 @@ public class OpenGLToVulkanShaderProcessor {
                 }
 
                 List<String> uboImports = glUniforms.stream().map(glUniform -> String.format("%s %s;", getDataTypeName(glUniform.getDataType()), glUniform.getName())).toList();
-
                 StringBuilder uboInsert = new StringBuilder("layout(binding = 0) uniform UniformBufferObject {\n");
-
                 uboImports.forEach(string -> uboInsert.append("\t").append(string).append("\n"));
-
                 uboInsert.append("} ubo;\n\n");
 
                 lines.set(i, uboInsert + line);

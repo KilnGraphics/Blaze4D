@@ -5,6 +5,7 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.util.List;
 
+import me.hydos.blaze4d.api.GlobalRenderSystem;
 import me.hydos.blaze4d.api.shader.OpenGLToVulkanShaderProcessor;
 import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.injection.At;
@@ -18,17 +19,15 @@ import net.minecraft.resource.ResourceFactory;
 
 @Mixin(Shader.class)
 public class ShaderMixin {
-    private static ShaderAccessor blaze4d$capturedShader = null;
-
     @Inject(method = "<init>", at = @At(value = "INVOKE", target = "Lnet/minecraft/client/render/Shader;readBlendState(Lcom/google/gson/JsonObject;)Lnet/minecraft/client/gl/GlBlendState;"))
     public void captureShaderForStaticMethods(ResourceFactory factory, String name, VertexFormat format, CallbackInfo ci) {
-        blaze4d$capturedShader = (ShaderAccessor) this;
+        GlobalRenderSystem.blaze4d$capturedShader = (ShaderAccessor) this;
     }
 
     @ModifyArg(method = "loadProgram", at = @At(value = "INVOKE", target = "Lnet/minecraft/client/gl/Program;createFromResource(Lnet/minecraft/client/gl/Program$Type;Ljava/lang/String;Ljava/io/InputStream;Ljava/lang/String;Lnet/minecraft/client/gl/GLImportProcessor;)Lnet/minecraft/client/gl/Program;"), index = 2)
     private static InputStream no(InputStream stream) throws IOException {
         String originalSource = new String(stream.readAllBytes());
-        String transformedToVulkan = String.join("\n", OpenGLToVulkanShaderProcessor.convertOpenGLToVulkanShader(List.of(originalSource), blaze4d$capturedShader.blaze4d$getUniforms()));
+        String transformedToVulkan = String.join("\n", OpenGLToVulkanShaderProcessor.convertOpenGLToVulkanShader(List.of(originalSource), GlobalRenderSystem.blaze4d$capturedShader.blaze4d$getUniforms()));
         return new ByteArrayInputStream(transformedToVulkan.getBytes());
     }
 }

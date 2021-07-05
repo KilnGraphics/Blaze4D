@@ -1,14 +1,12 @@
 package me.hydos.blaze4d.mixin.shader;
 
+import java.util.function.Supplier;
+
 import com.mojang.blaze3d.systems.RenderSystem;
 import me.hydos.blaze4d.Blaze4D;
 import me.hydos.blaze4d.api.GlobalRenderSystem;
 import me.hydos.blaze4d.api.shader.MinecraftUbo;
 import me.hydos.rosella.render.shader.RawShaderProgram;
-import net.minecraft.client.render.Shader;
-import net.minecraft.client.util.math.MatrixStack;
-import net.minecraft.util.math.Matrix4f;
-import net.minecraft.util.math.Vec3f;
 import org.jetbrains.annotations.Nullable;
 import org.spongepowered.asm.mixin.Final;
 import org.spongepowered.asm.mixin.Mixin;
@@ -18,7 +16,9 @@ import org.spongepowered.asm.mixin.injection.At;
 import org.spongepowered.asm.mixin.injection.Inject;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 
-import java.util.function.Supplier;
+import net.minecraft.client.render.Shader;
+import net.minecraft.client.util.math.MatrixStack;
+import net.minecraft.util.math.Vec3f;
 
 @Mixin(value = RenderSystem.class, remap = false)
 public abstract class RenderSystemMixin {
@@ -30,7 +30,9 @@ public abstract class RenderSystemMixin {
     @Shadow
     private static MatrixStack modelViewStack;
 
-    @Shadow @Final private static Vec3f[] shaderLightDirections;
+    @Shadow
+    @Final
+    private static Vec3f[] shaderLightDirections;
 
     /**
      * @author Blaze4D
@@ -42,17 +44,9 @@ public abstract class RenderSystemMixin {
         if (result == null) {
             return;
         }
-        if (!RenderSystem.isOnRenderThread()) {
-            RenderSystem.recordRenderCall(() -> {
-                RenderSystemMixin.shader = result;
-                RawShaderProgram rawProgram = GlobalRenderSystem.SHADER_PROGRAM_MAP.get(RenderSystemMixin.shader.getProgramRef());
-                GlobalRenderSystem.activeShader = Blaze4D.rosella.getShaderManager().getOrCreateShader(rawProgram);
-            });
-        } else {
-            RenderSystemMixin.shader = result;
-            RawShaderProgram rawProgram = GlobalRenderSystem.SHADER_PROGRAM_MAP.get(RenderSystemMixin.shader.getProgramRef());
-            GlobalRenderSystem.activeShader = Blaze4D.rosella.getShaderManager().getOrCreateShader(rawProgram);
-        }
+        RenderSystemMixin.shader = result;
+        RawShaderProgram rawProgram = GlobalRenderSystem.SHADER_PROGRAM_MAP.get(RenderSystemMixin.shader.getProgramRef());
+        GlobalRenderSystem.activeShader = Blaze4D.rosella.getShaderManager().getOrCreateShader(rawProgram);
     }
 
     @Inject(method = "applyModelViewMatrix", at = @At("HEAD"))
