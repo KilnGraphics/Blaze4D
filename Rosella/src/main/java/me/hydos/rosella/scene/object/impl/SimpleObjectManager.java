@@ -2,7 +2,6 @@ package me.hydos.rosella.scene.object.impl;
 
 import it.unimi.dsi.fastutil.objects.Object2ObjectArrayMap;
 import me.hydos.rosella.Rosella;
-import me.hydos.rosella.display.Display;
 import me.hydos.rosella.render.info.InstanceInfo;
 import me.hydos.rosella.render.info.RenderInfo;
 import me.hydos.rosella.render.material.Material;
@@ -26,7 +25,7 @@ import java.util.Map;
  */
 public class SimpleObjectManager implements ObjectManager {
 
-    private final Renderer renderer;
+    public Renderer renderer;
     public final ShaderManager shaderManager;
     public final TextureManager textureManager;
     public final PipelineManager pipelineManager;

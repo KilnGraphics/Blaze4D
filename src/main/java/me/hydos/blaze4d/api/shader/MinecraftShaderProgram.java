@@ -6,7 +6,7 @@ import java.util.Map;
 import java.util.stream.Collectors;
 
 import com.google.common.collect.ImmutableMap;
-import me.hydos.rosella.render.device.Device;
+import me.hydos.rosella.device.VulkanDevice;
 import me.hydos.rosella.render.material.Material;
 import me.hydos.rosella.render.resource.Resource;
 import me.hydos.rosella.render.shader.RawShaderProgram;
@@ -23,7 +23,7 @@ public class MinecraftShaderProgram extends RawShaderProgram {
     private final List<GlUniform> uniforms;
     private final List<String> samplerNames;
 
-    public MinecraftShaderProgram(@Nullable Resource vertexShader, @Nullable Resource fragmentShader, @NotNull Device device, @NotNull Memory memory, int maxObjCount, List<GlUniform> uniforms, List<String> samplers) {
+    public MinecraftShaderProgram(@Nullable Resource vertexShader, @Nullable Resource fragmentShader, @NotNull VulkanDevice device, @NotNull Memory memory, int maxObjCount, List<GlUniform> uniforms, List<String> samplers) {
         super(vertexShader, fragmentShader, device, memory, maxObjCount, createPoolTypes(samplers));
         this.uniforms = uniforms;
         this.samplerNames = samplers;

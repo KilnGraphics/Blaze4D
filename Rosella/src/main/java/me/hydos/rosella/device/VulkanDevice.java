@@ -1,17 +1,17 @@
 package me.hydos.rosella.device;
 
+import java.nio.IntBuffer;
+import java.util.Collections;
+import java.util.List;
+import java.util.Set;
+import java.util.stream.Collectors;
+
 import me.hydos.rosella.render.swapchain.Swapchain;
 import me.hydos.rosella.render.swapchain.SwapchainSupportDetails;
 import me.hydos.rosella.vkobjects.VkCommon;
 import org.lwjgl.PointerBuffer;
 import org.lwjgl.system.MemoryStack;
 import org.lwjgl.vulkan.*;
-
-import java.nio.IntBuffer;
-import java.util.Collections;
-import java.util.List;
-import java.util.Set;
-import java.util.stream.Collectors;
 
 import static me.hydos.rosella.render.VkKt.findQueueFamilies;
 import static me.hydos.rosella.render.util.VkUtilsKt.ok;
@@ -23,60 +23,62 @@ import static org.lwjgl.vulkan.VK10.*;
  * The object which represents both a Physical and Logical device used by {@link me.hydos.rosella.Rosella}
  */
 public class VulkanDevice {
-
     private static final Set<String> REQUIRED_EXTENSIONS = Collections.singleton(VK_KHR_SWAPCHAIN_EXTENSION_NAME);
-    private static IntBuffer pPhysicalDeviceCount;
+
     public final QueueFamilyIndices indices;
     public VkDevice rawDevice;
     public VkPhysicalDevice physicalDevice;
     public PhysicalDeviceFeatures physicalDeviceFeatures;
 
     public VulkanDevice(VkCommon common, List<String> validationLayers) {
-        if (systemSupportsVulkan(common)) {
-            try (MemoryStack stack = MemoryStack.stackPush()) {
-                // Retrieve the VkPhysicalDevice
-                PointerBuffer pPhysicalDevices = stack.mallocPointer(pPhysicalDeviceCount.get(0));
-                ok(vkEnumeratePhysicalDevices(common.vkInstance.rawInstance, pPhysicalDeviceCount, pPhysicalDevices));
-
-                for (int i = 0; i < pPhysicalDeviceCount.capacity(); i++) {
-                    VkPhysicalDevice device = new VkPhysicalDevice(pPhysicalDevices.get(i), common.vkInstance.rawInstance);
-
-                    if (deviceSuitable(device, common)) {
-                        this.physicalDevice = device;
-                        break;
-                    }
-                }
-
-                // Create a VkLogicalDevice
-                this.indices = findQueueFamilies(physicalDevice, common.surface);
-                int[] uniqueQueueFamilies = indices.unique();
-                VkDeviceQueueCreateInfo.Buffer queueCreateInfos = VkDeviceQueueCreateInfo.callocStack(uniqueQueueFamilies.length, stack);
-
-                for (int i = 0; i < uniqueQueueFamilies.length; i++) {
-                    queueCreateInfos.get(i)
-                            .sType(VK_STRUCTURE_TYPE_DEVICE_QUEUE_CREATE_INFO)
-                            .queueFamilyIndex(uniqueQueueFamilies[i])
-                            .pQueuePriorities(stack.floats(1.0f));
-                }
-
-                VkPhysicalDeviceFeatures deviceFeatures = VkPhysicalDeviceFeatures.callocStack(stack)
-                        .samplerAnisotropy(true);
-                VkDeviceCreateInfo deviceCreateInfo = VkDeviceCreateInfo.callocStack(stack)
-                        .sType(VK_STRUCTURE_TYPE_DEVICE_CREATE_INFO)
-                        .pQueueCreateInfos(queueCreateInfos)
-                        .pEnabledFeatures(deviceFeatures)
-                        .ppEnabledExtensionNames(asPtrBuffer(REQUIRED_EXTENSIONS, stack));
-
-                if (validationLayers.size() != 0) {
-                    deviceCreateInfo.ppEnabledLayerNames(asPtrBuffer(validationLayers, stack));
-                }
-
-                PointerBuffer pDevice = stack.pointers(VK_NULL_HANDLE);
-                ok(vkCreateDevice(physicalDevice, deviceCreateInfo, null, pDevice));
-                rawDevice = new VkDevice(pDevice.get(0), physicalDevice, deviceCreateInfo);
+        try (MemoryStack stack = MemoryStack.stackPush()) {
+            IntBuffer pPhysicalDeviceCount = stack.ints(0);
+            ok(vkEnumeratePhysicalDevices(common.vkInstance.rawInstance, pPhysicalDeviceCount, null));
+            // Unless the user is somehow hot swapping gpu's while the engine is running, this is 100% safe to do.
+            if (pPhysicalDeviceCount.get(0) == 0) {
+                throw new RuntimeException("Your system does not have vulkan support. Make sure your drivers are up to date.");
             }
-        } else {
-            throw new RuntimeException("Your system does not have vulkan support. Make sure your drivers are up to date.");
+
+            // Retrieve the VkPhysicalDevice
+            PointerBuffer pPhysicalDevices = stack.mallocPointer(pPhysicalDeviceCount.get(0));
+            ok(vkEnumeratePhysicalDevices(common.vkInstance.rawInstance, pPhysicalDeviceCount, pPhysicalDevices));
+
+            for (int i = 0; i < pPhysicalDeviceCount.capacity(); i++) {
+                VkPhysicalDevice device = new VkPhysicalDevice(pPhysicalDevices.get(i), common.vkInstance.rawInstance);
+
+                if (deviceSuitable(device, common)) {
+                    this.physicalDevice = device;
+                    break;
+                }
+            }
+
+            // Create a VkLogicalDevice
+            this.indices = findQueueFamilies(physicalDevice, common.surface);
+            int[] uniqueQueueFamilies = indices.unique();
+            VkDeviceQueueCreateInfo.Buffer queueCreateInfos = VkDeviceQueueCreateInfo.callocStack(uniqueQueueFamilies.length, stack);
+
+            for (int i = 0; i < uniqueQueueFamilies.length; i++) {
+                queueCreateInfos.get(i)
+                        .sType(VK_STRUCTURE_TYPE_DEVICE_QUEUE_CREATE_INFO)
+                        .queueFamilyIndex(uniqueQueueFamilies[i])
+                        .pQueuePriorities(stack.floats(1.0f));
+            }
+
+            VkPhysicalDeviceFeatures deviceFeatures = VkPhysicalDeviceFeatures.callocStack(stack)
+                    .samplerAnisotropy(true);
+            VkDeviceCreateInfo deviceCreateInfo = VkDeviceCreateInfo.callocStack(stack)
+                    .sType(VK_STRUCTURE_TYPE_DEVICE_CREATE_INFO)
+                    .pQueueCreateInfos(queueCreateInfos)
+                    .pEnabledFeatures(deviceFeatures)
+                    .ppEnabledExtensionNames(asPtrBuffer(REQUIRED_EXTENSIONS, stack));
+
+            if (validationLayers.size() != 0) {
+                deviceCreateInfo.ppEnabledLayerNames(asPtrBuffer(validationLayers, stack));
+            }
+
+            PointerBuffer pDevice = stack.pointers(VK_NULL_HANDLE);
+            ok(vkCreateDevice(physicalDevice, deviceCreateInfo, null, pDevice));
+            rawDevice = new VkDevice(pDevice.get(0), physicalDevice, deviceCreateInfo);
         }
     }
 
@@ -185,26 +187,11 @@ public class VulkanDevice {
             IntBuffer extensionCount = stack.ints(0);
             ok(vkEnumerateDeviceExtensionProperties(device, (CharSequence) null, extensionCount, null));
             VkExtensionProperties.Buffer availableExtensions = VkExtensionProperties.callocStack(extensionCount.get(0), stack);
-            return availableExtensions.stream()
+            ok(vkEnumerateDeviceExtensionProperties(device, (CharSequence) null, extensionCount, availableExtensions));
+            Set<String> collect = availableExtensions.stream()
                     .map(VkExtensionProperties::extensionNameString)
-                    .collect(Collectors.toSet())
-                    .containsAll(REQUIRED_EXTENSIONS);
-        }
-    }
-
-    /**
-     * Checks if the system has any GPU's which can be used with vulkan
-     *
-     * @param common the common constants
-     * @return if the system supports Vulkan
-     */
-    private boolean systemSupportsVulkan(VkCommon common) {
-        try (MemoryStack stack = MemoryStack.stackPush()) {
-            IntBuffer pPhysicalDeviceCount = stack.ints(0);
-            ok(vkEnumeratePhysicalDevices(common.vkInstance.rawInstance, pPhysicalDeviceCount, null));
-            // Unless the user is somehow hot swapping gpu's while the engine is running, this is 100% safe to do.
-            VulkanDevice.pPhysicalDeviceCount = pPhysicalDeviceCount;
-            return pPhysicalDeviceCount.get(0) != 0;
+                    .collect(Collectors.toSet());
+            return collect.containsAll(REQUIRED_EXTENSIONS);
         }
     }
 

@@ -134,7 +134,7 @@ fun endSingleTimeCommands(commandBuffer: VkCommandBuffer, device: VulkanDevice, 
 }
 
 fun findQueueFamilies(device: VkDevice, surface: Long): QueueFamilyIndices {
-	return findQueueFamilies(device, surface)
+	return findQueueFamilies(device.physicalDevice, surface)
 }
 
 fun findQueueFamilies(device: VulkanDevice, surface: Long): QueueFamilyIndices {
