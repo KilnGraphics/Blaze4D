@@ -12,7 +12,7 @@ import me.hydos.rosella.render.swapchain.Swapchain
 import me.hydos.rosella.render.texture.StbiImage
 import me.hydos.rosella.render.texture.TextureImage
 import me.hydos.rosella.render.texture.UploadableImage
-import me.hydos.rosella.render.util.memory.Memory
+import me.hydos.rosella.memory.Memory
 import me.hydos.rosella.render.util.ok
 import org.lwjgl.PointerBuffer
 import org.lwjgl.stb.STBImage
@@ -298,14 +298,14 @@ fun transitionImageLayout(
  * TODO: clean
  */
 fun createTextureImage(
-	device: VulkanDevice,
-	image: UploadableImage,
-	offsetX: Int,
-	offsetY: Int,
-	renderer: Renderer,
-	memory: Memory,
-	imgFormat: Int,
-	textureImage: TextureImage
+		device: VulkanDevice,
+		image: UploadableImage,
+		offsetX: Int,
+		offsetY: Int,
+		renderer: Renderer,
+		memory: Memory,
+		imgFormat: Int,
+		textureImage: TextureImage
 ) {
 	MemoryStack.stackPush().use { stack ->
 
@@ -350,7 +350,7 @@ fun createTextureImage(
 		)
 
 		copyBufferToImage(
-			stagingBuf.buffer,
+			stagingBuf.buffer(),
 			textureImage.textureImage,
 			image.getWidth(),
 			image.getHeight(),

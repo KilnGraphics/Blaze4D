@@ -8,10 +8,9 @@ import org.lwjgl.vulkan.*;
 
 import java.nio.IntBuffer;
 import java.util.List;
-import java.util.Set;
 
 import static me.hydos.rosella.render.util.VkUtilsKt.ok;
-import static me.hydos.rosella.util.Memory.asPtrBuffer;
+import static me.hydos.rosella.memory.Memory.asPtrBuffer;
 import static org.lwjgl.vulkan.EXTDebugUtils.*;
 import static org.lwjgl.vulkan.VK10.*;
 import static org.lwjgl.vulkan.VK12.VK_API_VERSION_1_2;

@@ -7,8 +7,8 @@ import me.hydos.rosella.render.shader.ShaderProgram
 import me.hydos.rosella.render.swapchain.Swapchain
 import me.hydos.rosella.render.util.alignas
 import me.hydos.rosella.render.util.alignof
-import me.hydos.rosella.render.util.memory.BufferInfo
-import me.hydos.rosella.render.util.memory.Memory
+import me.hydos.rosella.memory.BufferInfo
+import me.hydos.rosella.memory.Memory
 import me.hydos.rosella.render.util.sizeof
 import org.joml.Matrix4f
 import org.lwjgl.system.MemoryStack
@@ -44,19 +44,25 @@ open class RenderObjectUbo(val device: VulkanDevice, val memory: Memory, private
 
 		MemoryStack.stackPush().use {
 			val data = it.mallocPointer(1)
-			memory.map(uboFrames[currentImg].allocation, false, data)
+			memory.map(uboFrames[currentImg].allocation(), false, data)
 			val buffer = data.getByteBuffer(0, getSize())
 			val mat4Size = 16 * java.lang.Float.BYTES
 			renderObject.modelMatrix[0, buffer]
 			renderObject.viewMatrix.get(alignas(mat4Size, alignof(renderObject.viewMatrix)), buffer)
 			renderObject.projectionMatrix.get(alignas(mat4Size * 2, alignof(renderObject.projectionMatrix)), buffer)
-			memory.unmap(uboFrames[currentImg].allocation)
+			memory.unmap(uboFrames[currentImg].allocation())
 		}
 	}
 
 	override fun free() {
 		for (uboImg in uboFrames) {
 			memory.freeBuffer(uboImg)
+		}
+	}
+
+	override fun free(allocator: Long) {
+		uboFrames.forEach {
+			it.free(allocator)
 		}
 	}
 

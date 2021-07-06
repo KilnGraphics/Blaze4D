@@ -10,7 +10,7 @@ import me.hydos.rosella.device.VulkanDevice;
 import me.hydos.rosella.render.material.Material;
 import me.hydos.rosella.render.resource.Resource;
 import me.hydos.rosella.render.shader.RawShaderProgram;
-import me.hydos.rosella.render.util.memory.Memory;
+import me.hydos.rosella.memory.Memory;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 

@@ -15,7 +15,7 @@ import org.lwjgl.vulkan.*;
 
 import static me.hydos.rosella.render.VkKt.findQueueFamilies;
 import static me.hydos.rosella.render.util.VkUtilsKt.ok;
-import static me.hydos.rosella.util.Memory.asPtrBuffer;
+import static me.hydos.rosella.memory.Memory.asPtrBuffer;
 import static org.lwjgl.vulkan.KHRSwapchain.VK_KHR_SWAPCHAIN_EXTENSION_NAME;
 import static org.lwjgl.vulkan.VK10.*;
 

@@ -6,7 +6,7 @@ import me.hydos.rosella.render.resource.Resource
 import me.hydos.rosella.render.shader.ubo.Ubo
 import me.hydos.rosella.render.swapchain.Swapchain
 import me.hydos.rosella.render.texture.Texture
-import me.hydos.rosella.render.util.memory.Memory
+import me.hydos.rosella.memory.Memory
 import me.hydos.rosella.render.util.ok
 import me.hydos.rosella.scene.`object`.impl.SimpleObjectManager
 import org.lwjgl.system.MemoryStack
@@ -14,12 +14,12 @@ import org.lwjgl.vulkan.*
 import org.lwjgl.vulkan.VK10.*
 
 open class RawShaderProgram(
-	var vertexShader: Resource?,
-	var fragmentShader: Resource?,
-	val device: VulkanDevice,
-	val memory: Memory,
-	var maxObjCount: Int,
-	vararg var poolObjects: PoolObjType
+		var vertexShader: Resource?,
+		var fragmentShader: Resource?,
+		val device: VulkanDevice,
+		val memory: Memory,
+		var maxObjCount: Int,
+		vararg var poolObjects: PoolObjType
 ) {
 	var descriptorPool: Long = 0
 	var descriptorSetLayout: Long = 0
@@ -132,7 +132,7 @@ open class RawShaderProgram(
 
 			for (i in 0 until pDescriptorSets.capacity()) {
 				val descriptorSet = pDescriptorSets[i]
-				bufferInfo.buffer(ubo.getUniformBuffers()[i].buffer)
+				bufferInfo.buffer(ubo.getUniformBuffers()[i].buffer())
 				poolObjects.forEachIndexed { index, poolObj ->
 					val descriptorWrite = descriptorWrites[index]
 						.sType(VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET)
