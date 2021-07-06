@@ -33,7 +33,8 @@ public class Memory {
     private final long allocator;
     private final VkCommon common;
     private final List<Long> mappedMemory = new ArrayList<>();
-    private final List<Consumer<Long>> deallocatingConsumers = Collections.synchronizedList(new ArrayList<>());
+    private final List<Consumer<Long>> deallocatingConsumers = new ArrayList<>();
+    private final Object lock = new Object();
     private boolean running = true;
 
     public Memory(VkCommon common) {
@@ -46,11 +47,16 @@ public class Memory {
                 long threadAllocator = createAllocator(common);
 
                 while (running) {
-                    if(!deallocatingConsumers.isEmpty()) {
-                        Consumer<Long> consumer = deallocatingConsumers.remove(deallocatingConsumers.size());
-                        if (consumer != null) {
-                            consumer.accept(threadAllocator);
+                    Consumer<Long> consumer = null;
+
+                    synchronized (lock) {
+                        if (!deallocatingConsumers.isEmpty()) {
+                            consumer = deallocatingConsumers.remove(0);
                         }
+                    }
+
+                    if (consumer != null) {
+                        consumer.accept(threadAllocator);
                     }
                 }
                 Vma.vmaDestroyAllocator(threadAllocator);
