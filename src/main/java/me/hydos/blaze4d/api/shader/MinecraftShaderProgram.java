@@ -21,21 +21,21 @@ public class MinecraftShaderProgram extends RawShaderProgram {
     public static Map<Integer, Integer> UNIFORM_SIZES;
 
     private final List<GlUniform> uniforms;
-    private final List<String> samplerNames;
+    private final List<Integer> loadedSamplerIds;
 
-    public MinecraftShaderProgram(@Nullable Resource vertexShader, @Nullable Resource fragmentShader, @NotNull VulkanDevice device, @NotNull Memory memory, int maxObjCount, List<GlUniform> uniforms, List<String> samplers) {
-        super(vertexShader, fragmentShader, device, memory, maxObjCount, createPoolTypes(samplers));
+    public MinecraftShaderProgram(@Nullable Resource vertexShader, @Nullable Resource fragmentShader, @NotNull VulkanDevice device, @NotNull Memory memory, int maxObjCount, List<GlUniform> uniforms, List<Integer> loadedSamplerIds) {
+        super(vertexShader, fragmentShader, device, memory, maxObjCount, createPoolTypes(loadedSamplerIds));
         this.uniforms = uniforms;
-        this.samplerNames = samplers;
+        this.loadedSamplerIds = loadedSamplerIds;
     }
 
-    private static PoolObjType[] createPoolTypes(List<String> samplers) {
-        List<PoolObjType> types = new ArrayList<>();
-        types.add(PoolObjType.UBO);
-        for (int i = 0; i < samplers.size(); i++) {
-            types.add(PoolObjType.SAMPLER);
+    private static PoolObjectInfo[] createPoolTypes(List<Integer> loadedSamplerIds) {
+        List<PoolObjectInfo> types = new ArrayList<>();
+        types.add(PoolUboInfo.INSTANCE);
+        for (int samplerId : loadedSamplerIds) {
+            types.add(new PoolSamplerInfo(samplerId));
         }
-        return types.toArray(PoolObjType[]::new);
+        return types.toArray(PoolObjectInfo[]::new);
     }
 
     public MinecraftUbo createMinecraftUbo(@NotNull Memory memory, Material material) {

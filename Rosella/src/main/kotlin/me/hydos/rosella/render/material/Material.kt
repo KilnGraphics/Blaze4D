@@ -24,7 +24,7 @@ open class Material(
 ) {
 	lateinit var pipeline: PipelineInfo
 
-	lateinit var texture: Texture
+	lateinit var textures: Array<Texture?>
 
 	open fun loadTextures(objectManager: SimpleObjectManager, rosella: Rosella) { //FIXME this is also temporary
 		if (resource != Resource.Empty) {
@@ -40,7 +40,8 @@ open class Material(
 			)
 			textureManager.setTextureSampler(textureId, 0, samplerCreateInfo) // 0 is the default texture no, but it's still gross
 			textureManager.drawToExistingTexture(rosella.renderer, rosella.memory, textureId, image)
-			texture = textureManager.getTexture(textureId)!!
+			val texture = textureManager.getTexture(textureId)!!
+			textures = arrayOf(texture) //FIXME THIS SUCKS
 			textureManager.prepareTexture(rosella.renderer, texture) // FIXME THIS SHOULD NOT BE REQUIRED WHY DOES IT VALIDATION ERROR WITHOUT IT
 		}
 	}

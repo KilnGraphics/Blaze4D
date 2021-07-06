@@ -14,6 +14,7 @@ import me.hydos.rosella.Rosella;
 import me.hydos.rosella.render.resource.Identifier;
 import me.hydos.rosella.render.shader.RawShaderProgram;
 import me.hydos.rosella.render.shader.ShaderProgram;
+import me.hydos.rosella.render.texture.Texture;
 import me.hydos.rosella.render.vertex.BufferVertexConsumer;
 import me.hydos.rosella.scene.object.impl.SimpleObjectManager;
 import net.minecraft.client.render.VertexFormat;
@@ -39,8 +40,13 @@ public class GlobalRenderSystem {
     public static Set<ConsumerRenderObject> currentFrameObjects = new ObjectOpenHashSet<>();
 
     // Active Fields
-    public static int[] boundTextureIds = new int[] {-1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1}; // TODO: generate an identifier instead of using int id, or switch everything over to ints
+    public static final int maxTextures = 12;
+    public static int[] boundTextureIds = new int[maxTextures]; // TODO: generate an identifier instead of using int id, or switch everything over to ints
     public static int activeTexture = 0;
+
+    static {
+        Arrays.fill(boundTextureIds, -1);
+    }
 
     public static ShaderProgram activeShader;
 
@@ -102,6 +108,15 @@ public class GlobalRenderSystem {
         currentFrameObjects.add(renderObject);
     }
 
+    public static Texture[] createTextureArray() {
+        Texture[] textures = new Texture[maxTextures];
+        for(int i = 0; i < maxTextures; i++) {
+            int texId = boundTextureIds[i];
+            textures[i] = texId == -1 ? null : ((SimpleObjectManager) Blaze4D.rosella.objectManager).textureManager.getTexture(texId);
+        }
+        return textures;
+    }
+
     public static void renderConsumers(Map<ConsumerCreationInfo, BufferVertexConsumer> consumers) {
         for (Map.Entry<ConsumerCreationInfo, BufferVertexConsumer> entry : consumers.entrySet()) {
             BufferVertexConsumer consumer = entry.getValue();
@@ -140,7 +155,7 @@ public class GlobalRenderSystem {
                         creationInfo.drawMode(),
                         creationInfo.format(),
                         creationInfo.shader(),
-                        creationInfo.boundTextureId(),
+                        creationInfo.textures(),
                         creationInfo.projMatrix(),
                         creationInfo.viewMatrix(),
                         creationInfo.chunkOffset(),

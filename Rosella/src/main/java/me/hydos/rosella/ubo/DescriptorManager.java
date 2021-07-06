@@ -40,12 +40,12 @@ public class DescriptorManager {
      * @param texture the {@link Texture} to use with the {@link DescriptorSet}
      * @param ubo     the {@link Ubo} to use with the {@link DescriptorSet}
      */
-    public void createNewDescriptor(Texture texture, Ubo ubo) {
+    public void createNewDescriptor(Texture[] textures, Ubo ubo) {
         activeDescriptorCount++;
         if (maxObjects <= activeDescriptorCount) {
             throw new RuntimeException("Too many Descriptor Sets are being used at once (max is " + activeDescriptorCount + ")");
         }
-        program.getRaw().createDescriptorSets(swapchain, LOGGER, texture, ubo);
+        program.getRaw().createDescriptorSets(swapchain, LOGGER, textures, ubo);
     }
 
     public void freeDescriptorSet(DescriptorSet set) {

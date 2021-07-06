@@ -7,6 +7,7 @@ import me.hydos.rosella.render.Topology;
 import me.hydos.rosella.render.material.Material;
 import me.hydos.rosella.render.resource.Identifier;
 import me.hydos.rosella.render.shader.ShaderProgram;
+import me.hydos.rosella.render.texture.Texture;
 import me.hydos.rosella.render.texture.UploadableImage;
 import me.hydos.rosella.render.vertex.VertexFormat;
 import org.lwjgl.vulkan.VK10;
@@ -45,8 +46,8 @@ public class Materials {
     }
 
     public static record MaterialBuilder(String originalPath, Topology topology) {
-        public Material build(ShaderProgram shader, int textureId, VertexFormat format) {
-            return MATERIAL_CACHE.computeIfAbsent(new MaterialInfo(this, shader, textureId, format), info -> {
+        public Material build(ShaderProgram shader, Texture[] textures, VertexFormat format) {
+            return MATERIAL_CACHE.computeIfAbsent(new MaterialInfo(this, shader, textures, format), info -> {
                 Blaze4dMaterial material = new Blaze4dMaterial(
                         shader,
 //                        switch (image.getChannels()) {
@@ -60,7 +61,7 @@ public class Materials {
                         false,
                         topology,
                         format,
-                        textureId
+                        textures
                 );
                 Blaze4D.rosella.objectManager.registerMaterial(
                         material
@@ -72,7 +73,7 @@ public class Materials {
         }
     }
 
-    private record MaterialInfo(MaterialBuilder builder, ShaderProgram shaderProgram, int textureId,
+    private record MaterialInfo(MaterialBuilder builder, ShaderProgram shaderProgram, Texture[] textures,
                                 VertexFormat format) {
     }
 }

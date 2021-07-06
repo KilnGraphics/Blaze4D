@@ -103,7 +103,7 @@ public class GlStateManagerMixin {
                 Blaze4D.rosella.memory,
                 GlobalRenderSystem.DEFAULT_MAX_OBJECTS,
                 GlobalRenderSystem.blaze4d$capturedShader.blaze4d$getUniforms(),
-                GlobalRenderSystem.blaze4d$capturedShader.blaze4d$getSamplerNames());
+                GlobalRenderSystem.blaze4d$capturedShader.blaze4d$getLoadedSamplerIds());
         GlobalRenderSystem.SHADER_PROGRAM_MAP.put(GlobalRenderSystem.nextShaderProgramId, program);
         Blaze4D.rosella.renderer.rebuildCommandBuffers(Blaze4D.rosella.renderer.renderPass, (SimpleObjectManager) Blaze4D.rosella.objectManager);
         return GlobalRenderSystem.nextShaderProgramId++;

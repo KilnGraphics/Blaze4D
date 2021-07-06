@@ -1,6 +1,7 @@
 package me.hydos.blaze4d.api.vertex;
 
 import me.hydos.rosella.render.shader.ShaderProgram;
+import me.hydos.rosella.render.texture.Texture;
 import me.hydos.rosella.render.texture.UploadableImage;
 import me.hydos.rosella.render.vertex.VertexConsumer;
 import net.minecraft.client.render.VertexFormat;
@@ -8,6 +9,7 @@ import net.minecraft.util.math.Vec3f;
 import org.joml.Matrix4f;
 import org.joml.Vector3f;
 
+import java.util.Arrays;
 import java.util.List;
 import java.util.Objects;
 
@@ -19,7 +21,7 @@ public class ObjectInfo {
     public final VertexConsumer consumer;
     public final VertexFormat.DrawMode drawMode;
     public final VertexFormat format;
-    public final int textureId;
+    public final Texture[] textures;
     public final Matrix4f projMatrix;
     public final Matrix4f viewMatrix;
     public final Vector3f chunkOffset;
@@ -27,11 +29,11 @@ public class ObjectInfo {
     public final Vec3f shaderLightDirections1;
     public List<Integer> indices;
 
-    public ObjectInfo(VertexConsumer consumer, VertexFormat.DrawMode drawMode, VertexFormat format, ShaderProgram shader, int textureId, Matrix4f projMatrix, Matrix4f viewMatrix, Vector3f chunkOffset, Vec3f shaderLightDirections0, Vec3f shaderLightDirections1, List<Integer> indices) {
+    public ObjectInfo(VertexConsumer consumer, VertexFormat.DrawMode drawMode, VertexFormat format, ShaderProgram shader, Texture[] textures, Matrix4f projMatrix, Matrix4f viewMatrix, Vector3f chunkOffset, Vec3f shaderLightDirections0, Vec3f shaderLightDirections1, List<Integer> indices) {
         this.consumer = consumer;
         this.drawMode = drawMode;
         this.format = format;
-        this.textureId = textureId;
+        this.textures = textures;
         this.projMatrix = projMatrix;
         this.viewMatrix = viewMatrix;
         this.chunkOffset = chunkOffset;
@@ -47,11 +49,11 @@ public class ObjectInfo {
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
         ObjectInfo that = (ObjectInfo) o;
-        return shader.equals(that.shader) && consumer.equals(that.consumer) && drawMode == that.drawMode && format.equals(that.format) && textureId == that.textureId && projMatrix.equals(that.projMatrix) && viewMatrix.equals(that.viewMatrix) && chunkOffset.equals(that.chunkOffset) && shaderLightDirections0.equals(that.shaderLightDirections0) && shaderLightDirections1.equals(that.shaderLightDirections1) && indices.equals(that.indices);
+        return shader.equals(that.shader) && consumer.equals(that.consumer) && drawMode == that.drawMode && format.equals(that.format) && Arrays.deepEquals(textures, that.textures) && projMatrix.equals(that.projMatrix) && viewMatrix.equals(that.viewMatrix) && chunkOffset.equals(that.chunkOffset) && shaderLightDirections0.equals(that.shaderLightDirections0) && shaderLightDirections1.equals(that.shaderLightDirections1) && indices.equals(that.indices);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(shader, drawMode, format, textureId, projMatrix, viewMatrix, chunkOffset, shaderLightDirections0, shaderLightDirections1, consumer);
+        return Objects.hash(shader, drawMode, format, textures, projMatrix, viewMatrix, chunkOffset, shaderLightDirections0, shaderLightDirections1, consumer);
     }
 }

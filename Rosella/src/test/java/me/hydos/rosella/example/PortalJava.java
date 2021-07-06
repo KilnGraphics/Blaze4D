@@ -92,8 +92,8 @@ public class PortalJava {
                         rosella.common.device,
                         rosella.memory,
                         10,
-                        RawShaderProgram.PoolObjType.UBO,
-                        RawShaderProgram.PoolObjType.SAMPLER
+                        RawShaderProgram.PoolUboInfo.INSTANCE,
+                        new RawShaderProgram.PoolSamplerInfo(0)
                 )
         );
 
@@ -104,8 +104,8 @@ public class PortalJava {
                         rosella.common.device,
                         rosella.memory,
                         10,
-                        RawShaderProgram.PoolObjType.UBO,
-                        RawShaderProgram.PoolObjType.SAMPLER
+                        RawShaderProgram.PoolUboInfo.INSTANCE,
+                        new RawShaderProgram.PoolSamplerInfo(0)
                 )
         );
     }
