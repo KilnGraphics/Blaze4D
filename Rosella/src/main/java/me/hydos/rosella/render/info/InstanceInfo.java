@@ -1,6 +1,5 @@
 package me.hydos.rosella.render.info;
 
-import me.hydos.rosella.Rosella;
 import me.hydos.rosella.device.VulkanDevice;
 import me.hydos.rosella.memory.MemoryCloseable;
 import me.hydos.rosella.render.material.Material;
@@ -31,7 +30,7 @@ public class InstanceInfo implements MemoryCloseable {
     /**
      * Called when Command Buffers need to be refreshed. all {@link me.hydos.rosella.render.descriptorsets.DescriptorSet}'s will need to be recreated
      *
-     * @param rosella The active instance of the Renderer
+     * @param renderer the Renderer
      */
     public void rebuild(@NotNull Renderer renderer) {
         material.getShader().getDescriptorManager().freeDescriptorSet(ubo.getDescriptors());
