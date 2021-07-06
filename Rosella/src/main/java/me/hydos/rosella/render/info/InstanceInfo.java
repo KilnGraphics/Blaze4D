@@ -31,16 +31,13 @@ public class InstanceInfo implements MemoryCloseable {
     /**
      * Called when Command Buffers need to be refreshed. all {@link me.hydos.rosella.render.descriptorsets.DescriptorSet}'s will need to be recreated
      *
-     * @param renderer The active instance of the Renderer
-     * @param textureManager The TextureManager that the texture is contained under
+     * @param renderer the Renderer
      */
-    public void rebuild(@NotNull Renderer renderer, TextureManager textureManager) {
+    public void rebuild(@NotNull Renderer renderer) {
         material.getShader().getDescriptorManager().freeDescriptorSet(ubo.getDescriptors());
         if (ubo.getUniformBuffers().size() == 0) {
             ubo.create(renderer.swapchain);
         }
-
-        textureManager.prepareTexture(renderer, material.texture);
 
         material.getShader().getDescriptorManager().createNewDescriptor(material.texture, ubo);
     }

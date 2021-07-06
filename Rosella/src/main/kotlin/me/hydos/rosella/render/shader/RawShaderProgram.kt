@@ -2,10 +2,12 @@ package me.hydos.rosella.render.shader
 
 import me.hydos.rosella.device.VulkanDevice
 import me.hydos.rosella.render.descriptorsets.DescriptorSet
+import me.hydos.rosella.render.renderer.Renderer
 import me.hydos.rosella.render.resource.Resource
 import me.hydos.rosella.render.shader.ubo.Ubo
 import me.hydos.rosella.render.swapchain.Swapchain
 import me.hydos.rosella.render.texture.Texture
+import me.hydos.rosella.render.texture.TextureManager
 import me.hydos.rosella.render.util.memory.Memory
 import me.hydos.rosella.render.util.ok
 import me.hydos.rosella.scene.`object`.impl.SimpleObjectManager
@@ -23,6 +25,7 @@ open class RawShaderProgram(
 ) {
 	var descriptorPool: Long = 0
 	var descriptorSetLayout: Long = 0
+	var texture: Texture? = null
 
 	fun updateUbos(currentImage: Int, swapchain: Swapchain, objectManager: SimpleObjectManager) {
 		for (instances in objectManager.renderObjects.values) {
@@ -33,6 +36,10 @@ open class RawShaderProgram(
 				)
 			}
 		}
+	}
+
+	fun prepareTextureForRender(renderer: Renderer, textureManager: TextureManager) { // TODO: move this or make it less gross
+		texture?.let { textureManager.prepareTexture(renderer, it) }
 	}
 
 	fun createPool(swapchain: Swapchain) {

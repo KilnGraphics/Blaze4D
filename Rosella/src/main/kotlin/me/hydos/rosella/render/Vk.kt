@@ -1,7 +1,7 @@
 /**
  * This file is for accessing vulkan indirectly. it manages structs so engine code can look better.
  */
-@file:JvmName("RosellaVk")
+@file:JvmName("VkKt")
 package me.hydos.rosella.render
 
 import me.hydos.rosella.device.QueueFamilyIndices

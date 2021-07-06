@@ -55,12 +55,14 @@ public class SimpleObjectManager implements ObjectManager {
             renderObjects.put(obj.getRenderInfo(), new ArrayList<>());
         }
         obj.onAddedToScene(common, renderer, rosella.memory);
+        renderObjects.get(obj.getRenderInfo()).add(obj.getInstanceInfo());
         return obj;
     }
 
     @Override
     public Material registerMaterial(Material material) {
         material.loadTextures(this, rosella); //TODO: ew ew ew ew ew ew ew ew ew ew ew ew ew ew ew ew ew ew ew ew ew ew ew ew ew ew
+        unprocessedMaterials.add(material);
         return material;
     }
 
@@ -74,9 +76,9 @@ public class SimpleObjectManager implements ObjectManager {
         for (Material material : unprocessedMaterials) {
             if (material.getShader().getRaw().getDescriptorSetLayout() == 0L) {
                 material.getShader().getRaw().createDescriptorSetLayout();
-                material.pipeline = pipelineManager.getPipeline(material, renderer);
-                materials.add(material);
             }
+            material.pipeline = pipelineManager.getPipeline(material, renderer);
+            materials.add(material);
         }
         unprocessedMaterials.clear();
     }

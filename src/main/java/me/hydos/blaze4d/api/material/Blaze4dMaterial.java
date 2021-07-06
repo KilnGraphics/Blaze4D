@@ -28,22 +28,14 @@ public class Blaze4dMaterial extends Material {
 
     private final int textureId;
 
-    public Blaze4dMaterial(Material old, int textureId) {
-        super(EmptyResource.EMPTY, old.getShader(), old.getImgFormat(), old.getUseBlend(), old.getTopology(), old.getVertexFormat(), new SamplerCreateInfo(TextureFilter.NEAREST));
-        this.textureId = textureId;
-        this.setShader(old.getShader());
-        if (this.getShader() == null) {
-            throw new RuntimeException("Shader is Null");
-        }
-    }
-
     public Blaze4dMaterial(ShaderProgram shader, int imageFormat, boolean useBlend, Topology topology, VertexFormat format, int textureId) {
         super(EmptyResource.EMPTY, null, imageFormat, useBlend, topology, format, new SamplerCreateInfo(TextureFilter.NEAREST));
         this.textureId = textureId;
         this.setShader(shader);
     }
 
-    public void loadTextures(Rosella rosella) {
+    @Override
+    public void loadTextures(SimpleObjectManager objectManager, Rosella rosella) {
         Texture retrievedTexture = ((SimpleObjectManager) Blaze4D.rosella.objectManager).textureManager.getTexture(textureId);
         texture = retrievedTexture == null ? missingTexture : retrievedTexture;
     }
