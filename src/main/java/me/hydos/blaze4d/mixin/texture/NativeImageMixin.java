@@ -38,7 +38,7 @@ public abstract class NativeImageMixin implements UploadableImage {
         TextureManager textureManager = ((SimpleObjectManager) Blaze4D.rosella.objectManager).textureManager;
         textureManager.applySamplerInfoToTexture(
                 GlobalRenderSystem.boundTextureIds[GlobalRenderSystem.activeTexture],
-                new SamplerCreateInfo(blur ? TextureFilter.LINEAR : TextureFilter.NEAREST)
+                new SamplerCreateInfo(blur ? TextureFilter.LINEAR : TextureFilter.NEAREST, clamp ? WrapMode.CLAMP_TO_EDGE : WrapMode.REPEAT)
         );
         textureManager.drawToExistingTexture(
                 Blaze4D.rosella.renderer,

@@ -5,6 +5,7 @@ import me.hydos.blaze4d.Blaze4D;
 import me.hydos.blaze4d.api.GlobalRenderSystem;
 import me.hydos.rosella.render.texture.SamplerCreateInfo;
 import me.hydos.rosella.render.texture.TextureFilter;
+import me.hydos.rosella.render.texture.WrapMode;
 import me.hydos.rosella.scene.object.impl.SimpleObjectManager;
 import net.minecraft.client.texture.NativeImage;
 import org.lwjgl.vulkan.VK10;
@@ -30,7 +31,7 @@ public class TextureUtilMixin {
                     case RG -> VK10.VK_FORMAT_R32G32_SFLOAT;
                     case RED -> VK10.VK_FORMAT_R32_SFLOAT;
                 },
-                new SamplerCreateInfo(TextureFilter.NEAREST) // this is ok because we set it again later when we draw to it
+                new SamplerCreateInfo(TextureFilter.NEAREST, WrapMode.REPEAT) // this is ok because we set it again later when we draw to it
         );
         ci.cancel();
     }

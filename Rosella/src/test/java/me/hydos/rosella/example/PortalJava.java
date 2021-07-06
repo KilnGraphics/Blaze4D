@@ -11,6 +11,7 @@ import me.hydos.rosella.render.shader.RawShaderProgram;
 import me.hydos.rosella.render.shader.ShaderProgram;
 import me.hydos.rosella.render.texture.SamplerCreateInfo;
 import me.hydos.rosella.render.texture.TextureFilter;
+import me.hydos.rosella.render.texture.WrapMode;
 import me.hydos.rosella.render.vertex.VertexFormats;
 import me.hydos.rosella.scene.object.impl.SimpleObjectManager;
 import org.joml.Matrix4f;
@@ -64,7 +65,7 @@ public class PortalJava {
                         false,
                         Topology.TRIANGLES,
                         VertexFormats.Companion.getPOSITION_COLOR_UV(),
-                        new SamplerCreateInfo(TextureFilter.NEAREST)
+                        new SamplerCreateInfo(TextureFilter.NEAREST, WrapMode.REPEAT)
                 )
         );
 
@@ -76,7 +77,7 @@ public class PortalJava {
                         true,
                         Topology.TRIANGLES,
                         VertexFormats.Companion.getPOSITION_COLOR_UV(),
-                        new SamplerCreateInfo(TextureFilter.NEAREST)
+                        new SamplerCreateInfo(TextureFilter.NEAREST, WrapMode.REPEAT)
                 )
         );
 

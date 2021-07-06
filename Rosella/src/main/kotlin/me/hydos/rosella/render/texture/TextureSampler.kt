@@ -17,9 +17,9 @@ class TextureSampler(private val createInfo: SamplerCreateInfo, device: VulkanDe
 				.sType(VK10.VK_STRUCTURE_TYPE_SAMPLER_CREATE_INFO)
 				.magFilter(createInfo.filter.vkType)
 				.minFilter(createInfo.filter.vkType)
-				.addressModeU(VK10.VK_SAMPLER_ADDRESS_MODE_REPEAT)
-				.addressModeV(VK10.VK_SAMPLER_ADDRESS_MODE_REPEAT)
-				.addressModeW(VK10.VK_SAMPLER_ADDRESS_MODE_REPEAT)
+				.addressModeU(createInfo.wrap.vkType)
+				.addressModeV(createInfo.wrap.vkType)
+				.addressModeW(createInfo.wrap.vkType)
 				.anisotropyEnable(true)
 				.maxAnisotropy(16.0f)
 				.borderColor(VK10.VK_BORDER_COLOR_INT_OPAQUE_BLACK)
@@ -40,9 +40,16 @@ class TextureSampler(private val createInfo: SamplerCreateInfo, device: VulkanDe
 	}
 }
 
-data class SamplerCreateInfo(val filter: TextureFilter)
+data class SamplerCreateInfo(val filter: TextureFilter, val wrap: WrapMode)
 
 enum class TextureFilter(val vkType: Int) {
 	NEAREST(VK10.VK_FILTER_NEAREST),
 	LINEAR(VK10.VK_FILTER_LINEAR)
+}
+
+enum class WrapMode(val vkType: Int) {
+	REPEAT(VK10.VK_SAMPLER_ADDRESS_MODE_REPEAT),
+	MIRRORED_REPEAT(VK10.VK_SAMPLER_ADDRESS_MODE_MIRRORED_REPEAT),
+	CLAMP_TO_EDGE(VK10.VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE),
+	CLAMP_TO_BORDER(VK10.VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_BORDER)
 }

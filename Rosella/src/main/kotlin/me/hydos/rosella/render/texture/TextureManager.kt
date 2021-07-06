@@ -68,7 +68,7 @@ class TextureManager(val common: VkCommon) { // TODO: add layers, maybe not in t
 			TextureSampler(samplerCreateInfo, common.device)
 		}
 
-		textureMap[textureId]?.textureSampler = textureSampler.pointer
+		textureMap[textureId]?.textureSampler = textureSampler.pointer // could be bad if shader already has sampler bound, maybe only use first?
 	}
 
 	fun drawToExistingTexture(
