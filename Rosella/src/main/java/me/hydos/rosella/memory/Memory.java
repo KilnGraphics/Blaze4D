@@ -1,14 +1,5 @@
 package me.hydos.rosella.memory;
 
-import java.nio.ByteBuffer;
-import java.nio.LongBuffer;
-import java.util.ArrayList;
-import java.util.List;
-import java.util.Objects;
-import java.util.Set;
-import java.util.concurrent.ConcurrentLinkedQueue;
-import java.util.function.Consumer;
-
 import me.hydos.rosella.Rosella;
 import me.hydos.rosella.device.VulkanDevice;
 import me.hydos.rosella.render.renderer.Renderer;
@@ -23,6 +14,15 @@ import org.lwjgl.util.vma.VmaAllocationCreateInfo;
 import org.lwjgl.util.vma.VmaAllocatorCreateInfo;
 import org.lwjgl.util.vma.VmaVulkanFunctions;
 import org.lwjgl.vulkan.*;
+
+import java.nio.ByteBuffer;
+import java.nio.LongBuffer;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.Objects;
+import java.util.Set;
+import java.util.concurrent.ConcurrentLinkedQueue;
+import java.util.function.Consumer;
 
 import static me.hydos.rosella.render.util.VkUtilsKt.ok;
 import static org.lwjgl.system.MemoryStack.stackPush;
@@ -39,7 +39,6 @@ public class Memory {
     private final List<Long> mappedMemory = new ArrayList<>();
 
     private final ConcurrentLinkedQueue<Consumer<Long>> deallocatingConsumers = new ConcurrentLinkedQueue<>();
-    private final Thread[] deallocatingThreads = new Thread[THREAD_COUNT];
 
     private boolean running = true;
 
@@ -47,6 +46,7 @@ public class Memory {
         allocator = createAllocator(common);
 
         for (int i = 0; i < THREAD_COUNT; i++) {
+            Thread[] deallocatingThreads = new Thread[THREAD_COUNT];
             deallocatingThreads[i] = new Thread(() -> {
                 long threadAllocator = createAllocator(common);
 
@@ -57,7 +57,7 @@ public class Memory {
                     }
                 }
                 Vma.vmaDestroyAllocator(threadAllocator);
-            });
+            }, "Allocator Thread " + i);
             deallocatingThreads[i].start();
         }
     }
