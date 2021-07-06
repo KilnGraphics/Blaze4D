@@ -95,7 +95,7 @@ public class Rosella {
     /**
      * Waits for the engine to stop rendering and be idle. any anything that is freed after this is 99% likely to be safe.
      */
-    private void waitForIdle() {
+    public void waitForIdle() {
         vkDeviceWaitIdle(common.device.rawDevice);
         vkQueueWaitIdle(common.queues.graphicsQueue);
         vkQueueWaitIdle(common.queues.presentQueue);
