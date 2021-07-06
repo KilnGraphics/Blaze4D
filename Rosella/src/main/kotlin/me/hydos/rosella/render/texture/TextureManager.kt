@@ -15,7 +15,7 @@ import me.hydos.rosella.vkobjects.VkCommon
 class TextureManager(val common: VkCommon) { // TODO: add layers, maybe not in this class but somewhere
 
 	private val textureMap = HashMap<Int, Texture>()
-	private val samplerCache = HashMap<SamplerCreateInfo, TextureSampler>() // bro there's like 3 options for this
+	private val samplerCache = HashMap<SamplerCreateInfo, HashMap<Int, TextureSampler>>()
 
 	private val preparedTextures = HashSet<Texture>()
 
@@ -45,26 +45,26 @@ class TextureManager(val common: VkCommon) { // TODO: add layers, maybe not in t
 		textureId: Int,
 		width: Int,
 		height: Int,
-		imgFormat: Int,
-		samplerCreateInfo: SamplerCreateInfo
+		imgFormat: Int
 	) {
 		val textureImage = TextureImage(0, 0, 0)
 
 		createTextureImage(renderer, common.device, width, height, imgFormat, textureImage)
 		textureImage.view = createTextureImageView(common.device, imgFormat, textureImage.textureImage)
 
-		val textureSampler = samplerCache.computeIfAbsent(samplerCreateInfo) {
-			TextureSampler(samplerCreateInfo, common.device)
-		}
-
-		textureMap[textureId] = Texture(imgFormat, width, height, textureImage, textureSampler.pointer);
+		textureMap[textureId] = Texture(imgFormat, width, height, textureImage, null)
 	}
 
-	fun applySamplerInfoToTexture(
+	fun setTextureSampler(
 		textureId: Int,
+		textureNo: Int,
 		samplerCreateInfo: SamplerCreateInfo
 	) {
-		val textureSampler = samplerCache.computeIfAbsent(samplerCreateInfo) {
+		val textureNoMap = samplerCache.computeIfAbsent(samplerCreateInfo) {
+			HashMap()
+		}
+
+		val textureSampler = textureNoMap.computeIfAbsent(textureNo) {
 			TextureSampler(samplerCreateInfo, common.device)
 		}
 
@@ -108,7 +108,7 @@ class TextureManager(val common: VkCommon) { // TODO: add layers, maybe not in t
 		textureId: Int,
 		image: UploadableImage
 	) {
-		val region = ImageRegion(0, 0, image.getWidth(), image.getHeight())
+		val region = ImageRegion(image.getWidth(), image.getHeight(), 0, 0)
 		drawToExistingTexture(renderer, memory, textureId, image, region, region)
 	}
 

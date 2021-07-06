@@ -30,8 +30,7 @@ public class TextureUtilMixin {
                     case BGR -> VK10.VK_FORMAT_R32G32B32_SFLOAT;
                     case RG -> VK10.VK_FORMAT_R32G32_SFLOAT;
                     case RED -> VK10.VK_FORMAT_R32_SFLOAT;
-                },
-                new SamplerCreateInfo(TextureFilter.NEAREST, WrapMode.REPEAT) // this is ok because we set it again later when we draw to it
+                }
         );
         ci.cancel();
     }

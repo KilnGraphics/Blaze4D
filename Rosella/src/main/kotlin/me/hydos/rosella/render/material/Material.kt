@@ -36,11 +36,12 @@ open class Material(
 				textureId,
 				image.getWidth(),
 				image.getHeight(),
-				imgFormat,
-				samplerCreateInfo
+				imgFormat
 			)
+			textureManager.setTextureSampler(textureId, 0, samplerCreateInfo) // 0 is the default texture no, but it's still gross
 			textureManager.drawToExistingTexture(rosella.renderer, rosella.memory, textureId, image)
 			texture = textureManager.getTexture(textureId)!!
+			textureManager.prepareTexture(rosella.renderer, texture) // FIXME THIS SHOULD NOT BE REQUIRED WHY DOES IT VALIDATION ERROR WITHOUT IT
 		}
 	}
 }
