@@ -23,7 +23,7 @@ public class VertexBufferMixin {
      */
     @Overwrite
     private void uploadInternal(BufferBuilder buffer) {
-        Map<ConsumerCreationInfo, BufferVertexConsumer> consumers = ((UploadableConsumer) buffer).getConsumers();
-        GlobalRenderSystem.renderConsumers(consumers);
+//        Map<ConsumerCreationInfo, BufferVertexConsumer> consumers = ((UploadableConsumer) buffer).getConsumers();
+//        GlobalRenderSystem.renderConsumers(consumers);
     }
 }

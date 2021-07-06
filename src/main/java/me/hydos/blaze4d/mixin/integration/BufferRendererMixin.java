@@ -17,8 +17,6 @@ public class BufferRendererMixin {
 
     @Inject(method = "draw(Lnet/minecraft/client/render/BufferBuilder;)V", at = @At("HEAD"), cancellable = true)
     private static void drawConsumer(BufferBuilder bufferBuilder, CallbackInfo ci) {
-        bufferBuilder.popData();
-        ((UploadableConsumer) bufferBuilder).draw();
         bufferBuilder.clear();
         ci.cancel();
     }

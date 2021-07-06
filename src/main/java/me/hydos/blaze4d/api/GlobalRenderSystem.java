@@ -3,6 +3,7 @@ package me.hydos.blaze4d.api;
 import java.util.*;
 
 import it.unimi.dsi.fastutil.ints.Int2ObjectOpenHashMap;
+import it.unimi.dsi.fastutil.objects.Object2ObjectOpenHashMap;
 import it.unimi.dsi.fastutil.objects.ObjectOpenHashSet;
 import me.hydos.blaze4d.Blaze4D;
 import me.hydos.blaze4d.api.shader.ShaderContext;
@@ -97,15 +98,8 @@ public class GlobalRenderSystem {
         Blaze4D.window.update();
         Blaze4D.rosella.renderer.render(Blaze4D.rosella);
 
-        for (ConsumerRenderObject consumerRenderObject : currentFrameObjects) {
-            consumerRenderObject.free(Blaze4D.rosella.memory, Blaze4D.rosella.common.device);
-        }
+//        currentFrameObjects.forEach(consumerRenderObject -> consumerRenderObject.free(Blaze4D.rosella.memory, Blaze4D.rosella.common.device));
         currentFrameObjects.clear();
-    }
-
-    public static void uploadObject(ObjectInfo objectInfo, Rosella rosella) {
-        ConsumerRenderObject renderObject = new ConsumerRenderObject(objectInfo, rosella);
-        currentFrameObjects.add(renderObject);
     }
 
     public static Texture[] createTextureArray() {
@@ -117,8 +111,15 @@ public class GlobalRenderSystem {
         return textures;
     }
 
-    public static void renderConsumers(Map<ConsumerCreationInfo, BufferVertexConsumer> consumers) {
-        for (Map.Entry<ConsumerCreationInfo, BufferVertexConsumer> entry : consumers.entrySet()) {
+    public static void uploadObject(ObjectInfo objectInfo, Rosella rosella) {
+        ConsumerRenderObject renderObject = new ConsumerRenderObject(objectInfo, rosella);
+        currentFrameObjects.add(renderObject);
+    }
+
+    public static final Map<ConsumerCreationInfo, BufferVertexConsumer> globalConsumers = new Object2ObjectOpenHashMap<>();
+
+    public static void renderConsumers() {
+        for (Map.Entry<ConsumerCreationInfo, BufferVertexConsumer> entry : globalConsumers.entrySet()) {
             BufferVertexConsumer consumer = entry.getValue();
             List<Integer> indices = new ArrayList<>();
             ConsumerCreationInfo creationInfo = entry.getKey();
@@ -168,5 +169,6 @@ public class GlobalRenderSystem {
                 }
             }
         }
+        globalConsumers.clear();
     }
 }
