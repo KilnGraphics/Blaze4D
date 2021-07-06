@@ -133,7 +133,10 @@ public class Memory {
      */
     public void unmap(long allocation) {
         mappedMemory.remove(allocation);
-        deallocatingConsumers.add(allocator -> Vma.vmaUnmapMemory(allocator, allocation));
+
+        synchronized (lock) {
+            deallocatingConsumers.add(allocator -> Vma.vmaUnmapMemory(allocator, allocation));
+        }
     }
 
     /**
@@ -261,7 +264,9 @@ public class Memory {
      * Forces a buffer to be freed
      */
     public void freeBuffer(BufferInfo buffer) {
-        deallocatingConsumers.add(aLong -> buffer.free(common.device, this));
+        synchronized (lock) {
+            deallocatingConsumers.add(aLong -> buffer.free(common.device, this));
+        }
     }
 
     /**
