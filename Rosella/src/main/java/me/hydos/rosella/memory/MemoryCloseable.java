@@ -7,6 +7,4 @@ import me.hydos.rosella.device.VulkanDevice;
  */
 public interface MemoryCloseable {
     void free(VulkanDevice device, Memory memory);
-
-    void free(long allocator);
 }

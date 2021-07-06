@@ -26,12 +26,6 @@ public class InstanceInfo implements MemoryCloseable {
         material.getShader().getDescriptorManager().freeDescriptorSet(ubo.getDescriptors());
     }
 
-    @Override
-    public void free(long allocator) {
-        ubo.free(allocator);
-        material.getShader().getDescriptorManager().freeDescriptorSet(ubo.getDescriptors());
-    }
-
     /**
      * Called when Command Buffers need to be refreshed. all {@link me.hydos.rosella.render.descriptorsets.DescriptorSet}'s will need to be recreated
      *

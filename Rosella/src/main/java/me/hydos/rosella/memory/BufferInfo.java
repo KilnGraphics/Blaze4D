@@ -8,9 +8,4 @@ public record BufferInfo(long buffer, long allocation) implements MemoryCloseabl
     public void free(VulkanDevice device, Memory memory) {
         memory.freeBuffer(this);
     }
-
-    @Override
-    public void free(long allocator) {
-        Vma.vmaDestroyBuffer(allocator, buffer, allocation);
-    }
 }

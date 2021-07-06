@@ -90,10 +90,4 @@ public class RenderInfo implements MemoryCloseable {
             memory.freeBuffer(indexBuffer);
         }
     }
-
-    @Override
-    public void free(long allocator) {
-        vertexBuffer.free(allocator);
-        indexBuffer.free(allocator);
-    }
 }

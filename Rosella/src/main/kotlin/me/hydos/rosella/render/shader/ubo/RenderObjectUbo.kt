@@ -1,15 +1,15 @@
 package me.hydos.rosella.render.shader.ubo
 
 import me.hydos.rosella.device.VulkanDevice
-import me.hydos.rosella.scene.`object`.RenderObject
+import me.hydos.rosella.memory.BufferInfo
+import me.hydos.rosella.memory.Memory
 import me.hydos.rosella.render.descriptorsets.DescriptorSet
 import me.hydos.rosella.render.shader.ShaderProgram
 import me.hydos.rosella.render.swapchain.Swapchain
 import me.hydos.rosella.render.util.alignas
 import me.hydos.rosella.render.util.alignof
-import me.hydos.rosella.memory.BufferInfo
-import me.hydos.rosella.memory.Memory
 import me.hydos.rosella.render.util.sizeof
+import me.hydos.rosella.scene.`object`.RenderObject
 import org.joml.Matrix4f
 import org.lwjgl.system.MemoryStack
 import org.lwjgl.util.vma.Vma
@@ -57,12 +57,6 @@ open class RenderObjectUbo(val device: VulkanDevice, val memory: Memory, private
 	override fun free() {
 		for (uboImg in uboFrames) {
 			memory.freeBuffer(uboImg)
-		}
-	}
-
-	override fun free(allocator: Long) {
-		uboFrames.forEach {
-			it.free(allocator)
 		}
 	}
 

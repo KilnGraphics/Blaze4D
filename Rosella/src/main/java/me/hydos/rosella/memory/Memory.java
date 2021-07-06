@@ -35,14 +35,13 @@ public class Memory {
     private static final int THREAD_COUNT = 3;
 
     private final long allocator;
-
+    private final VkCommon common;
     private final List<Long> mappedMemory = new ArrayList<>();
-
     private final ConcurrentLinkedQueue<Consumer<Long>> deallocatingConsumers = new ConcurrentLinkedQueue<>();
-
     private boolean running = true;
 
     public Memory(VkCommon common) {
+        this.common = common;
         allocator = createAllocator(common);
 
         for (int i = 0; i < THREAD_COUNT; i++) {
@@ -258,7 +257,7 @@ public class Memory {
      * Forces a buffer to be freed
      */
     public void freeBuffer(BufferInfo buffer) {
-        deallocatingConsumers.add(buffer::free);
+        deallocatingConsumers.add(aLong -> buffer.free(common.device, this));
     }
 
     /**
