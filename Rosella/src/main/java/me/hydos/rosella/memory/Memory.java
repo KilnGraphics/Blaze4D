@@ -17,11 +17,7 @@ import org.lwjgl.vulkan.*;
 
 import java.nio.ByteBuffer;
 import java.nio.LongBuffer;
-import java.util.ArrayList;
-import java.util.List;
-import java.util.Objects;
-import java.util.Set;
-import java.util.concurrent.ConcurrentLinkedQueue;
+import java.util.*;
 import java.util.function.Consumer;
 
 import static me.hydos.rosella.render.util.VkUtilsKt.ok;
@@ -37,7 +33,7 @@ public class Memory {
     private final long allocator;
     private final VkCommon common;
     private final List<Long> mappedMemory = new ArrayList<>();
-    private final ConcurrentLinkedQueue<Consumer<Long>> deallocatingConsumers = new ConcurrentLinkedQueue<>();
+    private final List<Consumer<Long>> deallocatingConsumers = Collections.synchronizedList(new ArrayList<>());
     private boolean running = true;
 
     public Memory(VkCommon common) {
@@ -50,13 +46,15 @@ public class Memory {
                 long threadAllocator = createAllocator(common);
 
                 while (running) {
-                    Consumer<Long> consumer = deallocatingConsumers.poll();
-                    if (consumer != null) {
-                        consumer.accept(threadAllocator);
+                    if(!deallocatingConsumers.isEmpty()) {
+                        Consumer<Long> consumer = deallocatingConsumers.remove(deallocatingConsumers.size());
+                        if (consumer != null) {
+                            consumer.accept(threadAllocator);
+                        }
                     }
                 }
                 Vma.vmaDestroyAllocator(threadAllocator);
-            }, "Allocator Thread " + i);
+            }, "Deallocator Thread " + i);
             deallocatingThreads[i].start();
         }
     }
