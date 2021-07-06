@@ -4,8 +4,8 @@
 @file:JvmName("RosellaVk")
 package me.hydos.rosella.render
 
-import me.hydos.rosella.render.device.Device
-import me.hydos.rosella.render.device.QueueFamilyIndices
+import me.hydos.rosella.device.QueueFamilyIndices
+import me.hydos.rosella.device.VulkanDevice
 import me.hydos.rosella.render.renderer.Renderer
 import me.hydos.rosella.render.swapchain.DepthBuffer
 import me.hydos.rosella.render.swapchain.RenderPass
@@ -21,7 +21,7 @@ import java.nio.LongBuffer
 
 fun allocateCmdBuffers(
 	stack: MemoryStack,
-	device: Device,
+	device: VulkanDevice,
 	commandPool: Long,
 	commandBuffersCount: Int,
 	level: Int = VK_COMMAND_BUFFER_LEVEL_PRIMARY
@@ -32,7 +32,7 @@ fun allocateCmdBuffers(
 		.level(level)
 		.commandBufferCount(commandBuffersCount)
 	val pCommandBuffers = stack.callocPointer(commandBuffersCount)
-	vkAllocateCommandBuffers(device.device, allocInfo, pCommandBuffers).ok()
+	vkAllocateCommandBuffers(device.rawDevice, allocInfo, pCommandBuffers).ok()
 	return pCommandBuffers
 }
 
@@ -53,7 +53,7 @@ fun createRenderArea(stack: MemoryStack, x: Int = 0, y: Int = 0, swapchain: Swap
 		.extent(swapchain.swapChainExtent)
 }
 
-fun createImageView(image: Long, format: Int, aspectFlags: Int, device: Device): Long {
+fun createImageView(image: Long, format: Int, aspectFlags: Int, device: VulkanDevice): Long {
 	MemoryStack.stackPush().use { stack ->
 		val viewInfo = VkImageViewCreateInfo.callocStack(stack)
 			.sType(VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO)
@@ -67,12 +67,12 @@ fun createImageView(image: Long, format: Int, aspectFlags: Int, device: Device):
 			.layerCount(1)
 
 		val pImageView = stack.mallocLong(1)
-		vkCreateImageView(device.device, viewInfo, null, pImageView).ok("Failed to create texture image view")
+		vkCreateImageView(device.rawDevice, viewInfo, null, pImageView).ok("Failed to create texture image view")
 		return pImageView[0]
 	}
 }
 
-fun createImgViews(swapchain: Swapchain, device: Device) {
+fun createImgViews(swapchain: Swapchain, device: VulkanDevice) {
 	swapchain.swapChainImageViews = ArrayList(swapchain.swapChainImages.size)
 	for (swapChainImage in swapchain.swapChainImages) {
 		swapchain.swapChainImageViews.add(
@@ -86,14 +86,14 @@ fun createImgViews(swapchain: Swapchain, device: Device) {
 	}
 }
 
-fun createCmdPool(renderer: Renderer, surface: Long) {
+fun createCmdPool(device: VulkanDevice, renderer: Renderer, surface: Long) {
 	MemoryStack.stackPush().use { stack ->
-		val queueFamilyIndices = findQueueFamilies(renderer.device, surface)
+		val queueFamilyIndices = findQueueFamilies(device, surface)
 		val poolInfo = VkCommandPoolCreateInfo.callocStack(stack)
 			.sType(VK_STRUCTURE_TYPE_COMMAND_POOL_CREATE_INFO)
-			.queueFamilyIndex(queueFamilyIndices.graphicsFamily!!)
+			.queueFamilyIndex(queueFamilyIndices.graphicsFamily)
 		val pCommandPool = stack.mallocLong(1)
-		vkCreateCommandPool(renderer.device.device, poolInfo, null, pCommandPool).ok()
+		vkCreateCommandPool(device.rawDevice, poolInfo, null, pCommandPool).ok()
 		renderer.commandPool = pCommandPool[0]
 	}
 }
@@ -112,14 +112,14 @@ fun createClearValues(
 	return clearValues
 }
 
-fun beginSingleTimeCommands(renderer: Renderer): VkCommandBuffer {
+fun beginSingleTimeCommands(renderer: Renderer, device: VulkanDevice): VkCommandBuffer {
 	MemoryStack.stackPush().use { stack ->
 		val pCommandBuffer = stack.mallocPointer(1)
-		return renderer.beginCmdBuffer(stack, pCommandBuffer)
+		return renderer.beginCmdBuffer(stack, pCommandBuffer, device)
 	}
 }
 
-fun endSingleTimeCommands(commandBuffer: VkCommandBuffer, device: Device, renderer: Renderer) {
+fun endSingleTimeCommands(commandBuffer: VkCommandBuffer, device: VulkanDevice, renderer: Renderer) {
 	MemoryStack.stackPush().use { stack ->
 		vkEndCommandBuffer(commandBuffer)
 		val submitInfo = VkSubmitInfo.callocStack(1, stack)
@@ -127,7 +127,7 @@ fun endSingleTimeCommands(commandBuffer: VkCommandBuffer, device: Device, render
 			.pCommandBuffers(stack.pointers(commandBuffer))
 		vkQueueSubmit(renderer.queues.graphicsQueue, submitInfo, VK_NULL_HANDLE)
 		vkQueueWaitIdle(renderer.queues.graphicsQueue)
-		vkFreeCommandBuffers(device.device, renderer.commandPool, commandBuffer)
+		vkFreeCommandBuffers(device.rawDevice, renderer.commandPool, commandBuffer)
 	}
 }
 
@@ -135,8 +135,8 @@ fun findQueueFamilies(device: VkDevice, surface: Long): QueueFamilyIndices {
 	return findQueueFamilies(device.physicalDevice, surface)
 }
 
-fun findQueueFamilies(device: Device, surface: Long): QueueFamilyIndices {
-	return findQueueFamilies(device.device.physicalDevice, surface)
+fun findQueueFamilies(device: VulkanDevice, surface: Long): QueueFamilyIndices {
+	return findQueueFamilies(device.physicalDevice, surface)
 }
 
 fun findQueueFamilies(device: VkPhysicalDevice, surface: Long): QueueFamilyIndices {
@@ -166,7 +166,7 @@ fun findQueueFamilies(device: VkPhysicalDevice, surface: Long): QueueFamilyIndic
 	}
 }
 
-fun findMemoryType(typeFilter: Int, properties: Int, device: Device): Int {
+fun findMemoryType(typeFilter: Int, properties: Int, device: VulkanDevice): Int {
 	val memProperties = VkPhysicalDeviceMemoryProperties.mallocStack()
 	vkGetPhysicalDeviceMemoryProperties(device.physicalDevice, memProperties)
 	for (i in 0 until memProperties.memoryTypeCount()) {
@@ -179,7 +179,7 @@ fun findMemoryType(typeFilter: Int, properties: Int, device: Device): Int {
 	error("Failed to find suitable memory type")
 }
 
-fun createTextureImageView(device: Device, imgFormat: Int, textureImage: Long): Long {
+fun createTextureImageView(device: VulkanDevice, imgFormat: Int, textureImage: Long): Long {
 	return createImageView(
 		textureImage,
 		imgFormat,
@@ -190,7 +190,7 @@ fun createTextureImageView(device: Device, imgFormat: Int, textureImage: Long): 
 
 fun createImage(
 	width: Int, height: Int, format: Int, tiling: Int, usage: Int, memProperties: Int,
-	pTextureImage: LongBuffer, pTextureImageMemory: LongBuffer, device: Device
+	pTextureImage: LongBuffer, pTextureImageMemory: LongBuffer, device: VulkanDevice
 ) {
 	MemoryStack.stackPush().use { stack ->
 		val imageInfo = VkImageCreateInfo.callocStack(stack)
@@ -209,15 +209,15 @@ fun createImage(
 			.usage(usage)
 			.samples(VK_SAMPLE_COUNT_1_BIT)
 			.sharingMode(VK_SHARING_MODE_EXCLUSIVE)
-		vkCreateImage(device.device, imageInfo, null, pTextureImage).ok("Failed to allocate image memory")
+		vkCreateImage(device.rawDevice, imageInfo, null, pTextureImage).ok("Failed to allocate image memory")
 		val memRequirements = VkMemoryRequirements.mallocStack(stack)
-		vkGetImageMemoryRequirements(device.device, pTextureImage[0], memRequirements)
+		vkGetImageMemoryRequirements(device.rawDevice, pTextureImage[0], memRequirements)
 		val allocInfo = VkMemoryAllocateInfo.callocStack(stack)
 			.sType(VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO)
 			.allocationSize(memRequirements.size())
 			.memoryTypeIndex(findMemoryType(memRequirements.memoryTypeBits(), memProperties, device))
-		vkAllocateMemory(device.device, allocInfo, null, pTextureImageMemory).ok("Failed to allocate image memory")
-		vkBindImageMemory(device.device, pTextureImage[0], pTextureImageMemory[0], 0)
+		vkAllocateMemory(device.rawDevice, allocInfo, null, pTextureImageMemory).ok("Failed to allocate image memory")
+		vkBindImageMemory(device.rawDevice, pTextureImage[0], pTextureImageMemory[0], 0)
 	}
 }
 
@@ -227,7 +227,7 @@ fun transitionImageLayout(
 	oldLayout: Int,
 	newLayout: Int,
 	depthBuffer: DepthBuffer,
-	device: Device,
+	device: VulkanDevice,
 	renderer: Renderer
 ) {
 	MemoryStack.stackPush().use { stack ->
@@ -292,7 +292,7 @@ fun transitionImageLayout(
 		} else {
 			throw IllegalArgumentException("Unsupported layout transition")
 		}
-		val commandBuffer: VkCommandBuffer = beginSingleTimeCommands(renderer)
+		val commandBuffer: VkCommandBuffer = beginSingleTimeCommands(renderer, device)
 		vkCmdPipelineBarrier(
 			commandBuffer,
 			sourceStage, destinationStage,
@@ -305,12 +305,9 @@ fun transitionImageLayout(
 	}
 }
 
-/**
- * A Giant mess of an texture image creator.
- * TODO: clean
- */
 fun createTextureImage(
 	renderer: Renderer,
+	device: VulkanDevice,
 	width: Int,
 	height: Int,
 	imgFormat: Int,
@@ -327,7 +324,7 @@ fun createTextureImage(
 			VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT,
 			pTextureImage,
 			pTextureImageMemory,
-			renderer.device
+			device
 		)
 		textureImage.textureImage = pTextureImage[0]
 		textureImage.textureImageMemory = pTextureImageMemory[0]
@@ -339,19 +336,19 @@ fun createTextureImage(
 			VK_IMAGE_LAYOUT_UNDEFINED,
 			VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
 			renderer.depthBuffer,
-			renderer.device,
+			device,
 			renderer
 		)
 	}
 }
 
 fun drawToTexture(
-	device: Device,
+	renderer: Renderer,
+	device: VulkanDevice,
+	memory: Memory,
 	image: UploadableImage,
 	srcRegion:  ImageRegion,
 	dstRegion:  ImageRegion,
-	renderer: Renderer,
-	memory: Memory,
 	texture: Texture
 ) {
 	MemoryStack.stackPush().use { stack ->
@@ -367,14 +364,14 @@ fun drawToTexture(
 		}
 
 		copyBufferToImage(
+			renderer,
+			device,
 			stagingBuf.buffer,
 			texture.textureImage.textureImage,
 			dstRegion.width,
 			dstRegion.height,
 			dstRegion.xOffset,
-			dstRegion.yOffset,
-			device,
-			renderer
+			dstRegion.yOffset
 		)
 
 		memory.freeBuffer(stagingBuf)
@@ -382,17 +379,17 @@ fun drawToTexture(
 }
 
 fun copyBufferToImage(
+	renderer: Renderer,
+	device: VulkanDevice,
 	buffer: Long,
 	image: Long,
 	regionWidth: Int,
 	regionHeight: Int,
 	dstXOffset: Int,
-	dstYOffset: Int,
-	device: Device,
-	renderer: Renderer
+	dstYOffset: Int
 ) {
 	MemoryStack.stackPush().use { stack ->
-		val commandBuffer: VkCommandBuffer = beginSingleTimeCommands(renderer)
+		val commandBuffer: VkCommandBuffer = beginSingleTimeCommands(renderer, device)
 		val region = VkBufferImageCopy.callocStack(1, stack)
 			.bufferOffset(0)
 			.bufferRowLength(regionWidth)

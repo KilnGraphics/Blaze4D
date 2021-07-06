@@ -2,11 +2,11 @@ package me.hydos.rosella.render.material
 
 import me.hydos.rosella.Rosella
 import me.hydos.rosella.render.Topology
-import me.hydos.rosella.render.resource.Identifier
 import me.hydos.rosella.render.resource.Resource
 import me.hydos.rosella.render.shader.ShaderProgram
 import me.hydos.rosella.render.texture.*
 import me.hydos.rosella.render.vertex.VertexFormat
+import me.hydos.rosella.scene.`object`.impl.SimpleObjectManager
 
 /**
  * A Material is like texture information, normal information, and all of those things which give an object character wrapped into one class.
@@ -15,7 +15,7 @@ import me.hydos.rosella.render.vertex.VertexFormat
  */
 open class Material(
 	val resource: Resource,
-	val shaderId: Identifier,
+	var shader: ShaderProgram?,
 	val imgFormat: Int,
 	val useBlend: Boolean,
 	val topology: Topology,
@@ -24,23 +24,16 @@ open class Material(
 ) {
 	lateinit var pipeline: PipelineInfo
 
-	lateinit var shader: ShaderProgram
-
 	lateinit var texture: Texture
 
-	open fun loadShaders(engine: Rosella) {
-		val retrievedShader = engine.shaderManager.getOrCreateShader(shaderId)
-			?: error("The shader $shaderId couldn't be found. (Are you registering it?)")
-		this.shader = retrievedShader
-	}
-
-	open fun loadTextures(engine: Rosella) {
+	open fun loadTextures(objectManager: SimpleObjectManager, rosella: Rosella) { //FIXME this is also temporary
 		if (resource != Resource.Empty) {
-			val textureId = engine.textureManager.generateTextureId() // FIXME this texture can't be removed
+			val textureManager = objectManager.textureManager
+			val textureId = textureManager.generateTextureId() // FIXME this texture can't be removed
 			val image: UploadableImage = StbiImage(resource)
-			engine.textureManager.createTexture(engine, textureId, image.getWidth(), image.getHeight(), imgFormat, samplerCreateInfo)
-			engine.textureManager.drawToExistingTexture(engine, textureId, image)
-			texture = engine.textureManager.getTexture(textureId)!!
+			textureManager.createTexture(rosella.renderer, textureId, image.getWidth(), image.getHeight(), imgFormat, samplerCreateInfo)
+			textureManager.drawToExistingTexture(rosella.renderer, rosella.memory, textureId, image)
+			texture = textureManager.getTexture(textureId)!!
 		}
 	}
 }

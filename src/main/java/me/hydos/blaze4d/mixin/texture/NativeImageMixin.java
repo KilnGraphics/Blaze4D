@@ -2,17 +2,13 @@ package me.hydos.blaze4d.mixin.texture;
 
 import me.hydos.blaze4d.Blaze4D;
 import me.hydos.blaze4d.api.GlobalRenderSystem;
-import me.hydos.rosella.render.texture.ImageRegion;
-import me.hydos.rosella.render.texture.SamplerCreateInfo;
-import me.hydos.rosella.render.texture.TextureFilter;
-import me.hydos.rosella.render.texture.UploadableImage;
+import me.hydos.rosella.render.texture.*;
+import me.hydos.rosella.scene.object.impl.SimpleObjectManager;
 import net.minecraft.client.texture.NativeImage;
 import org.lwjgl.system.MemoryUtil;
-import org.lwjgl.vulkan.VK10;
 import org.spongepowered.asm.mixin.Final;
 import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.Shadow;
-import org.spongepowered.asm.mixin.Unique;
 import org.spongepowered.asm.mixin.injection.At;
 import org.spongepowered.asm.mixin.injection.Inject;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
@@ -39,13 +35,14 @@ public abstract class NativeImageMixin implements UploadableImage {
 
     @Inject(method = "uploadInternal", at = @At("HEAD"), cancellable = true)
     private void uploadToRosella(int level, int offsetX, int offsetY, int unpackSkipPixels, int unpackSkipRows, int width, int height, boolean blur, boolean clamp, boolean mipmap, boolean close, CallbackInfo ci) {
-        Blaze4D.rosella.getTextureManager().applySamplerInfoToTexture(
-                Blaze4D.rosella.getDevice(),
+        TextureManager textureManager = ((SimpleObjectManager) Blaze4D.rosella.objectManager).textureManager;
+        textureManager.applySamplerInfoToTexture(
                 GlobalRenderSystem.boundTextureIds[GlobalRenderSystem.activeTexture],
                 new SamplerCreateInfo(blur ? TextureFilter.LINEAR : TextureFilter.NEAREST)
         );
-        Blaze4D.rosella.getTextureManager().drawToExistingTexture(
-                Blaze4D.rosella,
+        textureManager.drawToExistingTexture(
+                Blaze4D.rosella.renderer,
+                Blaze4D.rosella.memory,
                 GlobalRenderSystem.boundTextureIds[GlobalRenderSystem.activeTexture],
                 this,
                 new ImageRegion(width, height, unpackSkipPixels, unpackSkipRows),

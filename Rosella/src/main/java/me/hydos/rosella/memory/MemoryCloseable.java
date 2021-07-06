@@ -1,6 +1,6 @@
 package me.hydos.rosella.memory;
 
-import me.hydos.rosella.render.device.Device;
+import me.hydos.rosella.device.VulkanDevice;
 import me.hydos.rosella.render.util.memory.Memory;
 
 /**
@@ -8,5 +8,5 @@ import me.hydos.rosella.render.util.memory.Memory;
  */
 public interface MemoryCloseable {
 
-    void free(Device device, Memory memory);
+    void free(VulkanDevice device, Memory memory);
 }

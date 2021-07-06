@@ -19,6 +19,6 @@ public class TextureManagerMixin {
 
     @Inject(method = "method_18167", at = @At("RETURN"))
     private void reloadTextures(CallbackInfo ci) {
-        Blaze4D.rosella.reloadMaterials();
+        Blaze4D.rosella.objectManager.submitMaterials();
     }
 }

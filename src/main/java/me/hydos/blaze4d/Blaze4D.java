@@ -1,7 +1,8 @@
 package me.hydos.blaze4d;
 
 import me.hydos.rosella.Rosella;
-import me.hydos.rosella.render.io.Window;
+import me.hydos.rosella.display.GlfwWindow;
+import me.hydos.rosella.scene.object.impl.SimpleObjectManager;
 import net.fabricmc.api.ClientModInitializer;
 import org.apache.logging.log4j.Level;
 import org.apache.logging.log4j.LogManager;
@@ -15,10 +16,10 @@ public class Blaze4D implements ClientModInitializer {
     public static final boolean RENDERDOC_ENABLED = false;
 
     public static Rosella rosella;
-    public static Window window;
+    public static GlfwWindow window;
 
     public static void finishAndRender() {
-        rosella.getRenderer().rebuildCommandBuffers(rosella.getRenderer().renderPass, rosella);
+        rosella.renderer.rebuildCommandBuffers(rosella.renderer.renderPass, (SimpleObjectManager) rosella.objectManager);
     }
 
     @Override

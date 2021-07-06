@@ -4,6 +4,7 @@ import com.mojang.blaze3d.platform.GlStateManager;
 import com.mojang.blaze3d.systems.RenderSystem;
 import me.hydos.blaze4d.Blaze4D;
 import me.hydos.blaze4d.api.GlobalRenderSystem;
+import me.hydos.rosella.scene.object.impl.SimpleObjectManager;
 import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.Overwrite;
 import org.spongepowered.asm.mixin.injection.At;
@@ -58,19 +59,19 @@ public class GlStateManagerMixin {
 
     @Inject(method = "_genTexture", at = @At("HEAD"), cancellable = true)
     private static void genTexture(CallbackInfoReturnable<Integer> cir) {
-        cir.setReturnValue(Blaze4D.rosella.getTextureManager().generateTextureId());
+        cir.setReturnValue(((SimpleObjectManager) Blaze4D.rosella.objectManager).textureManager.generateTextureId());
     }
 
     @Inject(method = "_deleteTexture", at = @At("HEAD"), cancellable = true)
     private static void deleteTexture(int texture, CallbackInfo ci) {
-        Blaze4D.rosella.getTextureManager().deleteTexture(texture);
+        ((SimpleObjectManager) Blaze4D.rosella.objectManager).textureManager.deleteTexture(texture);
         ci.cancel();
     }
 
     @Inject(method = "_genTextures", at = @At("HEAD"), cancellable = true)
     private static void genTextures(int[] is, CallbackInfo ci) {
         for (int i = 0; i < is.length; i++) {
-            is[i] = Blaze4D.rosella.getTextureManager().generateTextureId();
+            is[i] = ((SimpleObjectManager) Blaze4D.rosella.objectManager).textureManager.generateTextureId();
         }
         ci.cancel();
     }
@@ -78,7 +79,7 @@ public class GlStateManagerMixin {
     @Inject(method = "_deleteTextures", at = @At("HEAD"), cancellable = true)
     private static void deleteTextures(int[] is, CallbackInfo ci) {
         for (int textureId : is) {
-            Blaze4D.rosella.getTextureManager().deleteTexture(textureId);
+            ((SimpleObjectManager) Blaze4D.rosella.objectManager).textureManager.deleteTexture(textureId);
         }
         ci.cancel();
     }
@@ -92,6 +93,6 @@ public class GlStateManagerMixin {
     @Overwrite
     public static void _clearColor(float red, float green, float blue, float alpha) {
         RenderSystem.assertThread(RenderSystem::isOnRenderThreadOrInit);
-        Blaze4D.rosella.getRenderer().clearColor(red, green, blue, Blaze4D.rosella);
+        Blaze4D.rosella.renderer.clearColor(red, green, blue, Blaze4D.rosella);
     }
 }

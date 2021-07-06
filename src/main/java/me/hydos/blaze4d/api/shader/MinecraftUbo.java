@@ -1,8 +1,8 @@
 package me.hydos.blaze4d.api.shader;
 
 import com.mojang.blaze3d.systems.RenderSystem;
+import me.hydos.rosella.device.VulkanDevice;
 import me.hydos.rosella.render.descriptorsets.DescriptorSet;
-import me.hydos.rosella.render.device.Device;
 import me.hydos.rosella.render.material.Material;
 import me.hydos.rosella.render.shader.ubo.Ubo;
 import me.hydos.rosella.render.swapchain.Swapchain;
@@ -27,6 +27,8 @@ import java.util.List;
 public class MinecraftUbo extends Ubo {
 
     private final Memory memory;
+    private final int totalSize;
+    private final List<AddUboMemoryStep> steps;
     private int size;
     public DescriptorSet descSets;
     public List<BufferInfo> uboFrames = new ArrayList<>();
@@ -37,9 +39,11 @@ public class MinecraftUbo extends Ubo {
     public Vec3f shaderLightDirections0;
     public Vec3f shaderLightDirections1;
 
-    public MinecraftUbo(@NotNull Device device, @NotNull Memory memory, Material material) {
+    public MinecraftUbo(@NotNull Memory memory, Material material, List<AddUboMemoryStep> steps, int size) {
         this.memory = memory;
-        this.descSets = new DescriptorSet(material.shader.getRaw().getDescriptorPool());
+        this.descSets = new DescriptorSet(material.getShader().getRaw().getDescriptorPool());
+        this.totalSize = size;
+        this.steps = steps;
     }
 
     @Override
@@ -62,7 +66,7 @@ public class MinecraftUbo extends Ubo {
 
     @Override
     public int getSize() {
-        return 296;
+        return totalSize;
     }
 
     @Override
@@ -75,25 +79,65 @@ public class MinecraftUbo extends Ubo {
             PointerBuffer data = stack.mallocPointer(1);
             memory.map(uboFrames.get(currentImg).getAllocation(), false, data);
             ByteBuffer buffer = data.getByteBuffer(0, getSize());
-            Window window = MinecraftClient.getInstance().getWindow();
 
             beginUboWrite();
-            putMat4(viewTransformMatrix, buffer); // ModelViewMat
-            putMat4(projectionMatrix, buffer); // ProjectionMat
-            putVec4f(RenderSystem.getShaderColor(), buffer); // ColorModulator
-            putFloat(RenderSystem.getShaderFogStart(), buffer); // FogStart
-            putFloat(RenderSystem.getShaderFogEnd(), buffer); // FogEnd
-            putVec4f(RenderSystem.getShaderFogColor(), buffer); // FogColor
-            putMat4(toJoml(RenderSystem.getTextureMatrix()), buffer); // TextureMat
-            putFloat(RenderSystem.getShaderGameTime(), buffer); // GameTime
-            putVec2i(window.getFramebufferWidth(), window.getFramebufferHeight(), buffer); // ScreenSize
-            putFloat(RenderSystem.getShaderLineWidth(), buffer); // LineWidth
-            putVec3f(chunkOffset, buffer); // ChunkOffset
-            putVec3f(shaderLightDirections0, buffer); // Light0_Direction
-            putVec3f(shaderLightDirections1, buffer); // Light1_Direction
+            steps.forEach(addUboMemoryStep -> addUboMemoryStep.addUboMemoryStep(this, buffer));
 
             memory.unmap(uboFrames.get(currentImg).getAllocation());
         }
+    }
+
+    public void addLightDirections1(ByteBuffer buffer) {
+        putVec3f(shaderLightDirections1, buffer);
+    }
+
+    public void addLightDirections0(ByteBuffer buffer) {
+        putVec3f(shaderLightDirections0, buffer);
+    }
+
+    public void addChunkOffset(ByteBuffer buffer) {
+        putVec3f(chunkOffset, buffer);
+    }
+
+    public void addLineWidth(ByteBuffer buffer) {
+        putFloat(RenderSystem.getShaderLineWidth(), buffer);
+    }
+
+    public void addScreenSize(ByteBuffer buffer) {
+        Window window = MinecraftClient.getInstance().getWindow();
+        putVec2i(window.getFramebufferWidth(), window.getFramebufferHeight(), buffer);
+    }
+
+    public void addGameTime(ByteBuffer buffer) {
+        putFloat(RenderSystem.getShaderGameTime(), buffer);
+    }
+
+    public void addTextureMatrix(ByteBuffer buffer) {
+        putMat4(toJoml(RenderSystem.getTextureMatrix()), buffer);
+    }
+
+    public void addFogColor(ByteBuffer buffer) {
+        putVec4f(RenderSystem.getShaderFogColor(), buffer);
+    }
+
+    public void addFogEnd(ByteBuffer buffer) {
+        putFloat(RenderSystem.getShaderFogEnd(), buffer);
+    }
+
+    public void addFogStart(ByteBuffer buffer) {
+        putFloat(RenderSystem.getShaderFogStart(), buffer);
+    }
+
+    public void addShaderColor(ByteBuffer buffer) {
+        putVec4f(RenderSystem.getShaderColor(), buffer);
+    }
+
+    public void addProjectionMatrix(ByteBuffer buffer) {
+        putMat4(projectionMatrix, buffer);
+    }
+
+    public void addViewTransformMatrix(ByteBuffer buffer) {
+        putMat4(viewTransformMatrix, buffer);
     }
 
     protected void putVec2i(int i1, int i2, ByteBuffer buffer) {
@@ -207,5 +251,9 @@ public class MinecraftUbo extends Ubo {
     @Override
     public void setDescriptors(@NotNull DescriptorSet descriptorSets) {
         this.descSets = descriptorSets;
+    }
+
+    public interface AddUboMemoryStep {
+        void addUboMemoryStep(MinecraftUbo ubo, ByteBuffer buffer);
     }
 }

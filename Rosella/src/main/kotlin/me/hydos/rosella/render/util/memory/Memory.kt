@@ -1,10 +1,12 @@
 package me.hydos.rosella.render.util.memory
 
 import me.hydos.rosella.Rosella
-import me.hydos.rosella.render.device.Device
+import me.hydos.rosella.device.VulkanDevice
+import me.hydos.rosella.render.renderer.Renderer
 import me.hydos.rosella.render.util.ok
 import me.hydos.rosella.render.vertex.BufferVertexConsumer
 import me.hydos.rosella.render.vertex.VertexConsumer
+import me.hydos.rosella.vkobjects.VkCommon
 import org.lwjgl.PointerBuffer
 import org.lwjgl.system.MemoryStack
 import org.lwjgl.system.MemoryStack.stackPush
@@ -13,8 +15,10 @@ import org.lwjgl.util.vma.Vma
 import org.lwjgl.util.vma.VmaAllocationCreateInfo
 import org.lwjgl.util.vma.VmaAllocatorCreateInfo
 import org.lwjgl.util.vma.VmaVulkanFunctions
-import org.lwjgl.vulkan.*
-import org.lwjgl.vulkan.VK11.VK_API_VERSION_1_1
+import org.lwjgl.vulkan.VK10
+import org.lwjgl.vulkan.VkBufferCopy
+import org.lwjgl.vulkan.VkBufferCreateInfo
+import org.lwjgl.vulkan.VkSubmitInfo
 import java.nio.ByteBuffer
 import java.nio.LongBuffer
 import java.util.concurrent.Executors
@@ -23,7 +27,7 @@ import java.util.concurrent.Executors
  * Used for managing CPU and GPU memory.
  * This class will try to handle most vma stuff for the user so they dont have to touch much memory related stuff
  */
-class Memory(val device: Device, private val instance: VkInstance) {
+class Memory(val common: VkCommon) {
 
 	private val threadCount = 3
 	private val executorService = Executors.newFixedThreadPool(threadCount)
@@ -32,14 +36,14 @@ class Memory(val device: Device, private val instance: VkInstance) {
 
 	private val allocator: Long = stackPush().use {
 		val vulkanFunctions: VmaVulkanFunctions = VmaVulkanFunctions.callocStack(it)
-			.set(instance, device.device)
+			.set(common.vkInstance.rawInstance, common.device.rawDevice)
 
 		val createInfo: VmaAllocatorCreateInfo = VmaAllocatorCreateInfo.callocStack(it)
-			.physicalDevice(device.physicalDevice)
-			.device(device.device)
+			.physicalDevice(common.device.physicalDevice)
+			.device(common.device.rawDevice)
 			.pVulkanFunctions(vulkanFunctions)
-			.instance(instance)
-			.vulkanApiVersion(VK_API_VERSION_1_1)
+			.instance(common.vkInstance.rawInstance)
+			.vulkanApiVersion(Rosella.VULKAN_VERSION)
 
 		val pAllocator = it.mallocPointer(1)
 		Vma.vmaCreateAllocator(createInfo, pAllocator)
@@ -124,10 +128,10 @@ class Memory(val device: Device, private val instance: VkInstance) {
 	/**
 	 * Copies a buffer from one place to another. usually used to copy a staging buffer into GPU mem
 	 */
-	private fun copyBuffer(srcBuffer: Long, dstBuffer: Long, size: Int, engine: Rosella, device: Device) {
+	private fun copyBuffer(srcBuffer: Long, dstBuffer: Long, size: Int, renderer: Renderer, device: VulkanDevice) {
 		stackPush().use {
 			val pCommandBuffer = it.mallocPointer(1)
-			val commandBuffer = engine.renderer.beginCmdBuffer(it, pCommandBuffer)
+			val commandBuffer = renderer.beginCmdBuffer(it, pCommandBuffer, device)
 			run {
 				val copyRegion = VkBufferCopy.callocStack(1, it)
 				copyRegion.size(size.toLong())
@@ -137,9 +141,9 @@ class Memory(val device: Device, private val instance: VkInstance) {
 			val submitInfo = VkSubmitInfo.callocStack(it)
 				.sType(VK10.VK_STRUCTURE_TYPE_SUBMIT_INFO)
 				.pCommandBuffers(pCommandBuffer)
-			VK10.vkQueueSubmit(engine.renderer.queues.graphicsQueue, submitInfo, VK10.VK_NULL_HANDLE).ok()
-			VK10.vkQueueWaitIdle(engine.renderer.queues.graphicsQueue).ok()
-			VK10.vkFreeCommandBuffers(device.device, engine.renderer.commandPool, pCommandBuffer)
+			VK10.vkQueueSubmit(renderer.queues.graphicsQueue, submitInfo, VK10.VK_NULL_HANDLE).ok()
+			VK10.vkQueueWaitIdle(renderer.queues.graphicsQueue).ok()
+			VK10.vkFreeCommandBuffers(device.rawDevice, renderer.commandPool, pCommandBuffer)
 		}
 	}
 
@@ -160,7 +164,7 @@ class Memory(val device: Device, private val instance: VkInstance) {
 				pBuffer
 			)
 			val indexBuffer = pBuffer[0]
-			copyBuffer(stagingBuffer.buffer, indexBuffer, size, engine, device)
+			copyBuffer(stagingBuffer.buffer, indexBuffer, size, engine.renderer, engine.common.device)
 			freeBuffer(stagingBuffer)
 			return indexBufferInfo
 		}
@@ -187,7 +191,7 @@ class Memory(val device: Device, private val instance: VkInstance) {
 					pBuffer
 				)
 				val vertexBuffer = pBuffer[0]
-				copyBuffer(stagingBuffer.buffer, vertexBuffer, size, engine, device)
+				copyBuffer(stagingBuffer.buffer, vertexBuffer, size, engine.renderer, engine.common.device)
 				freeBuffer(stagingBuffer)
 				return vertexBufferInfo
 			} else {

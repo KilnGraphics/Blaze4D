@@ -5,6 +5,7 @@ import me.hydos.blaze4d.Blaze4D;
 import me.hydos.blaze4d.api.GlobalRenderSystem;
 import me.hydos.rosella.render.texture.SamplerCreateInfo;
 import me.hydos.rosella.render.texture.TextureFilter;
+import me.hydos.rosella.scene.object.impl.SimpleObjectManager;
 import net.minecraft.client.texture.NativeImage;
 import org.lwjgl.vulkan.VK10;
 import org.spongepowered.asm.mixin.Mixin;
@@ -18,8 +19,8 @@ public class TextureUtilMixin {
     @Inject(method = "prepareImage(Lnet/minecraft/client/texture/NativeImage$GLFormat;IIII)V", at = @At("HEAD"), cancellable = true)
     private static void createRosellaTexture(NativeImage.GLFormat internalFormat, int id, int maxLevel, int width, int height, CallbackInfo ci) {
         GlobalRenderSystem.boundTextureIds[GlobalRenderSystem.activeTexture] = id;
-        Blaze4D.rosella.getTextureManager().createTexture(
-                Blaze4D.rosella,
+        ((SimpleObjectManager) Blaze4D.rosella.objectManager).textureManager.createTexture(
+                Blaze4D.rosella.renderer,
                 id,
                 width,
                 height,
@@ -29,7 +30,7 @@ public class TextureUtilMixin {
                     case RG -> VK10.VK_FORMAT_R32G32_SFLOAT;
                     case RED -> VK10.VK_FORMAT_R32_SFLOAT;
                 },
-                new SamplerCreateInfo(TextureFilter.NEAREST) // TODO: hmm...
+                new SamplerCreateInfo(TextureFilter.NEAREST) // this is ok because we set it again later when we draw to it
         );
         ci.cancel();
     }

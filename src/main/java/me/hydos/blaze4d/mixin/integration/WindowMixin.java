@@ -2,7 +2,7 @@ package me.hydos.blaze4d.mixin.integration;
 
 import me.hydos.blaze4d.Blaze4D;
 import me.hydos.rosella.Rosella;
-import me.hydos.rosella.render.io.Window;
+import me.hydos.rosella.display.GlfwWindow;
 import net.minecraft.client.WindowEventHandler;
 import net.minecraft.client.WindowSettings;
 import net.minecraft.client.util.Monitor;
@@ -86,12 +86,12 @@ public abstract class WindowMixin {
         // Destroy The OpenGL Window before Minecraft Gets Too Attached
         GLFW.glfwDestroyWindow(this.handle);
 
-        Blaze4D.window = new Window(title, this.width, this.height, true);
-        Blaze4D.rosella = new Rosella("Blaze4D", Blaze4D.VALIDATION_ENABLED, Blaze4D.window);
+        Blaze4D.window = new GlfwWindow(this.width, this.height, title + " - Rosella (fps: ??)", true);
+        Blaze4D.rosella = new Rosella(Blaze4D.window, "Blaze4D", true);
         Blaze4D.finishAndRender();
 
         Monitor monitor = monitorTracker.getMonitor(GLFW.glfwGetPrimaryMonitor());
-        this.handle = Blaze4D.window.getWindowPtr();
+        this.handle = Blaze4D.window.pWindow;
         if (monitor != null) {
             VideoMode videoMode2 = monitor.findClosestVideoMode(this.fullscreen ? this.videoMode : Optional.empty());
             this.windowedX = this.x = monitor.getViewportX() + videoMode2.getWidth() / 2 - this.width / 2;
@@ -115,7 +115,7 @@ public abstract class WindowMixin {
 
     @Inject(method = "setIcon", at = @At(value = "INVOKE", target = "Lorg/lwjgl/glfw/GLFW;glfwSetWindowIcon(JLorg/lwjgl/glfw/GLFWImage$Buffer;)V"), locals = LocalCapture.CAPTURE_FAILSOFT)
     private void setIcon(InputStream icon16, InputStream icon32, CallbackInfo ci, MemoryStack memoryStack, IntBuffer intBuffer, IntBuffer intBuffer2, IntBuffer intBuffer3, GLFWImage.Buffer buffer, ByteBuffer byteBuffer, ByteBuffer byteBuffer2) {
-        GLFW.glfwSetWindowIcon(Blaze4D.window.getWindowPtr(), buffer);
+        GLFW.glfwSetWindowIcon(Blaze4D.window.pWindow, buffer);
     }
 
     @Inject(method = "throwGlError", at = @At("HEAD"), cancellable = true)
@@ -126,7 +126,7 @@ public abstract class WindowMixin {
 
     @Inject(method = "close", at = @At("HEAD"))
     private void freeRosella(CallbackInfo ci) {
-        if(Blaze4D.rosella != null) {
+        if (Blaze4D.rosella != null) {
             Blaze4D.rosella.free();
         }
     }

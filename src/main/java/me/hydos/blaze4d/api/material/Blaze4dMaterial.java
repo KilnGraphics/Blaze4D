@@ -10,10 +10,9 @@ import me.hydos.rosella.render.shader.ShaderProgram;
 import me.hydos.rosella.render.texture.SamplerCreateInfo;
 import me.hydos.rosella.render.texture.Texture;
 import me.hydos.rosella.render.texture.TextureFilter;
-import me.hydos.rosella.render.texture.UploadableImage;
 import me.hydos.rosella.render.vertex.VertexFormat;
+import me.hydos.rosella.scene.object.impl.SimpleObjectManager;
 import net.minecraft.client.texture.MissingSprite;
-import net.minecraft.client.texture.NativeImage;
 import net.minecraft.client.texture.NativeImageBackedTexture;
 import org.jetbrains.annotations.NotNull;
 
@@ -24,32 +23,28 @@ public class Blaze4dMaterial extends Material {
     private static Texture createMissingTexture() {
         NativeImageBackedTexture missingTex = MissingSprite.getMissingSpriteTexture();
         missingTex.getImage().upload(0, 0, 0, false);
-        return Blaze4D.rosella.getTextureManager().getTexture(missingTex.getGlId());
+        return ((SimpleObjectManager) Blaze4D.rosella.objectManager).textureManager.getTexture(missingTex.getGlId());
     }
 
     private final int textureId;
 
     public Blaze4dMaterial(Material old, int textureId) {
-        super(EmptyResource.EMPTY, old.getShaderId(), old.getImgFormat(), old.getUseBlend(), old.getTopology(), old.getVertexFormat(), new SamplerCreateInfo(TextureFilter.NEAREST));
+        super(EmptyResource.EMPTY, old.getShader(), old.getImgFormat(), old.getUseBlend(), old.getTopology(), old.getVertexFormat(), new SamplerCreateInfo(TextureFilter.NEAREST));
         this.textureId = textureId;
-        this.shader = old.shader;
-        if (this.shader == null) {
+        this.setShader(old.getShader());
+        if (this.getShader() == null) {
             throw new RuntimeException("Shader is Null");
         }
     }
 
     public Blaze4dMaterial(ShaderProgram shader, int imageFormat, boolean useBlend, Topology topology, VertexFormat format, int textureId) {
-        super(EmptyResource.EMPTY, Identifier.getEMPTY(), imageFormat, useBlend, topology, format, new SamplerCreateInfo(TextureFilter.NEAREST));
+        super(EmptyResource.EMPTY, null, imageFormat, useBlend, topology, format, new SamplerCreateInfo(TextureFilter.NEAREST));
         this.textureId = textureId;
-        this.shader = shader;
-    }
-
-    @Override
-    public void loadShaders(@NotNull Rosella engine) {
+        this.setShader(shader);
     }
 
     public void loadTextures(Rosella rosella) {
-        Texture retrievedTexture = rosella.getTextureManager().getTexture(textureId);
+        Texture retrievedTexture = ((SimpleObjectManager) Blaze4D.rosella.objectManager).textureManager.getTexture(textureId);
         texture = retrievedTexture == null ? missingTexture : retrievedTexture;
     }
 }

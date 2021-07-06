@@ -1,11 +1,11 @@
 package me.hydos.rosella.render.info;
 
-import me.hydos.rosella.Rosella;
+import me.hydos.rosella.device.VulkanDevice;
 import me.hydos.rosella.memory.MemoryCloseable;
-import me.hydos.rosella.render.RosellaVk;
-import me.hydos.rosella.render.device.Device;
 import me.hydos.rosella.render.material.Material;
+import me.hydos.rosella.render.renderer.Renderer;
 import me.hydos.rosella.render.shader.ubo.Ubo;
+import me.hydos.rosella.render.texture.TextureManager;
 import me.hydos.rosella.render.util.memory.Memory;
 import org.jetbrains.annotations.NotNull;
 
@@ -23,24 +23,25 @@ public class InstanceInfo implements MemoryCloseable {
     }
 
     @Override
-    public void free(Device device, Memory memory) {
+    public void free(VulkanDevice device, Memory memory) {
         ubo.free(device, memory);
-        material.shader.getDescriptorManager().freeDescriptorSet(ubo.getDescriptors());
+        material.getShader().getDescriptorManager().freeDescriptorSet(ubo.getDescriptors());
     }
 
     /**
      * Called when Command Buffers need to be refreshed. all {@link me.hydos.rosella.render.descriptorsets.DescriptorSet}'s will need to be recreated
      *
-     * @param rosella The active instance of the Renderer
+     * @param renderer The active instance of the Renderer
+     * @param textureManager The TextureManager that the texture is contained under
      */
-    public void rebuild(@NotNull Rosella rosella) {
-        material.shader.getDescriptorManager().freeDescriptorSet(ubo.getDescriptors());
+    public void rebuild(@NotNull Renderer renderer, TextureManager textureManager) {
+        material.getShader().getDescriptorManager().freeDescriptorSet(ubo.getDescriptors());
         if (ubo.getUniformBuffers().size() == 0) {
-            ubo.create(rosella.getRenderer().swapchain);
+            ubo.create(renderer.swapchain);
         }
 
-        rosella.getTextureManager().prepareTexture(rosella.getRenderer(), material.texture);
+        textureManager.prepareTexture(renderer, material.texture);
 
-        material.shader.getDescriptorManager().createNewDescriptor(material.texture, ubo);
+        material.getShader().getDescriptorManager().createNewDescriptor(material.texture, ubo);
     }
 }

@@ -1,28 +1,30 @@
 package me.hydos.rosella.render.material
 
 import me.hydos.rosella.Rosella
+import me.hydos.rosella.device.VulkanDevice
 import me.hydos.rosella.render.Topology
-import me.hydos.rosella.render.device.Device
 import me.hydos.rosella.render.renderer.Renderer
 import me.hydos.rosella.render.shader.ShaderProgram
 import me.hydos.rosella.render.swapchain.RenderPass
 import me.hydos.rosella.render.swapchain.Swapchain
 import me.hydos.rosella.render.util.ok
 import me.hydos.rosella.render.vertex.VertexFormat
+import me.hydos.rosella.scene.`object`.impl.SimpleObjectManager
+import me.hydos.rosella.vkobjects.VkCommon
 import org.lwjgl.system.MemoryStack
 import org.lwjgl.vulkan.*
 import java.nio.ByteBuffer
 import java.nio.LongBuffer
 
-class PipelineManager(var swapchain: Swapchain, val device: Device) {
+class PipelineManager(var common: VkCommon, val renderer: Renderer) {
 
 	private val pipelines = HashMap<PipelineCreateInfo, PipelineInfo>()
 
 	private fun getPipeline(createInfo: PipelineCreateInfo): PipelineInfo {
 		if (!pipelines.containsKey(createInfo)) {
 			pipelines[createInfo] = createPipeline(
-				device,
-				swapchain,
+				common.device,
+				renderer.swapchain,
 				createInfo.renderPass,
 				createInfo.descriptorSetLayout,
 				createInfo.polygonMode,
@@ -35,12 +37,12 @@ class PipelineManager(var swapchain: Swapchain, val device: Device) {
 		return pipelines[createInfo]!!
 	}
 
-	fun getPipeline(material: Material, renderer: Renderer, rosella: Rosella): PipelineInfo {
+	fun getPipeline(material: Material, renderer: Renderer): PipelineInfo {
 		val createInfo = PipelineCreateInfo(
 			renderer.renderPass,
-			material.shader.raw.descriptorSetLayout,
-			rosella.polygonMode,
-			material.shader,
+			material.shader!!.raw.descriptorSetLayout,
+			Rosella.POLYGON_MODE,
+			material.shader!!,
 			material.topology,
 			material.vertexFormat,
 			material.useBlend
@@ -50,13 +52,15 @@ class PipelineManager(var swapchain: Swapchain, val device: Device) {
 
 	fun invalidatePipelines(swapchain: Swapchain, rosella: Rosella) {
 		for (pipeline in pipelines.values) {
-			VK10.vkDestroyPipeline(device.device, pipeline.graphicsPipeline, null)
-			VK10.vkDestroyPipelineLayout(device.device, pipeline.pipelineLayout, null)
+			VK10.vkDestroyPipeline(rosella.common.device.rawDevice, pipeline.graphicsPipeline, null)
+			VK10.vkDestroyPipelineLayout(rosella.common.device.rawDevice, pipeline.pipelineLayout, null)
 		}
 
 		pipelines.clear()
-		rosella.renderer.rebuildCommandBuffers(rosella.renderer.renderPass, rosella)
-		this.swapchain = swapchain
+		rosella.renderer.rebuildCommandBuffers(
+			rosella.renderer.renderPass,
+			rosella.objectManager as SimpleObjectManager
+		)
 	}
 
 	fun isValidPipeline(pipeline: PipelineInfo): Boolean {
@@ -67,7 +71,7 @@ class PipelineManager(var swapchain: Swapchain, val device: Device) {
 	 * Creates a new pipeline
 	 */
 	private fun createPipeline(
-		device: Device,
+		device: VulkanDevice,
 		swapchain: Swapchain,
 		renderPass: RenderPass,
 		descriptorSetLayout: Long,
@@ -217,7 +221,7 @@ class PipelineManager(var swapchain: Swapchain, val device: Device) {
 //				.pPushConstantRanges(pushConstantRange)
 
 			val pPipelineLayout = it.longs(VK10.VK_NULL_HANDLE)
-			VK10.vkCreatePipelineLayout(device.device, pipelineLayoutInfo, null, pPipelineLayout).ok()
+			VK10.vkCreatePipelineLayout(device.rawDevice, pipelineLayoutInfo, null, pPipelineLayout).ok()
 			pipelineLayout = pPipelineLayout[0]
 
 			/**
@@ -240,12 +244,12 @@ class PipelineManager(var swapchain: Swapchain, val device: Device) {
 				.basePipelineIndex(-1)
 
 			val pGraphicsPipeline: LongBuffer = it.mallocLong(1)
-			VK10.vkCreateGraphicsPipelines(device.device, VK10.VK_NULL_HANDLE, pipelineInfo, null, pGraphicsPipeline)
+			VK10.vkCreateGraphicsPipelines(device.rawDevice, VK10.VK_NULL_HANDLE, pipelineInfo, null, pGraphicsPipeline)
 				.ok()
 			graphicsPipeline = pGraphicsPipeline[0]
 
-			VK10.vkDestroyShaderModule(device.device, vertShaderModule, null)
-			VK10.vkDestroyShaderModule(device.device, fragShaderModule, null)
+			VK10.vkDestroyShaderModule(device.rawDevice, vertShaderModule, null)
+			VK10.vkDestroyShaderModule(device.rawDevice, fragShaderModule, null)
 
 			return PipelineInfo(pipelineLayout, graphicsPipeline)
 		}

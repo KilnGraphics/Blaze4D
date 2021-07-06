@@ -2,16 +2,17 @@ package me.hydos.rosella.render.texture
 
 import it.unimi.dsi.fastutil.ints.IntArrayPriorityQueue
 import it.unimi.dsi.fastutil.ints.IntPriorityQueues
-import me.hydos.rosella.Rosella
+
 import me.hydos.rosella.render.*
-import me.hydos.rosella.render.device.Device
 import me.hydos.rosella.render.renderer.Renderer
+import me.hydos.rosella.render.util.memory.Memory
 import org.lwjgl.vulkan.VK10
+import me.hydos.rosella.vkobjects.VkCommon
 
 /**
  * Caches Textures and other texture related objects
  */
-class TextureManager(val device: Device) { // TODO: add layers, maybe not in this class but somewhere
+class TextureManager(val common: VkCommon) { // TODO: add layers, maybe not in this class but somewhere
 
 	private val textureMap = HashMap<Int, Texture>()
 	private val samplerCache = HashMap<SamplerCreateInfo, TextureSampler>() // bro there's like 3 options for this
@@ -40,7 +41,7 @@ class TextureManager(val device: Device) { // TODO: add layers, maybe not in thi
 	}
 
 	fun createTexture(
-		engine: Rosella,
+		renderer: Renderer,
 		textureId: Int,
 		width: Int,
 		height: Int,
@@ -48,30 +49,31 @@ class TextureManager(val device: Device) { // TODO: add layers, maybe not in thi
 		samplerCreateInfo: SamplerCreateInfo
 	) {
 		val textureImage = TextureImage(0, 0, 0)
-		createTextureImage(engine.renderer, width, height, imgFormat, textureImage)
-		textureImage.view = createTextureImageView(device, imgFormat, textureImage.textureImage)
+
+		createTextureImage(renderer, common.device, width, height, imgFormat, textureImage)
+		textureImage.view = createTextureImageView(common.device, imgFormat, textureImage.textureImage)
 
 		val textureSampler = samplerCache.computeIfAbsent(samplerCreateInfo) {
-			TextureSampler(samplerCreateInfo, engine.device)
+			TextureSampler(samplerCreateInfo, common.device)
 		}
 
 		textureMap[textureId] = Texture(imgFormat, width, height, textureImage, textureSampler.pointer);
 	}
 
 	fun applySamplerInfoToTexture(
-		device: Device,
 		textureId: Int,
 		samplerCreateInfo: SamplerCreateInfo
 	) {
 		val textureSampler = samplerCache.computeIfAbsent(samplerCreateInfo) {
-			TextureSampler(samplerCreateInfo, device)
+			TextureSampler(samplerCreateInfo, common.device)
 		}
 
 		textureMap[textureId]?.textureSampler = textureSampler.pointer
 	}
 
 	fun drawToExistingTexture(
-		engine: Rosella,
+		renderer: Renderer,
+		memory: Memory,
 		textureId: Int,
 		image: UploadableImage,
 		srcRegion: ImageRegion,
@@ -84,25 +86,36 @@ class TextureManager(val device: Device) { // TODO: add layers, maybe not in thi
 				texture.imgFormat,
 				VK10.VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL,
 				VK10.VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
-				engine.renderer.depthBuffer,
-				engine.renderer.device,
-				engine.renderer
+				renderer.depthBuffer,
+				common.device,
+				renderer
 			)
 			preparedTextures.remove(texture)
 		}
-		drawToTexture(engine.device, image, srcRegion, dstRegion, engine.renderer, engine.memory, texture)
+		drawToTexture(
+			renderer,
+			common.device,
+			memory,
+			image,
+			srcRegion,
+			dstRegion,
+			texture)
 	}
 
 	fun drawToExistingTexture(
-		engine: Rosella,
+		renderer: Renderer,
+		memory: Memory,
 		textureId: Int,
 		image: UploadableImage
 	) {
 		val region = ImageRegion(0, 0, image.getWidth(), image.getHeight())
-		drawToExistingTexture(engine, textureId, image, region, region)
+		drawToExistingTexture(renderer, memory, textureId, image, region, region)
 	}
 
-	fun prepareTexture(renderer: Renderer, texture: Texture) {
+	fun prepareTexture(
+		renderer: Renderer,
+		texture: Texture
+	) {
 		if (!preparedTextures.contains(texture)) {
 			transitionImageLayout(
 				texture.textureImage.textureImage,
@@ -110,7 +123,7 @@ class TextureManager(val device: Device) { // TODO: add layers, maybe not in thi
 				VK10.VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
 				VK10.VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL,
 				renderer.depthBuffer,
-				renderer.device,
+				common.device,
 				renderer
 			)
 			preparedTextures.add(texture)

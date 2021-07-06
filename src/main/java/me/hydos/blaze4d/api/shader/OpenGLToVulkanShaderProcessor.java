@@ -10,7 +10,7 @@ package me.hydos.blaze4d.api.shader;
         uniform mat4 ModelViewMat; X
         uniform mat4 ProjMat; X
 
-        + layout(binding = 0) uniform UniformBufferObject {layout(binding = 0) uniform UniformBufferObject {
+        + layout(binding = 0) uniform UniformBufferObject {
         +     mat4 ModelViewMat;
         +     mat4 ProjMat;
         + } ubo;
@@ -28,12 +28,15 @@ package me.hydos.blaze4d.api.shader;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
+import java.util.Map;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
+import net.minecraft.client.gl.GlUniform;
+
 public class OpenGLToVulkanShaderProcessor {
 
-    public static List<String> convertOpenGLToVulkanShader(List<String> source) {
+    public static List<String> convertOpenGLToVulkanShader(List<String> source, List<GlUniform> glUniforms) {
         List<String> lines = new ArrayList<>(source.stream()
                 .flatMap(line -> Arrays.stream(line.split("\n")))
                 .toList());
@@ -56,7 +59,9 @@ public class OpenGLToVulkanShaderProcessor {
                 lines.set(i, "layout(location = " + (outVariables++) + ") " + line);
             } else if (line.matches("uniform .*")) {
                 Matcher uniformMatcher = Pattern.compile("uniform\\s(\\w*)\\s(\\w*);").matcher(line);
-                uniformMatcher.find();
+                if(!uniformMatcher.find()){
+                    throw new RuntimeException("Unable to parse shader line: " + line);
+                }
                 String type = uniformMatcher.group(1);
                 if (type.equals("sampler2D")) {
                     lines.set(i, line.replace("uniform", "layout(binding = " + samplers++ + ") uniform"));
@@ -65,21 +70,23 @@ public class OpenGLToVulkanShaderProcessor {
                     i--;
                 }
             } else if (line.matches("void main\\(\\) \\{")) {
-                List<String> uboNames = List.of(
-                        "ModelViewMat",
-                        "ProjMat",
-                        "ColorModulator",
-                        "FogStart",
-                        "FogEnd",
-                        "FogColor",
-                        "TextureMat",
-                        "GameTime",
-                        "ScreenSize",
-                        "LineWidth",
-                        "ChunkOffset",
-                        "Light0_Direction",
-                        "Light1_Direction"
-                );
+//                List<String> uboNames = List.of(
+//                        "ModelViewMat",
+//                        "ProjMat",
+//                        "ColorModulator",
+//                        "FogStart",
+//                        "FogEnd",
+//                        "FogColor",
+//                        "TextureMat",
+//                        "GameTime",
+//                        "ScreenSize",
+//                        "LineWidth",
+//                        "ChunkOffset",
+//                        "Light0_Direction",
+//                        "Light1_Direction"
+//                );
+
+                List<String> uboNames = glUniforms.stream().map(GlUniform::getName).toList();
 
                 for (String uboName : uboNames) {
                     for (int j = 0; j < lines.size(); j++) {
@@ -87,24 +94,11 @@ public class OpenGLToVulkanShaderProcessor {
                     }
                 }
 
-                String uboInsert = """
-                        layout(binding = 0) uniform UniformBufferObject {
-                            mat4 ModelViewMat;
-                            mat4 ProjMat;
-                            vec4 ColorModulator;
-                            float FogStart;
-                            float FogEnd;
-                            vec4 FogColor;
-                            mat4 TextureMat;
-                            float GameTime;
-                            vec2 ScreenSize;
-                            float LineWidth;
-                            vec3 ChunkOffset;
-                            vec3 Light0_Direction;
-                            vec3 Light1_Direction;
-                        } ubo;
-                                                
-                        """;
+                List<String> uboImports = glUniforms.stream().map(glUniform -> String.format("%s %s;", getDataTypeName(glUniform.getDataType()), glUniform.getName())).toList();
+                StringBuilder uboInsert = new StringBuilder("layout(binding = 0) uniform UniformBufferObject {\n");
+                uboImports.forEach(string -> uboInsert.append("\t").append(string).append("\n"));
+                uboInsert.append("} ubo;\n\n");
+
                 lines.set(i, uboInsert + line);
             }
 
@@ -113,6 +107,21 @@ public class OpenGLToVulkanShaderProcessor {
         return lines.stream()
                 .flatMap(line -> Arrays.stream(line.split("\n")))
                 .toList();
+    }
+
+    private static String getDataTypeName(int dataType) {
+        return switch (dataType) {
+            case 0 -> "int";
+            case 1 -> "ivec2";
+            case 2 -> "ivec3";
+            case 3 -> "ivec4";
+            case 4 -> "float";
+            case 5 -> "vec2";
+            case 6 -> "vec3";
+            case 7 -> "vec4";
+            case 10 -> "mat4";
+            default -> throw new IllegalStateException("Unexpected value: " + dataType);
+        };
     }
 
     public static void main(String[] args) {
@@ -147,6 +156,6 @@ public class OpenGLToVulkanShaderProcessor {
                     normal = ProjMat * ModelViewMat * vec4(Normal, 0.0);
                 }
                 """;
-        System.out.println(String.join("\n", convertOpenGLToVulkanShader(List.of(originalShader))));
+        System.out.println(String.join("\n", convertOpenGLToVulkanShader(List.of(originalShader), Map.of("ModelViewMat", 10, "ProjMat", 10, "ChunkOffset", 6).entrySet().stream().map(entry -> new GlUniform(entry.getKey(), entry.getValue(), 0, null)).toList())));
     }
 }
