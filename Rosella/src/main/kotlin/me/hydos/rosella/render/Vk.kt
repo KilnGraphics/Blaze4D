@@ -11,7 +11,7 @@ import me.hydos.rosella.render.swapchain.DepthBuffer
 import me.hydos.rosella.render.swapchain.RenderPass
 import me.hydos.rosella.render.swapchain.Swapchain
 import me.hydos.rosella.render.texture.*
-import me.hydos.rosella.render.util.memory.Memory
+import me.hydos.rosella.memory.Memory
 import me.hydos.rosella.render.util.ok
 import org.lwjgl.PointerBuffer
 import org.lwjgl.system.MemoryStack

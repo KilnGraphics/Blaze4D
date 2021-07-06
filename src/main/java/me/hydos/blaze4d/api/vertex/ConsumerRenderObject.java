@@ -10,7 +10,7 @@ import me.hydos.rosella.render.info.RenderInfo;
 import me.hydos.rosella.render.material.Material;
 import me.hydos.rosella.render.renderer.Renderer;
 import me.hydos.rosella.render.shader.ShaderProgram;
-import me.hydos.rosella.render.util.memory.Memory;
+import me.hydos.rosella.memory.Memory;
 import me.hydos.rosella.render.vertex.BufferVertexConsumer;
 import me.hydos.rosella.render.vertex.VertexFormats;
 import me.hydos.rosella.scene.object.Renderable;

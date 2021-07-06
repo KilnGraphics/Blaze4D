@@ -1,11 +1,11 @@
 package me.hydos.rosella.render.shader.ubo
 
 import me.hydos.rosella.device.VulkanDevice
+import me.hydos.rosella.memory.BufferInfo
+import me.hydos.rosella.memory.Memory
 import me.hydos.rosella.memory.MemoryCloseable
 import me.hydos.rosella.render.descriptorsets.DescriptorSet
 import me.hydos.rosella.render.swapchain.Swapchain
-import me.hydos.rosella.render.util.memory.BufferInfo
-import me.hydos.rosella.render.util.memory.Memory
 
 /**
  * A Uniform Buffer Object (ubo) is an object used to do things such as sending transformation matrices to the shader, sending lighting values to the shader, etc

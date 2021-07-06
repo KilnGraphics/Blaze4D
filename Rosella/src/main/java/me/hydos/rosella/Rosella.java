@@ -7,7 +7,7 @@ import me.hydos.rosella.logging.DebugLogger;
 import me.hydos.rosella.logging.DefaultDebugLogger;
 import me.hydos.rosella.render.renderer.Renderer;
 import me.hydos.rosella.render.swapchain.Frame;
-import me.hydos.rosella.render.util.memory.Memory;
+import me.hydos.rosella.memory.Memory;
 import me.hydos.rosella.scene.object.ObjectManager;
 import me.hydos.rosella.scene.object.impl.SimpleObjectManager;
 import me.hydos.rosella.vkobjects.VkCommon;
@@ -15,6 +15,7 @@ import me.hydos.rosella.vkobjects.VulkanInstance;
 import org.apache.logging.log4j.Level;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.apache.logging.log4j.message.StringFormatterMessageFactory;
 import org.lwjgl.system.MemoryStack;
 import org.lwjgl.vulkan.VkLayerProperties;
 
@@ -34,7 +35,7 @@ import static org.lwjgl.vulkan.VK12.VK_API_VERSION_1_2;
  */
 public class Rosella {
 
-    public static final Logger LOGGER = LogManager.getLogger("Rosella");
+    public static final Logger LOGGER = LogManager.getLogger("Rosella", new StringFormatterMessageFactory());
     public static final int VULKAN_VERSION = VK_API_VERSION_1_2;
     public static final int POLYGON_MODE = VK_POLYGON_MODE_FILL;
     public final VkCommon common = new VkCommon();
@@ -95,7 +96,7 @@ public class Rosella {
     /**
      * Waits for the engine to stop rendering and be idle. any anything that is freed after this is 99% likely to be safe.
      */
-    private void waitForIdle() {
+    public void waitForIdle() {
         vkDeviceWaitIdle(common.device.rawDevice);
         vkQueueWaitIdle(common.queues.graphicsQueue);
         vkQueueWaitIdle(common.queues.presentQueue);

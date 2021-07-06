@@ -5,15 +5,13 @@ import me.hydos.rosella.memory.MemoryCloseable;
 import me.hydos.rosella.render.material.Material;
 import me.hydos.rosella.render.renderer.Renderer;
 import me.hydos.rosella.render.shader.ubo.Ubo;
-import me.hydos.rosella.render.texture.TextureManager;
-import me.hydos.rosella.render.util.memory.Memory;
+import me.hydos.rosella.memory.Memory;
 import org.jetbrains.annotations.NotNull;
 
 /**
  * Info such as the {@link Material} and {@link Ubo} for rendering objects
  */
 public class InstanceInfo implements MemoryCloseable {
-
     public Ubo ubo;
     public Material material;
 
@@ -38,7 +36,6 @@ public class InstanceInfo implements MemoryCloseable {
         if (ubo.getUniformBuffers().size() == 0) {
             ubo.create(renderer.swapchain);
         }
-
         material.getShader().getDescriptorManager().createNewDescriptor(material.texture, ubo);
     }
 }

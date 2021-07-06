@@ -108,7 +108,7 @@ public class GlfwWindow extends Display {
         frameCount++;
         if (currentTime - previousTime >= 1.0) {
             fps = frameCount;
-            System.out.println(fps);
+//            System.out.println(fps);
             frameCount = 0;
             previousTime = currentTime;
         }

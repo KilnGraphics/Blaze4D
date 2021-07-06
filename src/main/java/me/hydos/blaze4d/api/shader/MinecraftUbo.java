@@ -1,13 +1,12 @@
 package me.hydos.blaze4d.api.shader;
 
 import com.mojang.blaze3d.systems.RenderSystem;
-import me.hydos.rosella.device.VulkanDevice;
 import me.hydos.rosella.render.descriptorsets.DescriptorSet;
 import me.hydos.rosella.render.material.Material;
 import me.hydos.rosella.render.shader.ubo.Ubo;
 import me.hydos.rosella.render.swapchain.Swapchain;
-import me.hydos.rosella.render.util.memory.BufferInfo;
-import me.hydos.rosella.render.util.memory.Memory;
+import me.hydos.rosella.memory.BufferInfo;
+import me.hydos.rosella.memory.Memory;
 import net.minecraft.client.MinecraftClient;
 import net.minecraft.client.util.Window;
 import net.minecraft.util.math.Vec3f;
@@ -49,6 +48,7 @@ public class MinecraftUbo extends Ubo {
     @Override
     public void create(Swapchain swapChain) {
         try (MemoryStack stack = MemoryStack.stackPush()) {
+            this.free();
             uboFrames = new ArrayList<>(swapChain.getSwapChainImages().size());
             for (int i = 0; i < swapChain.getSwapChainImages().size(); i++) {
                 LongBuffer pBuffer = stack.mallocLong(1);
@@ -77,13 +77,13 @@ public class MinecraftUbo extends Ubo {
 
         try (MemoryStack stack = MemoryStack.stackPush()) {
             PointerBuffer data = stack.mallocPointer(1);
-            memory.map(uboFrames.get(currentImg).getAllocation(), false, data);
+            memory.map(uboFrames.get(currentImg).allocation(), false, data);
             ByteBuffer buffer = data.getByteBuffer(0, getSize());
 
             beginUboWrite();
             steps.forEach(addUboMemoryStep -> addUboMemoryStep.addUboMemoryStep(this, buffer));
 
-            memory.unmap(uboFrames.get(currentImg).getAllocation());
+            memory.unmap(uboFrames.get(currentImg).allocation());
         }
     }
 

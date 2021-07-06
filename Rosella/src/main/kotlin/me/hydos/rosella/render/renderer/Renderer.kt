@@ -4,6 +4,7 @@ import me.hydos.rosella.Rosella
 import me.hydos.rosella.device.VulkanDevice
 import me.hydos.rosella.device.VulkanQueues
 import me.hydos.rosella.display.Display
+import me.hydos.rosella.memory.Memory
 import me.hydos.rosella.render.*
 import me.hydos.rosella.render.info.InstanceInfo
 import me.hydos.rosella.render.info.RenderInfo
@@ -12,7 +13,6 @@ import me.hydos.rosella.render.swapchain.DepthBuffer
 import me.hydos.rosella.render.swapchain.Frame
 import me.hydos.rosella.render.swapchain.RenderPass
 import me.hydos.rosella.render.swapchain.Swapchain
-import me.hydos.rosella.render.util.memory.asPointerBuffer
 import me.hydos.rosella.render.util.ok
 import me.hydos.rosella.scene.`object`.impl.SimpleObjectManager
 import me.hydos.rosella.vkobjects.VkCommon
@@ -191,7 +191,7 @@ class Renderer(val common: VkCommon, display: Display, rosella: Rosella) {
 
 	fun clearCommandBuffers(device: VulkanDevice) {
 		if (commandBuffers.size != 0) {
-			vkFreeCommandBuffers(device.rawDevice, commandPool, commandBuffers.asPointerBuffer())
+			vkFreeCommandBuffers(device.rawDevice, commandPool, Memory.asPointerBuffer(commandBuffers))
 			commandBuffers.clear()
 		}
 	}
@@ -330,9 +330,9 @@ class Renderer(val common: VkCommon, display: Display, rosella: Rosella) {
 			commandBuffer: VkCommandBuffer
 	) {
 		val offsets = stack.longs(0)
-		val vertexBuffers = stack.longs(renderInfo.vertexBuffer.buffer)
+		val vertexBuffers = stack.longs(renderInfo.vertexBuffer.buffer())
 		vkCmdBindVertexBuffers(commandBuffer, 0, vertexBuffers, offsets)
-		vkCmdBindIndexBuffer(commandBuffer, renderInfo.indexBuffer.buffer, 0, VK_INDEX_TYPE_UINT32)
+		vkCmdBindIndexBuffer(commandBuffer, renderInfo.indexBuffer.buffer(), 0, VK_INDEX_TYPE_UINT32)
 	}
 
 	private fun bindInstanceInfo(

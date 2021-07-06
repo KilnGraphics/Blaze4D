@@ -9,7 +9,7 @@ import me.hydos.rosella.render.model.ModelLoader;
 import me.hydos.rosella.render.renderer.Renderer;
 import me.hydos.rosella.render.resource.Resource;
 import me.hydos.rosella.render.shader.ubo.RenderObjectUbo;
-import me.hydos.rosella.render.util.memory.Memory;
+import me.hydos.rosella.memory.Memory;
 import me.hydos.rosella.render.vertex.BufferVertexConsumer;
 import me.hydos.rosella.render.vertex.VertexFormats;
 import me.hydos.rosella.vkobjects.VkCommon;

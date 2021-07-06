@@ -2,13 +2,11 @@ package me.hydos.rosella.render.shader
 
 import me.hydos.rosella.device.VulkanDevice
 import me.hydos.rosella.render.descriptorsets.DescriptorSet
-import me.hydos.rosella.render.renderer.Renderer
 import me.hydos.rosella.render.resource.Resource
 import me.hydos.rosella.render.shader.ubo.Ubo
 import me.hydos.rosella.render.swapchain.Swapchain
 import me.hydos.rosella.render.texture.Texture
-import me.hydos.rosella.render.texture.TextureManager
-import me.hydos.rosella.render.util.memory.Memory
+import me.hydos.rosella.memory.Memory
 import me.hydos.rosella.render.util.ok
 import me.hydos.rosella.scene.`object`.impl.SimpleObjectManager
 import org.lwjgl.system.MemoryStack
@@ -16,16 +14,15 @@ import org.lwjgl.vulkan.*
 import org.lwjgl.vulkan.VK10.*
 
 open class RawShaderProgram(
-	var vertexShader: Resource?,
-	var fragmentShader: Resource?,
-	val device: VulkanDevice,
-	val memory: Memory,
-	var maxObjCount: Int,
-	vararg var poolObjects: PoolObjType
+		var vertexShader: Resource?,
+		var fragmentShader: Resource?,
+		val device: VulkanDevice,
+		val memory: Memory,
+		var maxObjCount: Int,
+		vararg var poolObjects: PoolObjType
 ) {
 	var descriptorPool: Long = 0
 	var descriptorSetLayout: Long = 0
-	var texture: Texture? = null
 
 	fun updateUbos(currentImage: Int, swapchain: Swapchain, objectManager: SimpleObjectManager) {
 		for (instances in objectManager.renderObjects.values) {
@@ -36,10 +33,6 @@ open class RawShaderProgram(
 				)
 			}
 		}
-	}
-
-	fun prepareTextureForRender(renderer: Renderer, textureManager: TextureManager) { // TODO: move this or make it less gross
-		texture?.let { textureManager.prepareTexture(renderer, it) }
 	}
 
 	fun createPool(swapchain: Swapchain) {
@@ -133,13 +126,13 @@ open class RawShaderProgram(
 			val imageInfo = VkDescriptorImageInfo.callocStack(1, stack)
 				.imageLayout(VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL)
 				.imageView(texture.textureImage.view)
-				.sampler(texture.textureSampler!!)
+				.sampler(texture.textureSampler)
 
 			val descriptorWrites = VkWriteDescriptorSet.callocStack(poolObjects.size, stack)
 
 			for (i in 0 until pDescriptorSets.capacity()) {
 				val descriptorSet = pDescriptorSets[i]
-				bufferInfo.buffer(ubo.getUniformBuffers()[i].buffer)
+				bufferInfo.buffer(ubo.getUniformBuffers()[i].buffer())
 				poolObjects.forEachIndexed { index, poolObj ->
 					val descriptorWrite = descriptorWrites[index]
 						.sType(VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET)
