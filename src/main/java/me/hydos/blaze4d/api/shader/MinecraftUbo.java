@@ -1,6 +1,7 @@
 package me.hydos.blaze4d.api.shader;
 
 import com.mojang.blaze3d.systems.RenderSystem;
+import me.hydos.blaze4d.Blaze4D;
 import me.hydos.rosella.render.descriptorsets.DescriptorSet;
 import me.hydos.rosella.render.material.Material;
 import me.hydos.rosella.render.shader.ubo.Ubo;
@@ -232,7 +233,7 @@ public class MinecraftUbo extends Ubo {
     @Override
     public void free() {
         for (BufferInfo uboImg : uboFrames) {
-            memory.freeBuffer(uboImg);
+            uboImg.free(Blaze4D.rosella.common.device, memory);
         }
     }
 

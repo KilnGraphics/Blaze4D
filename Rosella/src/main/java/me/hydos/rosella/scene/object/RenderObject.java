@@ -61,8 +61,8 @@ public class RenderObject implements Renderable {
     }
 
     @Override
-    public void onAddedToScene(VkCommon common, Renderer renderer, Memory memory) {
-        instanceInfo = new InstanceInfo(new RenderObjectUbo(common.device, memory, this, material.getShader()), material);
+    public void onAddedToScene(Rosella rosella) {
+        instanceInfo = new InstanceInfo(new RenderObjectUbo(rosella.common.device, rosella.memory, this, material.getShader()), material);
 //        this.projectionMatrix = rosella.getCamera().getProj();
 //        this.viewMatrix = rosella.getCamera().getView();
     }
@@ -75,7 +75,7 @@ public class RenderObject implements Renderable {
 
     @Override
     public void rebuild(Rosella rosella) {
-        instanceInfo.rebuild(rosella.renderer);
+        instanceInfo.rebuild(rosella);
     }
 
     @Override

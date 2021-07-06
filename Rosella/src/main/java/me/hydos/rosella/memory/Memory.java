@@ -56,7 +56,7 @@ public class Memory {
                     }
 
                     if (consumer != null) {
-                        consumer.accept(threadAllocator);
+                        consumer.accept(allocator);
                     }
                 }
                 Vma.vmaDestroyAllocator(threadAllocator);
@@ -182,7 +182,7 @@ public class Memory {
             }
             allocation = pAllocation.get(0);
         }
-        return new BufferInfo(pBuffer.get(0), allocation);
+        return new BufferInfo(pBuffer.get(0), allocation, new RuntimeException());
     }
 
     /**
@@ -223,7 +223,7 @@ public class Memory {
             );
             long indexBuffer = pBuffer.get(0);
             copyBuffer(stagingBuffer.buffer(), indexBuffer, size, engine.renderer, engine.common.device);
-            freeBuffer(stagingBuffer);
+            stagingBuffer.free(common.device, this);
             return indexBufferInfo;
         }
     }
@@ -252,7 +252,7 @@ public class Memory {
                 );
                 long vertexBuffer = pBuffer.get(0);
                 copyBuffer(stagingBuffer.buffer(), vertexBuffer, size, engine.renderer, engine.common.device);
-                freeBuffer(stagingBuffer);
+                stagingBuffer.free(common.device, this);
                 return vertexBufferInfo;
             } else {
                 throw new RuntimeException("Cannot handle non buffer based Vertex Consumers");
@@ -265,7 +265,7 @@ public class Memory {
      */
     public void freeBuffer(BufferInfo buffer) {
         synchronized (lock) {
-            deallocatingConsumers.add(aLong -> buffer.free(common.device, this));
+            deallocatingConsumers.add(allocator -> Vma.vmaDestroyBuffer(allocator, buffer.buffer(), buffer.allocation()));
         }
     }
 

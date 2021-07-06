@@ -367,7 +367,7 @@ fun createTextureImage(
 			device,
 			renderer
 		)
-		memory.freeBuffer(stagingBuf)
+		stagingBuf.free(device, memory);
 	}
 }
 

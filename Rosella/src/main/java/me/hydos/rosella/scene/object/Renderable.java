@@ -16,9 +16,9 @@ public interface Renderable {
     /**
      * Called when the Application asked {@link Rosella} to add this to the scene.
      *
-     * @param common the common fields used by {@link Rosella}
+     * @param rosella the common fields used by {@link Rosella}
      */
-    void onAddedToScene(VkCommon common, Renderer renderer, Memory memory);
+    void onAddedToScene(Rosella rosella);
 
     /**
      * Called when an object's memory can be freed' safely
