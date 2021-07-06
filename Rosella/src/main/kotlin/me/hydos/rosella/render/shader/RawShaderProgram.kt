@@ -7,6 +7,8 @@ import me.hydos.rosella.render.shader.ubo.Ubo
 import me.hydos.rosella.render.swapchain.Swapchain
 import me.hydos.rosella.render.texture.Texture
 import me.hydos.rosella.memory.Memory
+import me.hydos.rosella.render.renderer.Renderer
+import me.hydos.rosella.render.texture.TextureManager
 import me.hydos.rosella.render.util.ok
 import me.hydos.rosella.scene.`object`.impl.SimpleObjectManager
 import org.lwjgl.system.MemoryStack
@@ -23,6 +25,7 @@ open class RawShaderProgram(
 ) {
 	var descriptorPool: Long = 0
 	var descriptorSetLayout: Long = 0
+	var texture: Texture? = null
 
 	fun updateUbos(currentImage: Int, swapchain: Swapchain, objectManager: SimpleObjectManager) {
 		for (instances in objectManager.renderObjects.values) {
@@ -33,6 +36,10 @@ open class RawShaderProgram(
 				)
 			}
 		}
+	}
+
+	fun prepareTextureForRender(renderer: Renderer, textureManager: TextureManager) { // TODO: move this or make it less gross
+		texture?.let { textureManager.prepareTexture(renderer, it) }
 	}
 
 	fun createPool(swapchain: Swapchain) {
@@ -94,6 +101,7 @@ open class RawShaderProgram(
 	}
 
 	fun createDescriptorSets(swapchain: Swapchain, logger: org.apache.logging.log4j.Logger, texture: Texture, ubo: Ubo) {
+		this.texture = texture
 		if(descriptorPool == 0L) {
 			logger.warn("Descriptor Pools are invalid! rebuilding... (THIS IS NOT FAST)")
 			createPool(swapchain)
@@ -126,7 +134,7 @@ open class RawShaderProgram(
 			val imageInfo = VkDescriptorImageInfo.callocStack(1, stack)
 				.imageLayout(VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL)
 				.imageView(texture.textureImage.view)
-				.sampler(texture.textureSampler)
+				.sampler(texture.textureSampler!!)
 
 			val descriptorWrites = VkWriteDescriptorSet.callocStack(poolObjects.size, stack)
 

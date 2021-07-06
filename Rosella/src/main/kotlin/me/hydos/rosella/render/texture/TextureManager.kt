@@ -2,10 +2,10 @@ package me.hydos.rosella.render.texture
 
 import it.unimi.dsi.fastutil.ints.IntArrayPriorityQueue
 import it.unimi.dsi.fastutil.ints.IntPriorityQueues
+import me.hydos.rosella.memory.Memory
 
 import me.hydos.rosella.render.*
 import me.hydos.rosella.render.renderer.Renderer
-import me.hydos.rosella.render.util.memory.Memory
 import org.lwjgl.vulkan.VK10
 import me.hydos.rosella.vkobjects.VkCommon
 
