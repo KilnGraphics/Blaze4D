@@ -52,11 +52,11 @@ public class SimpleObjectManager implements ObjectManager {
     public Renderable addObject(Renderable obj) {
         if (!renderObjects.containsKey(obj.getRenderInfo())) {
             if(!obj.isReady()) {
-                obj.getRenderInfo().createBuffers(rosella.memory, rosella);
+                obj.getRenderInfo().createBuffers(rosella.common.memory, rosella);
             }
             renderObjects.put(obj.getRenderInfo(), new ArrayList<>());
         }
-        obj.onAddedToScene(common, renderer, rosella.memory);
+        obj.onAddedToScene(common, renderer, rosella.common.memory);
         renderObjects.get(obj.getRenderInfo()).add(obj.getInstanceInfo());
         return obj;
     }

@@ -219,7 +219,7 @@ public class Memory {
         try (MemoryStack stack = stackPush()) {
             int size = (Integer.BYTES * indices.size());
             LongBuffer pBuffer = stack.mallocLong(1);
-            BufferInfo stagingBuffer = engine.memory.createStagingBuf(size, pBuffer, stack, data -> memcpy(data.getByteBuffer(0, size), indices));
+            BufferInfo stagingBuffer = engine.common.memory.createStagingBuf(size, pBuffer, stack, data -> memcpy(data.getByteBuffer(0, size), indices));
             BufferInfo indexBufferInfo = createBuffer(
                     size,
                     VK10.VK_BUFFER_USAGE_TRANSFER_DST_BIT | VK10.VK_BUFFER_USAGE_INDEX_BUFFER_BIT,
