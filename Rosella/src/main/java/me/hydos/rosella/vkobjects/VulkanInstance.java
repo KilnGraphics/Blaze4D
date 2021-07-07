@@ -41,10 +41,12 @@ public class VulkanInstance {
                     .ppEnabledExtensionNames(getRequiredExtensions(requestedValidationLayers.size() != 0, requestedExtensions, stack));
 
             if (requestedValidationLayers.size() != 0) {
-                IntBuffer validationFeatures = stack.callocInt(3)
+                IntBuffer validationFeatures = stack.callocInt(5)
                         .put(EXTValidationFeatures.VK_VALIDATION_FEATURE_ENABLE_BEST_PRACTICES_EXT)
                         .put(EXTValidationFeatures.VK_VALIDATION_FEATURE_ENABLE_GPU_ASSISTED_EXT)
-                        .put(EXTValidationFeatures.VK_VALIDATION_FEATURE_ENABLE_DEBUG_PRINTF_EXT);
+                        .put(EXTValidationFeatures.VK_VALIDATION_FEATURE_ENABLE_DEBUG_PRINTF_EXT)
+                        .put(EXTValidationFeatures.VK_VALIDATION_FEATURE_ENABLE_SYNCHRONIZATION_VALIDATION_EXT)
+                        .put(EXTValidationFeatures.VK_VALIDATION_FEATURE_ENABLE_GPU_ASSISTED_RESERVE_BINDING_SLOT_EXT);
 
                 VkValidationFeaturesEXT extValidationFeatures = VkValidationFeaturesEXT.callocStack(stack)
                         .sType(EXTValidationFeatures.VK_STRUCTURE_TYPE_VALIDATION_FEATURES_EXT)
