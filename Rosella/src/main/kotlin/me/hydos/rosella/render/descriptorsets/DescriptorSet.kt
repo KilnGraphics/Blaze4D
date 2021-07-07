@@ -8,10 +8,13 @@ class DescriptorSet(var descriptorPool: Long = 0L) {
 
 	fun free(device: VulkanDevice) {
 		if (descriptorPool != 0L) {
-			for (descriptorSet in descriptorSets) {
+
+			val listIterator = descriptorSets.listIterator()
+			for (descriptorSet in listIterator) {
 				if (descriptorSet != 0L) {
 					VK10.vkFreeDescriptorSets(device.rawDevice, descriptorPool, descriptorSet)
 				}
+				listIterator.remove()
 			}
 		}
 	}

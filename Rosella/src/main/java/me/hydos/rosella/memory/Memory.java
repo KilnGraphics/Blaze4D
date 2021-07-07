@@ -181,7 +181,7 @@ public class Memory {
             }
             allocation = pAllocation.get(0);
         }
-        return new BufferInfo(pBuffer.get(0), allocation, new RuntimeException());
+        return new BufferInfo(pBuffer.get(0), allocation);
     }
 
     /**

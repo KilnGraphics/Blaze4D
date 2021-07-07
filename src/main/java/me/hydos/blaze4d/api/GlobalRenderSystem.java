@@ -41,8 +41,8 @@ public class GlobalRenderSystem {
     public static Set<ConsumerRenderObject> currentFrameObjects = new ObjectOpenHashSet<>();
 
     // Active Fields
-    public static final int maxTextures = 12;
-    public static int[] boundTextureIds = new int[maxTextures]; // TODO: generate an identifier instead of using int id, or switch everything over to ints
+    public static final int MAX_TEXTURES = 12;
+    public static int[] boundTextureIds = new int[MAX_TEXTURES]; // TODO: generate an identifier instead of using int id, or switch everything over to ints
     public static int activeTexture = 0;
 
     static {
@@ -100,13 +100,13 @@ public class GlobalRenderSystem {
         Blaze4D.window.update();
         Blaze4D.rosella.renderer.render(Blaze4D.rosella);
 
-        //currentFrameObjects.forEach(consumerRenderObject -> consumerRenderObject.free(Blaze4D.rosella.memory, Blaze4D.rosella.common.device));
+        currentFrameObjects.forEach(consumerRenderObject -> consumerRenderObject.free(Blaze4D.rosella.memory, Blaze4D.rosella.common.device));
         currentFrameObjects.clear();
     }
 
     public static Texture[] createTextureArray() {
-        Texture[] textures = new Texture[maxTextures];
-        for(int i = 0; i < maxTextures; i++) {
+        Texture[] textures = new Texture[MAX_TEXTURES];
+        for(int i = 0; i < MAX_TEXTURES; i++) {
             int texId = boundTextureIds[i];
             textures[i] = texId == -1 ? null : ((SimpleObjectManager) Blaze4D.rosella.objectManager).textureManager.getTexture(texId);
         }
@@ -118,10 +118,10 @@ public class GlobalRenderSystem {
         currentFrameObjects.add(renderObject);
     }
 
-    public static final Map<ConsumerCreationInfo, BufferVertexConsumer> globalConsumers = new Object2ObjectOpenHashMap<>();
+    public static final Map<ConsumerCreationInfo, BufferVertexConsumer> GLOBAL_CONSUMERS_FOR_BATCH_RENDERING = new Object2ObjectOpenHashMap<>();
 
     public static void renderConsumers() {
-        for (Map.Entry<ConsumerCreationInfo, BufferVertexConsumer> entry : globalConsumers.entrySet()) {
+        for (Map.Entry<ConsumerCreationInfo, BufferVertexConsumer> entry : GLOBAL_CONSUMERS_FOR_BATCH_RENDERING.entrySet()) {
             BufferVertexConsumer consumer = entry.getValue();
             List<Integer> indices = new ArrayList<>();
             ConsumerCreationInfo creationInfo = entry.getKey();
@@ -171,6 +171,6 @@ public class GlobalRenderSystem {
                 }
             }
         }
-        globalConsumers.clear();
+        GLOBAL_CONSUMERS_FOR_BATCH_RENDERING.clear();
     }
 }

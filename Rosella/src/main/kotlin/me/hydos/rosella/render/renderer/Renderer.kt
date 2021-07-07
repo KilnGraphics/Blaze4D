@@ -141,6 +141,8 @@ class Renderer(val common: VkCommon, display: Display, val rosella: Rosella) {
 				throw RuntimeException("Failed to present swap chain image")
 			}
 
+			vkDeviceWaitIdle(common.device.rawDevice).ok()
+
 			currentFrame = (currentFrame + 1) % MAX_FRAMES_IN_FLIGHT
 		}
 	}
