@@ -26,7 +26,11 @@ public class GlobalBufferManager {
      * @param renderList the list of RenderInfo objects
      * @return a vertex buffer
      */
-//    public BufferInfo createVertexBuffer(List<RenderInfo> renderList) {
-//
-//    }
+    public BufferInfo createVertexBuffer(List<RenderInfo> renderList) {
+        int totalSize = 0;
+        for (RenderInfo info : renderList) {
+            totalSize += info.consumer.getVertexSize() * info.consumer.getVertexCount();
+        }
+        return null;
+    }
 }

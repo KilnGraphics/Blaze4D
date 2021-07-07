@@ -91,9 +91,8 @@ public class GlobalRenderSystem {
                 Blaze4D.rosella.objectManager.addObject(renderObject);
             }
         } else {
-            Blaze4D.LOGGER.warn("Skipped a frame");
+            Blaze4D.LOGGER.warn("Skipped a frame (too many objects on screen)");
         }
-
 
         Blaze4D.rosella.renderer.rebuildCommandBuffers(Blaze4D.rosella.renderer.renderPass, (SimpleObjectManager) Blaze4D.rosella.objectManager);
 

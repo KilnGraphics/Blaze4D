@@ -18,9 +18,6 @@ public class RenderInfo implements MemoryCloseable {
     public VertexConsumer consumer;
     public List<Integer> indices;
 
-    private BufferInfo vertexBuffer;
-    private BufferInfo indexBuffer;
-
     public RenderInfo(@NotNull VertexConsumer consumer) {
         this.consumer = consumer;
     }
@@ -28,9 +25,10 @@ public class RenderInfo implements MemoryCloseable {
     /**
      * If the RenderInfo is indeed unique to the current scene, an Vertex and Index buffer will be created
      */
+    @Deprecated
     public void createBuffers(Memory memory, Rosella rosella) {
-        vertexBuffer = memory.createVertexBuffer(rosella, consumer);
-        indexBuffer = memory.createIndexBuffer(rosella, indices);
+//        vertexBuffer = memory.createVertexBuffer(rosella, consumer);
+//        indexBuffer = memory.createIndexBuffer(rosella, indices);
     }
 
     @Override
@@ -47,10 +45,11 @@ public class RenderInfo implements MemoryCloseable {
      * @return a {@link BufferInfo} with Vertex data
      */
     public BufferInfo getVertexBuffer() {
-        if (vertexBuffer == null) {
-            throw new RuntimeException("Tried to access buffers when not set. (This is probably an internal error)");
-        }
-        return vertexBuffer;
+        throw new RuntimeException("This code no longer works!");
+//        if (vertexBuffer == null) {
+//            throw new RuntimeException("Tried to access buffers when not set. (This is probably an internal error)");
+//        }
+//        return vertexBuffer;
     }
 
     /**
@@ -59,14 +58,17 @@ public class RenderInfo implements MemoryCloseable {
      * @return a {@link BufferInfo} with Index data
      */
     public BufferInfo getIndexBuffer() {
-        if (indexBuffer == null) {
-            throw new RuntimeException("Tried to access buffers when not set. (This is probably an internal error)");
-        }
-        return indexBuffer;
+        throw new RuntimeException("This code no longer works!");
+//
+//        if (indexBuffer == null) {
+//            throw new RuntimeException("Tried to access buffers when not set. (This is probably an internal error)");
+//        }
+//        return indexBuffer;
     }
 
     public boolean areBuffersAllocated() {
-        return indexBuffer != null && vertexBuffer != null;
+        return true;
+//        return indexBuffer != null && vertexBuffer != null;
     }
 
     /**
@@ -83,11 +85,11 @@ public class RenderInfo implements MemoryCloseable {
 
     @Override
     public void free(VulkanDevice device, Memory memory) {
-        if(vertexBuffer != null) {
-            vertexBuffer.free(device, memory);
-        }
-        if(indexBuffer != null) {
-            indexBuffer.free(device, memory);
-        }
+//        if(vertexBuffer != null) {
+//            vertexBuffer.free(device, memory);
+//        }
+//        if(indexBuffer != null) {
+//            indexBuffer.free(device, memory);
+//        }
     }
 }
