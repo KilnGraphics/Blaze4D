@@ -51,14 +51,12 @@ public class Memory {
                 while (running) {
                     Consumer<Long> consumer = null;
 
-                    synchronized (lock) {
-                        if (!deallocatingConsumers.isEmpty()) {
-                            consumer = deallocatingConsumers.remove(0);
-                        }
+                    if (!deallocatingConsumers.isEmpty()) {
+                        consumer = deallocatingConsumers.remove(0);
                     }
 
                     if (consumer != null) {
-                        consumer.accept(allocator);
+                        consumer.accept(threadAllocator);
                     }
                 }
 
@@ -134,11 +132,10 @@ public class Memory {
      * Unmaps allocated memory. this should usually be called on close
      */
     public void unmap(long allocation) {
-        mappedMemory.remove(allocation);
-
-        synchronized (lock) {
-            deallocatingConsumers.add(allocator -> Vma.vmaUnmapMemory(allocator, allocation));
-        }
+        deallocatingConsumers.add(allocator -> {
+            mappedMemory.remove(allocation);
+            Vma.vmaUnmapMemory(allocator, allocation);
+        });
     }
 
     /**
@@ -266,9 +263,7 @@ public class Memory {
      * Forces a buffer to be freed
      */
     public void freeBuffer(BufferInfo buffer) {
-        synchronized (lock) {
-            deallocatingConsumers.add(allocator -> Vma.vmaDestroyBuffer(allocator, buffer.buffer(), buffer.allocation()));
-        }
+        deallocatingConsumers.add(allocator -> Vma.vmaDestroyBuffer(allocator, buffer.buffer(), buffer.allocation()));
     }
 
     /**

@@ -64,15 +64,15 @@ class Renderer(val common: VkCommon, display: Display, val rosella: Rosella) {
 
 	fun beginCmdBuffer(stack: MemoryStack, pCommandBuffer: PointerBuffer, device: VulkanDevice): VkCommandBuffer {
 		val allocInfo = VkCommandBufferAllocateInfo.callocStack(stack)
-				.sType(VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO)
-				.level(VK_COMMAND_BUFFER_LEVEL_PRIMARY)
-				.commandPool(commandPool)
-				.commandBufferCount(1)
+			.sType(VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO)
+			.level(VK_COMMAND_BUFFER_LEVEL_PRIMARY)
+			.commandPool(commandPool)
+			.commandBufferCount(1)
 		vkAllocateCommandBuffers(device.rawDevice, allocInfo, pCommandBuffer).ok()
 		val commandBuffer = VkCommandBuffer(pCommandBuffer[0], device.rawDevice)
 		val beginInfo = VkCommandBufferBeginInfo.callocStack(stack)
-				.sType(VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO)
-				.flags(VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT)
+			.sType(VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO)
+			.flags(VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT)
 		vkBeginCommandBuffer(commandBuffer, beginInfo).ok()
 		return commandBuffer
 	}
@@ -85,12 +85,12 @@ class Renderer(val common: VkCommon, display: Display, val rosella: Rosella) {
 			val pImageIndex = stack.mallocInt(1)
 
 			var vkResult: Int = KHRSwapchain.vkAcquireNextImageKHR(
-					rosella.common.device.rawDevice,
-					swapchain.swapChain,
-					UINT64_MAX,
-					thisFrame.imageAvailableSemaphore(),
-					VK_NULL_HANDLE,
-					pImageIndex
+				rosella.common.device.rawDevice,
+				swapchain.swapChain,
+				UINT64_MAX,
+				thisFrame.imageAvailableSemaphore(),
+				VK_NULL_HANDLE,
+				pImageIndex
 			)
 
 			if (vkResult == KHRSwapchain.VK_ERROR_OUT_OF_DATE_KHR) {
@@ -107,29 +107,29 @@ class Renderer(val common: VkCommon, display: Display, val rosella: Rosella) {
 
 			if (imagesInFlight.containsKey(imageIndex)) {
 				vkWaitForFences(
-						rosella.common.device.rawDevice,
-						imagesInFlight[imageIndex]!!.fence(),
-						true,
-						UINT64_MAX
+					rosella.common.device.rawDevice,
+					imagesInFlight[imageIndex]!!.fence(),
+					true,
+					UINT64_MAX
 				).ok()
 			}
 			imagesInFlight[imageIndex] = thisFrame
 			val submitInfo = VkSubmitInfo.callocStack(stack)
-					.sType(VK_STRUCTURE_TYPE_SUBMIT_INFO)
-					.waitSemaphoreCount(1)
-					.pWaitSemaphores(thisFrame.pImageAvailableSemaphore())
-					.pWaitDstStageMask(stack.ints(VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT))
-					.pSignalSemaphores(thisFrame.pRenderFinishedSemaphore())
-					.pCommandBuffers(stack.pointers(commandBuffers[imageIndex]))
+				.sType(VK_STRUCTURE_TYPE_SUBMIT_INFO)
+				.waitSemaphoreCount(1)
+				.pWaitSemaphores(thisFrame.pImageAvailableSemaphore())
+				.pWaitDstStageMask(stack.ints(VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT))
+				.pSignalSemaphores(thisFrame.pRenderFinishedSemaphore())
+				.pCommandBuffers(stack.pointers(commandBuffers[imageIndex]))
 			vkResetFences(rosella.common.device.rawDevice, thisFrame.pFence()).ok()
 			vkQueueSubmit(queues.graphicsQueue, submitInfo, thisFrame.fence()).ok()
 
 			val presentInfo = VkPresentInfoKHR.callocStack(stack)
-					.sType(KHRSwapchain.VK_STRUCTURE_TYPE_PRESENT_INFO_KHR)
-					.pWaitSemaphores(thisFrame.pRenderFinishedSemaphore())
-					.swapchainCount(1)
-					.pSwapchains(stack.longs(swapchain.swapChain))
-					.pImageIndices(pImageIndex)
+				.sType(KHRSwapchain.VK_STRUCTURE_TYPE_PRESENT_INFO_KHR)
+				.pWaitSemaphores(thisFrame.pRenderFinishedSemaphore())
+				.swapchainCount(1)
+				.pSwapchains(stack.longs(swapchain.swapChain))
+				.pImageIndices(pImageIndex)
 
 			vkResult = KHRSwapchain.vkQueuePresentKHR(queues.presentQueue, presentInfo)
 
@@ -172,17 +172,17 @@ class Renderer(val common: VkCommon, display: Display, val rosella: Rosella) {
 
 		swapchain.frameBuffers.forEach { framebuffer ->
 			vkDestroyFramebuffer(
-					rosella.common.device.rawDevice,
-					framebuffer,
-					null
+				rosella.common.device.rawDevice,
+				framebuffer,
+				null
 			)
 		}
 		vkDestroyRenderPass(rosella.common.device.rawDevice, renderPass.renderPass, null)
 		swapchain.swapChainImageViews.forEach { imageView ->
 			vkDestroyImageView(
-					rosella.common.device.rawDevice,
-					imageView,
-					null
+				rosella.common.device.rawDevice,
+				imageView,
+				null
 			)
 		}
 
@@ -211,24 +211,24 @@ class Renderer(val common: VkCommon, display: Display, val rosella: Rosella) {
 			val pFence = stack.mallocLong(1)
 			for (i in 0 until MAX_FRAMES_IN_FLIGHT) {
 				vkCreateSemaphore(
-						common.device.rawDevice,
-						semaphoreInfo,
-						null,
-						pImageAvailableSemaphore
+					common.device.rawDevice,
+					semaphoreInfo,
+					null,
+					pImageAvailableSemaphore
 				).ok()
 				vkCreateSemaphore(
-						common.device.rawDevice,
-						semaphoreInfo,
-						null,
-						pRenderFinishedSemaphore
+					common.device.rawDevice,
+					semaphoreInfo,
+					null,
+					pRenderFinishedSemaphore
 				).ok()
 				vkCreateFence(common.device.rawDevice, fenceInfo, null, pFence).ok()
 				inFlightFrames.add(
-						Frame(
-								pImageAvailableSemaphore[0],
-								pRenderFinishedSemaphore[0],
-								pFence[0]
-						)
+					Frame(
+						pImageAvailableSemaphore[0],
+						pRenderFinishedSemaphore[0],
+						pFence[0]
+					)
 				)
 			}
 		}
@@ -244,11 +244,11 @@ class Renderer(val common: VkCommon, display: Display, val rosella: Rosella) {
 			val attachments = stack.longs(VK_NULL_HANDLE, depthBuffer.depthImageView)
 			val pFramebuffer = stack.mallocLong(1)
 			val framebufferInfo = VkFramebufferCreateInfo.callocStack(stack)
-					.sType(VK_STRUCTURE_TYPE_FRAMEBUFFER_CREATE_INFO)
-					.renderPass(renderPass.renderPass)
-					.width(swapchain.swapChainExtent.width())
-					.height(swapchain.swapChainExtent.height())
-					.layers(1)
+				.sType(VK_STRUCTURE_TYPE_FRAMEBUFFER_CREATE_INFO)
+				.renderPass(renderPass.renderPass)
+				.width(swapchain.swapChainExtent.width())
+				.height(swapchain.swapChainExtent.height())
+				.layers(1)
 			for (imageView in swapchain.swapChainImageViews) {
 				attachments.put(0, imageView)
 				framebufferInfo.pAttachments(attachments)
@@ -282,18 +282,18 @@ class Renderer(val common: VkCommon, display: Display, val rosella: Rosella) {
 			commandBuffers = ArrayList(commandBuffersCount)
 
 			val pCommandBuffers = allocateCmdBuffers(
-					it,
-					common.device,
-					commandPool,
-					commandBuffersCount
+				it,
+				common.device,
+				commandPool,
+				commandBuffersCount
 			)
 
 			for (i in 0 until commandBuffersCount) {
 				commandBuffers.add(
-						VkCommandBuffer(
-								pCommandBuffers[i],
-								common.device.rawDevice
-						)
+					VkCommandBuffer(
+						pCommandBuffers[i],
+						common.device.rawDevice
+					)
 				)
 			}
 
@@ -303,7 +303,7 @@ class Renderer(val common: VkCommon, display: Display, val rosella: Rosella) {
 			val clearValues = createClearValues(it, r, g, b, 1.0f, 0)
 
 			renderPassInfo.renderArea(renderArea)
-					.pClearValues(clearValues)
+				.pClearValues(clearValues)
 
 			for (i in 0 until commandBuffersCount) {
 				val commandBuffer = commandBuffers[i]
@@ -325,9 +325,9 @@ class Renderer(val common: VkCommon, display: Display, val rosella: Rosella) {
 	}
 
 	private fun bindRenderInfo(
-			renderInfo: RenderInfo,
-			stack: MemoryStack,
-			commandBuffer: VkCommandBuffer
+		renderInfo: RenderInfo,
+		stack: MemoryStack,
+		commandBuffer: VkCommandBuffer
 	) {
 		val offsets = stack.longs(0)
 		val vertexBuffers = stack.longs(renderInfo.vertexBuffer.buffer())
@@ -336,24 +336,24 @@ class Renderer(val common: VkCommon, display: Display, val rosella: Rosella) {
 	}
 
 	private fun bindInstanceInfo(
-			instanceInfo: InstanceInfo,
-			matrix: MemoryStack,
-			commandBuffer: VkCommandBuffer,
-			commandBufferIndex: Int
+		instanceInfo: InstanceInfo,
+		matrix: MemoryStack,
+		commandBuffer: VkCommandBuffer,
+		commandBufferIndex: Int
 	) {
 		vkCmdBindPipeline(
-				commandBuffer,
-				VK_PIPELINE_BIND_POINT_GRAPHICS,
-				instanceInfo.material.pipeline.graphicsPipeline
+			commandBuffer,
+			VK_PIPELINE_BIND_POINT_GRAPHICS,
+			instanceInfo.material.pipeline.graphicsPipeline
 		)
 
 		vkCmdBindDescriptorSets(
-				commandBuffer,
-				VK_PIPELINE_BIND_POINT_GRAPHICS,
-				instanceInfo.material.pipeline.pipelineLayout,
-				0,
-				matrix.longs(instanceInfo.ubo.getDescriptors().descriptorSets[commandBufferIndex]),
-				null
+			commandBuffer,
+			VK_PIPELINE_BIND_POINT_GRAPHICS,
+			instanceInfo.material.pipeline.pipelineLayout,
+			0,
+			matrix.longs(instanceInfo.ubo.getDescriptors().descriptorSets[commandBufferIndex]),
+			null
 		)
 	}
 
