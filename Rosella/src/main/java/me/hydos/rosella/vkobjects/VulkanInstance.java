@@ -6,7 +6,9 @@ import org.lwjgl.system.MemoryStack;
 import org.lwjgl.vulkan.*;
 
 import java.nio.IntBuffer;
+import java.nio.LongBuffer;
 import java.util.List;
+import java.util.OptionalLong;
 
 import static me.hydos.rosella.memory.Memory.asPtrBuffer;
 import static me.hydos.rosella.render.util.VkUtilsKt.ok;
@@ -21,9 +23,12 @@ public class VulkanInstance {
 
     public final DebugLogger debugLogger;
     public final VkInstance rawInstance;
+    public final OptionalLong messenger;
 
     public VulkanInstance(List<String> requestedValidationLayers, List<String> requestedExtensions, String applicationName, DebugLogger debugLogger) {
         this.debugLogger = debugLogger;
+
+        boolean validationLayers = !requestedValidationLayers.isEmpty();
 
         try (MemoryStack stack = MemoryStack.stackPush()) {
             VkApplicationInfo applicationInfo = VkApplicationInfo.callocStack(stack)
@@ -40,7 +45,9 @@ public class VulkanInstance {
                     .pApplicationInfo(applicationInfo)
                     .ppEnabledExtensionNames(getRequiredExtensions(requestedValidationLayers.size() != 0, requestedExtensions, stack));
 
-            if (requestedValidationLayers.size() != 0) {
+            VkDebugUtilsMessengerCreateInfoEXT debugMessengerCreateInfo;
+
+            {
                 IntBuffer validationFeatures = stack.callocInt(5)
                         .put(EXTValidationFeatures.VK_VALIDATION_FEATURE_ENABLE_BEST_PRACTICES_EXT)
                         .put(EXTValidationFeatures.VK_VALIDATION_FEATURE_ENABLE_GPU_ASSISTED_EXT)
@@ -52,22 +59,33 @@ public class VulkanInstance {
                         .sType(EXTValidationFeatures.VK_STRUCTURE_TYPE_VALIDATION_FEATURES_EXT)
                         .pEnabledValidationFeatures(validationFeatures);
 
-                VkDebugUtilsMessengerCreateInfoEXT debugMessengerCreateInfo = VkDebugUtilsMessengerCreateInfoEXT.callocStack(stack)
+                debugMessengerCreateInfo = VkDebugUtilsMessengerCreateInfoEXT.callocStack(stack)
                         .sType(VK_STRUCTURE_TYPE_DEBUG_UTILS_MESSENGER_CREATE_INFO_EXT)
                         .messageSeverity(VK_DEBUG_UTILS_MESSAGE_SEVERITY_VERBOSE_BIT_EXT | VK_DEBUG_UTILS_MESSAGE_SEVERITY_INFO_BIT_EXT | VK_DEBUG_UTILS_MESSAGE_SEVERITY_WARNING_BIT_EXT | VK_DEBUG_UTILS_MESSAGE_SEVERITY_ERROR_BIT_EXT)
                         .messageType(VK_DEBUG_UTILS_MESSAGE_TYPE_GENERAL_BIT_EXT | VK_DEBUG_UTILS_MESSAGE_TYPE_VALIDATION_BIT_EXT | VK_DEBUG_UTILS_MESSAGE_TYPE_PERFORMANCE_BIT_EXT)
                         .pfnUserCallback(this::debugCallback)
                         .pNext(extValidationFeatures.address());
+            }
 
+            if (validationLayers) {
+                // This is only while the instance is being created
                 createInfo
                         .ppEnabledLayerNames(asPtrBuffer(requestedValidationLayers, stack))
                         .pNext(debugMessengerCreateInfo.address());
-
             }
 
             PointerBuffer pVkInstance = stack.mallocPointer(1);
             ok(vkCreateInstance(createInfo, null, pVkInstance));
             rawInstance = new VkInstance(pVkInstance.get(0), createInfo);
+
+            if (validationLayers) {
+                // This is after the instance has been created
+                LongBuffer messenger = MemoryStack.stackLongs(0);
+                ok(vkCreateDebugUtilsMessengerEXT(rawInstance, debugMessengerCreateInfo, null, messenger));
+                this.messenger = OptionalLong.of(messenger.get());
+            } else {
+                this.messenger = OptionalLong.empty();
+            }
         }
     }
 
