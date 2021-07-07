@@ -82,6 +82,8 @@ public class GlobalRenderSystem {
      * Called when a frame is flipped. used to send all buffers to the engine to draw. Also allows for caching
      */
     public static void render() {
+        GlobalRenderSystem.renderConsumers(); //TODO: move this probably
+
         Blaze4D.rosella.waitForIdle();
         ((SimpleObjectManager) Blaze4D.rosella.objectManager).renderObjects.clear();
         if (currentFrameObjects.size() < 2000) {
@@ -98,7 +100,7 @@ public class GlobalRenderSystem {
         Blaze4D.window.update();
         Blaze4D.rosella.renderer.render(Blaze4D.rosella);
 
-//        currentFrameObjects.forEach(consumerRenderObject -> consumerRenderObject.free(Blaze4D.rosella.memory, Blaze4D.rosella.common.device));
+        //currentFrameObjects.forEach(consumerRenderObject -> consumerRenderObject.free(Blaze4D.rosella.memory, Blaze4D.rosella.common.device));
         currentFrameObjects.clear();
     }
 
