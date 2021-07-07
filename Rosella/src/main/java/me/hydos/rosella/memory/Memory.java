@@ -61,6 +61,7 @@ public class Memory {
                         consumer.accept(threadAllocator);
                     }
                 }
+
                 Vma.vmaDestroyAllocator(threadAllocator);
             }, "Deallocator Thread " + i).start();
         }
@@ -277,8 +278,8 @@ public class Memory {
         for (long memory : mappedMemory) {
             unmap(memory);
         }
-        running = false;
 
+        running = false;
         Vma.vmaDestroyAllocator(allocator);
     }
 

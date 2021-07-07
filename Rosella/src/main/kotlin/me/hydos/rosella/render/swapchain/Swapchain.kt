@@ -41,12 +41,10 @@ class Swapchain(
 				imageCount.put(0, swapchainSupport.capabilities.maxImageCount())
 			}
 
-			val createInfo: VkSwapchainCreateInfoKHR = VkSwapchainCreateInfoKHR.callocStack(it)
-
-			createInfo.sType(VK_STRUCTURE_TYPE_SWAPCHAIN_CREATE_INFO_KHR)
+			val createInfo = VkSwapchainCreateInfoKHR.callocStack(it)
+				.sType(VK_STRUCTURE_TYPE_SWAPCHAIN_CREATE_INFO_KHR)
 				.surface(surface)
-
-			createInfo.minImageCount(imageCount[0])
+				.minImageCount(imageCount[0])
 				.imageFormat(surfaceFormat.format())
 				.imageColorSpace(surfaceFormat.colorSpace())
 				.imageExtent(extent)

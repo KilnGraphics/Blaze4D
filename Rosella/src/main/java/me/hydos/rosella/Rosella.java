@@ -87,7 +87,6 @@ public class Rosella {
 
         // Free the rest of it
         vkDestroyCommandPool(common.device.rawDevice, renderer.getCommandPool(), null);
-        renderer.swapchain.free(common.device.rawDevice);
         vkDestroyDevice(common.device.rawDevice, null);
         vkDestroySurfaceKHR(common.vkInstance.rawInstance, common.surface, null);
 
