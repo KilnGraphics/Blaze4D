@@ -75,7 +75,7 @@ public class Rosella {
      * Free's the vulkan resources.
      */
     public void free() {
-        waitForIdle();
+        common.device.waitForIdle();
         objectManager.free(this);
 
         renderer.freeSwapChain(this);
@@ -96,15 +96,6 @@ public class Rosella {
         common.vkInstance.messenger.ifPresent(messenger -> {
             vkDestroyDebugUtilsMessengerEXT(common.vkInstance.rawInstance, messenger, null);
         });
-    }
-
-    /**
-     * Waits for the engine to stop rendering and be idle. any anything that is freed after this is 99% likely to be safe.
-     */
-    public void waitForIdle() {
-        vkDeviceWaitIdle(common.device.rawDevice);
-        vkQueueWaitIdle(common.queues.graphicsQueue);
-        vkQueueWaitIdle(common.queues.presentQueue);
     }
 
     /**
