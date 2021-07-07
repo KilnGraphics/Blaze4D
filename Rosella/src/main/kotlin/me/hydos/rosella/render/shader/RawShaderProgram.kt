@@ -1,13 +1,13 @@
 package me.hydos.rosella.render.shader
 
 import me.hydos.rosella.device.VulkanDevice
-import me.hydos.rosella.memory.Memory
 import me.hydos.rosella.render.descriptorsets.DescriptorSet
-import me.hydos.rosella.render.renderer.Renderer
 import me.hydos.rosella.render.resource.Resource
 import me.hydos.rosella.render.shader.ubo.Ubo
 import me.hydos.rosella.render.swapchain.Swapchain
 import me.hydos.rosella.render.texture.Texture
+import me.hydos.rosella.memory.Memory
+import me.hydos.rosella.render.renderer.Renderer
 import me.hydos.rosella.render.texture.TextureManager
 import me.hydos.rosella.render.util.ok
 import me.hydos.rosella.scene.`object`.impl.SimpleObjectManager
@@ -134,18 +134,6 @@ open class RawShaderProgram(
 				.offset(0)
 				.range(ubo.getSize().toLong())
 
-			val imageInfoBuffers = Array(textures.size) { idx ->
-				val texture = textures[idx]
-				return@Array if (texture != null) {
-					VkDescriptorImageInfo.callocStack(1, stack)
-						.imageLayout(VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL)
-						.imageView(texture.textureImage.view)
-						.sampler(texture.textureSampler!!)
-				} else {
-					null
-				}
-			}
-
 			val descriptorWrites = VkWriteDescriptorSet.callocStack(poolObjects.size, stack)
 
 			for (i in 0 until pDescriptorSets.capacity()) {
@@ -166,7 +154,12 @@ open class RawShaderProgram(
 
 						VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER -> {
 							if (poolObj is PoolSamplerInfo) {
-								descriptorWrite.pImageInfo(imageInfoBuffers[poolObj.samplerIndex])
+								val texture: Texture = textures[poolObj.samplerIndex]!!
+								val imageInfo = VkDescriptorImageInfo.callocStack(1, stack)
+									.imageLayout(VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL)
+									.imageView(texture.textureImage.view)
+									.sampler(texture.textureSampler!!)
+								descriptorWrite.pImageInfo(imageInfo)
 							}
 						}
 					}
