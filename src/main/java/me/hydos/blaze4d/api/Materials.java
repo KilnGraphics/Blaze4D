@@ -63,7 +63,11 @@ public class Materials {
         }
     }
 
-    private record MaterialInfo(MaterialBuilder builder, ShaderProgram shaderProgram, Texture[] textures,
-                                VertexFormat format, StateInfo stateInfo) {
+    private record MaterialInfo(
+            MaterialBuilder builder,
+            ShaderProgram shaderProgram,
+            Texture[] textures,
+            VertexFormat format,
+            StateInfo stateInfo) {
     }
 }

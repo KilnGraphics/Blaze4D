@@ -3,13 +3,13 @@ package me.hydos.rosella.render.shader
 import it.unimi.dsi.fastutil.Hash.VERY_FAST_LOAD_FACTOR
 import it.unimi.dsi.fastutil.objects.ReferenceOpenHashSet
 import me.hydos.rosella.device.VulkanDevice
+import me.hydos.rosella.memory.Memory
 import me.hydos.rosella.render.descriptorsets.DescriptorSet
+import me.hydos.rosella.render.renderer.Renderer
 import me.hydos.rosella.render.resource.Resource
 import me.hydos.rosella.render.shader.ubo.Ubo
 import me.hydos.rosella.render.swapchain.Swapchain
 import me.hydos.rosella.render.texture.Texture
-import me.hydos.rosella.memory.Memory
-import me.hydos.rosella.render.renderer.Renderer
 import me.hydos.rosella.render.texture.TextureManager
 import me.hydos.rosella.render.util.ok
 import me.hydos.rosella.scene.`object`.impl.SimpleObjectManager
@@ -159,7 +159,7 @@ open class RawShaderProgram(
 
 						VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER -> {
 							if (poolObj is PoolSamplerInfo) {
-								val texture: Texture = currentTextures[poolObj.samplerIndex]!! // use 1x1 empty/missing tex here if null
+								val texture: Texture = currentTextures[poolObj.samplerIndex]!! // FIXME: use 1x1 empty/missing tex here if null
 								val imageInfo = VkDescriptorImageInfo.callocStack(1, stack)
 									.imageLayout(VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL)
 									.imageView(texture.textureImage.view)
