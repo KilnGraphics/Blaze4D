@@ -133,18 +133,7 @@ open class RawShaderProgram(
 			val bufferInfo = VkDescriptorBufferInfo.callocStack(1, stack)
 				.offset(0)
 				.range(ubo.getSize().toLong())
-
-			val imageInfoBuffers = textures.map { texture ->
-				if (texture != null) {
-					VkDescriptorImageInfo.callocStack(1, stack)
-						.imageLayout(VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL)
-						.imageView(texture.textureImage.view)
-						.sampler(texture.textureSampler!!)
-				} else {
-					null
-				}
-			}
-
+			
 			val descriptorWrites = VkWriteDescriptorSet.callocStack(poolObjects.size, stack)
 
 			for (i in 0 until pDescriptorSets.capacity()) {
@@ -165,7 +154,12 @@ open class RawShaderProgram(
 
 						VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER -> {
 							if (poolObj is PoolSamplerInfo) {
-								descriptorWrite.pImageInfo(imageInfoBuffers[poolObj.samplerIndex])
+								val texture: Texture = textures[poolObj.samplerIndex]!!
+								val imageInfo = VkDescriptorImageInfo.callocStack(1, stack)
+									.imageLayout(VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL)
+									.imageView(texture.textureImage.view)
+									.sampler(texture.textureSampler!!)
+								descriptorWrite.pImageInfo(imageInfo)
 							}
 						}
 					}
