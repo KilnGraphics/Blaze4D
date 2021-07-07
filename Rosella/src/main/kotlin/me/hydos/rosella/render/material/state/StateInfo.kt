@@ -28,7 +28,6 @@ data class StateInfo (
     var colorLogicOp: Int,
 
     var lineWidth: Float,
-
 ) {
     /**
      * @return a deep copy of the contents of this class

@@ -5,12 +5,10 @@ import me.hydos.blaze4d.Blaze4D;
 import me.hydos.blaze4d.api.material.Blaze4dMaterial;
 import me.hydos.rosella.render.Topology;
 import me.hydos.rosella.render.material.Material;
-import me.hydos.rosella.render.resource.Identifier;
+import me.hydos.rosella.render.material.state.StateInfo;
 import me.hydos.rosella.render.shader.ShaderProgram;
 import me.hydos.rosella.render.texture.Texture;
-import me.hydos.rosella.render.texture.UploadableImage;
 import me.hydos.rosella.render.vertex.VertexFormat;
-import org.lwjgl.vulkan.VK10;
 
 import java.util.Map;
 
@@ -47,13 +45,13 @@ public class Materials {
 
     public static record MaterialBuilder(String originalPath, Topology topology) {
         public Material build(ShaderProgram shader, Texture[] textures, VertexFormat format) {
-            return MATERIAL_CACHE.computeIfAbsent(new MaterialInfo(this, shader, textures, format), info -> {
+            return MATERIAL_CACHE.computeIfAbsent(new MaterialInfo(this, shader, textures, format, GlobalRenderSystem.currentStateInfo.snapshot()), info -> {
                 Blaze4dMaterial material = new Blaze4dMaterial(
                         shader,
                         topology,
-                        format,
                         textures,
-                        GlobalRenderSystem.currentStateInfo.snapshot() // FIXME not sure to put in MaterialInfo, would make caches huge
+                        format,
+                        info.stateInfo
                 );
                 Blaze4D.rosella.objectManager.registerMaterial(
                         material
@@ -66,6 +64,6 @@ public class Materials {
     }
 
     private record MaterialInfo(MaterialBuilder builder, ShaderProgram shaderProgram, Texture[] textures,
-                                VertexFormat format) {
+                                VertexFormat format, StateInfo stateInfo) {
     }
 }
