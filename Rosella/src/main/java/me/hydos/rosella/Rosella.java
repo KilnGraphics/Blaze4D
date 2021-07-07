@@ -86,17 +86,16 @@ public class Rosella {
         }
 
         // Free the rest of it
+        memory.free();
+
         vkDestroyCommandPool(common.device.rawDevice, renderer.getCommandPool(), null);
-        renderer.swapchain.free(common.device.rawDevice);
         vkDestroyDevice(common.device.rawDevice, null);
         vkDestroySurfaceKHR(common.vkInstance.rawInstance, common.surface, null);
+        vkDestroyInstance(common.vkInstance.rawInstance, null);
 
         common.vkInstance.messenger.ifPresent(messenger -> {
             vkDestroyDebugUtilsMessengerEXT(common.vkInstance.rawInstance, messenger, null);
         });
-
-        vkDestroyInstance(common.vkInstance.rawInstance, null);
-        memory.free();
     }
 
     /**

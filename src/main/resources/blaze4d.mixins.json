@@ -9,6 +9,7 @@
     "blaze3d.RenderSystemMixin",
     "buffers.GlStateManagerMixin",
     "debug.TextureManagerMixin",
+    "integration.BufferRendererMixin",
     "integration.FramebufferMixin",
     "integration.GlDebugMixin",
     "integration.GlStateManagerMixin",

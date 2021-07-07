@@ -7,7 +7,7 @@ import static org.lwjgl.vulkan.VK10.VK_FALSE;
 
 public class DefaultDebugLogger implements DebugLogger {
 
-    private static final Logger LOGGER = LogManager.getLogger();
+    private static final Logger LOGGER = LogManager.getLogger("Vulkan");
 
     @Override
     public int logValidation(String message, String severity) {
