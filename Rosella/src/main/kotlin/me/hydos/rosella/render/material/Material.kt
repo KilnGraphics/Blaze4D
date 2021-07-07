@@ -2,6 +2,7 @@ package me.hydos.rosella.render.material
 
 import me.hydos.rosella.Rosella
 import me.hydos.rosella.render.Topology
+import me.hydos.rosella.render.material.state.StateInfo
 import me.hydos.rosella.render.resource.Resource
 import me.hydos.rosella.render.shader.ShaderProgram
 import me.hydos.rosella.render.texture.*
@@ -17,10 +18,10 @@ open class Material(
 	val resource: Resource,
 	var shader: ShaderProgram?,
 	val imgFormat: Int,
-	val useBlend: Boolean,
 	val topology: Topology,
 	val vertexFormat: VertexFormat,
-	val samplerCreateInfo: SamplerCreateInfo
+	val samplerCreateInfo: SamplerCreateInfo,
+	val stateInfo: StateInfo
 ) {
 	lateinit var pipeline: PipelineInfo
 

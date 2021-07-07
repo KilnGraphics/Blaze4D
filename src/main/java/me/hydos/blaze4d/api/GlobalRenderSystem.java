@@ -12,6 +12,7 @@ import me.hydos.blaze4d.api.vertex.ConsumerRenderObject;
 import me.hydos.blaze4d.api.vertex.ObjectInfo;
 import me.hydos.blaze4d.mixin.shader.ShaderAccessor;
 import me.hydos.rosella.Rosella;
+import me.hydos.rosella.render.material.state.StateInfo;
 import me.hydos.rosella.render.resource.Identifier;
 import me.hydos.rosella.render.shader.RawShaderProgram;
 import me.hydos.rosella.render.shader.ShaderProgram;
@@ -23,6 +24,7 @@ import org.joml.Matrix4f;
 import org.joml.Vector3f;
 
 import net.minecraft.util.math.Vec3f;
+import org.lwjgl.vulkan.VK10;
 
 /**
  * Used to make bits of the code easier to manage.
@@ -50,6 +52,24 @@ public class GlobalRenderSystem {
     }
 
     public static ShaderProgram activeShader;
+
+    // TODO maybe store snapshots of this in the materials so we keep the statelessness of vulkan
+    public static StateInfo currentStateInfo = new StateInfo(
+            VK10.VK_COLOR_COMPONENT_R_BIT | VK10.VK_COLOR_COMPONENT_G_BIT | VK10.VK_COLOR_COMPONENT_B_BIT | VK10.VK_COLOR_COMPONENT_A_BIT,
+            true,
+            false,
+            0, 0, 0, 0,
+            false,
+            false,
+            VK10.VK_BLEND_FACTOR_ONE, VK10.VK_BLEND_FACTOR_ZERO, VK10.VK_BLEND_FACTOR_ONE, VK10.VK_BLEND_FACTOR_ZERO,
+            VK10.VK_BLEND_OP_ADD,
+            true,
+            false,
+            VK10.VK_COMPARE_OP_LESS,
+            false,
+            VK10.VK_LOGIC_OP_COPY,
+            1.0f
+    );
 
     // Uniforms FIXME FIXME FIXME: to add support for custom uniforms and add support for mods like iris & lambdynamic lights, we need to do this
     // TODO: Custom uniforms are complete, but support for stuff like lambdynamic lights and iris is needed

@@ -1,5 +1,7 @@
 package me.hydos.rosella.render.shader
 
+import it.unimi.dsi.fastutil.Hash.VERY_FAST_LOAD_FACTOR
+import it.unimi.dsi.fastutil.objects.ReferenceOpenHashSet
 import me.hydos.rosella.device.VulkanDevice
 import me.hydos.rosella.render.descriptorsets.DescriptorSet
 import me.hydos.rosella.render.resource.Resource
@@ -25,7 +27,8 @@ open class RawShaderProgram(
 ) {
 	var descriptorPool: Long = 0
 	var descriptorSetLayout: Long = 0
-	var textures = emptyArray<Texture?>()
+
+	private val preparableTextures = ReferenceOpenHashSet<Texture?>(3, VERY_FAST_LOAD_FACTOR)
 
 	fun updateUbos(currentImage: Int, swapchain: Swapchain, objectManager: SimpleObjectManager) {
 		for (instances in objectManager.renderObjects.values) {
@@ -39,11 +42,12 @@ open class RawShaderProgram(
 	}
 
 	fun prepareTexturesForRender(renderer: Renderer, textureManager: TextureManager) { // TODO: move this or make it less gross
-		textures.forEach {
+		preparableTextures.forEach {
 			if (it != null) {
 				textureManager.prepareTexture(renderer, it)
 			}
 		}
+		preparableTextures.clear()
 	}
 
 	fun createPool(swapchain: Swapchain) {
@@ -104,8 +108,9 @@ open class RawShaderProgram(
 		}
 	}
 
-	fun createDescriptorSets(swapchain: Swapchain, logger: org.apache.logging.log4j.Logger, textures: Array<Texture?>, ubo: Ubo) {
-		this.textures = textures
+	fun createDescriptorSets(swapchain: Swapchain, logger: org.apache.logging.log4j.Logger, currentTextures: Array<Texture?>, ubo: Ubo) {
+		this.preparableTextures.addAll(currentTextures)
+
 		if (descriptorPool == 0L) {
 			logger.warn("Descriptor Pools are invalid! rebuilding... (THIS IS NOT FAST)")
 			createPool(swapchain)
@@ -154,11 +159,12 @@ open class RawShaderProgram(
 
 						VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER -> {
 							if (poolObj is PoolSamplerInfo) {
-								val texture: Texture = textures[poolObj.samplerIndex]!!
+								val texture: Texture = currentTextures[poolObj.samplerIndex]!! // use 1x1 empty/missing tex here if null
 								val imageInfo = VkDescriptorImageInfo.callocStack(1, stack)
 									.imageLayout(VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL)
 									.imageView(texture.textureImage.view)
 									.sampler(texture.textureSampler!!)
+
 								descriptorWrite.pImageInfo(imageInfo)
 							}
 						}

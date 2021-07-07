@@ -3,6 +3,7 @@ package me.hydos.rosella.render.material
 import me.hydos.rosella.Rosella
 import me.hydos.rosella.device.VulkanDevice
 import me.hydos.rosella.render.Topology
+import me.hydos.rosella.render.material.state.StateInfo
 import me.hydos.rosella.render.renderer.Renderer
 import me.hydos.rosella.render.shader.ShaderProgram
 import me.hydos.rosella.render.swapchain.RenderPass
@@ -31,7 +32,7 @@ class PipelineManager(var common: VkCommon, val renderer: Renderer) {
 				createInfo.shader,
 				createInfo.topology,
 				createInfo.vertexFormat,
-				createInfo.useBlend
+				createInfo.stateInfo
 			)
 		}
 		return pipelines[createInfo]!!
@@ -45,7 +46,7 @@ class PipelineManager(var common: VkCommon, val renderer: Renderer) {
 			material.shader!!,
 			material.topology,
 			material.vertexFormat,
-			material.useBlend
+			material.stateInfo
 		)
 		return getPipeline(createInfo)
 	}
@@ -79,7 +80,7 @@ class PipelineManager(var common: VkCommon, val renderer: Renderer) {
 		shader: ShaderProgram,
 		topology: Topology,
 		vertexFormat: VertexFormat,
-		useBlend: Boolean
+		stateInfo: StateInfo
 	): PipelineInfo {
 		var pipelineLayout: Long
 		var graphicsPipeline: Long
@@ -133,19 +134,23 @@ class PipelineManager(var common: VkCommon, val renderer: Renderer) {
 				.maxDepth(1.0f)
 
 			/**
-			 * Scissor
-			 */
-			val scissor = VkRect2D.callocStack(1, it)
-				.offset(VkOffset2D.callocStack(it).set(0, 0))
-				.extent(swapchain.swapChainExtent)
-
-			/**
 			 * Viewport State
 			 */
 			val viewportState: VkPipelineViewportStateCreateInfo = VkPipelineViewportStateCreateInfo.callocStack(it)
 				.sType(VK10.VK_STRUCTURE_TYPE_PIPELINE_VIEWPORT_STATE_CREATE_INFO)
 				.pViewports(viewport)
-				.pScissors(scissor)
+
+			/**
+			 * Scissor
+			 */
+			// TODO: make sure we can ignore setting pScissors safely
+			if (stateInfo.scissorEnabled) {
+				val scissor = VkRect2D.callocStack(1, it)
+					.offset(VkOffset2D.callocStack(it).set(stateInfo.scissorX, stateInfo.scissorY))
+					.extent(VkExtent2D.callocStack(it).set(stateInfo.scissorWidth, stateInfo.scissorHeight))
+
+				viewportState.pScissors(scissor)
+			}
 
 			/**
 			 * Rasterisation
@@ -156,10 +161,10 @@ class PipelineManager(var common: VkCommon, val renderer: Renderer) {
 					.depthClampEnable(false)
 					.rasterizerDiscardEnable(false)
 					.polygonMode(polygonMode)
-					.lineWidth(1.0f)
-					.cullMode(VK10.VK_CULL_MODE_BACK_BIT)
-					.frontFace(VK10.VK_FRONT_FACE_COUNTER_CLOCKWISE)
-					.depthBiasEnable(false)
+					.lineWidth(stateInfo.lineWidth)
+					.cullMode(if (stateInfo.cullEnabled) VK10.VK_CULL_MODE_BACK_BIT else VK10.VK_CULL_MODE_NONE)
+					.frontFace(VK10.VK_FRONT_FACE_COUNTER_CLOCKWISE) // TODO: try messing with this
+					.depthBiasEnable(false) // TODO: possibly causes flickering
 
 			/**
 			 * Multisampling
@@ -173,33 +178,34 @@ class PipelineManager(var common: VkCommon, val renderer: Renderer) {
 			val depthStencil: VkPipelineDepthStencilStateCreateInfo =
 				VkPipelineDepthStencilStateCreateInfo.callocStack(it)
 					.sType(VK10.VK_STRUCTURE_TYPE_PIPELINE_DEPTH_STENCIL_STATE_CREATE_INFO)
-					.depthTestEnable(true)
-					.depthWriteEnable(true)
-					.depthCompareOp(VK10.VK_COMPARE_OP_LESS)
+					.depthTestEnable(stateInfo.depthTestEnabled)
+					.depthWriteEnable(stateInfo.depthMask)
+					.depthCompareOp(stateInfo.depthCompareOp)
 					.depthBoundsTestEnable(false)
 					.minDepthBounds(0.0f)
 					.maxDepthBounds(1.0f)
-					.stencilTestEnable(false)
+					.stencilTestEnable(stateInfo.stencilEnabled) // TODO: fix stencil settings
 
 			/**
 			 * Colour Blending
 			 */
+			// TODO: use minecraft's blending info from the shaders
 			val colourBlendAttachment = VkPipelineColorBlendAttachmentState.callocStack(1, it)
-				.colorWriteMask(VK10.VK_COLOR_COMPONENT_R_BIT or VK10.VK_COLOR_COMPONENT_G_BIT or VK10.VK_COLOR_COMPONENT_B_BIT or VK10.VK_COLOR_COMPONENT_A_BIT)
-				.blendEnable(useBlend)
-				.srcColorBlendFactor(VK10.VK_BLEND_FACTOR_SRC_ALPHA)
-				.dstColorBlendFactor(VK10.VK_BLEND_FACTOR_ONE_MINUS_SRC_ALPHA)
-				.colorBlendOp(VK10.VK_BLEND_OP_ADD)
+				.colorWriteMask(stateInfo.colorMask)
+				.blendEnable(stateInfo.blendEnabled)
+				.srcColorBlendFactor(stateInfo.srcColorBlendFactor)
+				.dstColorBlendFactor(stateInfo.dstColorBlendFactor)
+				.colorBlendOp(stateInfo.blendOp)
 
-				.srcAlphaBlendFactor(VK10.VK_BLEND_FACTOR_ZERO)
-				.dstAlphaBlendFactor(VK10.VK_BLEND_FACTOR_ONE_MINUS_SRC_ALPHA)
-				.alphaBlendOp(VK10.VK_BLEND_OP_SUBTRACT)
+				.srcAlphaBlendFactor(stateInfo.srcAlphaBlendFactor)
+				.dstAlphaBlendFactor(stateInfo.dstAlphaBlendFactor)
+				.alphaBlendOp(stateInfo.blendOp)
 
 			val colourBlending: VkPipelineColorBlendStateCreateInfo =
 				VkPipelineColorBlendStateCreateInfo.callocStack(it)
 					.sType(VK10.VK_STRUCTURE_TYPE_PIPELINE_COLOR_BLEND_STATE_CREATE_INFO)
-					.logicOpEnable(false)
-					.logicOp(VK10.VK_LOGIC_OP_COPY)
+					.logicOpEnable(stateInfo.colorLogicOpEnabled)
+					.logicOp(stateInfo.colorLogicOp)
 					.pAttachments(colourBlendAttachment)
 					.blendConstants(it.floats(0.0f, 0.0f, 0.0f, 0.0f))
 
