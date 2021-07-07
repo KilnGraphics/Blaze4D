@@ -37,7 +37,6 @@ public class Memory {
     private final VkCommon common;
     private final List<Long> mappedMemory = new ArrayList<>();
     private final List<Consumer<Long>> deallocatingConsumers = new ArrayList<>();
-    private final Object lock = new Object();
     private boolean running = true;
 
     public Memory(VkCommon common) {
@@ -51,10 +50,8 @@ public class Memory {
                 while (running) {
                     Consumer<Long> consumer = null;
 
-                    synchronized (lock) {
-                        if (!deallocatingConsumers.isEmpty()) {
-                            consumer = deallocatingConsumers.remove(0);
-                        }
+                    if (!deallocatingConsumers.isEmpty()) {
+                        consumer = deallocatingConsumers.remove(0);
                     }
 
                     if (consumer != null) {
@@ -133,11 +130,10 @@ public class Memory {
      * Unmaps allocated memory. this should usually be called on close
      */
     public void unmap(long allocation) {
-        mappedMemory.remove(allocation);
-
-        synchronized (lock) {
-            deallocatingConsumers.add(allocator -> Vma.vmaUnmapMemory(allocator, allocation));
-        }
+        deallocatingConsumers.add(allocator -> {
+            mappedMemory.remove(allocation);
+            Vma.vmaUnmapMemory(allocator, allocation);
+        });
     }
 
     /**
@@ -265,9 +261,7 @@ public class Memory {
      * Forces a buffer to be freed
      */
     public void freeBuffer(BufferInfo buffer) {
-        synchronized (lock) {
-            deallocatingConsumers.add(aLong -> buffer.free(common.device, this));
-        }
+        deallocatingConsumers.add(aLong -> buffer.free(common.device, this));
     }
 
     /**

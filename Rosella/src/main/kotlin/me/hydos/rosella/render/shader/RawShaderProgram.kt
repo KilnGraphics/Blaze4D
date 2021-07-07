@@ -1,13 +1,13 @@
 package me.hydos.rosella.render.shader
 
 import me.hydos.rosella.device.VulkanDevice
+import me.hydos.rosella.memory.Memory
 import me.hydos.rosella.render.descriptorsets.DescriptorSet
+import me.hydos.rosella.render.renderer.Renderer
 import me.hydos.rosella.render.resource.Resource
 import me.hydos.rosella.render.shader.ubo.Ubo
 import me.hydos.rosella.render.swapchain.Swapchain
 import me.hydos.rosella.render.texture.Texture
-import me.hydos.rosella.memory.Memory
-import me.hydos.rosella.render.renderer.Renderer
 import me.hydos.rosella.render.texture.TextureManager
 import me.hydos.rosella.render.util.ok
 import me.hydos.rosella.scene.`object`.impl.SimpleObjectManager
@@ -134,7 +134,7 @@ open class RawShaderProgram(
 				.offset(0)
 				.range(ubo.getSize().toLong())
 
-			val imageInfoBuffers = Array<VkDescriptorImageInfo.Buffer?>(textures.size) { idx ->
+			val imageInfoBuffers = Array(textures.size) { idx ->
 				val texture = textures[idx]
 				return@Array if (texture != null) {
 					VkDescriptorImageInfo.callocStack(1, stack)
