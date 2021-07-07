@@ -134,9 +134,8 @@ open class RawShaderProgram(
 				.offset(0)
 				.range(ubo.getSize().toLong())
 
-			val imageInfoBuffers = Array<VkDescriptorImageInfo.Buffer?>(textures.size) { idx ->
-				val texture = textures[idx]
-				return@Array if (texture != null) {
+			val imageInfoBuffers = textures.map { texture ->
+				if (texture != null) {
 					VkDescriptorImageInfo.callocStack(1, stack)
 						.imageLayout(VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL)
 						.imageView(texture.textureImage.view)
