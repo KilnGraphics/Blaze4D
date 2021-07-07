@@ -4,7 +4,6 @@
   "package": "me.hydos.blaze4d.mixin",
   "compatibilityLevel": "JAVA_16",
   "mixins": [
-    "integration.BufferRendererMixin"
   ],
   "client": [
     "blaze3d.RenderSystemMixin",
