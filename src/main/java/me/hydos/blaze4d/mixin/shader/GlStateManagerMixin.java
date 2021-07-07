@@ -100,7 +100,7 @@ public class GlStateManagerMixin {
                 null,
                 null,
                 Blaze4D.rosella.common.device,
-                Blaze4D.rosella.memory,
+                Blaze4D.rosella.common.memory,
                 GlobalRenderSystem.DEFAULT_MAX_OBJECTS,
                 GlobalRenderSystem.blaze4d$capturedShader.blaze4d$getUniforms(),
                 GlobalRenderSystem.blaze4d$capturedShader.blaze4d$getSamplerNames());

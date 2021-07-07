@@ -156,7 +156,7 @@ class Renderer(val common: VkCommon, display: Display, val rosella: Rosella) {
 			}
 		}
 
-		vkDeviceWaitIdle(rosella.common.device.rawDevice).ok()
+		rosella.common.device.waitForIdle()
 		freeSwapChain(rosella)
 		createSwapChain(rosella.common, window, rosella.objectManager as SimpleObjectManager)
 //		camera.createViewAndProj(swapchain)

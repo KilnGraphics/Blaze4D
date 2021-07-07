@@ -41,7 +41,6 @@ public class Rosella {
     public static final int POLYGON_MODE = VK_POLYGON_MODE_FILL;
     public final VkCommon common = new VkCommon();
     public final Renderer renderer;
-    public final Memory memory;
     public final ObjectManager objectManager;
 
     public Rosella(Display display, String applicationName, boolean enableBasicValidation) {
@@ -60,9 +59,9 @@ public class Rosella {
         common.surface = display.createSurface(common);
         common.device = new VulkanDevice(common, requestedValidationLayers);
         common.queues = new VulkanQueues(common);
+        common.memory = new Memory(common);
 
         // Setup the object manager
-        this.memory = new Memory(common);
         this.objectManager = new SimpleObjectManager(this, common);
         this.renderer = new Renderer(common, display, this); //TODO: make swapchain, etc initialization happen outside of the renderer and in here
         this.objectManager.postInit(renderer);
@@ -74,11 +73,11 @@ public class Rosella {
     /**
      * Free's the vulkan resources.
      */
-    public void free() {
-        waitForIdle();
+    public void teardown() {
+        common.device.waitForIdle();
         objectManager.free(this);
-
         renderer.freeSwapChain(this);
+
         for (Frame frame : renderer.inFlightFrames) {
             vkDestroySemaphore(common.device.rawDevice, frame.renderFinishedSemaphore(), null);
             vkDestroySemaphore(common.device.rawDevice, frame.imageAvailableSemaphore(), null);
@@ -86,7 +85,7 @@ public class Rosella {
         }
 
         // Free the rest of it
-        memory.free();
+        common.memory.teardown();
 
         vkDestroyCommandPool(common.device.rawDevice, renderer.getCommandPool(), null);
         vkDestroyDevice(common.device.rawDevice, null);
@@ -96,15 +95,6 @@ public class Rosella {
         common.vkInstance.messenger.ifPresent(messenger -> {
             vkDestroyDebugUtilsMessengerEXT(common.vkInstance.rawInstance, messenger, null);
         });
-    }
-
-    /**
-     * Waits for the engine to stop rendering and be idle. any anything that is freed after this is 99% likely to be safe.
-     */
-    public void waitForIdle() {
-        vkDeviceWaitIdle(common.device.rawDevice);
-        vkQueueWaitIdle(common.queues.graphicsQueue);
-        vkQueueWaitIdle(common.queues.presentQueue);
     }
 
     /**

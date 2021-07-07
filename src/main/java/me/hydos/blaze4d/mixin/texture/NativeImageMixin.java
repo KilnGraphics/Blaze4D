@@ -43,7 +43,7 @@ public abstract class NativeImageMixin implements UploadableImage {
         );
         textureManager.drawToExistingTexture(
                 Blaze4D.rosella.renderer,
-                Blaze4D.rosella.memory,
+                Blaze4D.rosella.common.memory,
                 GlobalRenderSystem.boundTextureIds[GlobalRenderSystem.activeTexture],
                 this,
                 new ImageRegion(width, height, unpackSkipPixels, unpackSkipRows),

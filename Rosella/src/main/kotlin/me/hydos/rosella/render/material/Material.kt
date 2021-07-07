@@ -39,7 +39,7 @@ open class Material(
 				imgFormat
 			)
 			textureManager.setTextureSampler(textureId, 0, samplerCreateInfo) // 0 is the default texture no, but it's still gross
-			textureManager.drawToExistingTexture(rosella.renderer, rosella.memory, textureId, image)
+			textureManager.drawToExistingTexture(rosella.renderer, rosella.common.memory, textureId, image)
 			val texture = textureManager.getTexture(textureId)!!
 			textures = arrayOf(texture) //FIXME THIS SUCKS
 		}

@@ -36,6 +36,7 @@ public class Memory {
     private final long allocator;
     private final VkCommon common;
     private final List<Long> mappedMemory = new ArrayList<>();
+    private final List<Thread> workers = new ArrayList<>(THREAD_COUNT);
     private final List<Consumer<Long>> deallocatingConsumers = new ArrayList<>();
     private final Object lock = new Object();
     private boolean running = true;
@@ -45,7 +46,7 @@ public class Memory {
         allocator = createAllocator(common);
 
         for (int i = 0; i < THREAD_COUNT; i++) {
-            new Thread(() -> {
+            Thread thread = new Thread(() -> {
                 long threadAllocator = createAllocator(common);
 
                 while (running) {
@@ -61,7 +62,9 @@ public class Memory {
                 }
 
                 Vma.vmaDestroyAllocator(threadAllocator);
-            }, "Deallocator Thread " + i).start();
+            }, "Deallocator Thread " + i);
+            thread.start();
+            workers.add(thread);
         }
     }
 
@@ -141,6 +144,7 @@ public class Memory {
     /**
      * Used for creating the buffer written to before copied to the GPU
      */
+    @Deprecated
     public BufferInfo createStagingBuf(int size, LongBuffer pBuffer, MemoryStack stack, Consumer<PointerBuffer> callback) {
         BufferInfo stagingBuffer = createBuffer(
                 size,
@@ -162,7 +166,7 @@ public class Memory {
         long allocation;
         try (MemoryStack stack = stackPush()) {
             if (size == 0) {
-                throw new RuntimeException("Failed To Create VMA Buffer Reason: Buffer Is Too Small (0)");
+                throw new RuntimeException("Failed To Create VMA Buffer Reason: Buffer Size is 0");
             }
 
             VkBufferCreateInfo vulkanBufferInfo = VkBufferCreateInfo.callocStack(stack)
@@ -177,7 +181,7 @@ public class Memory {
             PointerBuffer pAllocation = stack.mallocPointer(1);
             int result = Vma.vmaCreateBuffer(allocator, vulkanBufferInfo, vmaBufferInfo, pBuffer, pAllocation, null);
             if (result != 0) {
-                throw new RuntimeException("Failed To Create VMA Buffer. Error Code $result");
+                throw new RuntimeException("Failed To Create VMA Buffer. Error Code " + result);
             }
             allocation = pAllocation.get(0);
         }
@@ -213,7 +217,7 @@ public class Memory {
         try (MemoryStack stack = stackPush()) {
             int size = (Integer.BYTES * indices.size());
             LongBuffer pBuffer = stack.mallocLong(1);
-            BufferInfo stagingBuffer = engine.memory.createStagingBuf(size, pBuffer, stack, data -> memcpy(data.getByteBuffer(0, size), indices));
+            BufferInfo stagingBuffer = engine.common.memory.createStagingBuf(size, pBuffer, stack, data -> memcpy(data.getByteBuffer(0, size), indices));
             BufferInfo indexBufferInfo = createBuffer(
                     size,
                     VK10.VK_BUFFER_USAGE_TRANSFER_DST_BIT | VK10.VK_BUFFER_USAGE_INDEX_BUFFER_BIT,
@@ -269,12 +273,25 @@ public class Memory {
     /**
      * Free's all created buffers and mapped memory
      */
-    public void free() {
+    public void teardown() {
         for (long memory : mappedMemory) {
             unmap(memory);
         }
 
         running = false;
+
+        for (Thread worker : workers) {
+            try {
+                worker.join();
+            } catch (InterruptedException exception) {
+                throw new RuntimeException(exception);
+            }
+        }
+
+        for (Consumer<Long> consumer : deallocatingConsumers) {
+            consumer.accept(allocator);
+        }
+
         Vma.vmaDestroyAllocator(allocator);
     }
 

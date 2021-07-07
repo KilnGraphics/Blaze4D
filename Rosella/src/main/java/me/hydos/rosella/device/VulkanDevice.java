@@ -83,6 +83,13 @@ public class VulkanDevice {
     }
 
     /**
+     * Waits for the underlying device which this Vulkan instance is operating on to be idle
+     */
+    public void waitForIdle() {
+        ok(vkDeviceWaitIdle(rawDevice));
+    }
+
+    /**
      * Checks if a device is suitable enough for our use.
      *
      * @param device the {@link VkPhysicalDevice} to test

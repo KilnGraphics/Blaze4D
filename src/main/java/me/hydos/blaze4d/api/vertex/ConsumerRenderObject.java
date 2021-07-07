@@ -37,7 +37,7 @@ public class ConsumerRenderObject implements Renderable {
         this.shader = info.shader;
         this.textures = info.textures;
         Material material = getMaterial(drawMode);
-        instanceInfo = new InstanceInfo(((MinecraftShaderProgram) info.shader.getRaw()).createMinecraftUbo(rosella.memory, material), material);
+        instanceInfo = new InstanceInfo(((MinecraftShaderProgram) info.shader.getRaw()).createMinecraftUbo(rosella.common.memory, material), material);
         ((MinecraftUbo) instanceInfo.ubo).setUniforms(info.projMatrix, info.viewMatrix, info.chunkOffset, info.shaderLightDirections0, info.shaderLightDirections1);
         this.renderInfo.indices = info.indices;
     }

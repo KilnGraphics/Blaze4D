@@ -34,7 +34,7 @@ public class InstanceInfo implements MemoryCloseable {
      */
     public void rebuild(@NotNull Rosella rosella) {
         material.getShader().getDescriptorManager().freeDescriptorSet(ubo.getDescriptors());
-        ubo.free(rosella.common.device, rosella.memory);
+        ubo.free(rosella.common.device, rosella.common.memory);
         if (ubo.getUniformBuffers().size() == 0) {
             ubo.create(rosella.renderer.swapchain);
         }

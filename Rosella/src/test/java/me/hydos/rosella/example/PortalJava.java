@@ -90,7 +90,7 @@ public class PortalJava {
                         Global.INSTANCE.ensureResource(new Identifier("rosella", "shaders/base.v.glsl")),
                         Global.INSTANCE.ensureResource(new Identifier("rosella", "shaders/base.f.glsl")),
                         rosella.common.device,
-                        rosella.memory,
+                        rosella.common.memory,
                         10,
                         RawShaderProgram.PoolUboInfo.INSTANCE,
                         new RawShaderProgram.PoolSamplerInfo(0)
@@ -102,7 +102,7 @@ public class PortalJava {
                         Global.INSTANCE.ensureResource(new Identifier("rosella", "shaders/gui.v.glsl")),
                         Global.INSTANCE.ensureResource(new Identifier("rosella", "shaders/gui.f.glsl")),
                         rosella.common.device,
-                        rosella.memory,
+                        rosella.common.memory,
                         10,
                         RawShaderProgram.PoolUboInfo.INSTANCE,
                         new RawShaderProgram.PoolSamplerInfo(0)

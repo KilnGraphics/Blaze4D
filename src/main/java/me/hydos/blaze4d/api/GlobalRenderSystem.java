@@ -84,7 +84,7 @@ public class GlobalRenderSystem {
     public static void render() {
         GlobalRenderSystem.renderConsumers(); //TODO: move this probably
 
-        Blaze4D.rosella.waitForIdle();
+        Blaze4D.rosella.common.device.waitForIdle();
         ((SimpleObjectManager) Blaze4D.rosella.objectManager).renderObjects.clear();
         if (currentFrameObjects.size() < 2000) {
             for (ConsumerRenderObject renderObject : currentFrameObjects) {
@@ -100,7 +100,9 @@ public class GlobalRenderSystem {
         Blaze4D.window.update();
         Blaze4D.rosella.renderer.render(Blaze4D.rosella);
 
-        currentFrameObjects.forEach(consumerRenderObject -> consumerRenderObject.free(Blaze4D.rosella.memory, Blaze4D.rosella.common.device));
+        for (ConsumerRenderObject consumerRenderObject : currentFrameObjects) {
+            consumerRenderObject.free(Blaze4D.rosella.common.memory, Blaze4D.rosella.common.device);
+        }
         currentFrameObjects.clear();
     }
 
