@@ -14,10 +14,6 @@ import org.spongepowered.asm.mixin.injection.callback.CallbackInfoReturnable;
 @Mixin(value = RenderSystem.class, remap = false)
 public class RenderSystemMixin {
 
-    @Inject(method = "initRenderer", at = @At("HEAD"))
-    private static void cancel_initRenderer(int debugVerbosity, boolean debugSync, CallbackInfo ci) {
-    }
-
     @Inject(method = "maxSupportedTextureSize", at = @At("HEAD"), cancellable = true)
     private static void setMaxSupportedTextureSize(CallbackInfoReturnable<Integer> cir) {
         cir.setReturnValue(99999999);

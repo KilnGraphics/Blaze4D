@@ -10,6 +10,6 @@ interface UploadableImage {
 	fun getWidth(): Int
 	fun getHeight(): Int
 	fun getChannels(): Int
-	fun getPixels(): ByteBuffer?
-	fun getImageSize(): Int
+	fun getPixels(region: ImageRegion): ByteBuffer?
+	fun getBytesPerPixel(): Int
 }

@@ -17,7 +17,7 @@ import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 @Mixin(TextureManager.class)
 public class TextureManagerMixin {
 
-    @Inject(method = "method_18167", at = @At("RETURN"))
+    @Inject(method = "method_18167", at = @At("RETURN"), remap = false)
     private void reloadTextures(CallbackInfo ci) {
         Blaze4D.rosella.objectManager.submitMaterials();
     }

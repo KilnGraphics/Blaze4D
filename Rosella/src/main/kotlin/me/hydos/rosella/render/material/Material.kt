@@ -4,9 +4,7 @@ import me.hydos.rosella.Rosella
 import me.hydos.rosella.render.Topology
 import me.hydos.rosella.render.resource.Resource
 import me.hydos.rosella.render.shader.ShaderProgram
-import me.hydos.rosella.render.texture.SamplerCreateInfo
-import me.hydos.rosella.render.texture.StbiImage
-import me.hydos.rosella.render.texture.Texture
+import me.hydos.rosella.render.texture.*
 import me.hydos.rosella.render.vertex.VertexFormat
 import me.hydos.rosella.scene.`object`.impl.SimpleObjectManager
 
@@ -26,13 +24,24 @@ open class Material(
 ) {
 	lateinit var pipeline: PipelineInfo
 
-	lateinit var texture: Texture
+	lateinit var textures: Array<Texture?>
 
 	open fun loadTextures(objectManager: SimpleObjectManager, rosella: Rosella) { //FIXME this is also temporary
 		if (resource != Resource.Empty) {
-			val test = objectManager.textureManager.generateTextureId() // FIXME this is temporary
-			objectManager.textureManager.uploadTextureToId(rosella, test, StbiImage(resource), 0, 0, imgFormat, samplerCreateInfo)
-			texture = objectManager.textureManager.getTexture(test)!!
+			val textureManager = objectManager.textureManager
+			val textureId = textureManager.generateTextureId() // FIXME this texture can't be removed
+			val image: UploadableImage = StbiImage(resource)
+			textureManager.createTexture(
+				rosella.renderer,
+				textureId,
+				image.getWidth(),
+				image.getHeight(),
+				imgFormat
+			)
+			textureManager.setTextureSampler(textureId, 0, samplerCreateInfo) // 0 is the default texture no, but it's still gross
+			textureManager.drawToExistingTexture(rosella.renderer, rosella.memory, textureId, image)
+			val texture = textureManager.getTexture(textureId)!!
+			textures = arrayOf(texture) //FIXME THIS SUCKS
 		}
 	}
 }

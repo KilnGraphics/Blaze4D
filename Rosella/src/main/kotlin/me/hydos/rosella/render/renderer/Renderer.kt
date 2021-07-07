@@ -102,6 +102,7 @@ class Renderer(val common: VkCommon, display: Display, val rosella: Rosella) {
 
 			for (shader in (rosella.objectManager as SimpleObjectManager).shaderManager.cachedShaders.keys) {
 				shader.updateUbos(imageIndex, swapchain, rosella.objectManager)
+				shader.prepareTexturesForRender(rosella.renderer, rosella.objectManager.textureManager)
 			}
 
 			if (imagesInFlight.containsKey(imageIndex)) {

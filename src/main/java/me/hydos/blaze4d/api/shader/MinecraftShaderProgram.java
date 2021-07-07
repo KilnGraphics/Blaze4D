@@ -23,19 +23,19 @@ public class MinecraftShaderProgram extends RawShaderProgram {
     private final List<GlUniform> uniforms;
     private final List<String> samplerNames;
 
-    public MinecraftShaderProgram(@Nullable Resource vertexShader, @Nullable Resource fragmentShader, @NotNull VulkanDevice device, @NotNull Memory memory, int maxObjCount, List<GlUniform> uniforms, List<String> samplers) {
-        super(vertexShader, fragmentShader, device, memory, maxObjCount, createPoolTypes(samplers));
+    public MinecraftShaderProgram(@Nullable Resource vertexShader, @Nullable Resource fragmentShader, @NotNull VulkanDevice device, @NotNull Memory memory, int maxObjCount, List<GlUniform> uniforms, List<String> samplerNames) {
+        super(vertexShader, fragmentShader, device, memory, maxObjCount, createPoolTypes(samplerNames));
         this.uniforms = uniforms;
-        this.samplerNames = samplers;
+        this.samplerNames = samplerNames;
     }
 
-    private static PoolObjType[] createPoolTypes(List<String> samplers) {
-        List<PoolObjType> types = new ArrayList<>();
-        types.add(PoolObjType.UBO);
+    private static PoolObjectInfo[] createPoolTypes(List<String> samplers) {
+        List<PoolObjectInfo> types = new ArrayList<>();
+        types.add(PoolUboInfo.INSTANCE);
         for (int i = 0; i < samplers.size(); i++) {
-            types.add(PoolObjType.SAMPLER);
+            types.add(new PoolSamplerInfo(i)); // TODO: is this safe?
         }
-        return types.toArray(PoolObjType[]::new);
+        return types.toArray(PoolObjectInfo[]::new);
     }
 
     public MinecraftUbo createMinecraftUbo(@NotNull Memory memory, Material material) {

@@ -7,6 +7,8 @@ import me.hydos.rosella.render.shader.ubo.Ubo
 import me.hydos.rosella.render.swapchain.Swapchain
 import me.hydos.rosella.render.texture.Texture
 import me.hydos.rosella.memory.Memory
+import me.hydos.rosella.render.renderer.Renderer
+import me.hydos.rosella.render.texture.TextureManager
 import me.hydos.rosella.render.util.ok
 import me.hydos.rosella.scene.`object`.impl.SimpleObjectManager
 import org.lwjgl.system.MemoryStack
@@ -19,10 +21,11 @@ open class RawShaderProgram(
 		val device: VulkanDevice,
 		val memory: Memory,
 		var maxObjCount: Int,
-		vararg var poolObjects: PoolObjType
+		vararg var poolObjects: PoolObjectInfo
 ) {
 	var descriptorPool: Long = 0
 	var descriptorSetLayout: Long = 0
+	var textures = emptyArray<Texture?>()
 
 	fun updateUbos(currentImage: Int, swapchain: Swapchain, objectManager: SimpleObjectManager) {
 		for (instances in objectManager.renderObjects.values) {
@@ -31,6 +34,14 @@ open class RawShaderProgram(
 					currentImage,
 					swapchain
 				)
+			}
+		}
+	}
+
+	fun prepareTexturesForRender(renderer: Renderer, textureManager: TextureManager) { // TODO: move this or make it less gross
+		textures.forEach {
+			if (it != null) {
+				textureManager.prepareTexture(renderer, it)
 			}
 		}
 	}
@@ -44,7 +55,7 @@ open class RawShaderProgram(
 
 			poolObjects.forEachIndexed { i, poolObj ->
 				poolSizes[i]
-					.type(poolObj.vkType)
+					.type(poolObj.getVkType())
 					.descriptorCount(swapchain.swapChainImages.size * maxObjCount)
 			}
 
@@ -74,9 +85,9 @@ open class RawShaderProgram(
 				bindings[i]
 					.binding(i)
 					.descriptorCount(1)
-					.descriptorType(poolObj.vkType)
+					.descriptorType(poolObj.getVkType())
 					.pImmutableSamplers(null)
-					.stageFlags(poolObj.vkShader)
+					.stageFlags(poolObj.getShaderStage())
 			}
 
 			val layoutInfo = VkDescriptorSetLayoutCreateInfo.callocStack(it)
@@ -93,12 +104,13 @@ open class RawShaderProgram(
 		}
 	}
 
-	fun createDescriptorSets(swapchain: Swapchain, logger: org.apache.logging.log4j.Logger, texture: Texture, ubo: Ubo) {
-		if(descriptorPool == 0L) {
+	fun createDescriptorSets(swapchain: Swapchain, logger: org.apache.logging.log4j.Logger, textures: Array<Texture?>, ubo: Ubo) {
+		this.textures = textures
+		if (descriptorPool == 0L) {
 			logger.warn("Descriptor Pools are invalid! rebuilding... (THIS IS NOT FAST)")
 			createPool(swapchain)
 		}
-		if(descriptorSetLayout == 0L) {
+		if (descriptorSetLayout == 0L) {
 			logger.warn("Descriptor Set Layouts are invalid! rebuilding... (THIS IS NOT FAST)")
 			createDescriptorSetLayout()
 		}
@@ -118,15 +130,21 @@ open class RawShaderProgram(
 
 			val descriptorSets = DescriptorSet(descriptorPool)
 			descriptorSets.descriptorSets = ArrayList(pDescriptorSets.capacity())
-
 			val bufferInfo = VkDescriptorBufferInfo.callocStack(1, stack)
 				.offset(0)
 				.range(ubo.getSize().toLong())
 
-			val imageInfo = VkDescriptorImageInfo.callocStack(1, stack)
-				.imageLayout(VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL)
-				.imageView(texture.textureImage.view)
-				.sampler(texture.textureSampler)
+			val imageInfoBuffers = Array<VkDescriptorImageInfo.Buffer?>(textures.size) { idx ->
+				val texture = textures[idx]
+				return@Array if (texture != null) {
+					VkDescriptorImageInfo.callocStack(1, stack)
+						.imageLayout(VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL)
+						.imageView(texture.textureImage.view)
+						.sampler(texture.textureSampler!!)
+				} else {
+					null
+				}
+			}
 
 			val descriptorWrites = VkWriteDescriptorSet.callocStack(poolObjects.size, stack)
 
@@ -138,16 +156,18 @@ open class RawShaderProgram(
 						.sType(VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET)
 						.dstBinding(index)
 						.dstArrayElement(0)
-						.descriptorType(poolObj.vkType)
+						.descriptorType(poolObj.getVkType())
 						.descriptorCount(1)
 
-					when (poolObj.vkType) {
+					when (poolObj.getVkType()) {
 						VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER -> {
 							descriptorWrite.pBufferInfo(bufferInfo)
 						}
 
 						VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER -> {
-							descriptorWrite.pImageInfo(imageInfo)
+							if (poolObj is PoolSamplerInfo) {
+								descriptorWrite.pImageInfo(imageInfoBuffers[poolObj.samplerIndex])
+							}
 						}
 					}
 					descriptorWrite.dstSet(descriptorSet)
@@ -166,8 +186,30 @@ open class RawShaderProgram(
 		vkDestroyDescriptorPool(device.rawDevice, descriptorPool, null)
 	}
 
-	enum class PoolObjType(val vkType: Int, val vkShader: Int) {
-		UBO(VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, VK_SHADER_STAGE_ALL),
-		SAMPLER(VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, VK_SHADER_STAGE_ALL)
+	interface PoolObjectInfo {
+		fun getVkType(): Int
+		fun getShaderStage(): Int
+	}
+
+	enum class PoolUboInfo: PoolObjectInfo {
+		INSTANCE;
+
+		override fun getVkType(): Int {
+			return VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER
+		}
+
+		override fun getShaderStage(): Int {
+			return VK_SHADER_STAGE_ALL
+		}
+	}
+
+	data class PoolSamplerInfo(val samplerIndex: Int): PoolObjectInfo {
+		override fun getVkType(): Int {
+			return VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER
+		}
+
+		override fun getShaderStage(): Int {
+			return VK_SHADER_STAGE_ALL
+		}
 	}
 }

@@ -17,7 +17,10 @@ import org.lwjgl.vulkan.*;
 
 import java.nio.ByteBuffer;
 import java.nio.LongBuffer;
-import java.util.*;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.Objects;
+import java.util.Set;
 import java.util.function.Consumer;
 
 import static me.hydos.rosella.render.util.VkUtilsKt.ok;
@@ -42,8 +45,7 @@ public class Memory {
         allocator = createAllocator(common);
 
         for (int i = 0; i < THREAD_COUNT; i++) {
-            Thread[] deallocatingThreads = new Thread[THREAD_COUNT];
-            deallocatingThreads[i] = new Thread(() -> {
+            new Thread(() -> {
                 long threadAllocator = createAllocator(common);
 
                 while (running) {
@@ -59,9 +61,9 @@ public class Memory {
                         consumer.accept(allocator);
                     }
                 }
+
                 Vma.vmaDestroyAllocator(threadAllocator);
-            }, "Deallocator Thread " + i);
-            deallocatingThreads[i].start();
+            }, "Deallocator Thread " + i).start();
         }
     }
 
@@ -276,8 +278,8 @@ public class Memory {
         for (long memory : mappedMemory) {
             unmap(memory);
         }
-        running = false;
 
+        running = false;
         Vma.vmaDestroyAllocator(allocator);
     }
 

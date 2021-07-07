@@ -5,9 +5,9 @@ import me.hydos.rosella.device.VulkanQueues;
 import me.hydos.rosella.display.Display;
 import me.hydos.rosella.logging.DebugLogger;
 import me.hydos.rosella.logging.DefaultDebugLogger;
+import me.hydos.rosella.memory.Memory;
 import me.hydos.rosella.render.renderer.Renderer;
 import me.hydos.rosella.render.swapchain.Frame;
-import me.hydos.rosella.memory.Memory;
 import me.hydos.rosella.scene.object.ObjectManager;
 import me.hydos.rosella.scene.object.impl.SimpleObjectManager;
 import me.hydos.rosella.vkobjects.VkCommon;
@@ -26,6 +26,7 @@ import java.util.Set;
 import java.util.stream.Collectors;
 
 import static me.hydos.rosella.render.util.VkUtilsKt.ok;
+import static org.lwjgl.vulkan.EXTDebugUtils.vkDestroyDebugUtilsMessengerEXT;
 import static org.lwjgl.vulkan.KHRSurface.vkDestroySurfaceKHR;
 import static org.lwjgl.vulkan.VK10.*;
 import static org.lwjgl.vulkan.VK12.VK_API_VERSION_1_2;
@@ -86,9 +87,13 @@ public class Rosella {
 
         // Free the rest of it
         vkDestroyCommandPool(common.device.rawDevice, renderer.getCommandPool(), null);
-        renderer.swapchain.free(common.device.rawDevice);
         vkDestroyDevice(common.device.rawDevice, null);
         vkDestroySurfaceKHR(common.vkInstance.rawInstance, common.surface, null);
+
+        common.vkInstance.messenger.ifPresent(messenger -> {
+            vkDestroyDebugUtilsMessengerEXT(common.vkInstance.rawInstance, messenger, null);
+        });
+
         vkDestroyInstance(common.vkInstance.rawInstance, null);
         memory.free();
     }

@@ -18,7 +18,7 @@ public class RenderSystemMixin {
     private static void setTexture(int i, Identifier identifier, CallbackInfo ci) { // TODO: maybe don't ignore layer id?
         TextureManager textureManager = MinecraftClient.getInstance().getTextureManager();
         AbstractTexture abstractTexture = textureManager.getTexture(identifier);
-        GlobalRenderSystem.boundTextureId = abstractTexture.getGlId();
+        GlobalRenderSystem.boundTextureIds[GlobalRenderSystem.activeTexture] = abstractTexture.getGlId();
         ci.cancel();
     }
 }

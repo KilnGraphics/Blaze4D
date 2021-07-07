@@ -1,6 +1,7 @@
 /**
  * This file is for accessing vulkan indirectly. it manages structs so engine code can look better.
  */
+@file:JvmName("VkKt")
 package me.hydos.rosella.render
 
 import me.hydos.rosella.device.QueueFamilyIndices
@@ -9,13 +10,10 @@ import me.hydos.rosella.render.renderer.Renderer
 import me.hydos.rosella.render.swapchain.DepthBuffer
 import me.hydos.rosella.render.swapchain.RenderPass
 import me.hydos.rosella.render.swapchain.Swapchain
-import me.hydos.rosella.render.texture.StbiImage
-import me.hydos.rosella.render.texture.TextureImage
-import me.hydos.rosella.render.texture.UploadableImage
+import me.hydos.rosella.render.texture.*
 import me.hydos.rosella.memory.Memory
 import me.hydos.rosella.render.util.ok
 import org.lwjgl.PointerBuffer
-import org.lwjgl.stb.STBImage
 import org.lwjgl.system.MemoryStack
 import org.lwjgl.vulkan.*
 import org.lwjgl.vulkan.VK10.*
@@ -224,13 +222,13 @@ fun createImage(
 }
 
 fun transitionImageLayout(
+	renderer: Renderer,
+	device: VulkanDevice,
+	depthBuffer: DepthBuffer,
 	image: Long,
 	format: Int,
 	oldLayout: Int,
-	newLayout: Int,
-	depthBuffer: DepthBuffer,
-	device: VulkanDevice,
-	renderer: Renderer
+	newLayout: Int
 ) {
 	MemoryStack.stackPush().use { stack ->
 		val barrier = VkImageMemoryBarrier.callocStack(1, stack)
@@ -260,22 +258,36 @@ fun transitionImageLayout(
 		val sourceStage: Int
 		val destinationStage: Int
 		if (oldLayout == VK_IMAGE_LAYOUT_UNDEFINED && newLayout == VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL) {
+
 			barrier.srcAccessMask(0)
 				.dstAccessMask(VK_ACCESS_TRANSFER_WRITE_BIT)
+
 			sourceStage = VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT
 			destinationStage = VK_PIPELINE_STAGE_TRANSFER_BIT
+
 		} else if (oldLayout == VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL && newLayout == VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL) {
+
 			barrier.srcAccessMask(VK_ACCESS_TRANSFER_WRITE_BIT)
 				.dstAccessMask(VK_ACCESS_SHADER_READ_BIT)
+
 			sourceStage = VK_PIPELINE_STAGE_TRANSFER_BIT
 			destinationStage = VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT
+
 		} else if (oldLayout == VK_IMAGE_LAYOUT_UNDEFINED && newLayout == VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL) {
 
 			barrier.srcAccessMask(0)
-			barrier.dstAccessMask(VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_READ_BIT or VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT)
+				.dstAccessMask(VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_READ_BIT or VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT)
 
 			sourceStage = VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT
 			destinationStage = VK_PIPELINE_STAGE_EARLY_FRAGMENT_TESTS_BIT
+
+		} else if (oldLayout == VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL && newLayout == VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL) {
+
+			barrier.srcAccessMask(VK_ACCESS_SHADER_READ_BIT)
+				.dstAccessMask(VK_ACCESS_TRANSFER_WRITE_BIT)
+
+			sourceStage = VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT
+			destinationStage = VK_PIPELINE_STAGE_TRANSFER_BIT
 
 		} else {
 			throw IllegalArgumentException("Unsupported layout transition")
@@ -293,41 +305,20 @@ fun transitionImageLayout(
 	}
 }
 
-/**
- * A Giant mess of an texture image creator.
- * TODO: clean
- */
 fun createTextureImage(
-		device: VulkanDevice,
-		image: UploadableImage,
-		offsetX: Int,
-		offsetY: Int,
-		renderer: Renderer,
-		memory: Memory,
-		imgFormat: Int,
-		textureImage: TextureImage
+	renderer: Renderer,
+	device: VulkanDevice,
+	width: Int,
+	height: Int,
+	imgFormat: Int,
+	textureImage: TextureImage
 ) {
 	MemoryStack.stackPush().use { stack ->
-
-		val pBuffer = stack.mallocLong(1)
-		val stagingBuf = memory.createStagingBuf(
-			image.getImageSize(),
-			pBuffer,
-			stack
-		) { data ->
-			val pixels = image.getPixels()!!
-			val newData = data.getByteBuffer(0, pixels.limit())
-			newData.put(0, pixels, 0, pixels.limit())
-		}
-
-		if (image is StbiImage) {
-			STBImage.stbi_image_free(image.getPixels())
-		}
 
 		val pTextureImage = stack.mallocLong(1)
 		val pTextureImageMemory = stack.mallocLong(1)
 		createImage(
-			image.getWidth(), image.getHeight(),
+			width, height,
 			imgFormat, VK_IMAGE_TILING_OPTIMAL,
 			VK_IMAGE_USAGE_TRANSFER_DST_BIT or VK_IMAGE_USAGE_SAMPLED_BIT,
 			VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT,
@@ -340,51 +331,77 @@ fun createTextureImage(
 
 
 		transitionImageLayout(
+			renderer,
+			device,
+			renderer.depthBuffer,
 			textureImage.textureImage,
 			imgFormat,
 			VK_IMAGE_LAYOUT_UNDEFINED,
-			VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
-			renderer.depthBuffer,
-			device,
-			renderer
+			VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL
 		)
+	}
+}
+
+fun drawToTexture(
+	renderer: Renderer,
+	device: VulkanDevice,
+	memory: Memory,
+	image: UploadableImage,
+	srcRegion:  ImageRegion,
+	dstRegion:  ImageRegion,
+	texture: Texture
+) {
+	MemoryStack.stackPush().use { stack ->
+		val pBuffer = stack.mallocLong(1)
+		val stagingBuf = memory.createStagingBuf(
+			srcRegion.width * srcRegion.height * image.getBytesPerPixel(),
+			pBuffer,
+			stack
+		) { data ->
+			val pixels = image.getPixels(srcRegion)!!
+			val newData = data.getByteBuffer(0, pixels.limit())
+			newData.put(0, pixels, 0, pixels.limit())
+		}
 
 		copyBufferToImage(
-			stagingBuf.buffer(),
-			textureImage.textureImage,
-			image.getWidth(),
-			image.getHeight(),
-			((offsetY * image.getWidth() + offsetX) * image.getChannels() * Float.SIZE_BYTES).toLong(),
+			renderer,
 			device,
-			renderer
+			stagingBuf.buffer,
+			texture.textureImage.textureImage,
+			dstRegion.width,
+			dstRegion.height,
+			dstRegion.xOffset,
+			dstRegion.yOffset
 		)
-		transitionImageLayout(
-			textureImage.textureImage,
-			imgFormat,
-			VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
-			VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL,
-			renderer.depthBuffer,
-			device,
-			renderer
-		)
+
 		stagingBuf.free(device, memory);
 	}
 }
 
-private fun copyBufferToImage(buffer: Long, image: Long, width: Int, height: Int, offset: Long, device: VulkanDevice, renderer: Renderer) {
+fun copyBufferToImage(
+	renderer: Renderer,
+	device: VulkanDevice,
+	buffer: Long,
+	image: Long,
+	regionWidth: Int,
+	regionHeight: Int,
+	dstXOffset: Int,
+	dstYOffset: Int
+) {
 	MemoryStack.stackPush().use { stack ->
-		val commandBuffer: VkCommandBuffer = beginSingleTimeCommands(renderer, device)
 		val region = VkBufferImageCopy.callocStack(1, stack)
-			.bufferOffset(offset)
-			.bufferRowLength(0)
-			.bufferImageHeight(0)
+			.bufferOffset(0)
+			.bufferRowLength(regionWidth)
+			.bufferImageHeight(regionHeight)
+		region.imageOffset().set(dstXOffset, dstYOffset, 0)
 		region.imageSubresource()
 			.aspectMask(VK_IMAGE_ASPECT_COLOR_BIT)
 			.mipLevel(0)
 			.baseArrayLayer(0)
 			.layerCount(1)
-		region.imageOffset().set(0, 0, 0)
-		region.imageExtent(VkExtent3D.callocStack(stack).set(width, height, 1))
+		region.imageExtent().set(regionWidth, regionHeight, 1)
+
+		val commandBuffer: VkCommandBuffer = beginSingleTimeCommands(renderer, device)
 		vkCmdCopyBufferToImage(commandBuffer, buffer, image, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, region)
 		endSingleTimeCommands(commandBuffer, device, renderer)
 	}

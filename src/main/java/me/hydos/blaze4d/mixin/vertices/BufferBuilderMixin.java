@@ -31,7 +31,7 @@ public abstract class BufferBuilderMixin extends FixedColorVertexConsumer implem
         Vec3f shaderLightDirections0 = GlobalRenderSystem.shaderLightDirections0.copy();
         Vec3f shaderLightDirections1 = GlobalRenderSystem.shaderLightDirections1.copy();
 
-        this.consumer = consumers.computeIfAbsent(new ConsumerCreationInfo(drawMode, format, format.getElements(), GlobalRenderSystem.boundTextureId, GlobalRenderSystem.activeShader, projMatrix, viewMatrix, chunkOffset, shaderLightDirections0, shaderLightDirections1), formats -> {
+        this.consumer = consumers.computeIfAbsent(new ConsumerCreationInfo(drawMode, format, format.getElements(), GlobalRenderSystem.createTextureArray(), GlobalRenderSystem.activeShader, projMatrix, viewMatrix, chunkOffset, shaderLightDirections0, shaderLightDirections1), formats -> {
             me.hydos.rosella.render.vertex.BufferVertexConsumer consumer;
             if (format == VertexFormats.POSITION) {
                 consumer = new me.hydos.rosella.render.vertex.BufferVertexConsumer(me.hydos.rosella.render.vertex.VertexFormats.Companion.getPOSITION());
@@ -147,11 +147,6 @@ public abstract class BufferBuilderMixin extends FixedColorVertexConsumer implem
     @Override
     public ShaderProgram getShader() {
         return GlobalRenderSystem.activeShader;
-    }
-
-    @Override
-    public int getTextureId() {
-        return GlobalRenderSystem.boundTextureId;
     }
 
     @Override

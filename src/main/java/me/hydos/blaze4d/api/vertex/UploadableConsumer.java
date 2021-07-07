@@ -14,8 +14,6 @@ public interface UploadableConsumer {
 
     ShaderProgram getShader();
 
-    int getTextureId();
-
     void draw();
 
     Map<ConsumerCreationInfo, BufferVertexConsumer> getConsumers();

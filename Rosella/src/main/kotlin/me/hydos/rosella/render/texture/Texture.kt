@@ -2,6 +2,8 @@ package me.hydos.rosella.render.texture
 
 data class Texture(
 	val imgFormat: Int,
+	val width: Int,
+	val height: Int,
 	val textureImage: TextureImage,
-	val textureSampler: Long
+	var textureSampler: Long?
 )

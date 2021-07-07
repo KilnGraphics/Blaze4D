@@ -41,13 +41,13 @@ class DepthBuffer {
 
 			// Explicitly transitioning the depth image
 			transitionImageLayout(
-				depthImage,
-				depthFormat,
-				VK_IMAGE_LAYOUT_UNDEFINED,
-				VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL,
-				renderer.depthBuffer,
-				device,
-				renderer
+                renderer,
+                device,
+                renderer.depthBuffer,
+                depthImage,
+                depthFormat,
+                VK_IMAGE_LAYOUT_UNDEFINED,
+                VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL
 			)
 		}
 	}

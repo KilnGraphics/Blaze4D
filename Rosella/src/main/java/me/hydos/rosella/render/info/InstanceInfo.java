@@ -38,6 +38,6 @@ public class InstanceInfo implements MemoryCloseable {
         if (ubo.getUniformBuffers().size() == 0) {
             ubo.create(rosella.renderer.swapchain);
         }
-        material.getShader().getDescriptorManager().createNewDescriptor(material.texture, ubo);
+        material.getShader().getDescriptorManager().createNewDescriptor(material.textures, ubo);
     }
 }

@@ -2,13 +2,10 @@ package me.hydos.blaze4d.mixin.texture;
 
 import me.hydos.blaze4d.Blaze4D;
 import me.hydos.blaze4d.api.GlobalRenderSystem;
-import me.hydos.rosella.render.texture.SamplerCreateInfo;
-import me.hydos.rosella.render.texture.TextureFilter;
-import me.hydos.rosella.render.texture.UploadableImage;
+import me.hydos.rosella.render.texture.*;
 import me.hydos.rosella.scene.object.impl.SimpleObjectManager;
 import net.minecraft.client.texture.NativeImage;
 import org.lwjgl.system.MemoryUtil;
-import org.lwjgl.vulkan.VK10;
 import org.spongepowered.asm.mixin.Final;
 import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.Shadow;
@@ -30,36 +27,27 @@ public abstract class NativeImageMixin implements UploadableImage {
     private int height;
 
     @Shadow
-    public abstract NativeImage.Format getFormat();
-
-    @Shadow
     public abstract void close();
 
     @Shadow public abstract int getPixelColor(int x, int y);
 
-    private int channels = 4;
-    private ByteBuffer pixels;
-
-    @Inject(method = "<init>(Lnet/minecraft/client/texture/NativeImage$Format;IIZJ)V", at = @At("TAIL"))
-    private void setExtraArgs(NativeImage.Format format, int width, int height, boolean useStb, long pointer, CallbackInfo ci) {
-        this.channels = format.getChannelCount();
-    }
+    @Shadow @Final private NativeImage.Format format;
 
     @Inject(method = "uploadInternal", at = @At("HEAD"), cancellable = true)
     private void uploadToRosella(int level, int offsetX, int offsetY, int unpackSkipPixels, int unpackSkipRows, int width, int height, boolean blur, boolean clamp, boolean mipmap, boolean close, CallbackInfo ci) {
-        ((SimpleObjectManager) Blaze4D.rosella.objectManager).textureManager.uploadTextureToId(
-                Blaze4D.rosella,
-                GlobalRenderSystem.boundTextureId,
+        TextureManager textureManager = ((SimpleObjectManager) Blaze4D.rosella.objectManager).textureManager;
+        textureManager.setTextureSampler(
+                GlobalRenderSystem.boundTextureIds[GlobalRenderSystem.activeTexture],
+                GlobalRenderSystem.activeTexture, // TODO: I think it's fine to assume texture no. here, but double check
+                new SamplerCreateInfo(blur ? TextureFilter.LINEAR : TextureFilter.NEAREST, clamp ? WrapMode.CLAMP_TO_EDGE : WrapMode.REPEAT)
+        );
+        textureManager.drawToExistingTexture(
+                Blaze4D.rosella.renderer,
+                Blaze4D.rosella.memory,
+                GlobalRenderSystem.boundTextureIds[GlobalRenderSystem.activeTexture],
                 this,
-                offsetX,
-                offsetY,
-                switch (getFormat()) {
-                    case ABGR -> VK10.VK_FORMAT_R32G32B32A32_SFLOAT;
-                    case BGR -> VK10.VK_FORMAT_R32G32B32_SFLOAT;
-                    case LUMINANCE_ALPHA -> VK10.VK_FORMAT_R32G32_SFLOAT;
-                    case LUMINANCE -> VK10.VK_FORMAT_R32_SFLOAT;
-                },
-                new SamplerCreateInfo(blur ? TextureFilter.LINEAR : TextureFilter.NEAREST)
+                new ImageRegion(width, height, unpackSkipPixels, unpackSkipRows),
+                new ImageRegion(width, height, offsetX, offsetY)
         );
         if (close) {
             this.close();
@@ -79,32 +67,31 @@ public abstract class NativeImageMixin implements UploadableImage {
 
     @Override
     public int getChannels() {
-        return channels;
+        return format.getChannelCount();
     }
 
     @Override
-    public ByteBuffer getPixels() {
-        if (pixels == null) {
-            this.pixels = MemoryUtil.memAlloc(getImageSize());
-            for (int y = 0; y < getHeight(); y++) {
-                for (int x = 0; x < getWidth(); x++) {
-                    int pixelColor = getPixelColor(x, y);
-                    this.pixels.putFloat(NativeImage.getRed(pixelColor) / 255F);
-                    this.pixels.putFloat(NativeImage.getGreen(pixelColor) / 255F);
-                    this.pixels.putFloat(NativeImage.getBlue(pixelColor) / 255F);
-                    this.pixels.putFloat(NativeImage.getAlpha(pixelColor) / 255F);
-                }
+    public ByteBuffer getPixels(ImageRegion region) {
+        int imageSize = region.getWidth() * region.getHeight() * getBytesPerPixel();
+        ByteBuffer pixels = MemoryUtil.memAlloc(imageSize);
+        for (int y = region.getYOffset(); y < region.getHeight() + region.getYOffset(); y++) {
+            for (int x = region.getXOffset(); x < region.getWidth() + region.getXOffset(); x++) {
+                int pixelColor = getPixelColor(x, y);
+                pixels.putFloat(NativeImage.getRed(pixelColor) / 255F);
+                pixels.putFloat(NativeImage.getGreen(pixelColor) / 255F);
+                pixels.putFloat(NativeImage.getBlue(pixelColor) / 255F);
+                pixels.putFloat(NativeImage.getAlpha(pixelColor) / 255F);
             }
         }
-        if (pixels.capacity() != getImageSize()) {
-            throw new IllegalStateException("Image has wrong size! Expected: " + getImageSize() + " but got " + pixels.capacity());
+        if (pixels.capacity() != imageSize) {
+            throw new IllegalStateException("Image has wrong size! Expected: " + imageSize + " but got " + pixels.capacity());
         }
 
         return pixels;
     }
 
     @Override
-    public int getImageSize() {
-        return getWidth() * getHeight() * getChannels() * Float.BYTES;
+    public int getBytesPerPixel() {
+        return getChannels() * Float.BYTES;
     }
 }
