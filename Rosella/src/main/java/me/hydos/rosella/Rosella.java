@@ -40,7 +40,7 @@ public class Rosella {
     public static final Logger LOGGER = LogManager.getLogger("Rosella", new StringFormatterMessageFactory());
     public static final int VULKAN_VERSION = VK_API_VERSION_1_2;
     public static final int POLYGON_MODE = VK_POLYGON_MODE_FILL;
-    public final GlobalBufferManager bufferManager = new GlobalBufferManager(this);
+    public final GlobalBufferManager bufferManager;
     public final VkCommon common = new VkCommon();
     public final Renderer renderer;
     public final ObjectManager objectManager;
@@ -67,6 +67,7 @@ public class Rosella {
         this.objectManager = new SimpleObjectManager(this, common);
         this.renderer = new Renderer(common, display, this); //TODO: make swapchain, etc initialization happen outside of the renderer and in here
         this.objectManager.postInit(renderer);
+        this.bufferManager = new GlobalBufferManager(this);
 
         // Tell the display we are initialized
         display.onReady();

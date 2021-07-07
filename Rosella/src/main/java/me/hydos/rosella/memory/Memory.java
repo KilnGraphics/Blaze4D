@@ -144,7 +144,6 @@ public class Memory {
     /**
      * Used for creating the buffer written to before copied to the GPU
      */
-    @Deprecated
     public BufferInfo createStagingBuf(int size, LongBuffer pBuffer, MemoryStack stack, Consumer<PointerBuffer> callback) {
         BufferInfo stagingBuffer = createBuffer(
                 size,
@@ -191,7 +190,7 @@ public class Memory {
     /**
      * Copies a buffer from one place to another. usually used to copy a staging buffer into GPU mem
      */
-    private void copyBuffer(long srcBuffer, long dstBuffer, int size, Renderer renderer, VulkanDevice device) {
+    public void copyBuffer(long srcBuffer, long dstBuffer, int size, Renderer renderer, VulkanDevice device) {
         try (MemoryStack stack = stackPush()) {
             PointerBuffer pCommandBuffer = stack.mallocPointer(1);
             VkCommandBuffer commandBuffer = renderer.beginCmdBuffer(stack, pCommandBuffer, device);
