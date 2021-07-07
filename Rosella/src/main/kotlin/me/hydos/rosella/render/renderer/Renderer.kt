@@ -101,8 +101,8 @@ class Renderer(val common: VkCommon, display: Display, rosella: Rosella) {
 			val imageIndex = pImageIndex[0]
 
 			for (shader in (rosella.objectManager as SimpleObjectManager).shaderManager.cachedShaders.keys) {
+                shader.prepareTexturesForRender(rosella.renderer, rosella.objectManager.textureManager)
 				shader.updateUbos(imageIndex, swapchain, rosella.objectManager)
-				shader.prepareTexturesForRender(rosella.renderer, rosella.objectManager.textureManager)
 			}
 
 			if (imagesInFlight.containsKey(imageIndex)) {
