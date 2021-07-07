@@ -261,16 +261,16 @@ class Renderer(val common: VkCommon, display: Display, rosella: Rosella) {
 	/**
 	 * Create the Command Buffers
 	 */
-	fun rebuildCommandBuffers(renderPass: RenderPass, rosella: SimpleObjectManager) {
-		rosella.rebuildCmdBuffers(renderPass, null, null) //TODO: move it into here
+	fun rebuildCommandBuffers(renderPass: RenderPass, simpleObjectManager: SimpleObjectManager) {
+		simpleObjectManager.rebuildCmdBuffers(renderPass, null, null) //TODO: move it into here
 		val usedShaders = ArrayList<ShaderProgram>()
-		for (material in rosella.materials) {
+		for (material in simpleObjectManager.materials) {
 			if (!usedShaders.contains(material.shader)) {
 				usedShaders.add(material.shader!!)
 			}
 		}
 
-		for (instances in rosella.renderObjects.values) {
+		for (instances in simpleObjectManager.renderObjects.values) {
 			for (instance in instances) {
 				instance.rebuild(this)
 			}
@@ -311,9 +311,9 @@ class Renderer(val common: VkCommon, display: Display, rosella: Rosella) {
 				renderPassInfo.framebuffer(swapchain.frameBuffers[i])
 
 				vkCmdBeginRenderPass(commandBuffer, renderPassInfo, VK_SUBPASS_CONTENTS_INLINE)
-				for (renderInfo in rosella.renderObjects.keys) {
+				for (renderInfo in simpleObjectManager.renderObjects.keys) {
 					bindRenderInfo(renderInfo, it, commandBuffer)
-					for (instance in rosella.renderObjects[renderInfo]!!) {
+					for (instance in simpleObjectManager.renderObjects[renderInfo]!!) {
 						bindInstanceInfo(instance, it, commandBuffer, i)
 						vkCmdDrawIndexed(commandBuffer, renderInfo.indicesSize, 1, 0, 0, 0)
 					}

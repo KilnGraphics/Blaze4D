@@ -21,19 +21,19 @@ public class MinecraftShaderProgram extends RawShaderProgram {
     public static Map<Integer, Integer> UNIFORM_SIZES;
 
     private final List<GlUniform> uniforms;
-    private final List<Integer> loadedSamplerIds;
+    private final List<String> samplerNames;
 
-    public MinecraftShaderProgram(@Nullable Resource vertexShader, @Nullable Resource fragmentShader, @NotNull VulkanDevice device, @NotNull Memory memory, int maxObjCount, List<GlUniform> uniforms, List<Integer> loadedSamplerIds) {
-        super(vertexShader, fragmentShader, device, memory, maxObjCount, createPoolTypes(loadedSamplerIds));
+    public MinecraftShaderProgram(@Nullable Resource vertexShader, @Nullable Resource fragmentShader, @NotNull VulkanDevice device, @NotNull Memory memory, int maxObjCount, List<GlUniform> uniforms, List<String> samplerNames) {
+        super(vertexShader, fragmentShader, device, memory, maxObjCount, createPoolTypes(samplerNames));
         this.uniforms = uniforms;
-        this.loadedSamplerIds = loadedSamplerIds;
+        this.samplerNames = samplerNames;
     }
 
-    private static PoolObjectInfo[] createPoolTypes(List<Integer> loadedSamplerIds) {
+    private static PoolObjectInfo[] createPoolTypes(List<String> samplers) {
         List<PoolObjectInfo> types = new ArrayList<>();
         types.add(PoolUboInfo.INSTANCE);
-        for (int samplerId : loadedSamplerIds) {
-            types.add(new PoolSamplerInfo(samplerId));
+        for (int i = 0; i < samplers.size(); i++) {
+            types.add(new PoolSamplerInfo(i)); // TODO: is this safe?
         }
         return types.toArray(PoolObjectInfo[]::new);
     }

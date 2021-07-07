@@ -82,13 +82,13 @@ class TextureManager(val common: VkCommon) { // TODO: add layers, maybe not in t
 		val texture = getTexture(textureId)!!
 		if (preparedTextures.contains(texture)) {
 			transitionImageLayout(
+				renderer,
+				common.device,
+				renderer.depthBuffer,
 				texture.textureImage.textureImage,
 				texture.imgFormat,
 				VK10.VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL,
-				VK10.VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
-				renderer.depthBuffer,
-				common.device,
-				renderer
+				VK10.VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL
 			)
 			preparedTextures.remove(texture)
 		}
@@ -118,13 +118,13 @@ class TextureManager(val common: VkCommon) { // TODO: add layers, maybe not in t
 	) {
 		if (!preparedTextures.contains(texture)) {
 			transitionImageLayout(
+				renderer,
+				common.device,
+				renderer.depthBuffer,
 				texture.textureImage.textureImage,
 				texture.imgFormat,
 				VK10.VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
-				VK10.VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL,
-				renderer.depthBuffer,
-				common.device,
-				renderer
+				VK10.VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL
 			)
 			preparedTextures.add(texture)
 		}

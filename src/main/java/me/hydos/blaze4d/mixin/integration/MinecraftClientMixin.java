@@ -15,7 +15,6 @@ public class MinecraftClientMixin {
 
     @Inject(method = "render", at = @At(value = "INVOKE", target = "Lnet/minecraft/client/gl/Framebuffer;endWrite()V"))
     private void renderFrame(boolean tick, CallbackInfo ci) {
-        ((UploadableConsumer) Tessellator.getInstance().getBuffer()).draw();
         GlobalRenderSystem.render();
     }
 }

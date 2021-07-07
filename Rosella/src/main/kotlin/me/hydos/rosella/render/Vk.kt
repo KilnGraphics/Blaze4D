@@ -222,13 +222,13 @@ fun createImage(
 }
 
 fun transitionImageLayout(
+	renderer: Renderer,
+	device: VulkanDevice,
+	depthBuffer: DepthBuffer,
 	image: Long,
 	format: Int,
 	oldLayout: Int,
-	newLayout: Int,
-	depthBuffer: DepthBuffer,
-	device: VulkanDevice,
-	renderer: Renderer
+	newLayout: Int
 ) {
 	MemoryStack.stackPush().use { stack ->
 		val barrier = VkImageMemoryBarrier.callocStack(1, stack)
@@ -331,13 +331,13 @@ fun createTextureImage(
 
 
 		transitionImageLayout(
+			renderer,
+			device,
+			renderer.depthBuffer,
 			textureImage.textureImage,
 			imgFormat,
 			VK_IMAGE_LAYOUT_UNDEFINED,
-			VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
-			renderer.depthBuffer,
-			device,
-			renderer
+			VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL
 		)
 	}
 }
@@ -389,7 +389,6 @@ fun copyBufferToImage(
 	dstYOffset: Int
 ) {
 	MemoryStack.stackPush().use { stack ->
-		val commandBuffer: VkCommandBuffer = beginSingleTimeCommands(renderer, device)
 		val region = VkBufferImageCopy.callocStack(1, stack)
 			.bufferOffset(0)
 			.bufferRowLength(regionWidth)
@@ -401,6 +400,8 @@ fun copyBufferToImage(
 			.baseArrayLayer(0)
 			.layerCount(1)
 		region.imageExtent().set(regionWidth, regionHeight, 1)
+
+		val commandBuffer: VkCommandBuffer = beginSingleTimeCommands(renderer, device)
 		vkCmdCopyBufferToImage(commandBuffer, buffer, image, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, region)
 		endSingleTimeCommands(commandBuffer, device, renderer)
 	}

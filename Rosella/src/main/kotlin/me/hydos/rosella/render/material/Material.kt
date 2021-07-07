@@ -42,7 +42,6 @@ open class Material(
 			textureManager.drawToExistingTexture(rosella.renderer, rosella.memory, textureId, image)
 			val texture = textureManager.getTexture(textureId)!!
 			textures = arrayOf(texture) //FIXME THIS SUCKS
-			textureManager.prepareTexture(rosella.renderer, texture) // FIXME THIS SHOULD NOT BE REQUIRED WHY DOES IT VALIDATION ERROR WITHOUT IT
 		}
 	}
 }
