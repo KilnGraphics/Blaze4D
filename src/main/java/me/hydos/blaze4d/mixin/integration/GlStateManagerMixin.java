@@ -48,12 +48,12 @@ public class GlStateManagerMixin {
 
     @Inject(method = "_getActiveTexture", at = @At("HEAD"), cancellable = true)
     private static void getActiveTexture(CallbackInfoReturnable<Integer> cir) {
-        cir.setReturnValue(GlobalRenderSystem.activeTexture);
+        cir.setReturnValue(GlobalRenderSystem.activeTexture + 33984);
     }
 
     @Inject(method = "_activeTexture", at = @At("HEAD"), cancellable = true)
     private static void activeTexture(int texture, CallbackInfo ci) {
-        GlobalRenderSystem.activeTexture = texture - '蓀';
+        GlobalRenderSystem.activeTexture = texture - 33984;
         ci.cancel();
     }
 
