@@ -3,14 +3,13 @@ package me.hydos.rosella.vkobjects;
 import me.hydos.rosella.logging.DebugLogger;
 import org.lwjgl.PointerBuffer;
 import org.lwjgl.system.MemoryStack;
-import org.lwjgl.system.jni.JNINativeInterface;
 import org.lwjgl.vulkan.*;
 
 import java.nio.IntBuffer;
 import java.util.List;
 
-import static me.hydos.rosella.render.util.VkUtilsKt.ok;
 import static me.hydos.rosella.memory.Memory.asPtrBuffer;
+import static me.hydos.rosella.render.util.VkUtilsKt.ok;
 import static org.lwjgl.vulkan.EXTDebugUtils.*;
 import static org.lwjgl.vulkan.VK10.*;
 import static org.lwjgl.vulkan.VK12.VK_API_VERSION_1_2;
@@ -53,10 +52,9 @@ public class VulkanInstance {
 
                 VkDebugUtilsMessengerCreateInfoEXT debugMessengerCreateInfo = VkDebugUtilsMessengerCreateInfoEXT.callocStack(stack)
                         .sType(EXTDebugUtils.VK_STRUCTURE_TYPE_DEBUG_UTILS_MESSENGER_CREATE_INFO_EXT)
-                        .messageSeverity(EXTDebugUtils.VK_DEBUG_UTILS_MESSAGE_SEVERITY_VERBOSE_BIT_EXT | EXTDebugUtils.VK_DEBUG_UTILS_MESSAGE_SEVERITY_WARNING_BIT_EXT | EXTDebugUtils.VK_DEBUG_UTILS_MESSAGE_SEVERITY_ERROR_BIT_EXT)
-                        .messageType(VK_DEBUG_UTILS_MESSAGE_TYPE_GENERAL_BIT_EXT | VK_DEBUG_UTILS_MESSAGE_TYPE_VALIDATION_BIT_EXT | VK_DEBUG_UTILS_MESSAGE_TYPE_PERFORMANCE_BIT_EXT)
+                        .messageSeverity(-1)
+                        .messageType(-1)
                         .pfnUserCallback(this::debugCallback)
-                        .pUserData(JNINativeInterface.NewGlobalRef(this))
                         .pNext(extValidationFeatures.address());
 
                 createInfo
