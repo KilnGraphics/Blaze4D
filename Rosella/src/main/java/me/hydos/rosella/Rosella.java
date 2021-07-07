@@ -74,11 +74,11 @@ public class Rosella {
     /**
      * Free's the vulkan resources.
      */
-    public void free() {
+    public void teardown() {
         common.device.waitForIdle();
         objectManager.free(this);
-
         renderer.freeSwapChain(this);
+
         for (Frame frame : renderer.inFlightFrames) {
             vkDestroySemaphore(common.device.rawDevice, frame.renderFinishedSemaphore(), null);
             vkDestroySemaphore(common.device.rawDevice, frame.imageAvailableSemaphore(), null);
@@ -86,7 +86,7 @@ public class Rosella {
         }
 
         // Free the rest of it
-        memory.free();
+        memory.teardown();
 
         vkDestroyCommandPool(common.device.rawDevice, renderer.getCommandPool(), null);
         vkDestroyDevice(common.device.rawDevice, null);

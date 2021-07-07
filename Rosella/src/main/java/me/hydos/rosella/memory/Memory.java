@@ -36,6 +36,7 @@ public class Memory {
     private final long allocator;
     private final VkCommon common;
     private final List<Long> mappedMemory = new ArrayList<>();
+    private final List<Thread> workers = new ArrayList<>(THREAD_COUNT);
     private final List<Consumer<Long>> deallocatingConsumers = new ArrayList<>();
     private final Object lock = new Object();
     private boolean running = true;
@@ -45,7 +46,7 @@ public class Memory {
         allocator = createAllocator(common);
 
         for (int i = 0; i < THREAD_COUNT; i++) {
-            new Thread(() -> {
+            Thread thread = new Thread(() -> {
                 long threadAllocator = createAllocator(common);
 
                 while (running) {
@@ -63,7 +64,9 @@ public class Memory {
                 }
 
                 Vma.vmaDestroyAllocator(threadAllocator);
-            }, "Deallocator Thread " + i).start();
+            }, "Deallocator Thread " + i);
+            thread.start();
+            workers.add(thread);
         }
     }
 
@@ -274,12 +277,25 @@ public class Memory {
     /**
      * Free's all created buffers and mapped memory
      */
-    public void free() {
+    public void teardown() {
         for (long memory : mappedMemory) {
             unmap(memory);
         }
 
         running = false;
+
+        for (Thread worker : workers) {
+            try {
+                worker.join();
+            } catch (InterruptedException exception) {
+                throw new RuntimeException(exception);
+            }
+        }
+
+        for (Consumer<Long> consumer : deallocatingConsumers) {
+            consumer.accept(allocator);
+        }
+
         Vma.vmaDestroyAllocator(allocator);
     }
 
