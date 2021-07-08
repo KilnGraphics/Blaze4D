@@ -1,5 +1,3 @@
-import org.gradle.internal.os.OperatingSystem
-
 plugins {
 	java
 	kotlin("jvm") version "1.5.10"
@@ -9,27 +7,8 @@ plugins {
 group = "me.hydos"
 version = "1.0-SNAPSHOT"
 
-val lwjglVersion = "3.3.0-SNAPSHOT"
-val lwjglNatives = when (OperatingSystem.current()) {
-	OperatingSystem.LINUX -> System.getProperty("os.arch").let {
-		if (it.startsWith("arm") || it.startsWith("aarch64")) {
-			val arch = if (it.contains("64") || it.startsWith("armv8")) {
-				"arm64"
-			} else {
-				"arm32"
-			}
-
-			"natives-linux-$arch"
-		} else {
-			"natives-linux"
-		}
-	}
-	OperatingSystem.MAC_OS -> if (System.getProperty("os.arch")
-			.startsWith("aarch64")
-	) "natives-macos-arm64" else "natives-macos"
-	OperatingSystem.WINDOWS -> "natives-windows"
-	else -> error("Unrecognized or unsupported Operating system. Please set \"lwjglNatives\" manually")
-}
+val lwjglVersion = extra["lwjgl.version"].toString()
+val lwjglNatives = extra["lwjgl.natives"].toString()
 
 repositories {
 	mavenCentral()
@@ -47,7 +26,6 @@ dependencies {
 	api("org.lwjgl", "lwjgl-assimp")
 	api("org.lwjgl", "lwjgl-glfw")
 	api("org.lwjgl", "lwjgl-openal")
-	api("org.lwjgl", "lwjgl-opengl")
 	api("org.lwjgl", "lwjgl-shaderc")
 	api("org.lwjgl", "lwjgl-stb")
 	api("org.lwjgl", "lwjgl-vma")
@@ -62,7 +40,6 @@ dependencies {
 	runtimeOnly("org.lwjgl", "lwjgl-assimp", classifier = lwjglNatives)
 	runtimeOnly("org.lwjgl", "lwjgl-glfw", classifier = lwjglNatives)
 	runtimeOnly("org.lwjgl", "lwjgl-openal", classifier = lwjglNatives)
-	runtimeOnly("org.lwjgl", "lwjgl-opengl", classifier = lwjglNatives)
 	runtimeOnly("org.lwjgl", "lwjgl-shaderc", classifier = lwjglNatives)
 	runtimeOnly("org.lwjgl", "lwjgl-stb", classifier = lwjglNatives)
 	runtimeOnly("org.lwjgl", "lwjgl-vma", classifier = lwjglNatives)

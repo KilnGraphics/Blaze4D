@@ -1,3 +1,5 @@
+import org.gradle.internal.os.OperatingSystem
+
 plugins {
     id("fabric-loom") version "0.9-SNAPSHOT"
     id("io.github.juuxel.loom-quiltflower") version "1.1.1"
@@ -6,6 +8,33 @@ plugins {
 
 group = "me.hydos"
 version = "1.0.0-SNAPSHOT"
+
+val lwjglVersion = "3.3.0-SNAPSHOT"
+val lwjglNatives = when (OperatingSystem.current()) {
+    OperatingSystem.LINUX -> System.getProperty("os.arch").let {
+        if (it.startsWith("arm") || it.startsWith("aarch64")) {
+            val arch = if (it.contains("64") || it.startsWith("armv8")) {
+                "arm64"
+            } else {
+                "arm32"
+            }
+
+            "natives-linux-$arch"
+        } else {
+            "natives-linux"
+        }
+    }
+    OperatingSystem.MAC_OS -> if (System.getProperty("os.arch")
+            .startsWith("aarch64")
+    ) "natives-macos-arm64" else "natives-macos"
+    OperatingSystem.WINDOWS -> "natives-windows"
+    else -> error("Unrecognized or unsupported Operating system. Please set \"lwjglNatives\" manually")
+}
+
+allprojects {
+    extra["lwjgl.version"] = lwjglVersion
+    extra["lwjgl.natives"] = lwjglNatives
+}
 
 repositories {
     mavenCentral()
@@ -23,6 +52,18 @@ dependencies {
 
     include(implementation(project(":Rosella"))!!)
     implementation(project(":Aftermath"))
+
+    include(platform("org.lwjgl:lwjgl-bom:$lwjglVersion"))
+    include("org.lwjgl", "lwjgl-shaderc", lwjglVersion)
+    include("org.lwjgl", "lwjgl-vma", lwjglVersion)
+    include("org.lwjgl", "lwjgl-vulkan", lwjglVersion)
+
+    include("org.lwjgl", "lwjgl-shaderc", lwjglVersion, classifier = lwjglNatives)
+    include("org.lwjgl", "lwjgl-vma", lwjglVersion, classifier = lwjglNatives)
+
+    if (lwjglNatives == "natives-macos" || lwjglNatives == "natives-macos-arm64") {
+        include("org.lwjgl", "lwjgl-vulkan", lwjglVersion, classifier = lwjglNatives)
+    }
 }
 
 base {
