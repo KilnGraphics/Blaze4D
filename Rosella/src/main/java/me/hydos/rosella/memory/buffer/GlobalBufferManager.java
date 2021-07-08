@@ -1,5 +1,6 @@
 package me.hydos.rosella.memory.buffer;
 
+import it.unimi.dsi.fastutil.objects.Object2IntOpenHashMap;
 import me.hydos.rosella.Rosella;
 import me.hydos.rosella.memory.BufferInfo;
 import me.hydos.rosella.memory.Memory;
@@ -13,6 +14,7 @@ import java.nio.ByteBuffer;
 import java.nio.LongBuffer;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 import java.util.function.Consumer;
 
@@ -28,11 +30,28 @@ public class GlobalBufferManager {
     private final Memory memory;
     private final VkCommon common;
     private final Renderer renderer;
+    private List<RenderInfo> lastRenderObjects;
+
+    public Map<RenderInfo, Integer> indicesOffsetMap = new Object2IntOpenHashMap<>();
+    public Map<RenderInfo, Integer> vertexOffsetMap = new Object2IntOpenHashMap<>();
 
     public GlobalBufferManager(Rosella rosella) {
         this.memory = rosella.common.memory;
         this.common = rosella.common;
         this.renderer = rosella.renderer;
+    }
+
+    public void nextFrame(List<RenderInfo> renderObjects) {
+        if (lastRenderObjects != null && isFrameDifferent(lastRenderObjects, renderObjects)) {
+
+        }
+    }
+
+    private boolean isFrameDifferent(List<RenderInfo> lastRenderObjects, List<RenderInfo> renderObjects) {
+        if (lastRenderObjects.equals(renderObjects)) {
+            System.out.println("optimisations would actually work!?!? HOW HOW HOW HOW");
+        }
+        return true;
     }
 
     /**
@@ -44,7 +63,7 @@ public class GlobalBufferManager {
     public BufferInfo createIndexBuffer(Set<RenderInfo> renderList) {
         int totalSize = 0;
         for (RenderInfo info : renderList) {
-            totalSize += info.getIndicesSize() * Integer.SIZE;
+            totalSize += info.getIndicesSize() * Integer.BYTES;
         }
 
         try (MemoryStack stack = stackPush()) {
@@ -54,7 +73,12 @@ public class GlobalBufferManager {
             BufferInfo stagingBuffer = memory.createStagingBuf(finalTotalSize, pBuffer, stack, data -> {
                 ByteBuffer dst = data.getByteBuffer(0, finalTotalSize);
 
-                Memory.memcpy(dst, toBigIndexList(renderList));
+                List<Integer> allIndices = new ArrayList<>();
+                for (RenderInfo renderInfo : renderList) {
+                    indicesOffsetMap.put(renderInfo, allIndices.size());
+                    Memory.memcpy(dst, renderInfo.indices);
+                    allIndices.addAll(renderInfo.indices);
+                }
             });
 
             BufferInfo indexBuffer = memory.createBuffer(
@@ -77,33 +101,6 @@ public class GlobalBufferManager {
     }
 
     /**
-     * Converts all indices for all objects into a single list which can be used with a big vertex buffer
-     *
-     * @param renderList the render objects
-     * @return a bit list of indices
-     */
-    private List<Integer> toBigIndexList(Set<RenderInfo> renderList) {
-        List<Integer> bigNutIndices = new ArrayList<>(); // I'm sorry its just too funny
-
-        RenderInfo lastRenderInfo = null;
-        for (RenderInfo renderInfo : renderList) {
-            int indexOffset = 0;
-
-            if (lastRenderInfo != null) {
-                BufferVertexConsumer lastConsumer = (BufferVertexConsumer) lastRenderInfo.consumer;
-                indexOffset = lastConsumer.getBufferConsumerList().size() / lastConsumer.getFormat().getElements().size();
-            }
-
-            for (Integer index : renderInfo.indices) {
-                bigNutIndices.add(indexOffset + index);
-            }
-
-            lastRenderInfo = renderInfo;
-        }
-        return bigNutIndices;
-    }
-
-    /**
      * Creates a vertex buffer based on the RenderInfo parsed in
      *
      * @param renderList the list of RenderInfo objects
@@ -121,10 +118,13 @@ public class GlobalBufferManager {
 
             BufferInfo stagingBuffer = memory.createStagingBuf(finalTotalSize, pBuffer, stack, data -> {
                 ByteBuffer dst = data.getByteBuffer(0, finalTotalSize);
+                int vertexOffset = 0;
                 for (RenderInfo renderInfo : renderList) {
+                    vertexOffsetMap.put(renderInfo, vertexOffset);
                     for (Consumer<ByteBuffer> bufConsumer : ((BufferVertexConsumer) renderInfo.consumer).getBufferConsumerList()) {
                         bufConsumer.accept(dst);
                     }
+                    vertexOffset += renderInfo.consumer.getVertexSize() * renderInfo.consumer.getVertexCount();
                 }
             });
 
