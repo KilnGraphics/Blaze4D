@@ -31,15 +31,15 @@ public class ConsumerRenderObject implements Renderable {
     public InstanceInfo instanceInfo;
 
     public ConsumerRenderObject(ObjectInfo info, Rosella rosella) {
-        this.renderInfo.consumer = info.consumer;
-        VertexFormat.DrawMode drawMode = info.drawMode;
-        this.format = info.format;
-        this.shader = info.shader;
-        this.textures = info.textures;
+        this.renderInfo.consumer = info.consumer();
+        VertexFormat.DrawMode drawMode = info.drawMode();
+        this.format = info.format();
+        this.shader = info.shader();
+        this.textures = info.textures();
         Material material = getMaterial(drawMode);
-        instanceInfo = new InstanceInfo(((MinecraftShaderProgram) info.shader.getRaw()).createMinecraftUbo(rosella.common.memory, material), material);
-        ((MinecraftUbo) instanceInfo.ubo).setUniforms(info.projMatrix, info.viewMatrix, info.chunkOffset, info.shaderLightDirections0, info.shaderLightDirections1);
-        this.renderInfo.indices = info.indices;
+        instanceInfo = new InstanceInfo(((MinecraftShaderProgram) info.shader().getRaw()).createMinecraftUbo(rosella.common.memory, material), material);
+        ((MinecraftUbo) instanceInfo.ubo).setUniforms(info.projMatrix(), info.viewMatrix(), info.chunkOffset(), info.shaderLightDirections0(), info.shaderLightDirections1());
+        this.renderInfo.indices = info.indices();
     }
 
     private Material getMaterial(VertexFormat.DrawMode drawMode) {
