@@ -178,10 +178,7 @@ public class Memory {
                     .usage(vmaUsage);
 
             PointerBuffer pAllocation = stack.mallocPointer(1);
-            int result = Vma.vmaCreateBuffer(allocator, vulkanBufferInfo, vmaBufferInfo, pBuffer, pAllocation, null);
-            if (result != 0) {
-                throw new RuntimeException("Failed To Create VMA Buffer. Error Code " + result);
-            }
+            ok(Vma.vmaCreateBuffer(allocator, vulkanBufferInfo, vmaBufferInfo, pBuffer, pAllocation, null));
             allocation = pAllocation.get(0);
         }
         return new BufferInfo(pBuffer.get(0), allocation);
