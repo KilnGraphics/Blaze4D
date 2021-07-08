@@ -12,7 +12,7 @@ public final class BlankTextures {
 
     public static void initialize(TextureManager textureManager, Renderer renderer) {
         int normalBlankId = textureManager.generateTextureId();
-        textureManager.createTexture(renderer, normalBlankId, 16, 16, VK10.VK_FORMAT_R32G32B32A32_SFLOAT);
+        textureManager.createTexture(renderer, normalBlankId, 1, 1, VK10.VK_FORMAT_R32G32B32A32_SFLOAT);
         textureManager.setTextureSamplerNoCache(normalBlankId, new SamplerCreateInfo(TextureFilter.NEAREST, WrapMode.REPEAT));
         BLANK_TEXTURE = textureManager.getTexture(normalBlankId);
         textureManager.prepareTexture(renderer, BLANK_TEXTURE);
