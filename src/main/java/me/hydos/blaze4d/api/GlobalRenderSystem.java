@@ -141,10 +141,10 @@ public class GlobalRenderSystem {
         currentFrameObjects.add(renderObject);
     }
 
-    public static final Map<ConsumerCreationInfo, BufferVertexConsumer> globalConsumers = new Object2ObjectOpenHashMap<>();
+    public static final Map<ConsumerCreationInfo, BufferVertexConsumer> GLOBAL_CONSUMERS = new Object2ObjectOpenHashMap<>();
 
     public static void renderConsumers() {
-        for (Map.Entry<ConsumerCreationInfo, BufferVertexConsumer> entry : globalConsumers.entrySet()) {
+        for (Map.Entry<ConsumerCreationInfo, BufferVertexConsumer> entry : GLOBAL_CONSUMERS.entrySet()) {
             BufferVertexConsumer consumer = entry.getValue();
             List<Integer> indices = new ArrayList<>();
             ConsumerCreationInfo creationInfo = entry.getKey();
@@ -194,6 +194,6 @@ public class GlobalRenderSystem {
                 }
             }
         }
-        globalConsumers.clear();
+        GLOBAL_CONSUMERS.clear();
     }
 }
