@@ -21,7 +21,7 @@ import org.lwjgl.system.MemoryStack
 import org.lwjgl.vulkan.*
 import org.lwjgl.vulkan.VK10.*
 
-class Renderer(val common: VkCommon, display: Display, rosella: Rosella) {
+class Renderer(val common: VkCommon, display: Display, val rosella: Rosella) {
 
 	var depthBuffer = DepthBuffer()
 
@@ -140,6 +140,8 @@ class Renderer(val common: VkCommon, display: Display, rosella: Rosella) {
 			} else if (vkResult != VK_SUCCESS) {
 				throw RuntimeException("Failed to present swap chain image")
 			}
+
+			vkDeviceWaitIdle(common.device.rawDevice).ok()
 
 			currentFrame = (currentFrame + 1) % MAX_FRAMES_IN_FLIGHT
 		}
@@ -272,7 +274,7 @@ class Renderer(val common: VkCommon, display: Display, rosella: Rosella) {
 
 		for (instances in simpleObjectManager.renderObjects.values) {
 			for (instance in instances) {
-				instance.rebuild(this)
+				instance.rebuild(rosella)
 			}
 		}
 

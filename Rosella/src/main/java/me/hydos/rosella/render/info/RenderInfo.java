@@ -84,10 +84,10 @@ public class RenderInfo implements MemoryCloseable {
     @Override
     public void free(VulkanDevice device, Memory memory) {
         if(vertexBuffer != null) {
-            memory.freeBuffer(vertexBuffer);
+            vertexBuffer.free(device, memory);
         }
         if(indexBuffer != null) {
-            memory.freeBuffer(indexBuffer);
+            indexBuffer.free(device, memory);
         }
     }
 }

@@ -13,9 +13,7 @@ import org.spongepowered.asm.mixin.injection.At;
 import org.spongepowered.asm.mixin.injection.Inject;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 
-import java.util.HashMap;
 import java.util.List;
-import java.util.Map;
 
 @Mixin(BufferBuilder.class)
 public abstract class BufferBuilderMixin extends FixedColorVertexConsumer implements UploadableConsumer {
@@ -30,37 +28,37 @@ public abstract class BufferBuilderMixin extends FixedColorVertexConsumer implem
         Vec3f shaderLightDirections0 = GlobalRenderSystem.shaderLightDirections0.copy();
         Vec3f shaderLightDirections1 = GlobalRenderSystem.shaderLightDirections1.copy();
 
-        this.consumer = GlobalRenderSystem.globalConsumers.computeIfAbsent(new ConsumerCreationInfo(drawMode, format, format.getElements(), GlobalRenderSystem.createTextureArray(), GlobalRenderSystem.activeShader, projMatrix, viewMatrix, chunkOffset, shaderLightDirections0, shaderLightDirections1), formats -> {
+        this.consumer = GlobalRenderSystem.GLOBAL_CONSUMERS_FOR_BATCH_RENDERING.computeIfAbsent(new ConsumerCreationInfo(drawMode, format, format.getElements(), GlobalRenderSystem.createTextureArray(), GlobalRenderSystem.activeShader, projMatrix, viewMatrix, chunkOffset, shaderLightDirections0, shaderLightDirections1), _format -> {
             me.hydos.rosella.render.vertex.BufferVertexConsumer consumer;
-            if (format == VertexFormats.POSITION) {
+            if (_format.format() == VertexFormats.POSITION) {
                 consumer = new me.hydos.rosella.render.vertex.BufferVertexConsumer(me.hydos.rosella.render.vertex.VertexFormats.Companion.getPOSITION());
-            } else if (format == VertexFormats.POSITION_COLOR) {
+            } else if (_format.format() == VertexFormats.POSITION_COLOR) {
                 consumer = new me.hydos.rosella.render.vertex.BufferVertexConsumer(me.hydos.rosella.render.vertex.VertexFormats.Companion.getPOSITION_COLOR4());
-            } else if (format == VertexFormats.POSITION_COLOR_TEXTURE) {
+            } else if (_format.format() == VertexFormats.POSITION_COLOR_TEXTURE) {
                 consumer = new me.hydos.rosella.render.vertex.BufferVertexConsumer(me.hydos.rosella.render.vertex.VertexFormats.Companion.getPOSITION_COLOR4_UV());
-            } else if (format == VertexFormats.POSITION_TEXTURE) {
+            } else if (_format.format() == VertexFormats.POSITION_TEXTURE) {
                 consumer = new me.hydos.rosella.render.vertex.BufferVertexConsumer(me.hydos.rosella.render.vertex.VertexFormats.Companion.getPOSITION_UV());
-            } else if (format == VertexFormats.POSITION_TEXTURE_COLOR) {
+            } else if (_format.format() == VertexFormats.POSITION_TEXTURE_COLOR) {
                 consumer = new me.hydos.rosella.render.vertex.BufferVertexConsumer(me.hydos.rosella.render.vertex.VertexFormats.Companion.getPOSITION_UV_COLOR4());
-            } else if (format == VertexFormats.LINES) {
+            } else if (_format.format() == VertexFormats.LINES) {
                 consumer = new me.hydos.rosella.render.vertex.BufferVertexConsumer(me.hydos.rosella.render.vertex.VertexFormats.Companion.getPOSITION_COLOR_NORMAL());
-            } else if (format == VertexFormats.POSITION_COLOR_TEXTURE_LIGHT) {
+            } else if (_format.format() == VertexFormats.POSITION_COLOR_TEXTURE_LIGHT) {
                 consumer = new me.hydos.rosella.render.vertex.BufferVertexConsumer(me.hydos.rosella.render.vertex.VertexFormats.Companion.getPOSITION_COLOR4_UV_LIGHT());
-            } else if (format == VertexFormats.POSITION_COLOR_TEXTURE_LIGHT_NORMAL) {
+            } else if (_format.format() == VertexFormats.POSITION_COLOR_TEXTURE_LIGHT_NORMAL) {
                 consumer = new me.hydos.rosella.render.vertex.BufferVertexConsumer(me.hydos.rosella.render.vertex.VertexFormats.Companion.getPOSITION_COLOR4_UV_LIGHT_NORMAL());
-            } else if (format == VertexFormats.POSITION_COLOR_TEXTURE_OVERLAY_LIGHT_NORMAL) {
+            } else if (_format.format() == VertexFormats.POSITION_COLOR_TEXTURE_OVERLAY_LIGHT_NORMAL) {
                 consumer = new me.hydos.rosella.render.vertex.BufferVertexConsumer(me.hydos.rosella.render.vertex.VertexFormats.Companion.getPOSITION_COLOR4_UV_UV0_LIGHT_NORMAL());
-            } else if (format == VertexFormats.POSITION_TEXTURE_COLOR_NORMAL) {
+            } else if (_format.format() == VertexFormats.POSITION_TEXTURE_COLOR_NORMAL) {
                 consumer = new me.hydos.rosella.render.vertex.BufferVertexConsumer(me.hydos.rosella.render.vertex.VertexFormats.Companion.getPOSITION_UV_COLOR4_NORMAL());
-            } else if (format == VertexFormats.POSITION_TEXTURE_COLOR_LIGHT) {
+            } else if (_format.format() == VertexFormats.POSITION_TEXTURE_COLOR_LIGHT) {
                 consumer = new me.hydos.rosella.render.vertex.BufferVertexConsumer(me.hydos.rosella.render.vertex.VertexFormats.Companion.getPOSITION_UV_COLOR4_LIGHT());
             } else {
                 // Check if its text
-                List<VertexFormatElement> elements = format.getElements();
+                List<VertexFormatElement> elements = _format.format().getElements();
                 if (elements.size() == 4 && elements.get(0) == VertexFormats.POSITION_ELEMENT && elements.get(1) == VertexFormats.COLOR_ELEMENT && elements.get(2) == VertexFormats.TEXTURE_0_ELEMENT && elements.get(3).getByteLength() == 4) {
                     consumer = new me.hydos.rosella.render.vertex.BufferVertexConsumer(me.hydos.rosella.render.vertex.VertexFormats.Companion.getPOSITION_COLOR4_UV0_UV());
                 } else {
-                    throw new RuntimeException("Format not implemented: " + format);
+                    throw new RuntimeException("Format not implemented: " + _format.format());
                 }
             }
             return consumer;

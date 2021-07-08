@@ -38,6 +38,7 @@ public class Memory {
     private final List<Long> mappedMemory = new ArrayList<>();
     private final List<Thread> workers = new ArrayList<>(THREAD_COUNT);
     private final List<Consumer<Long>> deallocatingConsumers = new ArrayList<>();
+    private final Object lock = new Object();
     private boolean running = true;
 
     public Memory(VkCommon common) {
@@ -224,7 +225,7 @@ public class Memory {
             );
             long indexBuffer = pBuffer.get(0);
             copyBuffer(stagingBuffer.buffer(), indexBuffer, size, engine.renderer, engine.common.device);
-            freeBuffer(stagingBuffer);
+            stagingBuffer.free(common.device, this);
             return indexBufferInfo;
         }
     }
@@ -253,7 +254,7 @@ public class Memory {
                 );
                 long vertexBuffer = pBuffer.get(0);
                 copyBuffer(stagingBuffer.buffer(), vertexBuffer, size, engine.renderer, engine.common.device);
-                freeBuffer(stagingBuffer);
+                stagingBuffer.free(common.device, this);
                 return vertexBufferInfo;
             } else {
                 throw new RuntimeException("Cannot handle non buffer based Vertex Consumers");
@@ -265,7 +266,7 @@ public class Memory {
      * Forces a buffer to be freed
      */
     public void freeBuffer(BufferInfo buffer) {
-        deallocatingConsumers.add(aLong -> buffer.free(common.device, this));
+        deallocatingConsumers.add(allocator -> Vma.vmaDestroyBuffer(allocator, buffer.buffer(), buffer.allocation()));
     }
 
     /**

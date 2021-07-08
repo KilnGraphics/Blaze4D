@@ -56,7 +56,7 @@ public class SimpleObjectManager implements ObjectManager {
             }
             renderObjects.put(obj.getRenderInfo(), new ArrayList<>());
         }
-        obj.onAddedToScene(common, renderer, rosella.common.memory);
+        obj.onAddedToScene(rosella);
         renderObjects.get(obj.getRenderInfo()).add(obj.getInstanceInfo());
         return obj;
     }

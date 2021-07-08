@@ -1,5 +1,6 @@
 package me.hydos.rosella.render.model
 
+import me.hydos.rosella.Rosella
 import me.hydos.rosella.render.material.Material
 import me.hydos.rosella.render.renderer.Renderer
 import me.hydos.rosella.render.resource.Resource
@@ -75,8 +76,8 @@ open class GuiRenderObject(
 		renderInfo.indices.add(0)
 	}
 
-	override fun onAddedToScene(common: VkCommon, renderer: Renderer, memory: Memory) {
-		super.onAddedToScene(common, renderer, memory)
+	override fun onAddedToScene(rosella: Rosella) {
+		super.onAddedToScene(rosella)
 		modelMatrix.translate(0f, 0f, z)
 	}
 

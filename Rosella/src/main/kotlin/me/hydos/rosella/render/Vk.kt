@@ -374,7 +374,7 @@ fun drawToTexture(
 			dstRegion.yOffset
 		)
 
-		memory.freeBuffer(stagingBuf)
+		stagingBuf.free(device, memory);
 	}
 }
 

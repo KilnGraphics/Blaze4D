@@ -71,9 +71,9 @@ public class ConsumerRenderObject implements Renderable {
     //======================
 
     @Override
-    public void onAddedToScene(VkCommon common, Renderer renderer, Memory memory) {
-        instanceInfo.rebuild(renderer);
-        instanceInfo.ubo.create(renderer.swapchain);
+    public void onAddedToScene(Rosella rosella) {
+        instanceInfo.rebuild(rosella);
+        instanceInfo.ubo.create(rosella.renderer.swapchain);
     }
 
     @Override
@@ -84,7 +84,7 @@ public class ConsumerRenderObject implements Renderable {
 
     @Override
     public void rebuild(Rosella rosella) {
-        instanceInfo.rebuild(rosella.renderer);
+        instanceInfo.rebuild(rosella);
     }
 
     @Override

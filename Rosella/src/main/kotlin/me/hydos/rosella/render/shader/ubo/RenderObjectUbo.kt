@@ -56,7 +56,7 @@ open class RenderObjectUbo(val device: VulkanDevice, val memory: Memory, private
 
 	override fun free() {
 		for (uboImg in uboFrames) {
-			memory.freeBuffer(uboImg)
+			uboImg.free(device, memory);
 		}
 	}
 
