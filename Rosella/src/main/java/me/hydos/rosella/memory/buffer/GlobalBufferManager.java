@@ -16,8 +16,7 @@ import java.util.function.Consumer;
 
 import static org.lwjgl.system.MemoryStack.stackPush;
 import static org.lwjgl.util.vma.Vma.VMA_MEMORY_USAGE_CPU_TO_GPU;
-import static org.lwjgl.vulkan.VK10.VK_BUFFER_USAGE_TRANSFER_DST_BIT;
-import static org.lwjgl.vulkan.VK10.VK_BUFFER_USAGE_VERTEX_BUFFER_BIT;
+import static org.lwjgl.vulkan.VK10.*;
 
 /**
  * To do what all the cool kids do, we make 2 big nut buffers TM
@@ -34,8 +33,46 @@ public class GlobalBufferManager {
         this.renderer = rosella.renderer;
     }
 
+    /**
+     * Creates a index buffer based on the RenderInfo parsed in
+     *
+     * @param renderList the list of RenderInfo objects
+     * @return a index buffer
+     */
     public BufferInfo createIndexBuffer(List<RenderInfo> renderList) {
-        return null;
+        int totalSize = 0;
+        for (RenderInfo info : renderList) {
+            totalSize += info.getIndicesSize() * Integer.SIZE;
+        }
+
+        try (MemoryStack stack = stackPush()) {
+            LongBuffer pBuffer = stack.mallocLong(1);
+            int finalTotalSize = totalSize;
+
+            BufferInfo stagingBuffer = memory.createStagingBuf(finalTotalSize, pBuffer, stack, data -> {
+                ByteBuffer dst = data.getByteBuffer(0, finalTotalSize);
+                for (RenderInfo renderInfo : renderList) {
+                    Memory.memcpy(dst, renderInfo.indices);
+                }
+            });
+
+            BufferInfo indexBuffer = memory.createBuffer(
+                    finalTotalSize,
+                    VK_BUFFER_USAGE_TRANSFER_DST_BIT | VK_BUFFER_USAGE_INDEX_BUFFER_BIT,
+                    VMA_MEMORY_USAGE_CPU_TO_GPU,
+                    pBuffer
+            );
+
+            long pIndexBuffer = pBuffer.get(0);
+            memory.copyBuffer(stagingBuffer.buffer(),
+                    pIndexBuffer,
+                    finalTotalSize,
+                    renderer,
+                    common.device);
+            stagingBuffer.free(common.device, memory);
+
+            return indexBuffer;
+        }
     }
 
     /**
