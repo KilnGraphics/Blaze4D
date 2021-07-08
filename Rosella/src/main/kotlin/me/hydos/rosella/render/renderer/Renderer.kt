@@ -315,8 +315,8 @@ class Renderer(val common: VkCommon, display: Display, val rosella: Rosella) {
 
 				vkCmdBeginRenderPass(commandBuffer, renderPassInfo, VK_SUBPASS_CONTENTS_INLINE)
 				if (rosella.bufferManager != null && simpleObjectManager.renderObjects.isNotEmpty()) {
-					bindBigBuffers(rosella.bufferManager, simpleObjectManager.renderObjects.keys, it, commandBuffer)
-					for (renderInfo in simpleObjectManager.renderObjects.keys) {
+					simpleObjectManager.renderObjects.keys.forEach { renderInfo ->
+						bindBigBuffers(rosella.bufferManager, setOf(renderInfo), it, commandBuffer)
 						for (instance in simpleObjectManager.renderObjects[renderInfo]!!) {
 							bindInstanceInfo(instance, it, commandBuffer, i)
 							vkCmdDrawIndexed(commandBuffer, renderInfo.indicesSize, 1, 0, 0, 0)

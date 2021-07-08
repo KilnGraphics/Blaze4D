@@ -22,13 +22,13 @@ public abstract class BufferBuilderMixin extends FixedColorVertexConsumer implem
 
     @Inject(method = "begin", at = @At("HEAD"))
     private void setupConsumer(VertexFormat.DrawMode drawMode, VertexFormat format, CallbackInfo ci) {
-        Matrix4f projMatrix = copyMat4f(GlobalRenderSystem.projectionMatrix);
-        Matrix4f viewMatrix = copyMat4f(GlobalRenderSystem.modelViewMatrix);
-        Vector3f chunkOffset = copyVec3f(GlobalRenderSystem.chunkOffset);
+        Matrix4f projMatrix = new Matrix4f(GlobalRenderSystem.projectionMatrix);
+        Matrix4f viewMatrix = new Matrix4f(GlobalRenderSystem.modelViewMatrix);
+        Vector3f chunkOffset = new Vector3f(GlobalRenderSystem.chunkOffset);
         Vec3f shaderLightDirections0 = GlobalRenderSystem.shaderLightDirections0.copy();
         Vec3f shaderLightDirections1 = GlobalRenderSystem.shaderLightDirections1.copy();
 
-        this.consumer = GlobalRenderSystem.GLOBAL_CONSUMERS.computeIfAbsent(new ConsumerCreationInfo(drawMode, format, format.getElements(), GlobalRenderSystem.createTextureArray(), GlobalRenderSystem.activeShader, projMatrix, viewMatrix, chunkOffset, shaderLightDirections0, shaderLightDirections1), _format -> {
+        this.consumer = GlobalRenderSystem.GLOBAL_CONSUMERS.computeIfAbsent(new ConsumerCreationInfo(drawMode, format, GlobalRenderSystem.createTextureArray(), GlobalRenderSystem.activeShader, projMatrix, viewMatrix, chunkOffset, shaderLightDirections0, shaderLightDirections1), _format -> {
             me.hydos.rosella.render.vertex.BufferVertexConsumer consumer;
             if (_format.format() == VertexFormats.POSITION) {
                 consumer = new me.hydos.rosella.render.vertex.BufferVertexConsumer(me.hydos.rosella.render.vertex.VertexFormats.Companion.getPOSITION());
@@ -63,7 +63,7 @@ public abstract class BufferBuilderMixin extends FixedColorVertexConsumer implem
             }
             return consumer;
         });
-   }
+    }
 
     @Inject(method = "clear", at = @At("HEAD"))
     private void clear(CallbackInfo ci) {
@@ -144,34 +144,5 @@ public abstract class BufferBuilderMixin extends FixedColorVertexConsumer implem
     @Override
     public ShaderProgram getShader() {
         return GlobalRenderSystem.activeShader;
-    }
-
-    protected Vector3f copyVec3f(Vector3f vec3f) {
-        return new Vector3f(vec3f.x, vec3f.y, vec3f.z);
-    }
-
-    protected Matrix4f copyMat4f(Matrix4f mat4f) {
-        Matrix4f newMatrix = new Matrix4f();
-        newMatrix.m00(mat4f.m00());
-        newMatrix.m01(mat4f.m01());
-        newMatrix.m02(mat4f.m02());
-        newMatrix.m03(mat4f.m03());
-
-        newMatrix.m10(mat4f.m10());
-        newMatrix.m11(mat4f.m11());
-        newMatrix.m12(mat4f.m12());
-        newMatrix.m13(mat4f.m13());
-
-        newMatrix.m20(mat4f.m20());
-        newMatrix.m21(mat4f.m21());
-        newMatrix.m22(mat4f.m22());
-        newMatrix.m23(mat4f.m23());
-
-        newMatrix.m30(mat4f.m30());
-        newMatrix.m31(mat4f.m31());
-        newMatrix.m32(mat4f.m32());
-        newMatrix.m33(mat4f.m33());
-
-        return newMatrix;
     }
 }
