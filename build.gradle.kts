@@ -53,11 +53,10 @@ dependencies {
     include(implementation(project(":Rosella"))!!)
     implementation(project(":Aftermath"))
 
-    include(platform("org.lwjgl:lwjgl-bom:$lwjglVersion"))
+    include("org.joml", "joml", "1.10.1")
     include("org.lwjgl", "lwjgl-shaderc", lwjglVersion)
     include("org.lwjgl", "lwjgl-vma", lwjglVersion)
     include("org.lwjgl", "lwjgl-vulkan", lwjglVersion)
-
     include("org.lwjgl", "lwjgl-shaderc", lwjglVersion, classifier = lwjglNatives)
     include("org.lwjgl", "lwjgl-vma", lwjglVersion, classifier = lwjglNatives)
 
