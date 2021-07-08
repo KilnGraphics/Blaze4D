@@ -20,7 +20,6 @@ import java.util.Map;
 @Mixin(BufferBuilder.class)
 public abstract class BufferBuilderMixin extends FixedColorVertexConsumer implements UploadableConsumer {
 
-    private final Map<ConsumerCreationInfo, me.hydos.rosella.render.vertex.BufferVertexConsumer> consumers = new HashMap<>();
     private me.hydos.rosella.render.vertex.BufferVertexConsumer consumer;
 
     @Inject(method = "begin", at = @At("HEAD"))
@@ -31,7 +30,7 @@ public abstract class BufferBuilderMixin extends FixedColorVertexConsumer implem
         Vec3f shaderLightDirections0 = GlobalRenderSystem.shaderLightDirections0.copy();
         Vec3f shaderLightDirections1 = GlobalRenderSystem.shaderLightDirections1.copy();
 
-        this.consumer = consumers.computeIfAbsent(new ConsumerCreationInfo(drawMode, format, format.getElements(), GlobalRenderSystem.createTextureArray(), GlobalRenderSystem.activeShader, projMatrix, viewMatrix, chunkOffset, shaderLightDirections0, shaderLightDirections1), formats -> {
+        this.consumer = GlobalRenderSystem.globalConsumers.computeIfAbsent(new ConsumerCreationInfo(drawMode, format, format.getElements(), GlobalRenderSystem.createTextureArray(), GlobalRenderSystem.activeShader, projMatrix, viewMatrix, chunkOffset, shaderLightDirections0, shaderLightDirections1), formats -> {
             me.hydos.rosella.render.vertex.BufferVertexConsumer consumer;
             if (format == VertexFormats.POSITION) {
                 consumer = new me.hydos.rosella.render.vertex.BufferVertexConsumer(me.hydos.rosella.render.vertex.VertexFormats.Companion.getPOSITION());
@@ -66,7 +65,7 @@ public abstract class BufferBuilderMixin extends FixedColorVertexConsumer implem
             }
             return consumer;
         });
-    }
+   }
 
     @Inject(method = "clear", at = @At("HEAD"))
     private void clear(CallbackInfo ci) {
@@ -149,12 +148,6 @@ public abstract class BufferBuilderMixin extends FixedColorVertexConsumer implem
         return GlobalRenderSystem.activeShader;
     }
 
-    @Override
-    public void draw() {
-        GlobalRenderSystem.renderConsumers(consumers);
-        consumers.clear();
-    }
-
     protected Vector3f copyVec3f(Vector3f vec3f) {
         return new Vector3f(vec3f.x, vec3f.y, vec3f.z);
     }
@@ -182,10 +175,5 @@ public abstract class BufferBuilderMixin extends FixedColorVertexConsumer implem
         newMatrix.m33(mat4f.m33());
 
         return newMatrix;
-    }
-
-    @Override
-    public Map<ConsumerCreationInfo, me.hydos.rosella.render.vertex.BufferVertexConsumer> getConsumers() {
-        return consumers;
     }
 }

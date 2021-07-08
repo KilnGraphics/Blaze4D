@@ -3,6 +3,7 @@ package me.hydos.blaze4d.api;
 import java.util.*;
 
 import it.unimi.dsi.fastutil.ints.Int2ObjectOpenHashMap;
+import it.unimi.dsi.fastutil.objects.Object2ObjectOpenHashMap;
 import it.unimi.dsi.fastutil.objects.ObjectOpenHashSet;
 import me.hydos.blaze4d.Blaze4D;
 import me.hydos.blaze4d.api.shader.ShaderContext;
@@ -11,6 +12,7 @@ import me.hydos.blaze4d.api.vertex.ConsumerRenderObject;
 import me.hydos.blaze4d.api.vertex.ObjectInfo;
 import me.hydos.blaze4d.mixin.shader.ShaderAccessor;
 import me.hydos.rosella.Rosella;
+import me.hydos.rosella.render.material.state.StateInfo;
 import me.hydos.rosella.render.resource.Identifier;
 import me.hydos.rosella.render.shader.RawShaderProgram;
 import me.hydos.rosella.render.shader.ShaderProgram;
@@ -22,6 +24,7 @@ import org.joml.Matrix4f;
 import org.joml.Vector3f;
 
 import net.minecraft.util.math.Vec3f;
+import org.lwjgl.vulkan.VK10;
 
 /**
  * Used to make bits of the code easier to manage.
@@ -49,6 +52,24 @@ public class GlobalRenderSystem {
     }
 
     public static ShaderProgram activeShader;
+
+    // TODO maybe store snapshots of this in the materials so we keep the statelessness of vulkan
+    public static StateInfo currentStateInfo = new StateInfo(
+            VK10.VK_COLOR_COMPONENT_R_BIT | VK10.VK_COLOR_COMPONENT_G_BIT | VK10.VK_COLOR_COMPONENT_B_BIT | VK10.VK_COLOR_COMPONENT_A_BIT,
+            true,
+            false,
+            0, 0, 0, 0,
+            false,
+            false,
+            VK10.VK_BLEND_FACTOR_ONE, VK10.VK_BLEND_FACTOR_ZERO, VK10.VK_BLEND_FACTOR_ONE, VK10.VK_BLEND_FACTOR_ZERO,
+            VK10.VK_BLEND_OP_ADD,
+            true,
+            false,
+            VK10.VK_COMPARE_OP_LESS,
+            false,
+            VK10.VK_LOGIC_OP_COPY,
+            1.0f
+    );
 
     // Uniforms FIXME FIXME FIXME: to add support for custom uniforms and add support for mods like iris & lambdynamic lights, we need to do this
     // TODO: Custom uniforms are complete, but support for stuff like lambdynamic lights and iris is needed
@@ -82,6 +103,9 @@ public class GlobalRenderSystem {
      */
     public static void render() {
         Blaze4D.rosella.common.device.waitForIdle();
+
+        GlobalRenderSystem.renderConsumers(); //TODO: move this probably
+
         ((SimpleObjectManager) Blaze4D.rosella.objectManager).renderObjects.clear();
         if (currentFrameObjects.size() < 2000) {
             for (ConsumerRenderObject renderObject : currentFrameObjects) {
@@ -103,11 +127,6 @@ public class GlobalRenderSystem {
         currentFrameObjects.clear();
     }
 
-    public static void uploadObject(ObjectInfo objectInfo, Rosella rosella) {
-        ConsumerRenderObject renderObject = new ConsumerRenderObject(objectInfo, rosella);
-        currentFrameObjects.add(renderObject);
-    }
-
     public static Texture[] createTextureArray() {
         Texture[] textures = new Texture[maxTextures];
         for(int i = 0; i < maxTextures; i++) {
@@ -117,8 +136,15 @@ public class GlobalRenderSystem {
         return textures;
     }
 
-    public static void renderConsumers(Map<ConsumerCreationInfo, BufferVertexConsumer> consumers) {
-        for (Map.Entry<ConsumerCreationInfo, BufferVertexConsumer> entry : consumers.entrySet()) {
+    public static void uploadObject(ObjectInfo objectInfo, Rosella rosella) {
+        ConsumerRenderObject renderObject = new ConsumerRenderObject(objectInfo, rosella);
+        currentFrameObjects.add(renderObject);
+    }
+
+    public static final Map<ConsumerCreationInfo, BufferVertexConsumer> globalConsumers = new Object2ObjectOpenHashMap<>();
+
+    public static void renderConsumers() {
+        for (Map.Entry<ConsumerCreationInfo, BufferVertexConsumer> entry : globalConsumers.entrySet()) {
             BufferVertexConsumer consumer = entry.getValue();
             List<Integer> indices = new ArrayList<>();
             ConsumerCreationInfo creationInfo = entry.getKey();
@@ -168,5 +194,6 @@ public class GlobalRenderSystem {
                 }
             }
         }
+        globalConsumers.clear();
     }
 }
