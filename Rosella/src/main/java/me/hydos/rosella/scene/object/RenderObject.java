@@ -62,7 +62,7 @@ public class RenderObject implements Renderable {
 
     @Override
     public void onAddedToScene(Rosella rosella) {
-        instanceInfo = new InstanceInfo(new RenderObjectUbo(rosella.common.device, rosella.memory, this, material.getShader()), material);
+        instanceInfo = new InstanceInfo(new RenderObjectUbo(rosella.common.device, rosella.common.memory, this, material.getShader()), material);
 //        this.projectionMatrix = rosella.getCamera().getProj();
 //        this.viewMatrix = rosella.getCamera().getView();
     }
