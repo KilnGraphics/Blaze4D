@@ -134,23 +134,25 @@ class PipelineManager(var common: VkCommon, val renderer: Renderer) {
 				.maxDepth(1.0f)
 
 			/**
+			 * Scissor
+			 */
+			val scissor = if (stateInfo.scissorEnabled) {
+				VkRect2D.callocStack(1, it)
+					.offset(VkOffset2D.callocStack(it).set(stateInfo.scissorX, stateInfo.scissorY))
+					.extent(VkExtent2D.callocStack(it).set(stateInfo.scissorWidth, stateInfo.scissorHeight))
+			} else {
+				VkRect2D.callocStack(1, it)
+					.offset(VkOffset2D.callocStack(it).set(0, 0))
+					.extent(swapchain.swapChainExtent)
+			}
+
+			/**
 			 * Viewport State
 			 */
 			val viewportState: VkPipelineViewportStateCreateInfo = VkPipelineViewportStateCreateInfo.callocStack(it)
 				.sType(VK10.VK_STRUCTURE_TYPE_PIPELINE_VIEWPORT_STATE_CREATE_INFO)
 				.pViewports(viewport)
-
-			/**
-			 * Scissor
-			 */
-			// TODO: make sure we can ignore setting pScissors safely
-			if (stateInfo.scissorEnabled) {
-				val scissor = VkRect2D.callocStack(1, it)
-					.offset(VkOffset2D.callocStack(it).set(stateInfo.scissorX, stateInfo.scissorY))
-					.extent(VkExtent2D.callocStack(it).set(stateInfo.scissorWidth, stateInfo.scissorHeight))
-
-				viewportState.pScissors(scissor)
-			}
+				.pScissors(scissor)
 
 			/**
 			 * Rasterisation
