@@ -21,7 +21,7 @@ dependencies {
     mappings("net.fabricmc", "yarn", properties["yarn_mappings"].toString(), classifier = "v2")
     modImplementation("net.fabricmc", "fabric-loader", properties["loader_version"].toString())
 
-    implementation(project(":Rosella"))
+    include(implementation(project(":Rosella"))!!)
     implementation(project(":Aftermath"))
 }
 
