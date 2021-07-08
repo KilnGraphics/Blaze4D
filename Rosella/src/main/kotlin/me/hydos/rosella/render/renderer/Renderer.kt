@@ -5,6 +5,7 @@ import me.hydos.rosella.device.VulkanDevice
 import me.hydos.rosella.device.VulkanQueues
 import me.hydos.rosella.display.Display
 import me.hydos.rosella.memory.Memory
+import me.hydos.rosella.memory.buffer.GlobalBufferManager
 import me.hydos.rosella.render.*
 import me.hydos.rosella.render.info.InstanceInfo
 import me.hydos.rosella.render.info.RenderInfo
@@ -101,7 +102,7 @@ class Renderer(val common: VkCommon, display: Display, val rosella: Rosella) {
 			val imageIndex = pImageIndex[0]
 
 			for (shader in (rosella.objectManager as SimpleObjectManager).shaderManager.cachedShaders.keys) {
-                shader.prepareTexturesForRender(rosella.renderer, rosella.objectManager.textureManager)
+				shader.prepareTexturesForRender(rosella.renderer, rosella.objectManager.textureManager)
 				shader.updateUbos(imageIndex, swapchain, rosella.objectManager)
 			}
 
@@ -313,28 +314,35 @@ class Renderer(val common: VkCommon, display: Display, val rosella: Rosella) {
 				renderPassInfo.framebuffer(swapchain.frameBuffers[i])
 
 				vkCmdBeginRenderPass(commandBuffer, renderPassInfo, VK_SUBPASS_CONTENTS_INLINE)
-				for (renderInfo in simpleObjectManager.renderObjects.keys) {
-					bindRenderInfo(renderInfo, it, commandBuffer)
-					for (instance in simpleObjectManager.renderObjects[renderInfo]!!) {
-						bindInstanceInfo(instance, it, commandBuffer, i)
-						vkCmdDrawIndexed(commandBuffer, renderInfo.indicesSize, 1, 0, 0, 0)
+				if (rosella.bufferManager != null && simpleObjectManager.renderObjects.isNotEmpty()) {
+					bindBigBuffers(rosella.bufferManager, simpleObjectManager.renderObjects.keys, it, commandBuffer)
+					for (renderInfo in simpleObjectManager.renderObjects.keys) {
+						for (instance in simpleObjectManager.renderObjects[renderInfo]!!) {
+							bindInstanceInfo(instance, it, commandBuffer, i)
+							vkCmdDrawIndexed(commandBuffer, renderInfo.indicesSize, 1, 0, 0, 0)
+						}
 					}
 				}
 				vkCmdEndRenderPass(commandBuffer)
+
 				vkEndCommandBuffer(commandBuffer).ok()
 			}
 		}
 	}
 
-	private fun bindRenderInfo(
-		renderInfo: RenderInfo,
+	private fun bindBigBuffers(
+		bufferManager: GlobalBufferManager,
+		renderInfos: Set<RenderInfo>,
 		stack: MemoryStack,
 		commandBuffer: VkCommandBuffer
 	) {
+		val vertexBuffer = bufferManager.createVertexBuffer(renderInfos)
+		val indexBuffer = bufferManager.createIndexBuffer(renderInfos)
+
 		val offsets = stack.longs(0)
-		val vertexBuffers = stack.longs(renderInfo.vertexBuffer.buffer())
+		val vertexBuffers = stack.longs(vertexBuffer.buffer)
 		vkCmdBindVertexBuffers(commandBuffer, 0, vertexBuffers, offsets)
-		vkCmdBindIndexBuffer(commandBuffer, renderInfo.indexBuffer.buffer(), 0, VK_INDEX_TYPE_UINT32)
+		vkCmdBindIndexBuffer(commandBuffer, indexBuffer.buffer, 0, VK_INDEX_TYPE_UINT32)
 	}
 
 	private fun bindInstanceInfo(

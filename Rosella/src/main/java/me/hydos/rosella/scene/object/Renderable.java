@@ -34,10 +34,6 @@ public interface Renderable {
      */
     void rebuild(Rosella rosella);
 
-    default boolean isReady() {
-        return getRenderInfo().areBuffersAllocated();
-    }
-
     InstanceInfo getInstanceInfo();
 
     RenderInfo getRenderInfo();

@@ -11,7 +11,9 @@ import org.lwjgl.system.MemoryStack;
 
 import java.nio.ByteBuffer;
 import java.nio.LongBuffer;
+import java.util.ArrayList;
 import java.util.List;
+import java.util.Set;
 import java.util.function.Consumer;
 
 import static org.lwjgl.system.MemoryStack.stackPush;
@@ -39,7 +41,7 @@ public class GlobalBufferManager {
      * @param renderList the list of RenderInfo objects
      * @return a index buffer
      */
-    public BufferInfo createIndexBuffer(List<RenderInfo> renderList) {
+    public BufferInfo createIndexBuffer(Set<RenderInfo> renderList) {
         int totalSize = 0;
         for (RenderInfo info : renderList) {
             totalSize += info.getIndicesSize() * Integer.SIZE;
@@ -51,9 +53,8 @@ public class GlobalBufferManager {
 
             BufferInfo stagingBuffer = memory.createStagingBuf(finalTotalSize, pBuffer, stack, data -> {
                 ByteBuffer dst = data.getByteBuffer(0, finalTotalSize);
-                for (RenderInfo renderInfo : renderList) {
-                    Memory.memcpy(dst, renderInfo.indices);
-                }
+
+                Memory.memcpy(dst, toBigIndexList(renderList));
             });
 
             BufferInfo indexBuffer = memory.createBuffer(
@@ -76,12 +77,39 @@ public class GlobalBufferManager {
     }
 
     /**
+     * Converts all indices for all objects into a single list which can be used with a big vertex buffer
+     *
+     * @param renderList the render objects
+     * @return a bit list of indices
+     */
+    private List<Integer> toBigIndexList(Set<RenderInfo> renderList) {
+        List<Integer> bigNutIndices = new ArrayList<>(); // I'm sorry its just too funny
+
+        RenderInfo lastRenderInfo = null;
+        for (RenderInfo renderInfo : renderList) {
+            int indexOffset = 0;
+
+            if (lastRenderInfo != null) {
+                BufferVertexConsumer lastConsumer = (BufferVertexConsumer) lastRenderInfo.consumer;
+                indexOffset = lastConsumer.getBufferConsumerList().size() / lastConsumer.getFormat().getElements().size();
+            }
+
+            for (Integer index : renderInfo.indices) {
+                bigNutIndices.add(indexOffset + index);
+            }
+
+            lastRenderInfo = renderInfo;
+        }
+        return bigNutIndices;
+    }
+
+    /**
      * Creates a vertex buffer based on the RenderInfo parsed in
      *
      * @param renderList the list of RenderInfo objects
      * @return a vertex buffer
      */
-    public BufferInfo createVertexBuffer(List<RenderInfo> renderList) {
+    public BufferInfo createVertexBuffer(Set<RenderInfo> renderList) {
         int totalSize = 0;
         for (RenderInfo info : renderList) {
             totalSize += info.consumer.getVertexSize() * info.consumer.getVertexCount();

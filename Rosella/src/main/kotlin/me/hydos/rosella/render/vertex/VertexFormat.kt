@@ -10,7 +10,7 @@ import java.util.function.Consumer
  */
 class VertexFormat(private val elementMap: Map<Int, Element>) {
 
-	private val elements = elementMap.values
+	val elements = elementMap.values
 
 	val vkAttributes: VkVertexInputAttributeDescription.Buffer
 		get() {
