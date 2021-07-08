@@ -1,13 +1,16 @@
 package me.hydos.rosella.render.shader
 
+import it.unimi.dsi.fastutil.Hash.VERY_FAST_LOAD_FACTOR
+import it.unimi.dsi.fastutil.objects.ReferenceOpenHashSet
 import me.hydos.rosella.device.VulkanDevice
+import me.hydos.rosella.memory.Memory
 import me.hydos.rosella.render.descriptorsets.DescriptorSet
+import me.hydos.rosella.render.renderer.Renderer
 import me.hydos.rosella.render.resource.Resource
 import me.hydos.rosella.render.shader.ubo.Ubo
 import me.hydos.rosella.render.swapchain.Swapchain
+import me.hydos.rosella.render.texture.BlankTextures
 import me.hydos.rosella.render.texture.Texture
-import me.hydos.rosella.memory.Memory
-import me.hydos.rosella.render.renderer.Renderer
 import me.hydos.rosella.render.texture.TextureManager
 import me.hydos.rosella.render.util.ok
 import me.hydos.rosella.scene.`object`.impl.SimpleObjectManager
@@ -25,7 +28,8 @@ open class RawShaderProgram(
 ) {
 	var descriptorPool: Long = 0
 	var descriptorSetLayout: Long = 0
-	var textures = emptyArray<Texture?>()
+
+	private val preparableTextures = ReferenceOpenHashSet<Texture?>(3, VERY_FAST_LOAD_FACTOR)
 
 	fun updateUbos(currentImage: Int, swapchain: Swapchain, objectManager: SimpleObjectManager) {
 		for (instances in objectManager.renderObjects.values) {
@@ -39,11 +43,12 @@ open class RawShaderProgram(
 	}
 
 	fun prepareTexturesForRender(renderer: Renderer, textureManager: TextureManager) { // TODO: move this or make it less gross
-		textures.forEach {
+		preparableTextures.forEach {
 			if (it != null) {
 				textureManager.prepareTexture(renderer, it)
 			}
 		}
+		preparableTextures.clear()
 	}
 
 	fun createPool(swapchain: Swapchain) {
@@ -104,8 +109,9 @@ open class RawShaderProgram(
 		}
 	}
 
-	fun createDescriptorSets(swapchain: Swapchain, logger: org.apache.logging.log4j.Logger, textures: Array<Texture?>, ubo: Ubo) {
-		this.textures = textures
+	fun createDescriptorSets(swapchain: Swapchain, logger: org.apache.logging.log4j.Logger, currentTextures: Array<Texture?>, ubo: Ubo) {
+		this.preparableTextures.addAll(currentTextures)
+
 		if (descriptorPool == 0L) {
 			logger.warn("Descriptor Pools are invalid! rebuilding... (THIS IS NOT FAST)")
 			createPool(swapchain)
@@ -133,7 +139,7 @@ open class RawShaderProgram(
 			val bufferInfo = VkDescriptorBufferInfo.callocStack(1, stack)
 				.offset(0)
 				.range(ubo.getSize().toLong())
-
+			
 			val descriptorWrites = VkWriteDescriptorSet.callocStack(poolObjects.size, stack)
 
 			for (i in 0 until pDescriptorSets.capacity()) {
@@ -154,11 +160,17 @@ open class RawShaderProgram(
 
 						VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER -> {
 							if (poolObj is PoolSamplerInfo) {
-								val texture: Texture = textures[poolObj.samplerIndex]!!
+								val texture = if (poolObj.samplerIndex == -1) {
+									BlankTextures.getBlankTexture()
+								} else {
+									currentTextures[poolObj.samplerIndex] ?: BlankTextures.getBlankTexture() // FIXME: use 1x1 empty/missing tex here if null
+								}
+
 								val imageInfo = VkDescriptorImageInfo.callocStack(1, stack)
 									.imageLayout(VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL)
 									.imageView(texture.textureImage.view)
 									.sampler(texture.textureSampler!!)
+
 								descriptorWrite.pImageInfo(imageInfo)
 							}
 						}

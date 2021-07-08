@@ -29,11 +29,15 @@ public class MinecraftShaderProgram extends RawShaderProgram {
         this.samplerNames = samplerNames;
     }
 
-    private static PoolObjectInfo[] createPoolTypes(List<String> samplers) {
+    private static PoolObjectInfo[] createPoolTypes(List<String> samplerNames) {
         List<PoolObjectInfo> types = new ArrayList<>();
         types.add(PoolUboInfo.INSTANCE);
-        for (int i = 0; i < samplers.size(); i++) {
-            types.add(new PoolSamplerInfo(i)); // TODO: is this safe?
+        for (String name : samplerNames) {
+            if (name.equals("DiffuseSampler")) {
+                types.add(new PoolSamplerInfo(-1)); // TODO: set to framebuffer
+            } else {
+                types.add(new PoolSamplerInfo(Integer.parseInt(name.substring(7))));
+            }
         }
         return types.toArray(PoolObjectInfo[]::new);
     }

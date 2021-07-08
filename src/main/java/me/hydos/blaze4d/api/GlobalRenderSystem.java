@@ -12,6 +12,7 @@ import me.hydos.blaze4d.api.vertex.ConsumerRenderObject;
 import me.hydos.blaze4d.api.vertex.ObjectInfo;
 import me.hydos.blaze4d.mixin.shader.ShaderAccessor;
 import me.hydos.rosella.Rosella;
+import me.hydos.rosella.render.material.state.StateInfo;
 import me.hydos.rosella.render.resource.Identifier;
 import me.hydos.rosella.render.shader.RawShaderProgram;
 import me.hydos.rosella.render.shader.ShaderProgram;
@@ -23,6 +24,7 @@ import org.joml.Matrix4f;
 import org.joml.Vector3f;
 
 import net.minecraft.util.math.Vec3f;
+import org.lwjgl.vulkan.VK10;
 
 /**
  * Used to make bits of the code easier to manage.
@@ -41,8 +43,8 @@ public class GlobalRenderSystem {
     public static Set<ConsumerRenderObject> currentFrameObjects = new ObjectOpenHashSet<>();
 
     // Active Fields
-    public static final int MAX_TEXTURES = 12;
-    public static int[] boundTextureIds = new int[MAX_TEXTURES]; // TODO: generate an identifier instead of using int id, or switch everything over to ints
+    public static final int maxTextures = 12;
+    public static int[] boundTextureIds = new int[maxTextures]; // TODO: generate an identifier instead of using int id, or switch everything over to ints
     public static int activeTexture = 0;
 
     static {
@@ -50,6 +52,24 @@ public class GlobalRenderSystem {
     }
 
     public static ShaderProgram activeShader;
+
+    // TODO maybe store snapshots of this in the materials so we keep the statelessness of vulkan
+    public static StateInfo currentStateInfo = new StateInfo(
+            VK10.VK_COLOR_COMPONENT_R_BIT | VK10.VK_COLOR_COMPONENT_G_BIT | VK10.VK_COLOR_COMPONENT_B_BIT | VK10.VK_COLOR_COMPONENT_A_BIT,
+            true,
+            false,
+            0, 0, 0, 0,
+            false,
+            false,
+            VK10.VK_BLEND_FACTOR_ONE, VK10.VK_BLEND_FACTOR_ZERO, VK10.VK_BLEND_FACTOR_ONE, VK10.VK_BLEND_FACTOR_ZERO,
+            VK10.VK_BLEND_OP_ADD,
+            true,
+            false,
+            VK10.VK_COMPARE_OP_LESS,
+            false,
+            VK10.VK_LOGIC_OP_COPY,
+            1.0f
+    );
 
     // Uniforms FIXME FIXME FIXME: to add support for custom uniforms and add support for mods like iris & lambdynamic lights, we need to do this
     // TODO: Custom uniforms are complete, but support for stuff like lambdynamic lights and iris is needed
@@ -82,17 +102,19 @@ public class GlobalRenderSystem {
      * Called when a frame is flipped. used to send all buffers to the engine to draw. Also allows for caching
      */
     public static void render() {
+        Blaze4D.rosella.common.device.waitForIdle();
+
         GlobalRenderSystem.renderConsumers(); //TODO: move this probably
 
-        Blaze4D.rosella.common.device.waitForIdle();
         ((SimpleObjectManager) Blaze4D.rosella.objectManager).renderObjects.clear();
         if (currentFrameObjects.size() < 2000) {
             for (ConsumerRenderObject renderObject : currentFrameObjects) {
                 Blaze4D.rosella.objectManager.addObject(renderObject);
             }
         } else {
-            Blaze4D.LOGGER.warn("Skipped a frame (too many objects on screen)");
+            Blaze4D.LOGGER.warn("Skipped a frame");
         }
+
 
         Blaze4D.rosella.renderer.rebuildCommandBuffers(Blaze4D.rosella.renderer.renderPass, (SimpleObjectManager) Blaze4D.rosella.objectManager);
 
@@ -106,8 +128,8 @@ public class GlobalRenderSystem {
     }
 
     public static Texture[] createTextureArray() {
-        Texture[] textures = new Texture[MAX_TEXTURES];
-        for(int i = 0; i < MAX_TEXTURES; i++) {
+        Texture[] textures = new Texture[maxTextures];
+        for(int i = 0; i < maxTextures; i++) {
             int texId = boundTextureIds[i];
             textures[i] = texId == -1 ? null : ((SimpleObjectManager) Blaze4D.rosella.objectManager).textureManager.getTexture(texId);
         }
@@ -119,10 +141,10 @@ public class GlobalRenderSystem {
         currentFrameObjects.add(renderObject);
     }
 
-    public static final Map<ConsumerCreationInfo, BufferVertexConsumer> GLOBAL_CONSUMERS_FOR_BATCH_RENDERING = new Object2ObjectOpenHashMap<>();
+    public static final Map<ConsumerCreationInfo, BufferVertexConsumer> globalConsumers = new Object2ObjectOpenHashMap<>();
 
     public static void renderConsumers() {
-        for (Map.Entry<ConsumerCreationInfo, BufferVertexConsumer> entry : GLOBAL_CONSUMERS_FOR_BATCH_RENDERING.entrySet()) {
+        for (Map.Entry<ConsumerCreationInfo, BufferVertexConsumer> entry : globalConsumers.entrySet()) {
             BufferVertexConsumer consumer = entry.getValue();
             List<Integer> indices = new ArrayList<>();
             ConsumerCreationInfo creationInfo = entry.getKey();
@@ -172,6 +194,6 @@ public class GlobalRenderSystem {
                 }
             }
         }
-        GLOBAL_CONSUMERS_FOR_BATCH_RENDERING.clear();
+        globalConsumers.clear();
     }
 }

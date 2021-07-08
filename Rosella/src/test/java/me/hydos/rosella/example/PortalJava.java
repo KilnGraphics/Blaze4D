@@ -4,6 +4,7 @@ import me.hydos.rosella.Rosella;
 import me.hydos.rosella.display.GlfwWindow;
 import me.hydos.rosella.render.Topology;
 import me.hydos.rosella.render.material.Material;
+import me.hydos.rosella.render.material.state.StateInfo;
 import me.hydos.rosella.render.model.GuiRenderObject;
 import me.hydos.rosella.render.resource.Global;
 import me.hydos.rosella.render.resource.Identifier;
@@ -37,6 +38,23 @@ public class PortalJava {
     public static ShaderProgram basicShader;
     public static ShaderProgram guiShader;
 
+    public static StateInfo defaultStateInfo = new StateInfo(
+            VK10.VK_COLOR_COMPONENT_R_BIT | VK10.VK_COLOR_COMPONENT_G_BIT | VK10.VK_COLOR_COMPONENT_B_BIT | VK10.VK_COLOR_COMPONENT_A_BIT,
+            true,
+            false,
+            0, 0, 0, 0,
+            false,
+            true,
+            VK10.VK_BLEND_FACTOR_ONE, VK10.VK_BLEND_FACTOR_ZERO, VK10.VK_BLEND_FACTOR_ONE, VK10.VK_BLEND_FACTOR_ZERO,
+            VK10.VK_BLEND_OP_ADD,
+            true,
+            false,
+            VK10.VK_COMPARE_OP_LESS,
+            false,
+            VK10.VK_LOGIC_OP_COPY,
+            1.0f
+    );
+
     public static void main(String[] args) {
         System.loadLibrary("renderdoc");
         loadShaders();
@@ -62,10 +80,10 @@ public class PortalJava {
                         Global.INSTANCE.ensureResource(new Identifier("example", "textures/background/background01.png")),
                         guiShader,
                         VK10.VK_FORMAT_R8G8B8A8_UNORM,
-                        false,
                         Topology.TRIANGLES,
                         VertexFormats.Companion.getPOSITION_COLOR_UV(),
-                        new SamplerCreateInfo(TextureFilter.NEAREST, WrapMode.REPEAT)
+                        new SamplerCreateInfo(TextureFilter.NEAREST, WrapMode.REPEAT),
+                        defaultStateInfo
                 )
         );
 
@@ -74,10 +92,10 @@ public class PortalJava {
                         Global.INSTANCE.ensureResource(new Identifier("example", "textures/gui/portal2logo.png")),
                         guiShader,
                         VK10.VK_FORMAT_R8G8B8A8_SRGB,
-                        true,
                         Topology.TRIANGLES,
                         VertexFormats.Companion.getPOSITION_COLOR_UV(),
-                        new SamplerCreateInfo(TextureFilter.NEAREST, WrapMode.REPEAT)
+                        new SamplerCreateInfo(TextureFilter.NEAREST, WrapMode.REPEAT),
+                        defaultStateInfo
                 )
         );
 
