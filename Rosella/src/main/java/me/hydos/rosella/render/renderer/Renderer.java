@@ -343,7 +343,7 @@ public class Renderer {
             renderPassInfo.renderArea(renderArea)
                     .pClearValues(clearValues);
 
-            if (rosella.bufferManager != null && simpleObjectManager.renderObjects.isEmpty()) {
+            if (rosella.bufferManager != null && !simpleObjectManager.renderObjects.isEmpty()) {
                 rosella.bufferManager.nextFrame(simpleObjectManager.renderObjects.keySet());
             }
 
