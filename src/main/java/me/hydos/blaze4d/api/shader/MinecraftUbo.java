@@ -84,6 +84,10 @@ public class MinecraftUbo extends Ubo {
             beginUboWrite();
             steps.forEach(addUboMemoryStep -> addUboMemoryStep.addUboMemoryStep(this, buffer));
 
+            if (size != totalSize) {
+                throw new RuntimeException("Incorrect UBO size");
+            }
+
             memory.unmap(uboFrames.get(currentImg).allocation());
         }
     }
