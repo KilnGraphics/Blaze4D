@@ -343,18 +343,20 @@ public class Renderer {
                     renderPassInfo.framebuffer(swapchain.getFrameBuffers().get(i));
 
                     vkCmdBeginRenderPass(commandBuffer, renderPassInfo, VK_SUBPASS_CONTENTS_INLINE);
+
                     if (rosella.bufferManager != null && !simpleObjectManager.renderObjects.isEmpty()) {
                         int finalI = i;
+                        bindBigBuffers(rosella.bufferManager, stack, commandBuffer);
                         simpleObjectManager.renderObjects.keySet().forEach(renderInfo -> {
-                                    bindBigBuffers(rosella.bufferManager, Set.of(renderInfo), stack, commandBuffer);
+                                    bindBigBuffers(rosella.bufferManager, stack, commandBuffer);
                                     for (InstanceInfo instance : simpleObjectManager.renderObjects.get(renderInfo)) {
                                         bindInstanceInfo(instance, stack, commandBuffer, finalI);
-                                        vkCmdDrawIndexed(commandBuffer, renderInfo.getIndicesSize(), 1, 0, 0, 0);
+                                        vkCmdDrawIndexed(commandBuffer, renderInfo.getIndicesSize(), 1, rosella.bufferManager.indicesOffsetMap.get(renderInfo), rosella.bufferManager.vertexOffsetMap.get(renderInfo), 0);
                                     }
                                 }
                         );
-                        vkCmdEndRenderPass(commandBuffer);
 
+                        vkCmdEndRenderPass(commandBuffer);
                         ok(vkEndCommandBuffer(commandBuffer));
                     }
                 }
@@ -363,17 +365,13 @@ public class Renderer {
 
         private void bindBigBuffers(
                 GlobalBufferManager bufferManager,
-                Set<RenderInfo> renderInfos,
                 MemoryStack stack,
                 VkCommandBuffer commandBuffer
 	) {
-            BufferInfo vertexBuffer = bufferManager.createVertexBuffer(renderInfos);
-            BufferInfo indexBuffer = bufferManager.createIndexBuffer(renderInfos);
-
             LongBuffer offsets = stack.longs(0);
-            LongBuffer vertexBuffers = stack.longs(vertexBuffer.buffer());
+            LongBuffer vertexBuffers = stack.longs(bufferManager.vertexBuffer.buffer());
             vkCmdBindVertexBuffers(commandBuffer, 0, vertexBuffers, offsets);
-            vkCmdBindIndexBuffer(commandBuffer, indexBuffer.buffer(), 0, VK_INDEX_TYPE_UINT32);
+            vkCmdBindIndexBuffer(commandBuffer, bufferManager.indexBuffer.buffer(), 0, VK_INDEX_TYPE_UINT32);
         }
 
         private void bindInstanceInfo(
