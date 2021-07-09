@@ -4,8 +4,7 @@
 Blaze4D is a Fabric mod that changes Minecraft's rendering engine to use the Vulkan Graphics Library, it is currently in Early Development and is **NOT** intended for use by the general public.\
 Support for Blaze4D **WILL NOT** be given as the mod is in its **Early Development** stages.\
 
-"_its compatible with sodium i swear_"
--hydos
+Blaze4D is compatible with Sodium.
 
 ## Building
 1. Clone the repisotory (https://github.com/Blaze4D-MC/Blaze4D.git)
