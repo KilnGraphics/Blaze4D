@@ -1,6 +1,5 @@
 package me.hydos.rosella.render.texture
 
-import me.hydos.rosella.render.vertex.VertexFormat
 import java.nio.ByteBuffer
 
 /**

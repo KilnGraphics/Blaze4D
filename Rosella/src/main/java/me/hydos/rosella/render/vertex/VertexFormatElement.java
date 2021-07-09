@@ -1,45 +1,6 @@
 package me.hydos.rosella.render.vertex;
 
-import java.util.Objects;
-
-public final class VertexFormatElement {
-    private final int vkType;
-    private final int byteLength;
-
-    VertexFormatElement(int vkType, int byteLength) {
-        this.vkType = vkType;
-        this.byteLength = byteLength;
-    }
-
-    public int getVkType() {
-        return vkType;
-    }
-
-    public int getByteLength() {
-        return byteLength;
-    }
-
-    @Override
-    public boolean equals(Object obj) {
-        if (obj == this) return true;
-        if (obj == null || obj.getClass() != this.getClass()) return false;
-        var that = (VertexFormatElement) obj;
-        return this.vkType == that.vkType &&
-                this.byteLength == that.byteLength;
-    }
-
-    @Override
-    public int hashCode() {
-        return Objects.hash(vkType, byteLength);
-    }
-
-    @Override
-    public String toString() {
-        return "VertexFormatElement[" +
-                "vkId=" + vkType + ", " +
-                "size=" + byteLength + ']';
-    }
-
+public record VertexFormatElement(int vkType, int byteLength) {
 
     enum DataType {
         FLOAT(Float.BYTES),

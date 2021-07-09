@@ -19,12 +19,12 @@ import org.lwjgl.vulkan.*
 import org.lwjgl.vulkan.VK10.*
 
 open class RawShaderProgram(
-		var vertexShader: Resource?,
-		var fragmentShader: Resource?,
-		val device: VulkanDevice,
-		val memory: Memory,
-		var maxObjCount: Int,
-		vararg var poolObjects: PoolObjectInfo
+	var vertexShader: Resource?,
+	var fragmentShader: Resource?,
+	val device: VulkanDevice,
+	val memory: Memory,
+	var maxObjCount: Int,
+	private vararg var poolObjects: PoolObjectInfo
 ) {
 	var descriptorPool: Long = 0
 	var descriptorSetLayout: Long = 0
@@ -51,7 +51,7 @@ open class RawShaderProgram(
 		preparableTextures.clear()
 	}
 
-	fun createPool(swapchain: Swapchain) {
+	private fun createPool(swapchain: Swapchain) {
 		if(descriptorPool != 0L) {
 			vkDestroyDescriptorPool(device.rawDevice, descriptorPool, null)
 		}
@@ -139,7 +139,7 @@ open class RawShaderProgram(
 			val bufferInfo = VkDescriptorBufferInfo.callocStack(1, stack)
 				.offset(0)
 				.range(ubo.getSize().toLong())
-			
+
 			val descriptorWrites = VkWriteDescriptorSet.callocStack(poolObjects.size, stack)
 
 			for (i in 0 until pDescriptorSets.capacity()) {

@@ -17,8 +17,8 @@ import org.lwjgl.vulkan.VK10
 
 open class RenderObjectUbo(val device: VulkanDevice, val memory: Memory, private val renderObject: RenderObject, shaderProgram: ShaderProgram) : Ubo() {
 
-	var uboFrames: MutableList<BufferInfo> = ArrayList()
-	var descSets: DescriptorSet = DescriptorSet(shaderProgram.raw.descriptorPool)
+	private var uboFrames: MutableList<BufferInfo> = ArrayList()
+	private var descSets: DescriptorSet = DescriptorSet(shaderProgram.raw.descriptorPool)
 
 	override fun create(swapchain: Swapchain) {
 		MemoryStack.stackPush().use { stack ->
@@ -56,8 +56,8 @@ open class RenderObjectUbo(val device: VulkanDevice, val memory: Memory, private
 
 	override fun free() {
 		for (uboImg in uboFrames) {
-			uboImg.free(device, memory);
-		}
+			uboImg.free(device, memory)
+        }
 	}
 
 	override fun getSize(): Int {

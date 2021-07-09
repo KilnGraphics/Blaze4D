@@ -1,6 +1,5 @@
 package me.hydos.rosella.render.texture;
 
-import org.lwjgl.stb.STBImage;
 import org.lwjgl.vulkan.VK10;
 
 public enum ImageFormat {
@@ -32,17 +31,12 @@ public enum ImageFormat {
     }
 
     public static ImageFormat fromVkFormat(int vkFormat) {
-        switch (vkFormat) {
-            case VK10.VK_FORMAT_R8G8B8A8_UNORM:
-                return RGBA;
-            case VK10.VK_FORMAT_R8G8B8_UNORM:
-                return RGB;
-            case VK10.VK_FORMAT_R8G8_UNORM:
-                return RG;
-            case VK10.VK_FORMAT_R8_UNORM:
-                return R;
-            default:
-                throw new RuntimeException("Invalid vulkan image format id " + vkFormat);
-        }
+        return switch (vkFormat) {
+            case VK10.VK_FORMAT_R8G8B8A8_UNORM -> RGBA;
+            case VK10.VK_FORMAT_R8G8B8_UNORM -> RGB;
+            case VK10.VK_FORMAT_R8G8_UNORM -> RG;
+            case VK10.VK_FORMAT_R8_UNORM -> R;
+            default -> throw new RuntimeException("Invalid vulkan image format id " + vkFormat);
+        };
     }
 }

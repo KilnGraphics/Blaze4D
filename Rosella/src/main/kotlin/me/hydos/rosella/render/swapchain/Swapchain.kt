@@ -18,7 +18,7 @@ class Swapchain(
 	physicalDevice: VkPhysicalDevice,
 	surface: Long
 ) {
-	var maxImages: IntBuffer
+	private var maxImages: IntBuffer
 	var swapChain: Long = 0
 	var swapChainImageViews: MutableList<Long> = ArrayList()
 	var frameBuffers: MutableList<Long> = ArrayList()

@@ -3,8 +3,6 @@ package me.hydos.rosella.memory;
 import me.hydos.rosella.Rosella;
 import me.hydos.rosella.device.VulkanDevice;
 import me.hydos.rosella.render.renderer.Renderer;
-import me.hydos.rosella.render.vertex.BufferVertexConsumer;
-import me.hydos.rosella.render.vertex.VertexConsumer;
 import me.hydos.rosella.vkobjects.VkCommon;
 import org.lwjgl.PointerBuffer;
 import org.lwjgl.system.MemoryStack;

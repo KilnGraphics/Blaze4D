@@ -33,8 +33,8 @@ public class GlobalBufferManager {
     public BufferInfo vertexBuffer;
     public BufferInfo indexBuffer;
 
-    public Map<RenderInfo, Integer> indicesOffsetMap = new Object2IntOpenHashMap<>();
-    public Map<RenderInfo, Integer> vertexOffsetMap = new Object2IntOpenHashMap<>();
+    public final Map<RenderInfo, Integer> indicesOffsetMap = new Object2IntOpenHashMap<>();
+    public final Map<RenderInfo, Integer> vertexOffsetMap = new Object2IntOpenHashMap<>();
 
     public GlobalBufferManager(Rosella rosella) {
         this.memory = rosella.common.memory;

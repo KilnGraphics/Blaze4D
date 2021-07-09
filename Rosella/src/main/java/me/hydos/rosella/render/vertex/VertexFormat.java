@@ -21,9 +21,9 @@ public class VertexFormat {
             vkAttributes.get(idx)
                     .binding(0)
                     .location(idx)
-                    .format(element.getVkType())
+                    .format(element.vkType())
                     .offset(offset);
-            offset += element.getByteLength();
+            offset += element.byteLength();
         }
         vkAttributes.rewind();
 

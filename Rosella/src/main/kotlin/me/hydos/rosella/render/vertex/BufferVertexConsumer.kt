@@ -7,7 +7,7 @@ import java.util.function.Consumer
 class BufferVertexConsumer(override val format: VertexFormat) : VertexConsumer {
 
 	var bufferConsumerList : MutableList<Consumer<ByteBuffer>> = ArrayList()
-	private var vertexSize = format.getSize()
+	private var vertexSize = format.size
 	private var vertexCount = 0
 
 	private var debugSize = 0
@@ -81,8 +81,8 @@ class BufferVertexConsumer(override val format: VertexFormat) : VertexConsumer {
 		})
 
 		debugSize += Byte.SIZE_BYTES
-		return this;
-	}
+		return this
+    }
 
 	fun putShort(index: Int, value: Short): VertexConsumer {
 		bufferConsumerList.add(Consumer {
@@ -90,8 +90,8 @@ class BufferVertexConsumer(override val format: VertexFormat) : VertexConsumer {
 		})
 
 		debugSize += Short.SIZE_BYTES
-		return this;
-	}
+		return this
+    }
 
 	fun putFloat(index: Int, value: Float): VertexConsumer {
 		bufferConsumerList.add(Consumer {
@@ -99,8 +99,8 @@ class BufferVertexConsumer(override val format: VertexFormat) : VertexConsumer {
 		})
 
 		debugSize += Float.SIZE_BYTES
-		return this;
-	}
+		return this
+    }
 
 	override fun nextVertex(): VertexConsumer {
 		if (debugSize != vertexSize) {

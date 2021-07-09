@@ -12,12 +12,10 @@ import java.nio.ByteBuffer;
 
 public record ByteArrayResource(byte[] array) implements Resource {
 
-    private static final Identifier EMPTY = new Identifier("blaze4d", "empty");
-
     @NotNull
     @Override
     public Identifier getIdentifier() {
-        return EMPTY;
+        return Identifier.getEMPTY();
     }
 
     @NotNull

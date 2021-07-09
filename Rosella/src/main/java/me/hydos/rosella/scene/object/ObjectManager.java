@@ -52,7 +52,7 @@ public interface ObjectManager {
     void free();
 
     /**
-     * Called after an instance of the renderer is cretyed
+     * Called after an instance of the renderer is created
      *
      * @param renderer the renderer
      */

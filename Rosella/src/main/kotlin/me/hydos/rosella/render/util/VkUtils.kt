@@ -1,12 +1,10 @@
 package me.hydos.rosella.render.util
 
-import org.apache.logging.log4j.Level
 import org.joml.Matrix4f
 import org.joml.Vector2f
 import org.joml.Vector3f
 import org.joml.Vector4f
-import org.lwjgl.vulkan.EXTDebugReport.*
-import org.lwjgl.vulkan.EXTDebugUtils
+import org.lwjgl.vulkan.EXTDebugReport.VK_ERROR_VALIDATION_FAILED_EXT
 import org.lwjgl.vulkan.KHRSurface
 import org.lwjgl.vulkan.VK10
 import org.lwjgl.vulkan.VK11
@@ -52,10 +50,6 @@ private val SIZEOF_CACHE = mutableMapOf<Class<*>, Int>().apply {
 	this[Matrix4f::class.java] = 16 * java.lang.Float.BYTES
 }
 
-fun sizeof(obj: Any?): Int {
-	return if (obj == null) 0 else SIZEOF_CACHE[obj.javaClass] ?: 0
-}
-
 fun sizeof(kClass: KClass<*>): Int {
 	return SIZEOF_CACHE[kClass.java] ?: 0
 }
@@ -80,22 +74,4 @@ fun Int.ok(message: String): Int {
 		throw RuntimeException(message + " Caused by: " + errorMap[this] + " (" + this + ")")
 	}
 	return this
-}
-
-fun Int.getLogLevel(): Level {
-	return when {
-		this >= EXTDebugUtils.VK_DEBUG_UTILS_MESSAGE_SEVERITY_ERROR_BIT_EXT -> {
-			Level.ERROR
-		}
-		this >= EXTDebugUtils.VK_DEBUG_UTILS_MESSAGE_SEVERITY_WARNING_BIT_EXT -> {
-			Level.WARN
-		}
-		this >= EXTDebugUtils.VK_DEBUG_UTILS_MESSAGE_SEVERITY_INFO_BIT_EXT -> {
-			Level.INFO
-		}
-		this >= EXTDebugUtils.VK_DEBUG_UTILS_MESSAGE_SEVERITY_VERBOSE_BIT_EXT -> {
-			Level.TRACE
-		}
-		else -> Level.OFF
-	}
 }

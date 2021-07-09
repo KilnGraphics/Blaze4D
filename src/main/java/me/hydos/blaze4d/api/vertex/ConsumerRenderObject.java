@@ -5,17 +5,16 @@ import me.hydos.blaze4d.api.shader.MinecraftShaderProgram;
 import me.hydos.blaze4d.api.shader.MinecraftUbo;
 import me.hydos.rosella.Rosella;
 import me.hydos.rosella.device.VulkanDevice;
+import me.hydos.rosella.memory.Memory;
 import me.hydos.rosella.render.info.InstanceInfo;
 import me.hydos.rosella.render.info.RenderInfo;
 import me.hydos.rosella.render.material.Material;
 import me.hydos.rosella.render.shader.ShaderProgram;
-import me.hydos.rosella.memory.Memory;
 import me.hydos.rosella.render.texture.Texture;
 import me.hydos.rosella.render.vertex.BufferVertexConsumer;
 import me.hydos.rosella.render.vertex.VertexFormats;
 import me.hydos.rosella.scene.object.Renderable;
 import net.minecraft.client.render.VertexFormat;
-
 import org.jetbrains.annotations.NotNull;
 
 public class ConsumerRenderObject implements Renderable {
@@ -36,7 +35,7 @@ public class ConsumerRenderObject implements Renderable {
         this.textures = info.textures();
         Material material = getMaterial(drawMode);
         instanceInfo = new InstanceInfo(((MinecraftShaderProgram) info.shader().getRaw()).createMinecraftUbo(rosella.common.memory, material), material);
-        ((MinecraftUbo) instanceInfo.ubo).setUniforms(info.projMatrix(), info.viewMatrix(), info.chunkOffset(), info.shaderLightDirections0(), info.shaderLightDirections1());
+        ((MinecraftUbo) instanceInfo.ubo()).setUniforms(info.projMatrix(), info.viewMatrix(), info.chunkOffset(), info.shaderLightDirections0(), info.shaderLightDirections1());
         this.renderInfo.indices = info.indices();
     }
 
@@ -71,7 +70,7 @@ public class ConsumerRenderObject implements Renderable {
     @Override
     public void onAddedToScene(Rosella rosella) {
         instanceInfo.rebuild(rosella);
-        instanceInfo.ubo.create(rosella.renderer.swapchain);
+        instanceInfo.ubo().create(rosella.renderer.swapchain);
     }
 
     @Override

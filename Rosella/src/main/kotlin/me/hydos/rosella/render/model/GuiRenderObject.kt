@@ -8,11 +8,11 @@ import org.joml.Matrix4f
 import org.joml.Vector3f
 
 open class GuiRenderObject(
-	material: Material,
-	var z: Float = -1f,
-	var colour: Vector3f = Vector3f(0f, 0f, 0f),
-	viewMatrix: Matrix4f,
-	projectionMatrix: Matrix4f
+    material: Material,
+    private var z: Float = -1f,
+    private var colour: Vector3f = Vector3f(0f, 0f, 0f),
+    viewMatrix: Matrix4f,
+    projectionMatrix: Matrix4f
 ) : RenderObject(Resource.Empty, material, viewMatrix, projectionMatrix) {
 
 	constructor(
@@ -79,11 +79,11 @@ open class GuiRenderObject(
 		modelMatrix.translate(0f, 0f, z)
 	}
 
-	fun scale(x: Float, y: Float) {
+	private fun scale(x: Float, y: Float) {
 		modelMatrix.scale(x, y, 1f)
 	}
 
-	fun translate(x: Float, y: Float) {
+	private fun translate(x: Float, y: Float) {
 		modelMatrix.translate(x, -y, 0f)
 	}
 }

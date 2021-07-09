@@ -15,8 +15,8 @@ import java.nio.IntBuffer
  */
 class DepthBuffer {
 
-	var depthImage: Long = 0
-	var depthImageMemory: Long = 0
+	private var depthImage: Long = 0
+	private var depthImageMemory: Long = 0
 	var depthImageView: Long = 0
 
 	fun createDepthResources(device: VulkanDevice, swapchain: Swapchain, renderer: Renderer) {

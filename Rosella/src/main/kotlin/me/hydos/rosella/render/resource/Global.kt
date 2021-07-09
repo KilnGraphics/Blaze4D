@@ -1,5 +1,6 @@
 package me.hydos.rosella.render.resource
 
+import me.hydos.rosella.Rosella
 import java.awt.image.BufferedImage
 import java.io.ByteArrayInputStream
 import java.io.ByteArrayOutputStream
@@ -13,7 +14,6 @@ import javax.imageio.ImageIO
 object Global : ResourceLoader by ClassLoaderResourceLoader(ClassLoader.getSystemClassLoader()) {
 
 	fun fromBufferedImage(image: BufferedImage, id: Identifier): Resource {
-
 		return object : Resource {
 			override val identifier: Identifier
 				get() = id

@@ -41,9 +41,9 @@ class PipelineManager(var common: VkCommon, val renderer: Renderer) {
 	fun getPipeline(material: Material, renderer: Renderer): PipelineInfo {
 		val createInfo = PipelineCreateInfo(
 			renderer.renderPass,
-			material.shader!!.raw.descriptorSetLayout,
+			material.shader.raw.descriptorSetLayout,
 			Rosella.POLYGON_MODE,
-			material.shader!!,
+			material.shader,
 			material.topology,
 			material.vertexFormat,
 			material.stateInfo

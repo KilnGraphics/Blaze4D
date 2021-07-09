@@ -8,7 +8,6 @@ import me.hydos.rosella.logging.DefaultDebugLogger;
 import me.hydos.rosella.memory.Memory;
 import me.hydos.rosella.memory.buffer.GlobalBufferManager;
 import me.hydos.rosella.render.renderer.Renderer;
-import me.hydos.rosella.render.swapchain.Frame;
 import me.hydos.rosella.render.texture.BlankTextures;
 import me.hydos.rosella.scene.object.ObjectManager;
 import me.hydos.rosella.scene.object.impl.SimpleObjectManager;

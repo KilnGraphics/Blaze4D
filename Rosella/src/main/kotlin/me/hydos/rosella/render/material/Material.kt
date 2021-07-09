@@ -16,11 +16,11 @@ import me.hydos.rosella.scene.`object`.impl.SimpleObjectManager
  */
 open class Material(
 	val resource: Resource,
-	var shader: ShaderProgram?,
-	val imgFormat: Int,
+	var shader: ShaderProgram,
+	private val imgFormat: Int,
 	val topology: Topology,
 	val vertexFormat: VertexFormat,
-	val samplerCreateInfo: SamplerCreateInfo,
+	private val samplerCreateInfo: SamplerCreateInfo,
 	val stateInfo: StateInfo
 ) {
 	lateinit var pipeline: PipelineInfo

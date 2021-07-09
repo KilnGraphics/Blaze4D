@@ -388,15 +388,15 @@ public class Renderer {
         vkCmdBindPipeline(
                 commandBuffer,
                 VK_PIPELINE_BIND_POINT_GRAPHICS,
-                instanceInfo.material.pipeline.getGraphicsPipeline()
+                instanceInfo.material().pipeline.getGraphicsPipeline()
         );
 
         vkCmdBindDescriptorSets(
                 commandBuffer,
                 VK_PIPELINE_BIND_POINT_GRAPHICS,
-                instanceInfo.material.pipeline.getPipelineLayout(),
+                instanceInfo.material().pipeline.getPipelineLayout(),
                 0,
-                matrix.longs(instanceInfo.ubo.getDescriptors().getDescriptorSets().get(commandBufferIndex)),
+                matrix.longs(instanceInfo.ubo().getDescriptors().getDescriptorSets().get(commandBufferIndex)),
                 null
         );
     }

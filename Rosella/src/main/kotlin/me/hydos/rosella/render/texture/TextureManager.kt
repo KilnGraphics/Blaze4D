@@ -20,7 +20,7 @@ class TextureManager(val common: VkCommon) { // TODO: add layers, maybe not in t
 	private val preparedTextures = HashSet<Texture>()
 
 	private val reusableTexIds = IntPriorityQueues.synchronize(IntArrayPriorityQueue())
-	private var nextTexId : Int = 0;
+	private var nextTexId : Int = 0
 
 	fun generateTextureId(): Int {
 		return if (!reusableTexIds.isEmpty) {
@@ -37,7 +37,7 @@ class TextureManager(val common: VkCommon) { // TODO: add layers, maybe not in t
 	}
 
 	fun getTexture(textureId: Int): Texture? {
-		return textureMap[textureId];
+		return textureMap[textureId]
 	}
 
 	fun createTexture(

@@ -379,7 +379,7 @@ fun copyToTexture(
 			dstRegion.yOffset
 		)
 
-		stagingBuf.free(device, memory);
+		stagingBuf.free(device, memory)
 	}
 }
 
