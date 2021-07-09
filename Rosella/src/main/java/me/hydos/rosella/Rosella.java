@@ -80,7 +80,7 @@ public class Rosella {
     public void teardown() {
         common.device.waitForIdle();
         objectManager.free();
-        renderer.teardown();
+        renderer.free();
 
         // Free the rest of it
         common.memory.free();

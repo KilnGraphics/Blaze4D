@@ -21,11 +21,23 @@ public record InstanceInfo(Ubo ubo,
     }
 
     /**
-     * Called when Command Buffers need to be refreshed. all {@link me.hydos.rosella.render.descriptorsets.DescriptorSet}'s will need to be recreated
+     * Called when Command Buffers need to be refreshed.
      *
      * @param rosella the Rosella
      */
     public void rebuild(@NotNull Rosella rosella) {
+        if (ubo.getUniformBuffers().size() == 0) {
+            ubo.create(rosella.renderer.swapchain);
+            material.getShader().getDescriptorManager().createNewDescriptor(material.textures, ubo);
+        }
+    }
+
+    /**
+     * Called when the {@link me.hydos.rosella.render.swapchain.Swapchain} needs to be recreated. all {@link me.hydos.rosella.render.descriptorsets.DescriptorSet}'s will need to be recreated
+     *
+     * @param rosella the Rosella
+     */
+    public void hardRebuild(@NotNull Rosella rosella) {
         material.getShader().getDescriptorManager().freeDescriptorSet(ubo.getDescriptors());
         ubo.free(rosella.common.device, rosella.common.memory);
 

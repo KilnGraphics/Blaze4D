@@ -299,12 +299,6 @@ public class Renderer {
      */
     public void rebuildCommandBuffers(RenderPass renderPass, SimpleObjectManager simpleObjectManager) {
         simpleObjectManager.rebuildCmdBuffers(renderPass, null, null); //TODO: move it into here
-        List<ShaderProgram> usedShaders = new ArrayList<>();
-        for (Material material : simpleObjectManager.materials) {
-            if (!usedShaders.contains(material.getShader())) {
-                usedShaders.add(material.getShader());
-            }
-        }
 
         for (List<InstanceInfo> instances : simpleObjectManager.renderObjects.values()) {
             for (InstanceInfo instance : instances) {
@@ -410,7 +404,7 @@ public class Renderer {
         }
     }
 
-    public void teardown() {
+    public void free() {
         freeSwapChain();
 
         for (Frame frame : inFlightFrames) {

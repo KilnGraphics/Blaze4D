@@ -68,8 +68,7 @@ public class ConsumerRenderObject implements Renderable {
 
     @Override
     public void onAddedToScene(Rosella rosella) {
-        instanceInfo.rebuild(rosella);
-        instanceInfo.ubo().create(rosella.renderer.swapchain);
+        instanceInfo.hardRebuild(rosella);
     }
 
     @Override
