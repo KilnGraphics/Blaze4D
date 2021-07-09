@@ -100,7 +100,7 @@ class TextureManager(val common: VkCommon) { // TODO: add layers, maybe not in t
 			)
 			preparedTextures.remove(texture)
 		}
-		drawToTexture(
+		copyToTexture(
 			renderer,
 			common.device,
 			memory,

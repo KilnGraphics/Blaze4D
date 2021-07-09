@@ -9,9 +9,9 @@ interface VertexConsumer {
 
 	fun pos(x: Float, y: Float, z: Float): VertexConsumer
 
-	fun color(red: Int, green: Int, blue: Int): VertexConsumer
+	fun color(red: Byte, green: Byte, blue: Byte): VertexConsumer
 
-	fun color(red: Int, green: Int, blue: Int, alpha: Int): VertexConsumer
+	fun color(red: Byte, green: Byte, blue: Byte, alpha: Byte): VertexConsumer
 
 	fun uv(u: Float, v: Float): VertexConsumer
 
@@ -22,6 +22,8 @@ interface VertexConsumer {
 		return this
 	}
 
+	fun normal(x :Float, y: Float, z: Float): VertexConsumer
+
 	fun nextVertex(): VertexConsumer
 
 	fun clear()
@@ -31,6 +33,4 @@ interface VertexConsumer {
 	fun getVertexCount(): Int
 
 	fun copy(): VertexConsumer
-
-	fun normal(x :Float, y: Float, z: Float): VertexConsumer
 }

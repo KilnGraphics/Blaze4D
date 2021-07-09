@@ -8,14 +8,12 @@ import me.hydos.rosella.device.VulkanDevice;
 import me.hydos.rosella.render.info.InstanceInfo;
 import me.hydos.rosella.render.info.RenderInfo;
 import me.hydos.rosella.render.material.Material;
-import me.hydos.rosella.render.renderer.Renderer;
 import me.hydos.rosella.render.shader.ShaderProgram;
 import me.hydos.rosella.memory.Memory;
 import me.hydos.rosella.render.texture.Texture;
 import me.hydos.rosella.render.vertex.BufferVertexConsumer;
 import me.hydos.rosella.render.vertex.VertexFormats;
 import me.hydos.rosella.scene.object.Renderable;
-import me.hydos.rosella.vkobjects.VkCommon;
 import net.minecraft.client.render.VertexFormat;
 
 import org.jetbrains.annotations.NotNull;
@@ -27,7 +25,7 @@ public class ConsumerRenderObject implements Renderable {
     private final ShaderProgram shader;
 
     // Render Implementation Fields
-    public final RenderInfo renderInfo = new RenderInfo(new BufferVertexConsumer(VertexFormats.Companion.getPOSITION_COLOR_UV()));
+    public final RenderInfo renderInfo = new RenderInfo(new BufferVertexConsumer(VertexFormats.POSITION_COLOR3_UV));
     public InstanceInfo instanceInfo;
 
     public ConsumerRenderObject(ObjectInfo info, Rosella rosella) {

@@ -1,5 +1,6 @@
 package me.hydos.rosella.render.texture
 
+import me.hydos.rosella.render.vertex.VertexFormat
 import java.nio.ByteBuffer
 
 /**
@@ -9,7 +10,7 @@ interface UploadableImage {
 
 	fun getWidth(): Int
 	fun getHeight(): Int
-	fun getChannels(): Int
-	fun getPixels(region: ImageRegion): ByteBuffer?
-	fun getBytesPerPixel(): Int
+	fun getFormat(): ImageFormat
+	fun getSize(): Int
+	fun getPixels(): ByteBuffer?
 }
