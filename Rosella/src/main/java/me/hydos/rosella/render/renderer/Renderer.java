@@ -10,6 +10,7 @@ import me.hydos.rosella.memory.Memory;
 import me.hydos.rosella.memory.buffer.GlobalBufferManager;
 import me.hydos.rosella.render.VkKt;
 import me.hydos.rosella.render.info.InstanceInfo;
+import me.hydos.rosella.render.info.RenderInfo;
 import me.hydos.rosella.render.material.Material;
 import me.hydos.rosella.render.shader.RawShaderProgram;
 import me.hydos.rosella.render.shader.ShaderProgram;
@@ -342,6 +343,10 @@ public class Renderer {
             renderPassInfo.renderArea(renderArea)
                     .pClearValues(clearValues);
 
+            if (rosella.bufferManager != null && simpleObjectManager.renderObjects.isEmpty()) {
+                rosella.bufferManager.nextFrame(simpleObjectManager.renderObjects.keySet());
+            }
+
             for (int i = 0; i < commandBuffersCount; i++) {
                 VkCommandBuffer commandBuffer = commandBuffers.get(i);
                 ok(vkBeginCommandBuffer(commandBuffer, beginInfo));
@@ -350,17 +355,13 @@ public class Renderer {
                 vkCmdBeginRenderPass(commandBuffer, renderPassInfo, VK_SUBPASS_CONTENTS_INLINE);
 
                 if (rosella.bufferManager != null && !simpleObjectManager.renderObjects.isEmpty()) {
-                    int finalI = i;
-                    rosella.bufferManager.nextFrame(simpleObjectManager.renderObjects.keySet());
                     bindBigBuffers(rosella.bufferManager, stack, commandBuffer);
-                    simpleObjectManager.renderObjects.keySet().forEach(renderInfo -> {
-//                                bindBigBuffers(rosella.bufferManager, stack, commandBuffer);
-                                for (InstanceInfo instance : simpleObjectManager.renderObjects.get(renderInfo)) {
-                                    bindInstanceInfo(instance, stack, commandBuffer, finalI);
-                                    vkCmdDrawIndexed(commandBuffer, renderInfo.getIndicesSize(), 1, rosella.bufferManager.indicesOffsetMap.get(renderInfo), rosella.bufferManager.vertexOffsetMap.get(renderInfo), 0);
-                                }
-                            }
-                    );
+                    for (RenderInfo renderInfo : simpleObjectManager.renderObjects.keySet()) {
+                        for (InstanceInfo instance : simpleObjectManager.renderObjects.get(renderInfo)) {
+                            bindInstanceInfo(instance, stack, commandBuffer, i);
+                            vkCmdDrawIndexed(commandBuffer, renderInfo.getIndicesSize(), 1, rosella.bufferManager.indicesOffsetMap.get(renderInfo), rosella.bufferManager.vertexOffsetMap.get(renderInfo), 0);
+                        }
+                    }
 
                     vkCmdEndRenderPass(commandBuffer);
                     ok(vkEndCommandBuffer(commandBuffer));
