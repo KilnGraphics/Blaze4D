@@ -132,7 +132,7 @@ open class RawShaderProgram(
 			val pDescriptorSets = stack.mallocLong(swapchain.swapChainImages.size)
 
 			vkAllocateDescriptorSets(device.rawDevice, allocInfo, pDescriptorSets)
-				.ok("Failed to allocate descriptor sets")
+				.ok("Failed to allocate descriptor sets.")
 
 			val descriptorSets = DescriptorSet(descriptorPool)
 			descriptorSets.descriptorSets = ArrayList(pDescriptorSets.capacity())
@@ -160,11 +160,7 @@ open class RawShaderProgram(
 
 						VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER -> {
 							if (poolObj is PoolSamplerInfo) {
-								val texture = if (poolObj.samplerIndex == -1) {
-									BlankTextures.getBlankTexture()
-								} else {
-									currentTextures[poolObj.samplerIndex] ?: BlankTextures.getBlankTexture() // FIXME: use 1x1 empty/missing tex here if null
-								}
+								val texture = currentTextures[poolObj.samplerIndex] ?: BlankTextures.getBlankTexture()
 
 								val imageInfo = VkDescriptorImageInfo.callocStack(1, stack)
 									.imageLayout(VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL)

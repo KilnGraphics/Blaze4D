@@ -8,7 +8,6 @@ import me.hydos.rosella.memory.Memory
 import me.hydos.rosella.memory.buffer.GlobalBufferManager
 import me.hydos.rosella.render.*
 import me.hydos.rosella.render.info.InstanceInfo
-import me.hydos.rosella.render.shader.ShaderProgram
 import me.hydos.rosella.render.swapchain.DepthBuffer
 import me.hydos.rosella.render.swapchain.Frame
 import me.hydos.rosella.render.swapchain.RenderPass
@@ -265,12 +264,6 @@ class Renderer(val common: VkCommon, display: Display, val rosella: Rosella) {
 	 */
 	fun rebuildCommandBuffers(renderPass: RenderPass, simpleObjectManager: SimpleObjectManager) {
 		simpleObjectManager.rebuildCmdBuffers(renderPass, null, null) //TODO: move it into here
-		val usedShaders = ArrayList<ShaderProgram>()
-		for (material in simpleObjectManager.materials) {
-			if (!usedShaders.contains(material.shader)) {
-				usedShaders.add(material.shader!!)
-			}
-		}
 
 		for (instances in simpleObjectManager.renderObjects.values) {
 			for (instance in instances) {
