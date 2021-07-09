@@ -31,6 +31,10 @@ import java.util.Optional;
 public abstract class WindowMixin {
 
     @Shadow
+    @Final
+    private static Logger LOGGER;
+
+    @Shadow
     private Optional<VideoMode> videoMode;
 
     @Shadow
@@ -45,22 +49,10 @@ public abstract class WindowMixin {
     @Shadow
     private int y;
 
-    @Shadow
-    protected abstract void updateWindowRegion();
-
     @Mutable
     @Shadow
     @Final
     private long handle;
-
-    @Shadow
-    protected abstract void onWindowPosChanged(long window, int x, int y);
-
-    @Shadow
-    protected abstract void onWindowFocusChanged(long window, boolean focused);
-
-    @Shadow
-    protected abstract void onCursorEnterChanged(long window, boolean entered);
 
     @Shadow
     private int width;
@@ -78,8 +70,22 @@ public abstract class WindowMixin {
     private int framebufferHeight;
 
     @Shadow
-    @Final
-    private static Logger LOGGER;
+    protected abstract void updateWindowRegion();
+
+    @Shadow
+    protected abstract void onWindowPosChanged(long window, int x, int y);
+
+    @Shadow
+    protected abstract void onWindowFocusChanged(long window, boolean focused);
+
+    @Shadow
+    protected abstract void onCursorEnterChanged(long window, boolean entered);
+
+    @Inject(method = "throwGlError", at = @At("HEAD"), cancellable = true)
+    private static void silenceGl(int error, long description, CallbackInfo ci) {
+        String message = "suppressed GLFW/OpenGL error " + error + ": " + MemoryUtil.memUTF8(description);
+        LOGGER.warn(message);
+    }
 
     @Inject(method = "<init>", at = @At("TAIL"))
     private void initializeRosellaWindow(WindowEventHandler eventHandler, MonitorTracker monitorTracker, WindowSettings settings, String videoMode, String title, CallbackInfo ci) {
@@ -116,12 +122,6 @@ public abstract class WindowMixin {
     @Inject(method = "setIcon", at = @At(value = "INVOKE", target = "Lorg/lwjgl/glfw/GLFW;glfwSetWindowIcon(JLorg/lwjgl/glfw/GLFWImage$Buffer;)V"), locals = LocalCapture.CAPTURE_FAILSOFT)
     private void setIcon(InputStream icon16, InputStream icon32, CallbackInfo ci, MemoryStack memoryStack, IntBuffer intBuffer, IntBuffer intBuffer2, IntBuffer intBuffer3, GLFWImage.Buffer buffer, ByteBuffer byteBuffer, ByteBuffer byteBuffer2) {
         GLFW.glfwSetWindowIcon(Blaze4D.window.pWindow, buffer);
-    }
-
-    @Inject(method = "throwGlError", at = @At("HEAD"), cancellable = true)
-    private static void silenceGl(int error, long description, CallbackInfo ci) {
-        String message = "suppressed GLFW/OpenGL error " + error + ": " + MemoryUtil.memUTF8(description);
-        LOGGER.warn(message);
     }
 
     @Inject(method = "close", at = @At("HEAD"))

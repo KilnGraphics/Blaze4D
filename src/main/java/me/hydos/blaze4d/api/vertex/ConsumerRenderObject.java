@@ -19,12 +19,11 @@ import org.jetbrains.annotations.NotNull;
 
 public class ConsumerRenderObject implements Renderable {
 
+    // Render Implementation Fields
+    public final RenderInfo renderInfo = new RenderInfo(new BufferVertexConsumer(VertexFormats.POSITION_COLOR3_UV));
     private final VertexFormat format;
     private final Texture[] textures;
     private final ShaderProgram shader;
-
-    // Render Implementation Fields
-    public final RenderInfo renderInfo = new RenderInfo(new BufferVertexConsumer(VertexFormats.POSITION_COLOR3_UV));
     public InstanceInfo instanceInfo;
 
     public ConsumerRenderObject(ObjectInfo info, Rosella rosella) {
@@ -74,7 +73,7 @@ public class ConsumerRenderObject implements Renderable {
     }
 
     @Override
-    public void free(@NotNull Memory memory, @NotNull VulkanDevice  device) {
+    public void free(@NotNull Memory memory, @NotNull VulkanDevice device) {
         instanceInfo.free(device, memory);
         renderInfo.free(device, memory);
     }

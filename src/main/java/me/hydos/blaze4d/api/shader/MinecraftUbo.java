@@ -2,12 +2,12 @@ package me.hydos.blaze4d.api.shader;
 
 import com.mojang.blaze3d.systems.RenderSystem;
 import me.hydos.blaze4d.Blaze4D;
+import me.hydos.rosella.memory.BufferInfo;
+import me.hydos.rosella.memory.Memory;
 import me.hydos.rosella.render.descriptorsets.DescriptorSet;
 import me.hydos.rosella.render.material.Material;
 import me.hydos.rosella.render.shader.ubo.Ubo;
 import me.hydos.rosella.render.swapchain.Swapchain;
-import me.hydos.rosella.memory.BufferInfo;
-import me.hydos.rosella.memory.Memory;
 import net.minecraft.client.MinecraftClient;
 import net.minecraft.client.util.Window;
 import net.minecraft.util.math.Vec3f;
@@ -29,21 +29,46 @@ public class MinecraftUbo extends Ubo {
     private final Memory memory;
     private final int totalSize;
     private final List<AddUboMemoryStep> steps;
-    private int size;
     public DescriptorSet descSets;
     public List<BufferInfo> uboFrames = new ArrayList<>();
-
     public Matrix4f projectionMatrix;
     public Matrix4f viewTransformMatrix;
     public Vector3f chunkOffset;
     public Vec3f shaderLightDirections0;
     public Vec3f shaderLightDirections1;
+    private int size;
 
     public MinecraftUbo(@NotNull Memory memory, Material material, List<AddUboMemoryStep> steps, int size) {
         this.memory = memory;
         this.descSets = new DescriptorSet(material.getShader().getRaw().getDescriptorPool());
         this.totalSize = size;
         this.steps = steps;
+    }
+
+    public static Matrix4f toJoml(net.minecraft.util.math.Matrix4f mcMatrix) {
+        Matrix4f jomlMatrix = new Matrix4f();
+
+        jomlMatrix.m00(mcMatrix.a00);
+        jomlMatrix.m01(mcMatrix.a10);
+        jomlMatrix.m02(mcMatrix.a20);
+        jomlMatrix.m03(mcMatrix.a30);
+
+        jomlMatrix.m10(mcMatrix.a01);
+        jomlMatrix.m11(mcMatrix.a11);
+        jomlMatrix.m12(mcMatrix.a21);
+        jomlMatrix.m13(mcMatrix.a31);
+
+        jomlMatrix.m20(mcMatrix.a02);
+        jomlMatrix.m21(mcMatrix.a12);
+        jomlMatrix.m22(mcMatrix.a22);
+        jomlMatrix.m23(mcMatrix.a32);
+
+        jomlMatrix.m30(mcMatrix.a03);
+        jomlMatrix.m31(mcMatrix.a13);
+        jomlMatrix.m32(mcMatrix.a23);
+        jomlMatrix.m33(mcMatrix.a33);
+
+        return jomlMatrix;
     }
 
     @Override
@@ -206,32 +231,6 @@ public class MinecraftUbo extends Ubo {
         this.chunkOffset = chunkOffset;
         this.shaderLightDirections0 = shaderLightDirections0;
         this.shaderLightDirections1 = shaderLightDirections1;
-    }
-
-    public static Matrix4f toJoml(net.minecraft.util.math.Matrix4f mcMatrix) {
-        Matrix4f jomlMatrix = new Matrix4f();
-
-        jomlMatrix.m00(mcMatrix.a00);
-        jomlMatrix.m01(mcMatrix.a10);
-        jomlMatrix.m02(mcMatrix.a20);
-        jomlMatrix.m03(mcMatrix.a30);
-
-        jomlMatrix.m10(mcMatrix.a01);
-        jomlMatrix.m11(mcMatrix.a11);
-        jomlMatrix.m12(mcMatrix.a21);
-        jomlMatrix.m13(mcMatrix.a31);
-
-        jomlMatrix.m20(mcMatrix.a02);
-        jomlMatrix.m21(mcMatrix.a12);
-        jomlMatrix.m22(mcMatrix.a22);
-        jomlMatrix.m23(mcMatrix.a32);
-
-        jomlMatrix.m30(mcMatrix.a03);
-        jomlMatrix.m31(mcMatrix.a13);
-        jomlMatrix.m32(mcMatrix.a23);
-        jomlMatrix.m33(mcMatrix.a33);
-
-        return jomlMatrix;
     }
 
     @Override

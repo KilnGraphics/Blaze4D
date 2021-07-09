@@ -1,7 +1,5 @@
 package me.hydos.blaze4d.api;
 
-import java.util.*;
-
 import it.unimi.dsi.fastutil.ints.Int2ObjectOpenHashMap;
 import it.unimi.dsi.fastutil.objects.Object2ObjectOpenHashMap;
 import it.unimi.dsi.fastutil.objects.ObjectOpenHashSet;
@@ -20,11 +18,12 @@ import me.hydos.rosella.render.texture.Texture;
 import me.hydos.rosella.render.vertex.BufferVertexConsumer;
 import me.hydos.rosella.scene.object.impl.SimpleObjectManager;
 import net.minecraft.client.render.VertexFormat;
+import net.minecraft.util.math.Vec3f;
 import org.joml.Matrix4f;
 import org.joml.Vector3f;
-
-import net.minecraft.util.math.Vec3f;
 import org.lwjgl.vulkan.VK10;
+
+import java.util.*;
 
 /**
  * Used to make bits of the code easier to manage.

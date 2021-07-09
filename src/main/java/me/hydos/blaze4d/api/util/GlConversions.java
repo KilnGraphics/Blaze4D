@@ -1,7 +1,10 @@
 package me.hydos.blaze4d.api.util;
 
 import me.hydos.rosella.render.texture.ImageFormat;
-import org.lwjgl.opengl.*;
+import org.lwjgl.opengl.GL11;
+import org.lwjgl.opengl.GL14;
+import org.lwjgl.opengl.GL30;
+import org.lwjgl.opengl.GL33;
 import org.lwjgl.vulkan.VK10;
 
 public abstract class GlConversions {
@@ -79,7 +82,7 @@ public abstract class GlConversions {
     }
 
     public static ImageFormat glToRosellaImageFormat(int glImageFormat) {
-        return switch(glImageFormat) {
+        return switch (glImageFormat) {
             case GL11.GL_RGBA -> ImageFormat.RGBA;
             case GL11.GL_RGB -> ImageFormat.RGB;
             case GL30.GL_RG -> ImageFormat.RG;

@@ -7,5 +7,7 @@ import net.minecraft.util.math.Vec3f;
 import org.joml.Matrix4f;
 import org.joml.Vector3f;
 
-public record ConsumerCreationInfo(VertexFormat.DrawMode drawMode, VertexFormat format, Texture[] textures, ShaderProgram shader, Matrix4f projMatrix, Matrix4f viewMatrix, Vector3f chunkOffset, Vec3f shaderLightDirections0, Vec3f shaderLightDirections1) {
+public record ConsumerCreationInfo(VertexFormat.DrawMode drawMode, VertexFormat format, Texture[] textures,
+                                   ShaderProgram shader, Matrix4f projMatrix, Matrix4f viewMatrix, Vector3f chunkOffset,
+                                   Vec3f shaderLightDirections0, Vec3f shaderLightDirections1) {
 }

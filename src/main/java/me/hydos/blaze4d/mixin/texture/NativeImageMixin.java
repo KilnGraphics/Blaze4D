@@ -4,7 +4,6 @@ import me.hydos.blaze4d.Blaze4D;
 import me.hydos.blaze4d.api.GlobalRenderSystem;
 import me.hydos.blaze4d.api.util.GlConversions;
 import me.hydos.rosella.render.texture.*;
-import me.hydos.rosella.render.vertex.VertexFormat;
 import me.hydos.rosella.scene.object.impl.SimpleObjectManager;
 import net.minecraft.client.texture.NativeImage;
 import org.jetbrains.annotations.NotNull;
@@ -31,13 +30,19 @@ public abstract class NativeImageMixin implements UploadableImage {
     private int height;
 
     @Shadow
+    @Final
+    private NativeImage.Format format;
+
+    @Shadow
+    private long pointer;
+
+    @Shadow
+    @Final
+    private long sizeBytes;
+
+    @Shadow
     public abstract void close();
 
-    @Shadow @Final private NativeImage.Format format;
-
-    @Shadow private long pointer;
-
-    @Shadow @Final private long sizeBytes;
     @Unique
     private ImageFormat rosellaFormat;
 
@@ -79,7 +84,10 @@ public abstract class NativeImageMixin implements UploadableImage {
     @NotNull
     @Override
     public ImageFormat getFormat() {
-        if (rosellaFormat == null) rosellaFormat = GlConversions.glToRosellaImageFormat(format.getPixelDataFormat()); // getPixelDataFormat returns the gl format
+        if (rosellaFormat == null) {
+            rosellaFormat = GlConversions.glToRosellaImageFormat(format.getPixelDataFormat()); // getPixelDataFormat returns the gl format
+        }
+
         return rosellaFormat;
     }
 

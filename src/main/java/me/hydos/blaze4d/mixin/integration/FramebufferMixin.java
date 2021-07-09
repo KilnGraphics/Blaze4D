@@ -10,13 +10,17 @@ import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 @Mixin(Framebuffer.class)
 public class FramebufferMixin {
 
-    @Shadow public int textureWidth;
+    @Shadow
+    public int textureWidth;
 
-    @Shadow public int textureHeight;
+    @Shadow
+    public int textureHeight;
 
-    @Shadow public int viewportWidth;
+    @Shadow
+    public int viewportWidth;
 
-    @Shadow public int viewportHeight;
+    @Shadow
+    public int viewportHeight;
 
     @Inject(method = "resize", at = @At("HEAD"), cancellable = true)
     private void resizingBadAndWorst(int width, int height, boolean getError, CallbackInfo ci) {

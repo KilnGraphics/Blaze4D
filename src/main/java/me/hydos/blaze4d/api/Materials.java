@@ -17,27 +17,24 @@ import java.util.Map;
  */
 public class Materials {
 
-    private static final Map<MaterialInfo, Material> MATERIAL_CACHE = new Object2ObjectLinkedOpenHashMap<>();
-
     public static final MaterialBuilder TRIANGLES = register(
             "triangles",
             Topology.TRIANGLES
     );
-
     public static final MaterialBuilder TRIANGLE_STRIP = register(
             "triangle_strip",
             Topology.TRIANGLE_STRIP
     );
-
     public static final MaterialBuilder TRIANGLE_FAN = register(
             "triangle_fan",
             Topology.TRIANGLE_FAN
     );
-
     public static final MaterialBuilder LINES = register(
             "lines",
             Topology.LINE_LIST
     );
+
+    private static final Map<MaterialInfo, Material> MATERIAL_CACHE = new Object2ObjectLinkedOpenHashMap<>();
 
     public static MaterialBuilder register(String path, Topology topology) {
         return new MaterialBuilder(path, topology);

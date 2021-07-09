@@ -1,7 +1,7 @@
 package me.hydos.blaze4d;
 
-import me.hydos.aftermath.AftermathCallbackCreationHelper;
 import me.hydos.aftermath.Aftermath;
+import me.hydos.aftermath.AftermathCallbackCreationHelper;
 import me.hydos.aftermath.struct.GFSDK_Aftermath_GpuCrashDump_BaseInfo;
 import net.minecraft.client.MinecraftClient;
 import org.lwjgl.system.MemoryStack;
@@ -23,10 +23,9 @@ import java.util.concurrent.locks.ReentrantLock;
 import java.util.stream.Collectors;
 
 public class AftermathHandler {
+    public static final Lock LOCK = new ReentrantLock();
     private static final Map<long[], String> SHADER_DEBUG_INFO = new HashMap<>();
     private static final ShaderDatabase shaderDatabase = new ShaderDatabase();
-
-    public static final Lock LOCK = new ReentrantLock();
 
     public static void initialize() {
         Aftermath.enableGPUCrashDumps(
@@ -77,16 +76,6 @@ public class AftermathHandler {
                 },
                 new Object()
         );
-    }
-
-    private static class ShaderDatabase {
-        public ByteBuffer findShaderBinary(long shaderHash) {
-            return null;
-        }
-
-        public ByteBuffer findShaderBinaryWithDebugData(String shaderDebugName) {
-            return null;
-        }
     }
 
     private static void writeGpuCrashDumpToFile(long pGpuCrashDump, int gpuCrashDumpSize) throws IOException {
@@ -186,6 +175,16 @@ public class AftermathHandler {
             // Destroy the GPU crash dump decoder object.
             Aftermath.destroyDecoder(decoder);
             Aftermath.disableGPUCrashDumps();
+        }
+    }
+
+    private static class ShaderDatabase {
+        public ByteBuffer findShaderBinary(long shaderHash) {
+            return null;
+        }
+
+        public ByteBuffer findShaderBinaryWithDebugData(String shaderDebugName) {
+            return null;
         }
     }
 }
