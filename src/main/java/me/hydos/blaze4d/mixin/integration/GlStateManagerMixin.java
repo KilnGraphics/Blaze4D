@@ -209,6 +209,6 @@ public class GlStateManagerMixin {
     @Overwrite
     public static void _clearColor(float red, float green, float blue, float alpha) {
         RenderSystem.assertThread(RenderSystem::isOnRenderThreadOrInit);
-        Blaze4D.rosella.renderer.clearColor(new Color(red, green, blue, alpha));
+        Blaze4D.rosella.renderer.lazilyClearColor(new Color(red, green, blue, alpha));
     }
 }

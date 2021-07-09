@@ -399,8 +399,18 @@ public class Renderer {
 
     public void clearColor(Color color) {
         if (clearColor != color) {
-            clearColor = color;
+            lazilyClearColor(color);
             rebuildCommandBuffers(renderPass, ((SimpleObjectManager) rosella.objectManager));
+        }
+    }
+
+    /**
+     * Same as clearColor but you have to rebuild the command buffers
+     * @param color the colour you want the clear colour to change to
+     */
+    public void lazilyClearColor(Color color) {
+        if (clearColor != color) {
+            clearColor = color;
         }
     }
 
