@@ -54,7 +54,7 @@ public class Renderer {
     private boolean recreateSwapChain;
 
     // The clear color
-    private Color clearColor;
+    private Color clearColor = new Color(50, 50, 50, 0);
 
     private List<Frame> inFlightFrames = new ObjectArrayList<>();
     private Map<Integer, Frame> imagesInFlight = new Int2ObjectOpenHashMap<>();
