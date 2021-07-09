@@ -12,10 +12,7 @@ import org.lwjgl.system.MemoryStack;
 
 import java.nio.ByteBuffer;
 import java.nio.LongBuffer;
-import java.util.ArrayList;
-import java.util.List;
-import java.util.Map;
-import java.util.Set;
+import java.util.*;
 import java.util.function.Consumer;
 
 import static org.lwjgl.system.MemoryStack.stackPush;
@@ -30,7 +27,11 @@ public class GlobalBufferManager {
     private final Memory memory;
     private final VkCommon common;
     private final Renderer renderer;
-    private List<RenderInfo> lastRenderObjects;
+
+    private Set<RenderInfo> lastRenderObjects;
+
+    public BufferInfo vertexBuffer;
+    public BufferInfo indexBuffer;
 
     public Map<RenderInfo, Integer> indicesOffsetMap = new Object2IntOpenHashMap<>();
     public Map<RenderInfo, Integer> vertexOffsetMap = new Object2IntOpenHashMap<>();
@@ -41,17 +42,17 @@ public class GlobalBufferManager {
         this.renderer = rosella.renderer;
     }
 
-    public void nextFrame(List<RenderInfo> renderObjects) {
-        if (lastRenderObjects != null && isFrameDifferent(lastRenderObjects, renderObjects)) {
-
+    public void nextFrame(Set<RenderInfo> renderObjects) {
+        if (isFrameDifferent(lastRenderObjects, renderObjects)) {
+            this.vertexBuffer = createVertexBuffer(renderObjects);
+            this.indexBuffer = createIndexBuffer(renderObjects);
         }
+
+        lastRenderObjects = new HashSet<>(renderObjects);
     }
 
-    private boolean isFrameDifferent(List<RenderInfo> lastRenderObjects, List<RenderInfo> renderObjects) {
-        if (lastRenderObjects.equals(renderObjects)) {
-            System.out.println("optimisations would actually work!?!? HOW HOW HOW HOW");
-        }
-        return true;
+    private boolean isFrameDifferent(Set<RenderInfo> lastRenderObjects, Set<RenderInfo> renderObjects) {
+        return lastRenderObjects == null || !lastRenderObjects.equals(renderObjects);
     }
 
     /**
@@ -60,7 +61,7 @@ public class GlobalBufferManager {
      * @param renderList the list of RenderInfo objects
      * @return a index buffer
      */
-    public BufferInfo createIndexBuffer(Set<RenderInfo> renderList) {
+    private BufferInfo createIndexBuffer(Set<RenderInfo> renderList) {
         int totalSize = 0;
         for (RenderInfo info : renderList) {
             totalSize += info.getIndicesSize() * Integer.BYTES;
@@ -106,7 +107,7 @@ public class GlobalBufferManager {
      * @param renderList the list of RenderInfo objects
      * @return a vertex buffer
      */
-    public BufferInfo createVertexBuffer(Set<RenderInfo> renderList) {
+    private BufferInfo createVertexBuffer(Set<RenderInfo> renderList) {
         int totalSize = 0;
         for (RenderInfo info : renderList) {
             totalSize += info.consumer.getVertexSize() * info.consumer.getVertexCount();

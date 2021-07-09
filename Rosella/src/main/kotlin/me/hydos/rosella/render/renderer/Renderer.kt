@@ -8,7 +8,6 @@ import me.hydos.rosella.memory.Memory
 import me.hydos.rosella.memory.buffer.GlobalBufferManager
 import me.hydos.rosella.render.*
 import me.hydos.rosella.render.info.InstanceInfo
-import me.hydos.rosella.render.info.RenderInfo
 import me.hydos.rosella.render.shader.ShaderProgram
 import me.hydos.rosella.render.swapchain.DepthBuffer
 import me.hydos.rosella.render.swapchain.Frame
@@ -308,6 +307,10 @@ class Renderer(val common: VkCommon, display: Display, val rosella: Rosella) {
 			renderPassInfo.renderArea(renderArea)
 				.pClearValues(clearValues)
 
+			if (rosella.bufferManager != null && simpleObjectManager.renderObjects.isNotEmpty()) {
+				rosella.bufferManager.nextFrame(simpleObjectManager.renderObjects.keys)
+			}
+
 			for (i in 0 until commandBuffersCount) {
 				val commandBuffer = commandBuffers[i]
 				vkBeginCommandBuffer(commandBuffer, beginInfo).ok()
@@ -315,7 +318,7 @@ class Renderer(val common: VkCommon, display: Display, val rosella: Rosella) {
 
 				vkCmdBeginRenderPass(commandBuffer, renderPassInfo, VK_SUBPASS_CONTENTS_INLINE)
 				if (rosella.bufferManager != null && simpleObjectManager.renderObjects.isNotEmpty()) {
-					bindBigBuffers(rosella.bufferManager, simpleObjectManager.renderObjects.keys, it, commandBuffer)
+					bindBigBuffers(rosella.bufferManager, it, commandBuffer)
 					simpleObjectManager.renderObjects.keys.forEach { renderInfo ->
 						for (instance in simpleObjectManager.renderObjects[renderInfo]!!) {
 							bindInstanceInfo(instance, it, commandBuffer, i)
@@ -339,17 +342,13 @@ class Renderer(val common: VkCommon, display: Display, val rosella: Rosella) {
 
 	private fun bindBigBuffers(
 		bufferManager: GlobalBufferManager,
-		renderInfos: Set<RenderInfo>,
 		stack: MemoryStack,
 		commandBuffer: VkCommandBuffer
 	) {
-		val vertexBuffer = bufferManager.createVertexBuffer(renderInfos)
-		val indexBuffer = bufferManager.createIndexBuffer(renderInfos)
-
 		val offsets = stack.longs(0)
-		val vertexBuffers = stack.longs(vertexBuffer.buffer)
+		val vertexBuffers = stack.longs(bufferManager.vertexBuffer.buffer)
 		vkCmdBindVertexBuffers(commandBuffer, 0, vertexBuffers, offsets)
-		vkCmdBindIndexBuffer(commandBuffer, indexBuffer.buffer, 0, VK_INDEX_TYPE_UINT32)
+		vkCmdBindIndexBuffer(commandBuffer, bufferManager.indexBuffer.buffer, 0, VK_INDEX_TYPE_UINT32)
 	}
 
 	private fun bindInstanceInfo(
