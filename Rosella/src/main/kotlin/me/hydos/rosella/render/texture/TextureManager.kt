@@ -33,6 +33,7 @@ class TextureManager(val common: VkCommon) { // TODO: add layers, maybe not in t
     }
 
     fun deleteTexture(textureId: Int) {
+        // TODO: actually delete image from gpu
         val removedTex = textureMap.remove(textureId)
         preparedTextures.remove(removedTex)
         reusableTexIds.enqueue(textureId)

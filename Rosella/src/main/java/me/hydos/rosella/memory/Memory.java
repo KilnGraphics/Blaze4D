@@ -15,8 +15,11 @@ import org.lwjgl.vulkan.*;
 
 import java.nio.ByteBuffer;
 import java.nio.LongBuffer;
-import java.util.*;
-import java.util.concurrent.ConcurrentLinkedQueue;
+import java.util.Collection;
+import java.util.List;
+import java.util.Objects;
+import java.util.Set;
+import java.util.concurrent.*;
 import java.util.function.Consumer;
 
 import static me.hydos.rosella.render.util.VkUtilsKt.ok;
@@ -29,34 +32,29 @@ import static org.lwjgl.system.MemoryStack.stackPush;
 public class Memory {
     private static final int THREAD_COUNT = 3;
 
-    private final long allocator;
     private final VkCommon common;
-    private final List<Long> mappedMemory = new ArrayList<>();
-    private final List<Thread> workers = new ArrayList<>(THREAD_COUNT);
-    private final Queue<Consumer<Long>> deallocationQueue = new ConcurrentLinkedQueue<>();
+    private final Collection<Long> mappedMemory = new ConcurrentLinkedQueue<>();
+
+//    private final ThreadLocal<Long> threadedAllocator;
+    private final long allocator;
+    private final ThreadPoolExecutor deallocatorThreadPool;
+    private final BlockingQueue<Runnable> workQueue = new LinkedBlockingQueue<>();
+    private int threadNo;
+
     private boolean running = true;
 
     public Memory(VkCommon common) {
         this.common = common;
-        allocator = createAllocator(common);
 
-        for (int i = 0; i < THREAD_COUNT; i++) {
-            Thread thread = new Thread(() -> {
-                long threadAllocator = createAllocator(common);
-
-                while (running) {
-                    Consumer<Long> consumer = deallocationQueue.poll();
-
-                    if (consumer != null) {
-                        consumer.accept(threadAllocator);
-                    }
-                }
-
-                Vma.vmaDestroyAllocator(threadAllocator);
-            }, "Deallocator Thread " + i);
-            thread.start();
-            workers.add(thread);
-        }
+        this.allocator = createAllocator(common);
+        this.deallocatorThreadPool = new ThreadPoolExecutor(
+                THREAD_COUNT,
+                THREAD_COUNT,
+                0L,
+                TimeUnit.MILLISECONDS,
+                workQueue,
+                r -> new Thread(r, "Deallocator Thread " + threadNo++),
+                (r, executor) -> {/* noop */});
     }
 
     /**
@@ -105,10 +103,15 @@ public class Memory {
             PointerBuffer pAllocator = stack.mallocPointer(1);
             Vma.vmaCreateAllocator(createInfo, pAllocator);
 
-            Rosella.LOGGER.info("New allocator created. 0x%x", pAllocator.get(0));
+            Rosella.LOGGER.info("Allocator created: 0x%x", pAllocator.get(0));
 
             return pAllocator.get(0);
         }
+    }
+
+    private void destroyAllocator(long allocator) {
+        Vma.vmaDestroyAllocator(allocator);
+        Rosella.LOGGER.info("Allocator destroyed: 0x%x", allocator);
     }
 
     /**
@@ -126,7 +129,7 @@ public class Memory {
      * Unmaps allocated memory. this should usually be called on close
      */
     public void unmap(long allocation) {
-        deallocationQueue.add(allocator -> {
+        deallocatorThreadPool.execute(() -> {
             mappedMemory.remove(allocation);
             Vma.vmaUnmapMemory(allocator, allocation);
         });
@@ -222,7 +225,7 @@ public class Memory {
      * Forces a buffer to be freed
      */
     public void freeBuffer(BufferInfo buffer) {
-        deallocationQueue.add(allocator -> Vma.vmaDestroyBuffer(allocator, buffer.buffer(), buffer.allocation()));
+        deallocatorThreadPool.execute(() -> Vma.vmaDestroyBuffer(allocator, buffer.buffer(), buffer.allocation()));
     }
 
     /**
@@ -235,19 +238,18 @@ public class Memory {
 
         running = false;
 
-        for (Thread worker : workers) {
-            try {
-                worker.join();
-            } catch (InterruptedException exception) {
-                throw new RuntimeException(exception);
+        deallocatorThreadPool.shutdown();
+        Rosella.LOGGER.info("rfasduhsweukihasdfjkln");
+        try {
+            // the time gets converted to nanos anyway, so avoid long overflow
+            if (!deallocatorThreadPool.awaitTermination(Long.MAX_VALUE, TimeUnit.NANOSECONDS)) {
+                Rosella.LOGGER.debug("Memory thread pool took too long to shut down");
             }
+        } catch (InterruptedException e) {
+            Rosella.LOGGER.debug("Error shutting down memory thread pool");
         }
 
-        for (Consumer<Long> consumer : deallocationQueue) {
-            consumer.accept(allocator);
-        }
-
-        Vma.vmaDestroyAllocator(allocator);
+        destroyAllocator(allocator);
     }
 
     /**

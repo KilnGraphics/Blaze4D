@@ -75,7 +75,6 @@ public class MinecraftUbo extends Ubo {
     public void create(Swapchain swapChain) {
         try (MemoryStack stack = MemoryStack.stackPush()) {
             this.free();
-            uboFrames = new ArrayList<>(swapChain.getSwapChainImages().size());
             for (int i = 0; i < swapChain.getSwapChainImages().size(); i++) {
                 LongBuffer pBuffer = stack.mallocLong(1);
                 uboFrames.add(
@@ -238,6 +237,7 @@ public class MinecraftUbo extends Ubo {
         for (BufferInfo uboImg : uboFrames) {
             uboImg.free(Blaze4D.rosella.common.device, memory);
         }
+        uboFrames.clear();
     }
 
     @NotNull
