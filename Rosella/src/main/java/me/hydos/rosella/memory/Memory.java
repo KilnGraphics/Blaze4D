@@ -17,10 +17,8 @@ import org.lwjgl.vulkan.*;
 
 import java.nio.ByteBuffer;
 import java.nio.LongBuffer;
-import java.util.ArrayList;
-import java.util.List;
-import java.util.Objects;
-import java.util.Set;
+import java.util.*;
+import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.function.Consumer;
 
 import static me.hydos.rosella.render.util.VkUtilsKt.ok;
@@ -37,8 +35,7 @@ public class Memory {
     private final VkCommon common;
     private final List<Long> mappedMemory = new ArrayList<>();
     private final List<Thread> workers = new ArrayList<>(THREAD_COUNT);
-    private final List<Consumer<Long>> deallocatingConsumers = new ArrayList<>();
-    private final Object lock = new Object();
+    private final Queue<Consumer<Long>> deallocationQueue = new ConcurrentLinkedQueue<>();
     private boolean running = true;
 
     public Memory(VkCommon common) {
@@ -50,11 +47,7 @@ public class Memory {
                 long threadAllocator = createAllocator(common);
 
                 while (running) {
-                    Consumer<Long> consumer = null;
-
-                    if (!deallocatingConsumers.isEmpty()) {
-                        consumer = deallocatingConsumers.remove(0);
-                    }
+                    Consumer<Long> consumer = deallocationQueue.poll();
 
                     if (consumer != null) {
                         consumer.accept(threadAllocator);
@@ -135,7 +128,7 @@ public class Memory {
      * Unmaps allocated memory. this should usually be called on close
      */
     public void unmap(long allocation) {
-        deallocatingConsumers.add(allocator -> {
+        deallocationQueue.add(allocator -> {
             mappedMemory.remove(allocation);
             Vma.vmaUnmapMemory(allocator, allocation);
         });
@@ -266,7 +259,7 @@ public class Memory {
      * Forces a buffer to be freed
      */
     public void freeBuffer(BufferInfo buffer) {
-        deallocatingConsumers.add(allocator -> Vma.vmaDestroyBuffer(allocator, buffer.buffer(), buffer.allocation()));
+        deallocationQueue.add(allocator -> Vma.vmaDestroyBuffer(allocator, buffer.buffer(), buffer.allocation()));
     }
 
     /**
@@ -287,7 +280,7 @@ public class Memory {
             }
         }
 
-        for (Consumer<Long> consumer : deallocatingConsumers) {
+        for (Consumer<Long> consumer : deallocationQueue) {
             consumer.accept(allocator);
         }
 
