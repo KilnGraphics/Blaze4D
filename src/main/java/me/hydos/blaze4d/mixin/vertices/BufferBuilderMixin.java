@@ -34,7 +34,7 @@ public abstract class BufferBuilderMixin extends FixedColorVertexConsumer implem
         Vec3f shaderLightDirections0 = GlobalRenderSystem.shaderLightDirections0.copy();
         Vec3f shaderLightDirections1 = GlobalRenderSystem.shaderLightDirections1.copy();
 
-        this.consumer = GlobalRenderSystem.GLOBAL_CONSUMERS_FOR_BATCH_RENDERING.computeIfAbsent(new ConsumerCreationInfo(drawMode, format, GlobalRenderSystem.createTextureArray(), GlobalRenderSystem.activeShader, projMatrix, viewMatrix, chunkOffset, shaderLightDirections0, shaderLightDirections1), consumerCreationInfo -> {
+        this.consumer = GlobalRenderSystem.GLOBAL_CONSUMERS.computeIfAbsent(new ConsumerCreationInfo(drawMode, format, GlobalRenderSystem.createTextureArray(), GlobalRenderSystem.activeShader, projMatrix, viewMatrix, chunkOffset, shaderLightDirections0, shaderLightDirections1), consumerCreationInfo -> {
             me.hydos.rosella.render.vertex.BufferVertexConsumer consumer;
             if (consumerCreationInfo.format().equals(net.minecraft.client.render.VertexFormats.POSITION)) {
                 consumer = new me.hydos.rosella.render.vertex.BufferVertexConsumer(VertexFormats.POSITION);
