@@ -2,11 +2,8 @@ package me.hydos.rosella.render.model
 
 import me.hydos.rosella.Rosella
 import me.hydos.rosella.render.material.Material
-import me.hydos.rosella.render.renderer.Renderer
 import me.hydos.rosella.render.resource.Resource
-import me.hydos.rosella.memory.Memory
 import me.hydos.rosella.scene.`object`.RenderObject
-import me.hydos.rosella.vkobjects.VkCommon
 import org.joml.Matrix4f
 import org.joml.Vector3f
 

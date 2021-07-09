@@ -41,11 +41,11 @@ class TextureManager(val common: VkCommon) { // TODO: add layers, maybe not in t
 	}
 
 	fun createTexture(
-		renderer: Renderer,
-		textureId: Int,
-		width: Int,
-		height: Int,
-		imgFormat: Int
+			renderer: Renderer,
+			textureId: Int,
+			width: Int,
+			height: Int,
+			imgFormat: Int
 	) {
 		val textureImage = TextureImage(0, 0, 0)
 
@@ -80,12 +80,12 @@ class TextureManager(val common: VkCommon) { // TODO: add layers, maybe not in t
 	}
 
 	fun drawToExistingTexture(
-		renderer: Renderer,
-		memory: Memory,
-		textureId: Int,
-		image: UploadableImage,
-		srcRegion: ImageRegion,
-		dstRegion: ImageRegion,
+			renderer: Renderer,
+			memory: Memory,
+			textureId: Int,
+			image: UploadableImage,
+			srcRegion: ImageRegion,
+			dstRegion: ImageRegion,
 	) {
 		val texture = getTexture(textureId)!!
 		if (preparedTextures.contains(texture)) {
@@ -111,18 +111,18 @@ class TextureManager(val common: VkCommon) { // TODO: add layers, maybe not in t
 	}
 
 	fun drawToExistingTexture(
-		renderer: Renderer,
-		memory: Memory,
-		textureId: Int,
-		image: UploadableImage
+			renderer: Renderer,
+			memory: Memory,
+			textureId: Int,
+			image: UploadableImage
 	) {
 		val region = ImageRegion(image.getWidth(), image.getHeight(), 0, 0)
 		drawToExistingTexture(renderer, memory, textureId, image, region, region)
 	}
 
 	fun prepareTexture(
-		renderer: Renderer,
-		texture: Texture
+			renderer: Renderer,
+			texture: Texture
 	) {
 		if (!preparedTextures.contains(texture)) {
 			transitionImageLayout(

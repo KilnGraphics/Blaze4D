@@ -171,10 +171,7 @@ public class Memory {
                     .usage(vmaUsage);
 
             PointerBuffer pAllocation = stack.mallocPointer(1);
-            int result = Vma.vmaCreateBuffer(allocator, vulkanBufferInfo, vmaBufferInfo, pBuffer, pAllocation, null);
-            if (result != 0) {
-                throw new RuntimeException("Failed To Create VMA Buffer. Error Code " + result);
-            }
+            ok(Vma.vmaCreateBuffer(allocator, vulkanBufferInfo, vmaBufferInfo, pBuffer, pAllocation, null));
             allocation = pAllocation.get(0);
         }
         return new BufferInfo(pBuffer.get(0), allocation);
@@ -196,9 +193,9 @@ public class Memory {
             VkSubmitInfo submitInfo = VkSubmitInfo.callocStack(stack)
                     .sType(VK10.VK_STRUCTURE_TYPE_SUBMIT_INFO)
                     .pCommandBuffers(pCommandBuffer);
-            ok(VK10.vkQueueSubmit(renderer.getQueues().graphicsQueue, submitInfo, VK10.VK_NULL_HANDLE));
-            ok(VK10.vkQueueWaitIdle(renderer.getQueues().graphicsQueue));
-            VK10.vkFreeCommandBuffers(device.rawDevice, renderer.getCommandPool(), pCommandBuffer);
+            ok(VK10.vkQueueSubmit(renderer.queues.graphicsQueue, submitInfo, VK10.VK_NULL_HANDLE));
+            ok(VK10.vkQueueWaitIdle(renderer.queues.graphicsQueue));
+            VK10.vkFreeCommandBuffers(device.rawDevice, renderer.commandPool, pCommandBuffer);
         }
     }
 

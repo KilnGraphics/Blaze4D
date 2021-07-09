@@ -366,7 +366,7 @@ fun copyToTexture(
 		copyBufferToImage(
 			renderer,
 			device,
-			stagingBuf.buffer,
+			stagingBuf.buffer(),
 			texture.textureImage.textureImage,
 			image.getWidth(),
 			image.getHeight(),
