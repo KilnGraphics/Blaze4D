@@ -1,5 +1,8 @@
 package me.hydos.rosella.memory;
 
+import it.unimi.dsi.fastutil.longs.LongOpenHashSet;
+import it.unimi.dsi.fastutil.longs.LongSet;
+import it.unimi.dsi.fastutil.longs.LongSets;
 import me.hydos.rosella.Rosella;
 import me.hydos.rosella.device.VulkanDevice;
 import me.hydos.rosella.render.renderer.Renderer;
@@ -15,10 +18,7 @@ import org.lwjgl.vulkan.*;
 
 import java.nio.ByteBuffer;
 import java.nio.LongBuffer;
-import java.util.Collection;
-import java.util.List;
-import java.util.Objects;
-import java.util.Set;
+import java.util.*;
 import java.util.concurrent.*;
 import java.util.function.Consumer;
 
@@ -33,7 +33,7 @@ public class Memory {
     private static final int THREAD_COUNT = 3;
 
     private final VkCommon common;
-    private final Collection<Long> mappedMemory = new ConcurrentLinkedQueue<>();
+    private final LongSet mappedMemory = LongSets.synchronize(new LongOpenHashSet());
 
     private final long allocator;
     private final ThreadPoolExecutor deallocatorThreadPool;
@@ -95,6 +95,7 @@ public class Memory {
                     .physicalDevice(common.device.physicalDevice)
                     .device(common.device.rawDevice)
                     .pVulkanFunctions(vulkanFunctions)
+                    //.flags(Vma.VMA_ALLOCATOR_CREATE_EXTERNALLY_SYNCHRONIZED_BIT)
                     .instance(common.vkInstance.rawInstance)
                     .vulkanApiVersion(Rosella.VULKAN_VERSION);
 
@@ -113,7 +114,7 @@ public class Memory {
     }
 
     /**
-     * Maps an allocation with an Pointer Buffer
+     * Maps an allocation with a Pointer Buffer
      */
     public void map(long allocation, boolean unmapOnClose, PointerBuffer data) {
         if (unmapOnClose) {
