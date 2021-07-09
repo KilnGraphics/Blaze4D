@@ -5,32 +5,32 @@ package me.hydos.rosella.render.vertex
  */
 interface VertexConsumer {
 
-	val format: VertexFormat
+    val format: VertexFormat
 
-	fun pos(x: Float, y: Float, z: Float): VertexConsumer
+    fun pos(x: Float, y: Float, z: Float): VertexConsumer
 
-	fun color(red: Byte, green: Byte, blue: Byte): VertexConsumer
+    fun color(red: Byte, green: Byte, blue: Byte): VertexConsumer
 
-	fun color(red: Byte, green: Byte, blue: Byte, alpha: Byte): VertexConsumer
+    fun color(red: Byte, green: Byte, blue: Byte, alpha: Byte): VertexConsumer
 
-	fun uv(u: Float, v: Float): VertexConsumer
+    fun uv(u: Float, v: Float): VertexConsumer
 
-	fun uv(u: Short, v: Short): VertexConsumer
+    fun uv(u: Short, v: Short): VertexConsumer
 
-	fun light(u: Short, v: Short): VertexConsumer {
-		this.uv(u, v)
-		return this
-	}
+    fun light(u: Short, v: Short): VertexConsumer {
+        this.uv(u, v)
+        return this
+    }
 
-	fun normal(x :Float, y: Float, z: Float): VertexConsumer
+    fun normal(x: Float, y: Float, z: Float): VertexConsumer
 
-	fun nextVertex(): VertexConsumer
+    fun nextVertex(): VertexConsumer
 
-	fun clear()
+    fun clear()
 
-	fun getVertexSize(): Int
+    fun getVertexSize(): Int
 
-	fun getVertexCount(): Int
+    fun getVertexCount(): Int
 
-	fun copy(): VertexConsumer
+    fun copy(): VertexConsumer
 }

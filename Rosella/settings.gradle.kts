@@ -1,8 +1,8 @@
 rootProject.name = "Rosella"
 
 pluginManagement {
-	repositories {
-		gradlePluginPortal()
-		jcenter()
-	}
+    repositories {
+        gradlePluginPortal()
+        jcenter()
+    }
 }

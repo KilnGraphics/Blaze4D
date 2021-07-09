@@ -2,13 +2,13 @@ package me.hydos.rosella.scene.object;
 
 import me.hydos.rosella.Rosella;
 import me.hydos.rosella.device.VulkanDevice;
+import me.hydos.rosella.memory.Memory;
 import me.hydos.rosella.render.info.InstanceInfo;
 import me.hydos.rosella.render.info.RenderInfo;
 import me.hydos.rosella.render.material.Material;
 import me.hydos.rosella.render.model.ModelLoader;
 import me.hydos.rosella.render.resource.Resource;
 import me.hydos.rosella.render.shader.ubo.RenderObjectUbo;
-import me.hydos.rosella.memory.Memory;
 import me.hydos.rosella.render.vertex.BufferVertexConsumer;
 import me.hydos.rosella.render.vertex.VertexFormats;
 import org.joml.Matrix4f;

@@ -15,75 +15,81 @@ open class GuiRenderObject(
     projectionMatrix: Matrix4f
 ) : RenderObject(Resource.Empty, material, viewMatrix, projectionMatrix) {
 
-	constructor(
-		material: Material, z: Float, colour: Vector3f, scaleX: Float, scaleZ: Float, viewMatrix: Matrix4f, projectionMatrix: Matrix4f
-	) : this(material, z, colour, viewMatrix, projectionMatrix) {
-		scale(scaleX, scaleZ)
-	}
+    constructor(
+        material: Material,
+        z: Float,
+        colour: Vector3f,
+        scaleX: Float,
+        scaleZ: Float,
+        viewMatrix: Matrix4f,
+        projectionMatrix: Matrix4f
+    ) : this(material, z, colour, viewMatrix, projectionMatrix) {
+        scale(scaleX, scaleZ)
+    }
 
-	constructor(
-		material: Material,
-		z: Float,
-		colour: Vector3f,
-		scaleX: Float,
-		scaleZ: Float,
-		translateX: Float,
-		translateZ: Float,
-		viewMatrix: Matrix4f,
-		projectionMatrix: Matrix4f
-	) : this(material, z, colour, scaleX, scaleZ, viewMatrix, projectionMatrix) {
-		translate(translateX, translateZ)
-	}
+    constructor(
+        material: Material,
+        z: Float,
+        colour: Vector3f,
+        scaleX: Float,
+        scaleZ: Float,
+        translateX: Float,
+        translateZ: Float,
+        viewMatrix: Matrix4f,
+        projectionMatrix: Matrix4f
+    ) : this(material, z, colour, scaleX, scaleZ, viewMatrix, projectionMatrix) {
+        translate(translateX, translateZ)
+    }
 
-	override fun loadModelInfo() {
-		renderInfo.consumer.clear()
-		renderInfo.indices = ArrayList()
+    override fun loadModelInfo() {
+        renderInfo.consumer.clear()
+        renderInfo.indices = ArrayList()
 
-		colour = Vector3f(0f, 0f, 0f)
+        colour = Vector3f(0f, 0f, 0f)
 
-		// TODO: is this conversion doing what it should be? should convert int representing unsigned byte to signed byte through wrapping
-		renderInfo.consumer
-			.pos(-0.5f, -0.5f, 0f)
-			.color(colour.x().toInt().toByte(), colour.y().toInt().toByte(), colour.z().toInt().toByte())
-			.uv(0f, 0f)
-			.nextVertex()
+        // TODO: is this conversion doing what it should be? should convert int representing unsigned byte to signed byte through wrapping
+        renderInfo.consumer
+            .pos(-0.5f, -0.5f, 0f)
+            .color(colour.x().toInt().toByte(), colour.y().toInt().toByte(), colour.z().toInt().toByte())
+            .uv(0f, 0f)
+            .nextVertex()
 
-		renderInfo.consumer
-			.pos(0.5f, -0.5f, 0f)
-			.color(colour.x().toInt().toByte(), colour.y().toInt().toByte(), colour.z().toInt().toByte())
-			.uv(1f, 0f)
-			.nextVertex()
+        renderInfo.consumer
+            .pos(0.5f, -0.5f, 0f)
+            .color(colour.x().toInt().toByte(), colour.y().toInt().toByte(), colour.z().toInt().toByte())
+            .uv(1f, 0f)
+            .nextVertex()
 
-		renderInfo.consumer
-			.pos(0.5f, 0.5f, 0f)
-			.color(colour.x().toInt().toByte(), colour.y().toInt().toByte(), colour.z().toInt().toByte())
-			.uv(1f, 1f)
-			.nextVertex()
+        renderInfo.consumer
+            .pos(0.5f, 0.5f, 0f)
+            .color(colour.x().toInt().toByte(), colour.y().toInt().toByte(), colour.z().toInt().toByte())
+            .uv(1f, 1f)
+            .nextVertex()
 
-		renderInfo.consumer
-			.pos(-0.5f, 0.5f, 0f)
-			.color(colour.x().toInt().toByte(), colour.y().toInt().toByte(), colour.z().toInt().toByte())
-			.uv(0f, 1f)
-			.nextVertex()
+        renderInfo.consumer
+            .pos(-0.5f, 0.5f, 0f)
+            .color(colour.x().toInt().toByte(), colour.y().toInt().toByte(), colour.z().toInt().toByte())
+            .uv(0f, 1f)
+            .nextVertex()
 
-		renderInfo.indices.add(0)
-		renderInfo.indices.add(1)
-		renderInfo.indices.add(2)
-		renderInfo.indices.add(2)
-		renderInfo.indices.add(3)
-		renderInfo.indices.add(0)
-	}
+        renderInfo.indices.add(0)
+        renderInfo.indices.add(1)
+        renderInfo.indices.add(2)
+        renderInfo.indices.add(2)
+        renderInfo.indices.add(3)
+        renderInfo.indices.add(0)
+    }
 
-	override fun onAddedToScene(rosella: Rosella) {
-		super.onAddedToScene(rosella)
-		modelMatrix.translate(0f, 0f, z)
-	}
+    override fun onAddedToScene(rosella: Rosella) {
+        super.onAddedToScene(rosella)
+        modelMatrix.translate(0f, 0f, z)
+    }
 
-	private fun scale(x: Float, y: Float) {
-		modelMatrix.scale(x, y, 1f)
-	}
+    private fun scale(x: Float, y: Float) {
+        modelMatrix.scale(x, y, 1f)
+    }
 
-	private fun translate(x: Float, y: Float) {
-		modelMatrix.translate(x, -y, 0f)
-	}
+    private fun translate(x: Float, y: Float) {
+        modelMatrix.translate(x, -y, 0f)
+    }
 }

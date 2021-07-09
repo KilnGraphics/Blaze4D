@@ -1,8 +1,9 @@
 package me.hydos.rosella.device;
 
-import java.util.stream.IntStream;
+import java.util.Objects;
 
 public class QueueFamilyIndices {
+
     public Integer graphicsFamily;
     public Integer presentFamily;
 
@@ -11,10 +12,10 @@ public class QueueFamilyIndices {
     }
 
     public int[] unique() {
-        return IntStream.of(graphicsFamily, presentFamily).distinct().toArray();
-    }
-
-    public int[] array() {
-        return new int[] {graphicsFamily, presentFamily};
+        if (Objects.equals(graphicsFamily, presentFamily)) {
+            return new int[]{graphicsFamily};
+        } else {
+            return new int[]{graphicsFamily, presentFamily};
+        }
     }
 }

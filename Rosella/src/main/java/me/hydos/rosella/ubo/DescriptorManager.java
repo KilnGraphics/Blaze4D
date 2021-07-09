@@ -38,7 +38,7 @@ public class DescriptorManager {
      * Allocates a new {@link DescriptorSet}. This should only be called when no free {@link DescriptorSet}'s are available
      *
      * @param textures the {@link Texture[]} array to use with the {@link DescriptorSet}
-     * @param ubo     the {@link Ubo} to use with the {@link DescriptorSet}
+     * @param ubo      the {@link Ubo} to use with the {@link DescriptorSet}
      */
     public void createNewDescriptor(Texture[] textures, Ubo ubo) {
         activeDescriptorCount++;

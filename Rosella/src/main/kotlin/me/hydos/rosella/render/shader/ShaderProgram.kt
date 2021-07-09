@@ -13,37 +13,37 @@ import java.nio.ByteBuffer
 
 class ShaderProgram(val raw: RawShaderProgram, val rosella: Rosella, maxObjects: Int) {
 
-	private val fragmentShader by lazy { compileShaderFile(raw.fragmentShader!!, ShaderType.FRAGMENT_SHADER) }
-	private val vertexShader by lazy { compileShaderFile(raw.vertexShader!!, ShaderType.VERTEX_SHADER) }
-	val descriptorManager = DescriptorManager(maxObjects, this, rosella.renderer.swapchain, rosella.common.device)
+    private val fragmentShader by lazy { compileShaderFile(raw.fragmentShader!!, ShaderType.FRAGMENT_SHADER) }
+    private val vertexShader by lazy { compileShaderFile(raw.vertexShader!!, ShaderType.VERTEX_SHADER) }
+    val descriptorManager = DescriptorManager(maxObjects, this, rosella.renderer.swapchain, rosella.common.device)
 
-	/**
-	 * Create a Vulkan shader module. used during pipeline creation.
-	 */
-	private fun createShader(spirvCode: ByteBuffer, device: VulkanDevice): Long {
-		MemoryStack.stackPush().use { stack ->
-			val createInfo = VkShaderModuleCreateInfo.callocStack(stack)
-				.sType(VK10.VK_STRUCTURE_TYPE_SHADER_MODULE_CREATE_INFO)
-				.pCode(spirvCode)
-			val pShaderModule = stack.mallocLong(1)
-			VK10.vkCreateShaderModule(device.rawDevice, createInfo, null, pShaderModule).ok()
-			return pShaderModule[0]
-		}
-	}
+    /**
+     * Create a Vulkan shader module. used during pipeline creation.
+     */
+    private fun createShader(spirvCode: ByteBuffer, device: VulkanDevice): Long {
+        MemoryStack.stackPush().use { stack ->
+            val createInfo = VkShaderModuleCreateInfo.callocStack(stack)
+                .sType(VK10.VK_STRUCTURE_TYPE_SHADER_MODULE_CREATE_INFO)
+                .pCode(spirvCode)
+            val pShaderModule = stack.mallocLong(1)
+            VK10.vkCreateShaderModule(device.rawDevice, createInfo, null, pShaderModule).ok()
+            return pShaderModule[0]
+        }
+    }
 
-	fun getVertShaderModule(): Long {
-		return createShader(vertexShader.bytecode(), rosella.common.device)
-	}
+    fun getVertShaderModule(): Long {
+        return createShader(vertexShader.bytecode(), rosella.common.device)
+    }
 
-	fun getFragShaderModule(): Long {
-		return createShader(fragmentShader.bytecode(), rosella.common.device)
-	}
+    fun getFragShaderModule(): Long {
+        return createShader(fragmentShader.bytecode(), rosella.common.device)
+    }
 
-	/**
-	 * Free Shaders
-	 */
-	fun free() {
-		vertexShader.free()
-		fragmentShader.free()
-	}
+    /**
+     * Free Shaders
+     */
+    fun free() {
+        vertexShader.free()
+        fragmentShader.free()
+    }
 }

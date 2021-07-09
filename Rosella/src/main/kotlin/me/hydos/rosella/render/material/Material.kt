@@ -15,34 +15,38 @@ import me.hydos.rosella.scene.`object`.impl.SimpleObjectManager
  * guaranteed to change in the future
  */
 open class Material(
-	val resource: Resource,
-	var shader: ShaderProgram,
-	private val imgFormat: Int,
-	val topology: Topology,
-	val vertexFormat: VertexFormat,
-	private val samplerCreateInfo: SamplerCreateInfo,
-	val stateInfo: StateInfo
+    val resource: Resource,
+    var shader: ShaderProgram,
+    private val imgFormat: Int,
+    val topology: Topology,
+    val vertexFormat: VertexFormat,
+    private val samplerCreateInfo: SamplerCreateInfo,
+    val stateInfo: StateInfo
 ) {
-	lateinit var pipeline: PipelineInfo
+    lateinit var pipeline: PipelineInfo
 
-	lateinit var textures: Array<Texture?>
+    lateinit var textures: Array<Texture?>
 
-	open fun loadTextures(objectManager: SimpleObjectManager, rosella: Rosella) { //FIXME this is also temporary
-		if (resource != Resource.Empty) {
-			val textureManager = objectManager.textureManager
-			val textureId = textureManager.generateTextureId() // FIXME this texture can't be removed
-			val image: UploadableImage = StbiImage(resource, ImageFormat.fromVkFormat(imgFormat))
-			textureManager.createTexture(
-				rosella.renderer,
-				textureId,
-				image.getWidth(),
-				image.getHeight(),
-				imgFormat
-			)
-			textureManager.setTextureSampler(textureId, 0, samplerCreateInfo) // 0 is the default texture no, but it's still gross
-			textureManager.drawToExistingTexture(rosella.renderer, rosella.common.memory, textureId, image)
-			val texture = textureManager.getTexture(textureId)!!
-			textures = arrayOf(texture) //FIXME THIS SUCKS
-		}
-	}
+    open fun loadTextures(objectManager: SimpleObjectManager, rosella: Rosella) { //FIXME this is also temporary
+        if (resource != Resource.Empty) {
+            val textureManager = objectManager.textureManager
+            val textureId = textureManager.generateTextureId() // FIXME this texture can't be removed
+            val image: UploadableImage = StbiImage(resource, ImageFormat.fromVkFormat(imgFormat))
+            textureManager.createTexture(
+                rosella.renderer,
+                textureId,
+                image.getWidth(),
+                image.getHeight(),
+                imgFormat
+            )
+            textureManager.setTextureSampler(
+                textureId,
+                0,
+                samplerCreateInfo
+            ) // 0 is the default texture no, but it's still gross
+            textureManager.drawToExistingTexture(rosella.renderer, rosella.common.memory, textureId, image)
+            val texture = textureManager.getTexture(textureId)!!
+            textures = arrayOf(texture) //FIXME THIS SUCKS
+        }
+    }
 }

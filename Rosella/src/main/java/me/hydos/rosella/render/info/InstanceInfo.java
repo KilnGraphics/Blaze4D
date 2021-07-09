@@ -2,10 +2,10 @@ package me.hydos.rosella.render.info;
 
 import me.hydos.rosella.Rosella;
 import me.hydos.rosella.device.VulkanDevice;
+import me.hydos.rosella.memory.Memory;
 import me.hydos.rosella.memory.MemoryCloseable;
 import me.hydos.rosella.render.material.Material;
 import me.hydos.rosella.render.shader.ubo.Ubo;
-import me.hydos.rosella.memory.Memory;
 import org.jetbrains.annotations.NotNull;
 
 /**
