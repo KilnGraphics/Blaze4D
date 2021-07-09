@@ -10,7 +10,7 @@ import java.util.function.Consumer
  */
 class VertexFormat(private val elementMap: Map<Int, Element>) {
 
-	val elements = elementMap.values
+	private val elements = elementMap.values
 
 	val vkAttributes: VkVertexInputAttributeDescription.Buffer
 		get() {
@@ -61,7 +61,6 @@ class VertexFormat(private val elementMap: Map<Int, Element>) {
 		COLOR4(VK10.VK_FORMAT_R32G32B32A32_SFLOAT, DataType.FLOAT.byteLength * 4),
 		UVs(VK10.VK_FORMAT_R32G32_SINT, DataType.INT.byteLength * 2),
 		UVf(VK10.VK_FORMAT_R32G32_SFLOAT, DataType.FLOAT.byteLength * 2),
-		PADDING(VK10.VK_FORMAT_R8_SINT, DataType.BYTE.byteLength),
 		GENERIC(VK10.VK_FORMAT_R8_SINT, DataType.BYTE.byteLength),
 		LIGHT(VK10.VK_FORMAT_R32G32_SINT, DataType.INT.byteLength * 2)
 	}

@@ -86,7 +86,7 @@ public abstract class WindowMixin {
         // Destroy The OpenGL Window before Minecraft Gets Too Attached
         GLFW.glfwDestroyWindow(this.handle);
 
-        Blaze4D.window = new GlfwWindow(this.width, this.height, title + " - Rosella (fps: ??)", true);
+        Blaze4D.window = new GlfwWindow(this.width, this.height, title, true);
         Blaze4D.rosella = new Rosella(Blaze4D.window, "Blaze4D", Blaze4D.VALIDATION_ENABLED);
         Blaze4D.finishAndRender();
 

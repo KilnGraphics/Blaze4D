@@ -319,7 +319,14 @@ class Renderer(val common: VkCommon, display: Display, val rosella: Rosella) {
 					simpleObjectManager.renderObjects.keys.forEach { renderInfo ->
 						for (instance in simpleObjectManager.renderObjects[renderInfo]!!) {
 							bindInstanceInfo(instance, it, commandBuffer, i)
-							vkCmdDrawIndexed(commandBuffer, renderInfo.indicesSize, 1, 0, rosella.bufferManager.vertexOffsetMap[renderInfo]!!, 0)
+							vkCmdDrawIndexed(
+								commandBuffer,
+								renderInfo.indicesSize,
+								1,
+								rosella.bufferManager.indicesOffsetMap[renderInfo]!!,
+								rosella.bufferManager.vertexOffsetMap[renderInfo]!!,
+								0
+							)
 						}
 					}
 				}

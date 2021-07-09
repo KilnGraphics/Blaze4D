@@ -1,29 +1,6 @@
 package me.hydos.blaze4d.api.shader;
 
-/*      #version 150 -> #version 450
-        + #extension GL_ARB_separate_shader_objects : enable
-
-        in vec3 Position; -> layout(location = 0) in vec3 Position;
-        in vec2 UV; -> layout(location = 1) in vec2 UV;
-        in vec4 Color; -> layout(location = 2) in vec4 Color;
-
-        uniform mat4 ModelViewMat; X
-        uniform mat4 ProjMat; X
-
-        + layout(binding = 0) uniform UniformBufferObject {
-        +     mat4 ModelViewMat;
-        +     mat4 ProjMat;
-        + } ubo;
-
-        out vec2 texCoord; -> layout(location = 0) out vec2 texCoord;
-        out vec4 vertexColor; -> layout(location = 1) out vec4 vertexColor;
-
-        void main() {
-        gl_Position = ProjMat * ModelViewMat * vec4(Position, 1.0); -> gl_Position = ubo.ProjMat * ubo.ModelViewMat * vec4(Position, 1.0);
-
-        texCoord = UV;
-        vertexColor = Color;
-        }*/
+import net.minecraft.client.gl.GlUniform;
 
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -31,8 +8,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
-
-import net.minecraft.client.gl.GlUniform;
 
 public class OpenGLToVulkanShaderProcessor {
 
@@ -46,7 +21,10 @@ public class OpenGLToVulkanShaderProcessor {
         int samplers = 1;
 
         for (int i = 0; i < lines.size(); i++) {
-            String line = lines.get(i);
+            String line = lines.get(i)
+                    .replace("gl_VertexID", "gl_VertexIndex")
+                    .replace("gl_InstanceID", "gl_InstanceIndex");
+            lines.set(i, line);
 
             if (line.matches("#version \\d*")) {
                 lines.set(i, """
@@ -59,7 +37,7 @@ public class OpenGLToVulkanShaderProcessor {
                 lines.set(i, "layout(location = " + (outVariables++) + ") " + line);
             } else if (line.matches("uniform .*")) {
                 Matcher uniformMatcher = Pattern.compile("uniform\\s(\\w*)\\s(\\w*);").matcher(line);
-                if(!uniformMatcher.find()){
+                if (!uniformMatcher.find()) {
                     throw new RuntimeException("Unable to parse shader line: " + line);
                 }
                 String type = uniformMatcher.group(1);
@@ -70,21 +48,6 @@ public class OpenGLToVulkanShaderProcessor {
                     i--;
                 }
             } else if (line.matches("void main\\(\\) \\{")) {
-//                List<String> uboNames = List.of(
-//                        "ModelViewMat",
-//                        "ProjMat",
-//                        "ColorModulator",
-//                        "FogStart",
-//                        "FogEnd",
-//                        "FogColor",
-//                        "TextureMat",
-//                        "GameTime",
-//                        "ScreenSize",
-//                        "LineWidth",
-//                        "ChunkOffset",
-//                        "Light0_Direction",
-//                        "Light1_Direction"
-//                );
 
                 List<String> uboNames = glUniforms.stream().map(GlUniform::getName).toList();
 

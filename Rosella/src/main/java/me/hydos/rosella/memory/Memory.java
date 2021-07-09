@@ -231,38 +231,6 @@ public class Memory {
     }
 
     /**
-     * Creates a vertex buffer from an List of Vertices
-     */
-    public BufferInfo createVertexBuffer(Rosella engine, VertexConsumer consumer) {
-        try (MemoryStack stack = stackPush()) {
-            if (consumer instanceof BufferVertexConsumer) {
-                int size = consumer.getVertexSize() * consumer.getVertexCount();
-                LongBuffer pBuffer = stack.mallocLong(1);
-                BufferInfo stagingBuffer = createStagingBuf(size, pBuffer, stack,
-                        data -> {
-                            ByteBuffer dst = data.getByteBuffer(0, size);
-                            for (Consumer<ByteBuffer> bufConsumer : ((BufferVertexConsumer) consumer).getBufferConsumerList()) {
-                                bufConsumer.accept(dst);
-                            }
-                        }
-                );
-                BufferInfo vertexBufferInfo = createBuffer(
-                        size,
-                        VK10.VK_BUFFER_USAGE_TRANSFER_DST_BIT | VK10.VK_BUFFER_USAGE_VERTEX_BUFFER_BIT,
-                        Vma.VMA_MEMORY_USAGE_CPU_TO_GPU,
-                        pBuffer
-                );
-                long vertexBuffer = pBuffer.get(0);
-                copyBuffer(stagingBuffer.buffer(), vertexBuffer, size, engine.renderer, engine.common.device);
-                stagingBuffer.free(common.device, this);
-                return vertexBufferInfo;
-            } else {
-                throw new RuntimeException("Cannot handle non buffer based Vertex Consumers");
-            }
-        }
-    }
-
-    /**
      * Forces a buffer to be freed
      */
     public void freeBuffer(BufferInfo buffer) {
@@ -272,7 +240,7 @@ public class Memory {
     /**
      * Free's all created buffers and mapped memory
      */
-    public void teardown() {
+    public void free() {
         for (long memory : mappedMemory) {
             unmap(memory);
         }

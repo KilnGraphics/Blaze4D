@@ -1,5 +1,8 @@
 accessWidener   v1  named
 
+# Make animated textures stop animating
+accessible class net/minecraft/client/texture/Sprite$Animation
+
 # Make Minecraft Shut Up
 accessible class net/minecraft/client/resource/VideoWarningManager$WarningPatternLoader
 

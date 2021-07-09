@@ -90,7 +90,7 @@ public class Rosella {
         }
 
         // Free the rest of it
-        common.memory.teardown();
+        common.memory.free();
 
         vkDestroyCommandPool(common.device.rawDevice, renderer.getCommandPool(), null);
         vkDestroyDevice(common.device.rawDevice, null);

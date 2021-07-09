@@ -107,14 +107,9 @@ public class GlobalRenderSystem {
         GlobalRenderSystem.renderConsumers(); //TODO: move this probably
 
         ((SimpleObjectManager) Blaze4D.rosella.objectManager).renderObjects.clear();
-        if (currentFrameObjects.size() < 2000) {
-            for (ConsumerRenderObject renderObject : currentFrameObjects) {
-                Blaze4D.rosella.objectManager.addObject(renderObject);
-            }
-        } else {
-            Blaze4D.LOGGER.warn("Skipped a frame");
+        for (ConsumerRenderObject renderObject : currentFrameObjects) {
+            Blaze4D.rosella.objectManager.addObject(renderObject);
         }
-
 
         Blaze4D.rosella.renderer.rebuildCommandBuffers(Blaze4D.rosella.renderer.renderPass, (SimpleObjectManager) Blaze4D.rosella.objectManager);
 
