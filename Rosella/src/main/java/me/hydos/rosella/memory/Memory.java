@@ -35,10 +35,8 @@ public class Memory {
     private final VkCommon common;
     private final Collection<Long> mappedMemory = new ConcurrentLinkedQueue<>();
 
-//    private final ThreadLocal<Long> threadedAllocator;
     private final long allocator;
     private final ThreadPoolExecutor deallocatorThreadPool;
-    private final BlockingQueue<Runnable> workQueue = new LinkedBlockingQueue<>();
     private int threadNo;
 
     private boolean running = true;
@@ -52,7 +50,7 @@ public class Memory {
                 THREAD_COUNT,
                 0L,
                 TimeUnit.MILLISECONDS,
-                workQueue,
+                new LinkedBlockingQueue<>(),
                 r -> new Thread(r, "Deallocator Thread " + threadNo++),
                 (r, executor) -> {/* noop */});
     }
@@ -239,7 +237,6 @@ public class Memory {
         running = false;
 
         deallocatorThreadPool.shutdown();
-        Rosella.LOGGER.info("rfasduhsweukihasdfjkln");
         try {
             // the time gets converted to nanos anyway, so avoid long overflow
             if (!deallocatorThreadPool.awaitTermination(Long.MAX_VALUE, TimeUnit.NANOSECONDS)) {
