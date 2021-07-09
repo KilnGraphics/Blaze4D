@@ -1,8 +1,11 @@
-package me.hydos.rosella.render;
+package me.hydos.rosella.render.renderer;
 
 import java.nio.IntBuffer;
+import java.nio.LongBuffer;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
 import it.unimi.dsi.fastutil.ints.Int2ObjectOpenHashMap;
 import it.unimi.dsi.fastutil.objects.ObjectArrayList;
@@ -10,10 +13,15 @@ import me.hydos.rosella.Rosella;
 import me.hydos.rosella.device.VulkanDevice;
 import me.hydos.rosella.device.VulkanQueues;
 import me.hydos.rosella.display.Display;
+import me.hydos.rosella.memory.BufferInfo;
 import me.hydos.rosella.memory.Memory;
+import me.hydos.rosella.memory.buffer.GlobalBufferManager;
+import me.hydos.rosella.render.VkKt;
+import me.hydos.rosella.render.info.InstanceInfo;
+import me.hydos.rosella.render.info.RenderInfo;
 import me.hydos.rosella.render.material.Material;
 import me.hydos.rosella.render.shader.RawShaderProgram;
-import me.hydos.rosella.render.shader.Shader;
+import me.hydos.rosella.render.shader.ShaderProgram;
 import me.hydos.rosella.render.swapchain.DepthBuffer;
 import me.hydos.rosella.render.swapchain.Frame;
 import me.hydos.rosella.render.swapchain.RenderPass;
@@ -32,7 +40,7 @@ public class Renderer {
     private final Display display;
     private final Rosella rosella;
 
-    private DepthBuffer depthBuffer = new DepthBuffer();
+    public DepthBuffer depthBuffer = new DepthBuffer();
 
     public Renderer(VkCommon common, Display display, Rosella rosella) {
         this.common = common;
@@ -41,11 +49,11 @@ public class Renderer {
 
         queues = new VulkanQueues(common);
 
-        createCmdPool(common.device, this, common.surface);
+        VkKt.createCmdPool(common.device, this, common.surface);
         createSwapChain(common, display, ((SimpleObjectManager) rosella.objectManager));
     }
 
-        private List<Frame> inFlightFrames = new ObjectArrayList<>();
+        public List<Frame> inFlightFrames = new ObjectArrayList<>();
         private Map<Integer, Frame> imagesInFlight = new Int2ObjectOpenHashMap<>();
         private int currentFrame = 0;
 
@@ -55,19 +63,19 @@ public class Renderer {
         private float g = 0.2f;
         private float b = 0.2f;
 
-        Swapchain swapchain;
-        RenderPass renderPass;
+        public Swapchain swapchain;
+        public RenderPass renderPass;
 
-        VulkanQueues queues;
+        public VulkanQueues queues;
 
-        long commandPool = 0;
+        public long commandPool = 0;
         List<VkCommandBuffer> commandBuffers = new ObjectArrayList<VkCommandBuffer>();
 
 
         private void createSwapChain(VkCommon common, Display display, SimpleObjectManager objectManager) {
             this.swapchain = new Swapchain(display, common.device.rawDevice, common.device.physicalDevice, common.surface);
             this.renderPass = new RenderPass(common.device, swapchain, this);
-            createImgViews(swapchain, common.device);
+            VkKt.createImgViews(swapchain, common.device);
             for (Material material : objectManager.materials) {
                 material.pipeline = objectManager.pipelineManager.getPipeline(material, this);
             }
@@ -218,62 +226,64 @@ public class Renderer {
 
         private void createSyncObjects() {
             inFlightFrames = new ObjectArrayList<Frame>(MAX_FRAMES_IN_FLIGHT);
-            imagesInFlight = new Int2ObjectOpenHashMap<>()(swapchain.getSwapChainImages().size());
+            imagesInFlight = new Int2ObjectOpenHashMap<>(swapchain.getSwapChainImages().size());
 
-            MemoryStack.stackPush().use { stack ->
-                    val semaphoreInfo = VkSemaphoreCreateInfo.callocStack(stack)
-                semaphoreInfo.sType(VK_STRUCTURE_TYPE_SEMAPHORE_CREATE_INFO)
-                val fenceInfo = VkFenceCreateInfo.callocStack(stack)
-                fenceInfo.sType(VK_STRUCTURE_TYPE_FENCE_CREATE_INFO)
-                fenceInfo.flags(VK_FENCE_CREATE_SIGNALED_BIT)
-                val pImageAvailableSemaphore = stack.mallocLong(1)
-                val pRenderFinishedSemaphore = stack.mallocLong(1)
-                val pFence = stack.mallocLong(1)
-                for (i in 0 until MAX_FRAMES_IN_FLIGHT) {
-                    vkCreateSemaphore(
+            try(MemoryStack stack = MemoryStack.stackPush()) {
+
+                VkSemaphoreCreateInfo semaphoreInfo = VkSemaphoreCreateInfo.callocStack(stack);
+                semaphoreInfo.sType(VK_STRUCTURE_TYPE_SEMAPHORE_CREATE_INFO);
+                VkFenceCreateInfo fenceInfo = VkFenceCreateInfo.callocStack(stack);
+                fenceInfo.sType(VK_STRUCTURE_TYPE_FENCE_CREATE_INFO);
+                fenceInfo.flags(VK_FENCE_CREATE_SIGNALED_BIT);
+                LongBuffer pImageAvailableSemaphore = stack.mallocLong(1);
+                LongBuffer pRenderFinishedSemaphore = stack.mallocLong(1);
+                LongBuffer pFence = stack.mallocLong(1);
+                for (int i = 0; i < MAX_FRAMES_IN_FLIGHT; i++) {
+                    ok(vkCreateSemaphore(
                             common.device.rawDevice,
                             semaphoreInfo,
                             null,
                             pImageAvailableSemaphore
-                    ).ok()
-                    vkCreateSemaphore(
+                    ));
+                    ok(vkCreateSemaphore(
                             common.device.rawDevice,
                             semaphoreInfo,
                             null,
                             pRenderFinishedSemaphore
-                    ).ok()
-                    vkCreateFence(common.device.rawDevice, fenceInfo, null, pFence).ok()
+                    ));
+                    ok(vkCreateFence(common.device.rawDevice, fenceInfo, null, pFence));
                     inFlightFrames.add(
-                            Frame(
-                                    pImageAvailableSemaphore[0],
-                                    pRenderFinishedSemaphore[0],
-                                    pFence[0]
+                            new Frame(
+                                    pImageAvailableSemaphore.get(0),
+                                    pRenderFinishedSemaphore.get(0),
+                                    pFence.get(0)
                             )
-                    )
+                    );
                 }
             }
         }
 
-        fun windowResizeCallback(width: Int, height: Int) {
-            this.resizeFramebuffer = true
+        public void windowResizeCallback(int width, int height) {
+            this.resizeFramebuffer = true;
         }
 
-        private fun createFrameBuffers() {
-            swapchain.frameBuffers = ArrayList(swapchain.swapChainImageViews.size)
-            MemoryStack.stackPush().use { stack ->
-                    val attachments = stack.longs(VK_NULL_HANDLE, depthBuffer.depthImageView)
-                val pFramebuffer = stack.mallocLong(1)
-                val framebufferInfo = VkFramebufferCreateInfo.callocStack(stack)
+        private void createFrameBuffers() {
+            swapchain.setFrameBuffers(new ArrayList<>(swapchain.getSwapChainImageViews().size()));
+            try(MemoryStack stack = MemoryStack.stackPush()) {
+
+                                LongBuffer attachments = stack.longs(VK_NULL_HANDLE, depthBuffer.getDepthImage());
+                LongBuffer pFramebuffer = stack.mallocLong(1);
+                VkFramebufferCreateInfo framebufferInfo = VkFramebufferCreateInfo.callocStack(stack)
                         .sType(VK_STRUCTURE_TYPE_FRAMEBUFFER_CREATE_INFO)
-                        .renderPass(renderPass.renderPass)
-                        .width(swapchain.swapChainExtent.width())
-                        .height(swapchain.swapChainExtent.height())
-                        .layers(1)
-                for (imageView in swapchain.swapChainImageViews) {
-                    attachments.put(0, imageView)
-                    framebufferInfo.pAttachments(attachments)
-                    vkCreateFramebuffer(common.device.rawDevice, framebufferInfo, null, pFramebuffer).ok()
-                    swapchain.frameBuffers.add(pFramebuffer[0])
+                        .renderPass(renderPass.getRenderPass())
+                        .width(swapchain.getSwapChainExtent().width())
+                        .height(swapchain.getSwapChainExtent().height())
+                        .layers(1);
+                for (long imageView : swapchain.getSwapChainImageViews()) {
+                    attachments.put(0, imageView);
+                    framebufferInfo.pAttachments(attachments);
+                    ok(vkCreateFramebuffer(common.device.rawDevice, framebufferInfo, null, pFramebuffer));
+                    swapchain.getFrameBuffers().add(pFramebuffer.get(0));
                 }
             }
         }
@@ -281,120 +291,122 @@ public class Renderer {
         /**
          * Create the Command Buffers
          */
-        fun rebuildCommandBuffers(renderPass: RenderPass, simpleObjectManager: SimpleObjectManager) {
-            simpleObjectManager.rebuildCmdBuffers(renderPass, null, null) //TODO: move it into here
-            val usedShaders = ArrayList<ShaderProgram>()
-            for (material in simpleObjectManager.materials) {
-                if (!usedShaders.contains(material.shader)) {
-                    usedShaders.add(material.shader!!)
+        public void rebuildCommandBuffers(RenderPass renderPass, SimpleObjectManager simpleObjectManager) {
+            simpleObjectManager.rebuildCmdBuffers(renderPass, null, null); //TODO: move it into here
+            List<ShaderProgram> usedShaders = new ArrayList<>();
+            for (Material material : simpleObjectManager.materials) {
+                if (!usedShaders.contains(material.getShader())) {
+                    usedShaders.add(material.getShader());
                 }
             }
 
-            for (instances in simpleObjectManager.renderObjects.values) {
-                for (instance in instances) {
-                    instance.rebuild(rosella)
+            for (List<InstanceInfo> instances : simpleObjectManager.renderObjects.values()) {
+                for (InstanceInfo instance : instances) {
+                    instance.rebuild(rosella);
                 }
             }
 
-            MemoryStack.stackPush().use {
-                val commandBuffersCount: Int = swapchain.frameBuffers.size
+            try (MemoryStack stack = MemoryStack.stackPush()) {
 
-                commandBuffers = ArrayList(commandBuffersCount)
+                int commandBuffersCount = swapchain.getFrameBuffers().size();
 
-                val pCommandBuffers = allocateCmdBuffers(
-                        it,
+                commandBuffers = new ObjectArrayList<>(commandBuffersCount);
+
+                PointerBuffer pCommandBuffers = VkKt.allocateCmdBuffers(
+                        stack,
                         common.device,
                         commandPool,
-                        commandBuffersCount
-                )
+                        commandBuffersCount,
+                        VK_COMMAND_BUFFER_LEVEL_PRIMARY
+                );
 
-                for (i in 0 until commandBuffersCount) {
+                for (int i = 0; i < commandBuffersCount; i++) {
                     commandBuffers.add(
-                            VkCommandBuffer(
-                                    pCommandBuffers[i],
+                            new VkCommandBuffer(
+                                    pCommandBuffers.get(i),
                                     common.device.rawDevice
                             )
-                    )
+                    );
                 }
 
-                val beginInfo = createBeginInfo(it)
-                val renderPassInfo = createRenderPassInfo(it, renderPass)
-                val renderArea = createRenderArea(it, 0, 0, swapchain)
-                val clearValues = createClearValues(it, r, g, b, 1.0f, 0)
+                VkCommandBufferBeginInfo beginInfo = VkKt.createBeginInfo(stack);
+                VkRenderPassBeginInfo renderPassInfo = VkKt.createRenderPassInfo(stack, renderPass);
+                VkRect2D renderArea = VkKt.createRenderArea(stack, 0, 0, swapchain);
+                VkClearValue.Buffer clearValues = VkKt.createClearValues(stack, r, g, b, 1.0f, 0);
 
                 renderPassInfo.renderArea(renderArea)
-                        .pClearValues(clearValues)
+                        .pClearValues(clearValues);
 
-                for (i in 0 until commandBuffersCount) {
-                    val commandBuffer = commandBuffers[i]
-                    vkBeginCommandBuffer(commandBuffer, beginInfo).ok()
-                    renderPassInfo.framebuffer(swapchain.frameBuffers[i])
+                for (int i = 0; i < commandBuffersCount; i++) {
+                    VkCommandBuffer commandBuffer = commandBuffers.get(i);
+                    ok(vkBeginCommandBuffer(commandBuffer, beginInfo));
+                    renderPassInfo.framebuffer(swapchain.getFrameBuffers().get(i));
 
-                    vkCmdBeginRenderPass(commandBuffer, renderPassInfo, VK_SUBPASS_CONTENTS_INLINE)
-                    if (rosella.bufferManager != null && simpleObjectManager.renderObjects.isNotEmpty()) {
-                        simpleObjectManager.renderObjects.keys.forEach { renderInfo ->
-                                bindBigBuffers(rosella.bufferManager, setOf(renderInfo), it, commandBuffer)
-                            for (instance in simpleObjectManager.renderObjects[renderInfo]!!) {
-                                bindInstanceInfo(instance, it, commandBuffer, i)
-                                vkCmdDrawIndexed(commandBuffer, renderInfo.indicesSize, 1, 0, 0, 0)
-                            }
-                        }
+                    vkCmdBeginRenderPass(commandBuffer, renderPassInfo, VK_SUBPASS_CONTENTS_INLINE);
+                    if (rosella.bufferManager != null && !simpleObjectManager.renderObjects.isEmpty()) {
+                        int finalI = i;
+                        simpleObjectManager.renderObjects.keySet().forEach(renderInfo -> {
+                                    bindBigBuffers(rosella.bufferManager, Set.of(renderInfo), stack, commandBuffer);
+                                    for (InstanceInfo instance : simpleObjectManager.renderObjects.get(renderInfo)) {
+                                        bindInstanceInfo(instance, stack, commandBuffer, finalI);
+                                        vkCmdDrawIndexed(commandBuffer, renderInfo.getIndicesSize(), 1, 0, 0, 0);
+                                    }
+                                }
+                        );
+                        vkCmdEndRenderPass(commandBuffer);
+
+                        ok(vkEndCommandBuffer(commandBuffer));
                     }
-                    vkCmdEndRenderPass(commandBuffer)
-
-                    vkEndCommandBuffer(commandBuffer).ok()
                 }
             }
         }
 
-        private fun bindBigBuffers(
-                bufferManager: GlobalBufferManager,
-                renderInfos: Set<RenderInfo>,
-        stack: MemoryStack,
-                commandBuffer: VkCommandBuffer
+        private void bindBigBuffers(
+                GlobalBufferManager bufferManager,
+                Set<RenderInfo> renderInfos,
+                MemoryStack stack,
+                VkCommandBuffer commandBuffer
 	) {
-            val vertexBuffer = bufferManager.createVertexBuffer(renderInfos)
-            val indexBuffer = bufferManager.createIndexBuffer(renderInfos)
+            BufferInfo vertexBuffer = bufferManager.createVertexBuffer(renderInfos);
+            BufferInfo indexBuffer = bufferManager.createIndexBuffer(renderInfos);
 
-            val offsets = stack.longs(0)
-            val vertexBuffers = stack.longs(vertexBuffer.buffer)
-            vkCmdBindVertexBuffers(commandBuffer, 0, vertexBuffers, offsets)
-            vkCmdBindIndexBuffer(commandBuffer, indexBuffer.buffer, 0, VK_INDEX_TYPE_UINT32)
+            LongBuffer offsets = stack.longs(0);
+            LongBuffer vertexBuffers = stack.longs(vertexBuffer.buffer());
+            vkCmdBindVertexBuffers(commandBuffer, 0, vertexBuffers, offsets);
+            vkCmdBindIndexBuffer(commandBuffer, indexBuffer.buffer(), 0, VK_INDEX_TYPE_UINT32);
         }
 
-        private fun bindInstanceInfo(
-                instanceInfo: InstanceInfo,
-                matrix: MemoryStack,
-                commandBuffer: VkCommandBuffer,
-                commandBufferIndex: Int
+        private void bindInstanceInfo(
+                InstanceInfo instanceInfo,
+                MemoryStack matrix,
+                VkCommandBuffer commandBuffer,
+                int commandBufferIndex
 	) {
             vkCmdBindPipeline(
                     commandBuffer,
                     VK_PIPELINE_BIND_POINT_GRAPHICS,
-                    instanceInfo.material.pipeline.graphicsPipeline
-            )
+                    instanceInfo.material.pipeline.getGraphicsPipeline()
+            );
 
             vkCmdBindDescriptorSets(
                     commandBuffer,
                     VK_PIPELINE_BIND_POINT_GRAPHICS,
-                    instanceInfo.material.pipeline.pipelineLayout,
+                    instanceInfo.material.pipeline.getPipelineLayout(),
                     0,
-                    matrix.longs(instanceInfo.ubo.getDescriptors().descriptorSets[commandBufferIndex]),
+                    matrix.longs(instanceInfo.ubo.getDescriptors().getDescriptorSets().get(commandBufferIndex)),
                     null
-            )
+            );
         }
 
-        fun clearColor(red: Float, green: Float, blue: Float, rosella: Rosella) {
+        public void clearColor(float red, float green, float blue, Rosella rosella) {
             if (this.r != red || this.g != green || this.b != blue) {
-                this.r = red
-                this.g = green
-                this.b = blue
-                rebuildCommandBuffers(renderPass, rosella.objectManager as SimpleObjectManager)
+                this.r = red;
+                this.g = green;
+                this.b = blue;
+                rebuildCommandBuffers(renderPass, ((SimpleObjectManager) rosella.objectManager));
             }
         }
 
-        companion object {
-		const val MAX_FRAMES_IN_FLIGHT = 2
-		const val UINT64_MAX = -0x1L
-        }
+    public static final int MAX_FRAMES_IN_FLIGHT = 2;
+    public static final long UINT64_MAX = -0x1L;
 }

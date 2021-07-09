@@ -6,12 +6,12 @@ package me.hydos.rosella.render
 
 import me.hydos.rosella.device.QueueFamilyIndices
 import me.hydos.rosella.device.VulkanDevice
-import me.hydos.rosella.render.renderer.Renderer
 import me.hydos.rosella.render.swapchain.DepthBuffer
 import me.hydos.rosella.render.swapchain.RenderPass
 import me.hydos.rosella.render.swapchain.Swapchain
 import me.hydos.rosella.render.texture.*
 import me.hydos.rosella.memory.Memory
+import me.hydos.rosella.render.renderer.Renderer
 import me.hydos.rosella.render.util.ok
 import org.lwjgl.PointerBuffer
 import org.lwjgl.system.MemoryStack
@@ -222,13 +222,13 @@ fun createImage(
 }
 
 fun transitionImageLayout(
-	renderer: Renderer,
-	device: VulkanDevice,
-	depthBuffer: DepthBuffer,
-	image: Long,
-	format: Int,
-	oldLayout: Int,
-	newLayout: Int
+		renderer: Renderer,
+		device: VulkanDevice,
+		depthBuffer: DepthBuffer,
+		image: Long,
+		format: Int,
+		oldLayout: Int,
+		newLayout: Int
 ) {
 	MemoryStack.stackPush().use { stack ->
 		val barrier = VkImageMemoryBarrier.callocStack(1, stack)
@@ -306,12 +306,12 @@ fun transitionImageLayout(
 }
 
 fun createTextureImage(
-	renderer: Renderer,
-	device: VulkanDevice,
-	width: Int,
-	height: Int,
-	imgFormat: Int,
-	textureImage: TextureImage
+		renderer: Renderer,
+		device: VulkanDevice,
+		width: Int,
+		height: Int,
+		imgFormat: Int,
+		textureImage: TextureImage
 ) {
 	MemoryStack.stackPush().use { stack ->
 
@@ -343,13 +343,13 @@ fun createTextureImage(
 }
 
 fun drawToTexture(
-	renderer: Renderer,
-	device: VulkanDevice,
-	memory: Memory,
-	image: UploadableImage,
-	srcRegion:  ImageRegion,
-	dstRegion:  ImageRegion,
-	texture: Texture
+		renderer: Renderer,
+		device: VulkanDevice,
+		memory: Memory,
+		image: UploadableImage,
+		srcRegion:  ImageRegion,
+		dstRegion:  ImageRegion,
+		texture: Texture
 ) {
 	MemoryStack.stackPush().use { stack ->
 		val pBuffer = stack.mallocLong(1)
@@ -366,7 +366,7 @@ fun drawToTexture(
 		copyBufferToImage(
 			renderer,
 			device,
-			stagingBuf.buffer,
+			stagingBuf.buffer(),
 			texture.textureImage.textureImage,
 			dstRegion.width,
 			dstRegion.height,
@@ -379,14 +379,14 @@ fun drawToTexture(
 }
 
 fun copyBufferToImage(
-	renderer: Renderer,
-	device: VulkanDevice,
-	buffer: Long,
-	image: Long,
-	regionWidth: Int,
-	regionHeight: Int,
-	dstXOffset: Int,
-	dstYOffset: Int
+		renderer: Renderer,
+		device: VulkanDevice,
+		buffer: Long,
+		image: Long,
+		regionWidth: Int,
+		regionHeight: Int,
+		dstXOffset: Int,
+		dstYOffset: Int
 ) {
 	MemoryStack.stackPush().use { stack ->
 		val region = VkBufferImageCopy.callocStack(1, stack)
