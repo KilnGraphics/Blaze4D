@@ -1,8 +1,7 @@
 package me.hydos.blaze4d.api.util;
 
-import org.lwjgl.opengl.GL11;
-import org.lwjgl.opengl.GL14;
-import org.lwjgl.opengl.GL33;
+import me.hydos.rosella.render.texture.ImageFormat;
+import org.lwjgl.opengl.*;
 import org.lwjgl.vulkan.VK10;
 
 public abstract class GlConversions {
@@ -76,6 +75,16 @@ public abstract class GlConversions {
             case GL11.GL_NAND -> VK10.VK_LOGIC_OP_NAND;
             case GL11.GL_SET -> VK10.VK_LOGIC_OP_SET;
             default -> throw new RuntimeException("GL color logic op " + glLogicOp + " is invalid or does not have a vulkan equivalent");
+        };
+    }
+
+    public static ImageFormat glToRosellaImageFormat(int glImageFormat) {
+        return switch(glImageFormat) {
+            case GL11.GL_RGBA -> ImageFormat.RGBA;
+            case GL11.GL_RGB -> ImageFormat.RGB;
+            case GL30.GL_RG -> ImageFormat.RG;
+            case GL11.GL_RED -> ImageFormat.R;
+            default -> throw new RuntimeException("GL image format " + glImageFormat + " is invalid or does not have a rosella equivalent");
         };
     }
 }

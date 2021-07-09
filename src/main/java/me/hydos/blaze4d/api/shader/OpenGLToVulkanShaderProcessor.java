@@ -1,30 +1,5 @@
 package me.hydos.blaze4d.api.shader;
 
-/*      #version 150 -> #version 450
-        + #extension GL_ARB_separate_shader_objects : enable
-
-        in vec3 Position; -> layout(location = 0) in vec3 Position;
-        in vec2 UV; -> layout(location = 1) in vec2 UV;
-        in vec4 Color; -> layout(location = 2) in vec4 Color;
-
-        uniform mat4 ModelViewMat; X
-        uniform mat4 ProjMat; X
-
-        + layout(binding = 0) uniform UniformBufferObject {
-        +     mat4 ModelViewMat;
-        +     mat4 ProjMat;
-        + } ubo;
-
-        out vec2 texCoord; -> layout(location = 0) out vec2 texCoord;
-        out vec4 vertexColor; -> layout(location = 1) out vec4 vertexColor;
-
-        void main() {
-        gl_Position = ProjMat * ModelViewMat * vec4(Position, 1.0); -> gl_Position = ubo.ProjMat * ubo.ModelViewMat * vec4(Position, 1.0);
-
-        texCoord = UV;
-        vertexColor = Color;
-        }*/
-
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
@@ -70,22 +45,6 @@ public class OpenGLToVulkanShaderProcessor {
                     i--;
                 }
             } else if (line.matches("void main\\(\\) \\{")) {
-//                List<String> uboNames = List.of(
-//                        "ModelViewMat",
-//                        "ProjMat",
-//                        "ColorModulator",
-//                        "FogStart",
-//                        "FogEnd",
-//                        "FogColor",
-//                        "TextureMat",
-//                        "GameTime",
-//                        "ScreenSize",
-//                        "LineWidth",
-//                        "ChunkOffset",
-//                        "Light0_Direction",
-//                        "Light1_Direction"
-//                );
-
                 List<String> uboNames = glUniforms.stream().map(GlUniform::getName).toList();
 
                 for (String uboName : uboNames) {

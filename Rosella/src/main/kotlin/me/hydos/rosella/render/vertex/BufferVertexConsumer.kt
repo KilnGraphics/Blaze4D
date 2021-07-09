@@ -22,14 +22,26 @@ class BufferVertexConsumer(override val format: VertexFormat) : VertexConsumer {
 		return this
 	}
 
-	override fun color(red: Int, green: Int, blue: Int): VertexConsumer {
+	override fun color(red: Byte, green: Byte, blue: Byte): VertexConsumer {
 		bufferConsumerList.add(Consumer {
-			it.putFloat(red / 255f)
-			it.putFloat(green / 255f)
-			it.putFloat(blue / 255f)
+			it.put(red)
+			it.put(green)
+			it.put(blue)
 		})
 
-		debugSize += 3 * Float.SIZE_BYTES
+		debugSize += 3 * Byte.SIZE_BYTES
+		return this
+	}
+
+	override fun color(red: Byte, green: Byte, blue: Byte, alpha: Byte): VertexConsumer {
+		bufferConsumerList.add(Consumer {
+			it.put(red)
+			it.put(green)
+			it.put(blue)
+			it.put(alpha)
+		})
+
+		debugSize += 4 * Byte.SIZE_BYTES
 		return this
 	}
 
@@ -44,18 +56,6 @@ class BufferVertexConsumer(override val format: VertexFormat) : VertexConsumer {
 		return this
 	}
 
-	override fun color(red: Int, green: Int, blue: Int, alpha: Int): VertexConsumer {
-		bufferConsumerList.add(Consumer {
-			it.putFloat(red / 255f)
-			it.putFloat(green / 255f)
-			it.putFloat(blue / 255f)
-			it.putFloat(alpha / 255f)
-		})
-
-		debugSize += 4 * Float.SIZE_BYTES
-		return this
-	}
-
 	override fun uv(u: Float, v: Float): VertexConsumer {
 		bufferConsumerList.add(Consumer {
 			it.putFloat(u)
@@ -67,12 +67,39 @@ class BufferVertexConsumer(override val format: VertexFormat) : VertexConsumer {
 
 	override fun uv(u: Short, v: Short): VertexConsumer {
 		bufferConsumerList.add(Consumer {
-			it.putInt(u.toInt())
-			it.putInt(v.toInt())
+			it.putShort(u)
+			it.putShort(v)
 		})
 
-		debugSize += 2 * Int.SIZE_BYTES
+		debugSize += 2 * Short.SIZE_BYTES
 		return this
+	}
+
+	fun putByte(index: Int, value: Byte): VertexConsumer {
+		bufferConsumerList.add(Consumer {
+			it.put(index, value)
+		})
+
+		debugSize += Byte.SIZE_BYTES
+		return this;
+	}
+
+	fun putShort(index: Int, value: Short): VertexConsumer {
+		bufferConsumerList.add(Consumer {
+			it.putShort(index, value)
+		})
+
+		debugSize += Short.SIZE_BYTES
+		return this;
+	}
+
+	fun putFloat(index: Int, value: Float): VertexConsumer {
+		bufferConsumerList.add(Consumer {
+			it.putFloat(index, value)
+		})
+
+		debugSize += Float.SIZE_BYTES
+		return this;
 	}
 
 	override fun nextVertex(): VertexConsumer {

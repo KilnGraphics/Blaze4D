@@ -81,7 +81,7 @@ public class PortalJava {
                         guiShader,
                         VK10.VK_FORMAT_R8G8B8A8_UNORM,
                         Topology.TRIANGLES,
-                        VertexFormats.Companion.getPOSITION_COLOR_UV(),
+                        VertexFormats.POSITION_COLOR3_UV,
                         new SamplerCreateInfo(TextureFilter.NEAREST, WrapMode.REPEAT),
                         defaultStateInfo
                 )
@@ -93,7 +93,7 @@ public class PortalJava {
                         guiShader,
                         VK10.VK_FORMAT_R8G8B8A8_SRGB,
                         Topology.TRIANGLES,
-                        VertexFormats.Companion.getPOSITION_COLOR_UV(),
+                        VertexFormats.POSITION_COLOR3_UV,
                         new SamplerCreateInfo(TextureFilter.NEAREST, WrapMode.REPEAT),
                         defaultStateInfo
                 )

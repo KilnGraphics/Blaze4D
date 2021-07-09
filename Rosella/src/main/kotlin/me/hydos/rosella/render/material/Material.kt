@@ -31,7 +31,7 @@ open class Material(
 		if (resource != Resource.Empty) {
 			val textureManager = objectManager.textureManager
 			val textureId = textureManager.generateTextureId() // FIXME this texture can't be removed
-			val image: UploadableImage = StbiImage(resource)
+			val image: UploadableImage = StbiImage(resource, ImageFormat.fromVkFormat(imgFormat))
 			textureManager.createTexture(
 				rosella.renderer,
 				textureId,

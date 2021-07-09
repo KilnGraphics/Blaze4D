@@ -6,13 +6,11 @@ import me.hydos.rosella.render.info.InstanceInfo;
 import me.hydos.rosella.render.info.RenderInfo;
 import me.hydos.rosella.render.material.Material;
 import me.hydos.rosella.render.model.ModelLoader;
-import me.hydos.rosella.render.renderer.Renderer;
 import me.hydos.rosella.render.resource.Resource;
 import me.hydos.rosella.render.shader.ubo.RenderObjectUbo;
 import me.hydos.rosella.memory.Memory;
 import me.hydos.rosella.render.vertex.BufferVertexConsumer;
 import me.hydos.rosella.render.vertex.VertexFormats;
-import me.hydos.rosella.vkobjects.VkCommon;
 import org.joml.Matrix4f;
 import org.joml.Vector2fc;
 import org.joml.Vector3f;
@@ -25,7 +23,7 @@ public class RenderObject implements Renderable {
 
     private final Material material;
     private final Resource modelId;
-    public final RenderInfo renderInfo = new RenderInfo(new BufferVertexConsumer(VertexFormats.Companion.getPOSITION_COLOR_UV()));
+    public final RenderInfo renderInfo = new RenderInfo(new BufferVertexConsumer(VertexFormats.POSITION_COLOR3_UV));
     public InstanceInfo instanceInfo;
 
     public final Matrix4f modelMatrix = new Matrix4f();
@@ -49,9 +47,10 @@ public class RenderObject implements Renderable {
         for (int i = 0; i < vertexCount; i++) {
             Vector3fc pos = model.getPositions().get(i);
             Vector2fc uvs = model.getTexCoords().get(i);
+            // TODO: is this conversion doing what it should be? should convert int representing unsigned byte to signed byte through wrapping
             renderInfo.consumer
                     .pos(pos.x(), pos.y(), pos.z())
-                    .color((int) color.x(), (int) color.y(), (int) color.z())
+                    .color((byte) (int) color.x(), (byte) (int) color.y(), (byte) (int) color.z())
                     .uv(uvs.x(), uvs.y())
                     .nextVertex();
         }

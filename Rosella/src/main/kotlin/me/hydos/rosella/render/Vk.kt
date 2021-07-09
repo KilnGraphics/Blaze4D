@@ -342,7 +342,7 @@ fun createTextureImage(
 	}
 }
 
-fun drawToTexture(
+fun copyToTexture(
 	renderer: Renderer,
 	device: VulkanDevice,
 	memory: Memory,
@@ -354,11 +354,11 @@ fun drawToTexture(
 	MemoryStack.stackPush().use { stack ->
 		val pBuffer = stack.mallocLong(1)
 		val stagingBuf = memory.createStagingBuf(
-			srcRegion.width * srcRegion.height * image.getBytesPerPixel(),
+			image.getSize(),
 			pBuffer,
 			stack
 		) { data ->
-			val pixels = image.getPixels(srcRegion)!!
+			val pixels = image.getPixels()!!
 			val newData = data.getByteBuffer(0, pixels.limit())
 			newData.put(0, pixels, 0, pixels.limit())
 		}
@@ -368,6 +368,11 @@ fun drawToTexture(
 			device,
 			stagingBuf.buffer,
 			texture.textureImage.textureImage,
+			image.getWidth(),
+			image.getHeight(),
+			srcRegion.xOffset,
+			srcRegion.yOffset,
+			image.getFormat().pixelSize,
 			dstRegion.width,
 			dstRegion.height,
 			dstRegion.xOffset,
@@ -383,23 +388,28 @@ fun copyBufferToImage(
 	device: VulkanDevice,
 	buffer: Long,
 	image: Long,
-	regionWidth: Int,
-	regionHeight: Int,
+	srcImageWidth: Int,
+	srcImageHeight: Int,
+	srcXOffset: Int,
+	srcYOffset: Int,
+	srcPixelSize: Int,
+	dstRegionWidth: Int,
+	dstRegionHeight: Int,
 	dstXOffset: Int,
 	dstYOffset: Int
 ) {
 	MemoryStack.stackPush().use { stack ->
 		val region = VkBufferImageCopy.callocStack(1, stack)
-			.bufferOffset(0)
-			.bufferRowLength(regionWidth)
-			.bufferImageHeight(regionHeight)
+			.bufferOffset((((srcYOffset * srcImageWidth) + srcXOffset) * srcPixelSize).toLong())
+			.bufferRowLength(srcImageWidth)
+			.bufferImageHeight(srcImageHeight)
 		region.imageOffset().set(dstXOffset, dstYOffset, 0)
 		region.imageSubresource()
 			.aspectMask(VK_IMAGE_ASPECT_COLOR_BIT)
 			.mipLevel(0)
 			.baseArrayLayer(0)
 			.layerCount(1)
-		region.imageExtent().set(regionWidth, regionHeight, 1)
+		region.imageExtent().set(dstRegionWidth, dstRegionHeight, 1)
 
 		val commandBuffer: VkCommandBuffer = beginSingleTimeCommands(renderer, device)
 		vkCmdCopyBufferToImage(commandBuffer, buffer, image, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, region)
