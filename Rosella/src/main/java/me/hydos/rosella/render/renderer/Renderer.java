@@ -1,11 +1,5 @@
 package me.hydos.rosella.render.renderer;
 
-import java.nio.IntBuffer;
-import java.nio.LongBuffer;
-import java.util.ArrayList;
-import java.util.List;
-import java.util.Map;
-
 import it.unimi.dsi.fastutil.ints.Int2ObjectOpenHashMap;
 import it.unimi.dsi.fastutil.objects.ObjectArrayList;
 import me.hydos.rosella.Rosella;
@@ -24,50 +18,64 @@ import me.hydos.rosella.render.swapchain.Frame;
 import me.hydos.rosella.render.swapchain.RenderPass;
 import me.hydos.rosella.render.swapchain.Swapchain;
 import me.hydos.rosella.scene.object.impl.SimpleObjectManager;
+import me.hydos.rosella.util.Color;
 import me.hydos.rosella.vkobjects.VkCommon;
 import org.lwjgl.PointerBuffer;
 import org.lwjgl.system.MemoryStack;
 import org.lwjgl.vulkan.*;
 
+import java.nio.IntBuffer;
+import java.nio.LongBuffer;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.Map;
+
 import static me.hydos.rosella.render.util.VkUtilsKt.ok;
 import static org.lwjgl.vulkan.VK10.*;
 
+/**
+ * Handles the bulk of Vulkan rendering
+ */
 public class Renderer {
-    private final VkCommon common;
-    private final Display display;
+
+    // Rosella instance this is owned to
     private final Rosella rosella;
 
-    public DepthBuffer depthBuffer = new DepthBuffer();
+    // For convenience instead of rosella.common
+    private final VkCommon common;
 
-    public Renderer(VkCommon common, Display display, Rosella rosella) {
-        this.common = common;
-        this.display = display;
+    // The presentation and graphics queue
+    public final VulkanQueues queues;
+
+    // The depth buffer as Vulkan forces us to create our own
+    public final DepthBuffer depthBuffer;
+
+    // Should the swap chain be recreated next render
+    private boolean recreateSwapChain;
+
+    // The clear color
+    private Color clearColor;
+
+    private List<Frame> inFlightFrames = new ObjectArrayList<>();
+    private Map<Integer, Frame> imagesInFlight = new Int2ObjectOpenHashMap<>();
+    private int currentFrameInFlight = 0;
+
+    public Renderer(Rosella rosella) {
         this.rosella = rosella;
+        this.common = rosella.common;
 
-        queues = new VulkanQueues(common);
+        this.queues = new VulkanQueues(common);
+        this.depthBuffer = new DepthBuffer();
 
         VkKt.createCmdPool(common.device, this, common.surface);
-        createSwapChain(common, display, ((SimpleObjectManager) rosella.objectManager));
+        createSwapChain(common, common.display, ((SimpleObjectManager) rosella.objectManager));
     }
-
-    public List<Frame> inFlightFrames = new ObjectArrayList<>();
-    private Map<Integer, Frame> imagesInFlight = new Int2ObjectOpenHashMap<>();
-    private int currentFrame = 0;
-
-    private boolean resizeFramebuffer = false;
-
-    private float r = 0.2f;
-    private float g = 0.2f;
-    private float b = 0.2f;
 
     public Swapchain swapchain;
     public RenderPass renderPass;
 
-    public VulkanQueues queues;
-
     public long commandPool = 0;
-    List<VkCommandBuffer> commandBuffers = new ObjectArrayList<VkCommandBuffer>();
-
+    List<VkCommandBuffer> commandBuffers = new ObjectArrayList<>();
 
     private void createSwapChain(VkCommon common, Display display, SimpleObjectManager objectManager) {
         this.swapchain = new Swapchain(display, common.device.rawDevice, common.device.physicalDevice, common.surface);
@@ -98,9 +106,9 @@ public class Renderer {
         return commandBuffer;
     }
 
-    public void render(Rosella rosella) {
+    public void render() {
         try (MemoryStack stack = MemoryStack.stackPush()) {
-            Frame thisFrame = inFlightFrames.get(currentFrame);
+            Frame thisFrame = inFlightFrames.get(currentFrameInFlight);
             ok(vkWaitForFences(rosella.common.device.rawDevice, thisFrame.pFence(), true, UINT64_MAX));
 
             IntBuffer pImageIndex = stack.mallocInt(1);
@@ -156,17 +164,17 @@ public class Renderer {
 
             vkResult = KHRSwapchain.vkQueuePresentKHR(queues.presentQueue, presentInfo);
 
-            if (vkResult == KHRSwapchain.VK_ERROR_OUT_OF_DATE_KHR || vkResult == KHRSwapchain.VK_SUBOPTIMAL_KHR || resizeFramebuffer) {
-                resizeFramebuffer = false;
+            if (vkResult == KHRSwapchain.VK_ERROR_OUT_OF_DATE_KHR || vkResult == KHRSwapchain.VK_SUBOPTIMAL_KHR || recreateSwapChain) {
+                recreateSwapChain = false;
                 recreateSwapChain(rosella.common.display, rosella);
                 ((SimpleObjectManager) rosella.objectManager).pipelineManager.invalidatePipelines(swapchain, rosella);
             } else if (vkResult != VK_SUCCESS) {
                 throw new RuntimeException("Failed to present swap chain image");
             }
 
-            ok(vkDeviceWaitIdle(common.device.rawDevice));
+            ok(vkDeviceWaitIdle(rosella.common.device.rawDevice));
 
-            currentFrame = (currentFrame + 1) % MAX_FRAMES_IN_FLIGHT;
+            currentFrameInFlight = (currentFrameInFlight + 1) % MAX_FRAMES_IN_FLIGHT;
         }
     }
 
@@ -180,11 +188,11 @@ public class Renderer {
         }
 
         rosella.common.device.waitForIdle();
-        freeSwapChain(rosella);
+        freeSwapChain();
         createSwapChain(rosella.common, window, ((SimpleObjectManager) rosella.objectManager));
     }
 
-    public void freeSwapChain(Rosella rosella) {
+    public void freeSwapChain() {
         for (RawShaderProgram shader : ((SimpleObjectManager) rosella.objectManager).shaderManager.getCachedShaders().keySet()) {
             vkDestroyDescriptorPool(rosella.common.device.rawDevice, shader.getDescriptorPool(), null);
         }
@@ -222,7 +230,7 @@ public class Renderer {
     }
 
     private void createSyncObjects() {
-        inFlightFrames = new ObjectArrayList<Frame>(MAX_FRAMES_IN_FLIGHT);
+        inFlightFrames = new ObjectArrayList<>(MAX_FRAMES_IN_FLIGHT);
         imagesInFlight = new Int2ObjectOpenHashMap<>(swapchain.getSwapChainImages().size());
 
         try (MemoryStack stack = MemoryStack.stackPush()) {
@@ -261,13 +269,13 @@ public class Renderer {
     }
 
     public void windowResizeCallback(int width, int height) {
-        this.resizeFramebuffer = true;
+        this.recreateSwapChain = true;
     }
 
     private void createFrameBuffers() {
         swapchain.setFrameBuffers(new ArrayList<>(swapchain.getSwapChainImageViews().size()));
-        try (MemoryStack stack = MemoryStack.stackPush()) {
 
+        try (MemoryStack stack = MemoryStack.stackPush()) {
             LongBuffer attachments = stack.longs(VK_NULL_HANDLE, depthBuffer.getDepthImageView());
             LongBuffer pFramebuffer = stack.mallocLong(1);
             VkFramebufferCreateInfo framebufferInfo = VkFramebufferCreateInfo.callocStack(stack)
@@ -329,7 +337,7 @@ public class Renderer {
             VkCommandBufferBeginInfo beginInfo = VkKt.createBeginInfo(stack);
             VkRenderPassBeginInfo renderPassInfo = VkKt.createRenderPassInfo(stack, renderPass);
             VkRect2D renderArea = VkKt.createRenderArea(stack, 0, 0, swapchain);
-            VkClearValue.Buffer clearValues = VkKt.createClearValues(stack, r, g, b, 1.0f, 0);
+            VkClearValue.Buffer clearValues = VkKt.createClearValues(stack, clearColor.rAsFloat(), clearColor.gAsFloat(), clearColor.bAsFloat(), 1.0f, 0);
 
             renderPassInfo.renderArea(renderArea)
                     .pClearValues(clearValues);
@@ -393,12 +401,20 @@ public class Renderer {
         );
     }
 
-    public void clearColor(float red, float green, float blue, Rosella rosella) {
-        if (this.r != red || this.g != green || this.b != blue) {
-            this.r = red;
-            this.g = green;
-            this.b = blue;
+    public void clearColor(Color color) {
+        if (clearColor != color) {
+            clearColor = color;
             rebuildCommandBuffers(renderPass, ((SimpleObjectManager) rosella.objectManager));
+        }
+    }
+
+    public void teardown() {
+        freeSwapChain();
+
+        for (Frame frame : inFlightFrames) {
+            vkDestroySemaphore(common.device.rawDevice, frame.renderFinishedSemaphore(), null);
+            vkDestroySemaphore(common.device.rawDevice, frame.imageAvailableSemaphore(), null);
+            vkDestroyFence(common.device.rawDevice, frame.fence(), null);
         }
     }
 

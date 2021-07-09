@@ -48,10 +48,8 @@ public interface ObjectManager {
 
     /**
      * Called when the engine is exiting.
-     *
-     * @param rosella the instance of rosella
      */
-    void free(Rosella rosella);
+    void free();
 
     /**
      * Called after an instance of the renderer is cretyed

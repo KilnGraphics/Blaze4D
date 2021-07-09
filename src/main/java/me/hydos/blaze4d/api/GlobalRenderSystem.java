@@ -114,7 +114,7 @@ public class GlobalRenderSystem {
         Blaze4D.rosella.renderer.rebuildCommandBuffers(Blaze4D.rosella.renderer.renderPass, (SimpleObjectManager) Blaze4D.rosella.objectManager);
 
         Blaze4D.window.update();
-        Blaze4D.rosella.renderer.render(Blaze4D.rosella);
+        Blaze4D.rosella.renderer.render();
 
         for (ConsumerRenderObject consumerRenderObject : currentFrameObjects) {
             consumerRenderObject.free(Blaze4D.rosella.common.memory, Blaze4D.rosella.common.device);

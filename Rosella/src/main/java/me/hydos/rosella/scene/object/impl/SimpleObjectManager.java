@@ -84,7 +84,7 @@ public class SimpleObjectManager implements ObjectManager {
     }
 
     @Override
-    public void free(Rosella rosella) {
+    public void free() {
         for (Material material : materials) {
             material.getShader().free();
         }

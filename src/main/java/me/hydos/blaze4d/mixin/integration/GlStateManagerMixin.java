@@ -6,6 +6,7 @@ import me.hydos.blaze4d.Blaze4D;
 import me.hydos.blaze4d.api.util.GlConversions;
 import me.hydos.blaze4d.api.GlobalRenderSystem;
 import me.hydos.rosella.scene.object.impl.SimpleObjectManager;
+import me.hydos.rosella.util.Color;
 import org.lwjgl.opengl.GL13;
 import org.lwjgl.vulkan.VK10;
 import org.spongepowered.asm.mixin.Mixin;
@@ -208,6 +209,6 @@ public class GlStateManagerMixin {
     @Overwrite
     public static void _clearColor(float red, float green, float blue, float alpha) {
         RenderSystem.assertThread(RenderSystem::isOnRenderThreadOrInit);
-        Blaze4D.rosella.renderer.clearColor(red, green, blue, Blaze4D.rosella);
+        Blaze4D.rosella.renderer.clearColor(new Color(red, green, blue, alpha));
     }
 }

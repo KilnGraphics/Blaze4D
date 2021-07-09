@@ -73,7 +73,7 @@ public class GlfwWindow extends Display {
     public void startAutomaticLoop(Rosella rosella) {
         while (!glfwWindowShouldClose(pWindow)) {
             update();
-            rosella.renderer.render(rosella);
+            rosella.renderer.render();
         }
     }
 

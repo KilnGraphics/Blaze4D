@@ -66,7 +66,7 @@ public class Rosella {
 
         // Setup the object manager
         this.objectManager = new SimpleObjectManager(this, common);
-        this.renderer = new Renderer(common, display, this); //TODO: make swapchain, etc initialization happen outside of the renderer and in here
+        this.renderer = new Renderer(this); //TODO: make swapchain, etc initialization happen outside of the renderer and in here
         BlankTextures.initialize(((SimpleObjectManager) objectManager).textureManager, renderer);
         this.objectManager.postInit(renderer);
         this.bufferManager = new GlobalBufferManager(this);
@@ -80,14 +80,8 @@ public class Rosella {
      */
     public void teardown() {
         common.device.waitForIdle();
-        objectManager.free(this);
-        renderer.freeSwapChain(this);
-
-        for (Frame frame : renderer.inFlightFrames) {
-            vkDestroySemaphore(common.device.rawDevice, frame.renderFinishedSemaphore(), null);
-            vkDestroySemaphore(common.device.rawDevice, frame.imageAvailableSemaphore(), null);
-            vkDestroyFence(common.device.rawDevice, frame.fence(), null);
-        }
+        objectManager.free();
+        renderer.teardown();
 
         // Free the rest of it
         common.memory.free();
