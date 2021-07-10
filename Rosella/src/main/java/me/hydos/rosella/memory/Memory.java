@@ -29,7 +29,7 @@ import static org.lwjgl.system.MemoryStack.stackPush;
  * Used for managing CPU and GPU memory.
  * This class will try to handle most vma stuff for the user so they dont have to touch much memory related stuff
  */
-public class Memory {
+public abstract class Memory {
     private static final int THREAD_COUNT = 3;
 
     private final VkCommon common;

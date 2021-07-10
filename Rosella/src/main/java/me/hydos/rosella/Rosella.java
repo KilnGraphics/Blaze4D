@@ -6,6 +6,7 @@ import me.hydos.rosella.display.Display;
 import me.hydos.rosella.logging.DebugLogger;
 import me.hydos.rosella.logging.DefaultDebugLogger;
 import me.hydos.rosella.memory.Memory;
+import me.hydos.rosella.memory.ThreadPoolMemory;
 import me.hydos.rosella.memory.buffer.GlobalBufferManager;
 import me.hydos.rosella.render.renderer.Renderer;
 import me.hydos.rosella.render.texture.BlankTextures;
@@ -61,7 +62,7 @@ public class Rosella {
         common.surface = display.createSurface(common);
         common.device = new VulkanDevice(common, requestedValidationLayers);
         common.queues = new VulkanQueues(common);
-        common.memory = new Memory(common);
+        common.memory = new ThreadPoolMemory(common);
 
         // Setup the object manager
         this.objectManager = new SimpleObjectManager(this, common);

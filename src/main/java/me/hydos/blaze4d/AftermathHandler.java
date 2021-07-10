@@ -70,7 +70,7 @@ public class AftermathHandler {
                             Aftermath.GPU_CRASH_DUMP_DESCRIPTION_KEY_APPLICATION_VERSION, "v1.0",
                             Aftermath.GPU_CRASH_DUMP_DESCRIPTION_KEY_USER_DEFINED, "Gpu Crash Dump Blaze4D Info",
                             Aftermath.GPU_CRASH_DUMP_DESCRIPTION_KEY_USER_DEFINED + 1, "Engine State: Rendering.",
-                            Aftermath.GPU_CRASH_DUMP_DESCRIPTION_KEY_USER_DEFINED + 2, "Current Screen: " + MinecraftClient.getInstance().currentScreen.getTitle().asString()
+                            Aftermath.GPU_CRASH_DUMP_DESCRIPTION_KEY_USER_DEFINED + 2, "Current Screen: " + MinecraftClient.getInstance().currentScreen
                     );
                     info.forEach(AftermathCallbackCreationHelper.createAddGpuCrashDumpDescription(addValue));
                 },

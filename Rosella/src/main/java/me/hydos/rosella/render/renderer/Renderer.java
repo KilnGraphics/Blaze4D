@@ -307,7 +307,6 @@ public class Renderer {
         }
 
         try (MemoryStack stack = MemoryStack.stackPush()) {
-
             int commandBuffersCount = swapchain.getFrameBuffers().size();
 
             commandBuffers = new ObjectArrayList<>(commandBuffersCount);

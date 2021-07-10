@@ -164,7 +164,7 @@ public abstract class BufferBuilderMixin extends FixedColorVertexConsumer implem
      * @author burgerdude
      * <p>
      * Redirect this function to our own consumer. This should really only be called
-     * for custom attributes. We may want to end up putting all bytes thru here.
+     * for custom attributes. We may want to end up putting all bytes through here.
      */
     @Overwrite
     public void putByte(int index, byte value) {
@@ -174,7 +174,7 @@ public abstract class BufferBuilderMixin extends FixedColorVertexConsumer implem
     /**
      * @author burgerdude
      * <p>
-     * read putByte
+     * read putShort
      */
     @Overwrite
     public void putShort(int index, short value) {
@@ -184,7 +184,7 @@ public abstract class BufferBuilderMixin extends FixedColorVertexConsumer implem
     /**
      * @author burgerdude
      * <p>
-     * read putByte
+     * read putFloat
      */
     @Overwrite
     public void putFloat(int index, float value) {

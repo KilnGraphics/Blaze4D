@@ -14,7 +14,7 @@ public class Blaze4D implements ClientModInitializer {
 
     public static final Logger LOGGER = LogManager.getLogger("Blaze4D", new StringFormatterMessageFactory());
     public static final boolean VALIDATION_ENABLED = false;
-    public static final boolean RENDERDOC_ENABLED = false;
+    public static final boolean RENDERDOC_ENABLED = true;
 
     public static Rosella rosella;
     public static GlfwWindow window;
@@ -40,7 +40,6 @@ public class Blaze4D implements ClientModInitializer {
             AftermathHandler.initialize();
         } catch (Exception exception) {
             // We don't really care if this doesn't work, especially outside of development
-
             if (FabricLoader.getInstance().isDevelopmentEnvironment()) {
                 exception.printStackTrace();
             }
