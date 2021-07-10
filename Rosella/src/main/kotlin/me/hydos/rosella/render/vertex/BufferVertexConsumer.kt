@@ -6,14 +6,14 @@ import java.util.function.Consumer
 
 class BufferVertexConsumer(override val format: VertexFormat) : VertexConsumer {
 
-    var bufferConsumerList: MutableList<Consumer<ByteBuffer>> = ArrayList()
+    var bufferConsumerQueue: Queue<Consumer<ByteBuffer>> = ArrayDeque()
     private var vertexSize = format.size
     private var vertexCount = 0
 
     private var debugSize = 0
 
     override fun pos(x: Float, y: Float, z: Float): VertexConsumer {
-        bufferConsumerList.add(Consumer {
+        bufferConsumerQueue.add(Consumer {
             it.putFloat(x)
             it.putFloat(y)
             it.putFloat(z)
@@ -23,7 +23,7 @@ class BufferVertexConsumer(override val format: VertexFormat) : VertexConsumer {
     }
 
     override fun color(red: Byte, green: Byte, blue: Byte): VertexConsumer {
-        bufferConsumerList.add(Consumer {
+        bufferConsumerQueue.add(Consumer {
             it.put(red)
             it.put(green)
             it.put(blue)
@@ -34,7 +34,7 @@ class BufferVertexConsumer(override val format: VertexFormat) : VertexConsumer {
     }
 
     override fun color(red: Byte, green: Byte, blue: Byte, alpha: Byte): VertexConsumer {
-        bufferConsumerList.add(Consumer {
+        bufferConsumerQueue.add(Consumer {
             it.put(red)
             it.put(green)
             it.put(blue)
@@ -46,7 +46,7 @@ class BufferVertexConsumer(override val format: VertexFormat) : VertexConsumer {
     }
 
     override fun normal(x: Float, y: Float, z: Float): VertexConsumer {
-        bufferConsumerList.add(Consumer {
+        bufferConsumerQueue.add(Consumer {
             it.putFloat(x)
             it.putFloat(y)
             it.putFloat(z)
@@ -57,7 +57,7 @@ class BufferVertexConsumer(override val format: VertexFormat) : VertexConsumer {
     }
 
     override fun uv(u: Float, v: Float): VertexConsumer {
-        bufferConsumerList.add(Consumer {
+        bufferConsumerQueue.add(Consumer {
             it.putFloat(u)
             it.putFloat(v)
         })
@@ -66,7 +66,7 @@ class BufferVertexConsumer(override val format: VertexFormat) : VertexConsumer {
     }
 
     override fun uv(u: Short, v: Short): VertexConsumer {
-        bufferConsumerList.add(Consumer {
+        bufferConsumerQueue.add(Consumer {
             it.putShort(u)
             it.putShort(v)
         })
@@ -76,7 +76,7 @@ class BufferVertexConsumer(override val format: VertexFormat) : VertexConsumer {
     }
 
     fun putByte(index: Int, value: Byte): VertexConsumer {
-        bufferConsumerList.add(Consumer {
+        bufferConsumerQueue.add(Consumer {
             it.put(index, value)
         })
 
@@ -85,7 +85,7 @@ class BufferVertexConsumer(override val format: VertexFormat) : VertexConsumer {
     }
 
     fun putShort(index: Int, value: Short): VertexConsumer {
-        bufferConsumerList.add(Consumer {
+        bufferConsumerQueue.add(Consumer {
             it.putShort(index, value)
         })
 
@@ -94,7 +94,7 @@ class BufferVertexConsumer(override val format: VertexFormat) : VertexConsumer {
     }
 
     fun putFloat(index: Int, value: Float): VertexConsumer {
-        bufferConsumerList.add(Consumer {
+        bufferConsumerQueue.add(Consumer {
             it.putFloat(index, value)
         })
 
@@ -113,7 +113,7 @@ class BufferVertexConsumer(override val format: VertexFormat) : VertexConsumer {
     }
 
     override fun clear() {
-        bufferConsumerList.clear()
+        bufferConsumerQueue.clear()
         vertexCount = 0
     }
 
@@ -128,14 +128,10 @@ class BufferVertexConsumer(override val format: VertexFormat) : VertexConsumer {
     override fun copy(): VertexConsumer {
         val consumer = BufferVertexConsumer(format)
         consumer.debugSize = this.debugSize
-        consumer.bufferConsumerList = Collections.unmodifiableList(this.bufferConsumerList)
+        consumer.bufferConsumerQueue = ArrayDeque(bufferConsumerQueue)
         consumer.vertexCount = this.vertexCount
         consumer.vertexSize = this.vertexSize
         return consumer
-    }
-
-    override fun hashCode(): Int {
-        return Objects.hash(bufferConsumerList, vertexSize, format)
     }
 
     override fun equals(other: Any?): Boolean {
@@ -145,10 +141,21 @@ class BufferVertexConsumer(override val format: VertexFormat) : VertexConsumer {
         other as BufferVertexConsumer
 
         if (format != other.format) return false
-        if (bufferConsumerList != other.bufferConsumerList) return false
+        if (bufferConsumerQueue != other.bufferConsumerQueue) return false
         if (vertexSize != other.vertexSize) return false
+        if (vertexCount != other.vertexCount) return false
+        if (debugSize != other.debugSize) return false
 
         return true
+    }
+
+    override fun hashCode(): Int {
+        var result = format.hashCode()
+        result = 31 * result + bufferConsumerQueue.hashCode()
+        result = 31 * result + vertexSize
+        result = 31 * result + vertexCount
+        result = 31 * result + debugSize
+        return result
     }
 
 }
