@@ -43,8 +43,6 @@ public abstract class BufferBuilderMixin extends FixedColorVertexConsumer implem
             return VertexFormatElements.UVs;
         } else if (mcElement.equals(TEXTURE_0_ELEMENT)) {
             return VertexFormatElements.UVf;
-        } else if (mcElement.equals(PADDING_ELEMENT)) {
-            return null;
         } else {
             throw new RuntimeException("IMPLEMENT CUSTOM VERTEX FORMAT ELEMENTS");
         }
@@ -83,12 +81,14 @@ public abstract class BufferBuilderMixin extends FixedColorVertexConsumer implem
 //            } else if (consumerCreationInfo.format().equals(POSITION_TEXTURE_COLOR_LIGHT)) {
 //                consumer = new BufferVertexConsumer(VertexFormats.POSITION_UV_COLOR4_LIGHT);
 //            } else {
-                ImmutableList<VertexFormatElement> mcElements = consumerCreationInfo.format().getElements();
-                List<me.hydos.rosella.render.vertex.VertexFormatElement> elementList = new ArrayList<>(mcElements.size()); // this size may change so we're not using a raw array
-                for (VertexFormatElement mcElement : mcElements) {
+            ImmutableList<VertexFormatElement> mcElements = consumerCreationInfo.format().getElements();
+            List<me.hydos.rosella.render.vertex.VertexFormatElement> elementList = new ArrayList<>(mcElements.size()); // this size may change so we're not using a raw array
+            for (VertexFormatElement mcElement : mcElements) {
+                if (mcElement != null && !mcElement.equals(PADDING_ELEMENT)) { //FIXME: burger, the below thing adds null when padding is there but without padding for some reason the sky colour stays black unless padding is there padding somehow fixes the sky
                     elementList.add(convertVertexFormatElement(mcElement));
                 }
-                consumer = new BufferVertexConsumer(VertexFormats.getFormat(elementList.toArray(me.hydos.rosella.render.vertex.VertexFormatElement[]::new)));
+            }
+            consumer = new BufferVertexConsumer(VertexFormats.getFormat(elementList.toArray(me.hydos.rosella.render.vertex.VertexFormatElement[]::new)));
 //            }
             return consumer;
         });
