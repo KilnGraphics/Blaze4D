@@ -1,12 +1,14 @@
 package me.hydos.rosella.render.vertex;
 
-import it.unimi.dsi.fastutil.objects.Object2ObjectOpenHashMap;
+import it.unimi.dsi.fastutil.ints.Int2ObjectMap;
+import it.unimi.dsi.fastutil.ints.Int2ObjectOpenHashMap;
 
-import java.util.Map;
+import java.util.Arrays;
+import java.util.Objects;
 
 public class VertexFormats {
 
-    private static final Map<VertexFormatElement[], VertexFormat> VERTEX_FORMAT_REGISTRY = new Object2ObjectOpenHashMap<>();
+    private static final Int2ObjectMap<VertexFormat> VERTEX_FORMAT_REGISTRY = new Int2ObjectOpenHashMap<>();
 
     public static final VertexFormat POSITION = getFormat(VertexFormatElements.POSITION);
     public static final VertexFormat POSITION_COLOR3 = getFormat(VertexFormatElements.POSITION, VertexFormatElements.COLOR3ub);
@@ -26,6 +28,7 @@ public class VertexFormats {
 
     // makes sure we don't waste a ton of memory with duplicates that get caught in the materials cache
     public static VertexFormat getFormat(VertexFormatElement... elements) {
-        return VERTEX_FORMAT_REGISTRY.computeIfAbsent(elements, VertexFormat::new);
+        // for some reason it doesn't calculate a deep hash code for the array, so we have to do it ourselves
+        return VERTEX_FORMAT_REGISTRY.computeIfAbsent(Arrays.hashCode(elements), i -> new VertexFormat(elements));
     }
 }
