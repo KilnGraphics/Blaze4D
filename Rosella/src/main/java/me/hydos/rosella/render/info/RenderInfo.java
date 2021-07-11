@@ -1,9 +1,10 @@
 package me.hydos.rosella.render.info;
 
+import it.unimi.dsi.fastutil.ints.IntList;
 import me.hydos.rosella.device.VulkanDevice;
 import me.hydos.rosella.memory.Memory;
 import me.hydos.rosella.memory.MemoryCloseable;
-import me.hydos.rosella.render.vertex.VertexConsumer;
+import me.hydos.rosella.render.vertex.BufferProvider;
 import org.jetbrains.annotations.NotNull;
 
 import java.util.List;
@@ -13,17 +14,17 @@ import java.util.List;
  */
 public class RenderInfo implements MemoryCloseable {
 
-    public VertexConsumer consumer;
-    public List<Integer> indices;
+    public BufferProvider bufferProvider;
+    public IntList indices;
 
-    public RenderInfo(@NotNull VertexConsumer consumer) {
-        this.consumer = consumer;
+    public RenderInfo(@NotNull BufferProvider bufferProvider) {
+        this.bufferProvider = bufferProvider;
     }
 
     @Override
     public boolean equals(Object obj) {
         if (obj instanceof RenderInfo) {
-            return consumer.equals(((RenderInfo) obj).consumer);
+            return bufferProvider.equals(((RenderInfo) obj).bufferProvider);
         }
         return false;
     }

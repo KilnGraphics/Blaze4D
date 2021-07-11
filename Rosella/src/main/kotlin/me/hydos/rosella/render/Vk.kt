@@ -365,7 +365,6 @@ fun copyToTexture(
             val pixels = image.getPixels()!!
             val newData = data.getByteBuffer(0, pixels.limit())
             newData.put(0, pixels, 0, pixels.limit())
-
         }
 
         copyBufferToImage(

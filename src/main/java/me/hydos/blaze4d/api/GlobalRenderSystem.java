@@ -1,10 +1,15 @@
 package me.hydos.blaze4d.api;
 
 import it.unimi.dsi.fastutil.ints.Int2ObjectOpenHashMap;
+import it.unimi.dsi.fastutil.ints.IntArrayList;
+import it.unimi.dsi.fastutil.ints.IntList;
+import it.unimi.dsi.fastutil.ints.IntLists;
+import it.unimi.dsi.fastutil.objects.Object2ObjectLinkedOpenHashMap;
 import it.unimi.dsi.fastutil.objects.Object2ObjectOpenHashMap;
 import it.unimi.dsi.fastutil.objects.ObjectOpenHashSet;
 import me.hydos.blaze4d.Blaze4D;
 import me.hydos.blaze4d.api.shader.ShaderContext;
+import me.hydos.rosella.render.vertex.StoredBufferProvider;
 import me.hydos.blaze4d.api.vertex.ConsumerCreationInfo;
 import me.hydos.blaze4d.api.vertex.ConsumerRenderObject;
 import me.hydos.blaze4d.api.vertex.ObjectInfo;
@@ -15,7 +20,6 @@ import me.hydos.rosella.render.resource.Identifier;
 import me.hydos.rosella.render.shader.RawShaderProgram;
 import me.hydos.rosella.render.shader.ShaderProgram;
 import me.hydos.rosella.render.texture.Texture;
-import me.hydos.rosella.render.vertex.BufferVertexConsumer;
 import me.hydos.rosella.scene.object.impl.SimpleObjectManager;
 import net.minecraft.client.render.VertexFormat;
 import net.minecraft.util.math.Vec3f;
@@ -135,12 +139,12 @@ public class GlobalRenderSystem {
         currentFrameObjects.add(renderObject);
     }
 
-    public static final Map<ConsumerCreationInfo, BufferVertexConsumer> GLOBAL_CONSUMERS = new Object2ObjectOpenHashMap<>();
+    public static final Map<ConsumerCreationInfo, StoredBufferProvider> GLOBAL_BUFFER_PROVIDERS = new Object2ObjectLinkedOpenHashMap<>();
 
     public static void renderConsumers() {
-        for (Map.Entry<ConsumerCreationInfo, BufferVertexConsumer> entry : GLOBAL_CONSUMERS.entrySet()) {
-            BufferVertexConsumer consumer = entry.getValue();
-            List<Integer> indices = new ArrayList<>();
+        for (Map.Entry<ConsumerCreationInfo, StoredBufferProvider> entry : GLOBAL_BUFFER_PROVIDERS.entrySet()) {
+            StoredBufferProvider bufferProvider = entry.getValue();
+            IntList indices = new IntArrayList();
             ConsumerCreationInfo creationInfo = entry.getKey();
 
             if (creationInfo.drawMode() == VertexFormat.DrawMode.QUADS) {
@@ -154,7 +158,7 @@ public class GlobalRenderSystem {
                 //      /             \   /
                 //    v2-----------------v3
 
-                for (int i = 0; i < consumer.getVertexCount(); i += 4) {
+                for (int i = 0; i < bufferProvider.getVertexCount(); i += 4) {
                     indices.add(i);
                     indices.add(1 + i);
                     indices.add(2 + i);
@@ -164,14 +168,14 @@ public class GlobalRenderSystem {
                     indices.add(i);
                 }
             } else {
-                for (int i = 0; i < consumer.getVertexCount(); i++) {
+                for (int i = 0; i < bufferProvider.getVertexCount(); i++) {
                     indices.add(i);
                 }
             }
 
-            if (consumer.getVertexCount() != 0) {
+            if (bufferProvider.getVertexCount() != 0) {
                 ObjectInfo objectInfo = new ObjectInfo(
-                        consumer,
+                        bufferProvider,
                         creationInfo.drawMode(),
                         creationInfo.format(),
                         creationInfo.shader(),
@@ -181,13 +185,13 @@ public class GlobalRenderSystem {
                         creationInfo.chunkOffset(),
                         creationInfo.shaderLightDirections0(),
                         creationInfo.shaderLightDirections1(),
-                        Collections.unmodifiableList(indices)
+                        IntLists.unmodifiable(indices)
                 );
                 if (creationInfo.shader() != null) {
                     GlobalRenderSystem.uploadObject(objectInfo, Blaze4D.rosella);
                 }
             }
         }
-        GLOBAL_CONSUMERS.clear();
+        GLOBAL_BUFFER_PROVIDERS.clear();
     }
 }

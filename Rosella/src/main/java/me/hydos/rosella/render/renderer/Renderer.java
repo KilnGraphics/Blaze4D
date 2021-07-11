@@ -349,9 +349,16 @@ public class Renderer {
                 if (rosella.bufferManager != null && !simpleObjectManager.renderObjects.isEmpty()) {
                     bindBigBuffers(rosella.bufferManager, stack, commandBuffer);
                     for (RenderInfo renderInfo : simpleObjectManager.renderObjects.keySet()) {
-                        for (InstanceInfo instance : simpleObjectManager.renderObjects.get(renderInfo)) {
+                        for (InstanceInfo instance : simpleObjectManager.renderObjects.get(renderInfo)) {//rosella.bufferManager.vertexOffsetMap.get(renderInfo)
                             bindInstanceInfo(instance, stack, commandBuffer, i);
-                            vkCmdDrawIndexed(commandBuffer, renderInfo.getIndicesSize(), 1, rosella.bufferManager.indicesOffsetMap.get(renderInfo), rosella.bufferManager.vertexOffsetMap.get(renderInfo), 0);
+                            vkCmdDrawIndexed(
+                                    commandBuffer,
+                                    renderInfo.getIndicesSize(),
+                                    1,
+                                    rosella.bufferManager.indicesOffsetMap.getInt(renderInfo),
+                                    rosella.bufferManager.vertexOffsetMap.getInt(renderInfo),
+                                    0
+                            );
                         }
                     }
 

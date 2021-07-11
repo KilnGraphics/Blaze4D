@@ -19,6 +19,7 @@
     "integration.WindowMixin",
     "matrices.RenderSystemMixin",
     "shader.GlStateManagerMixin",
+    "shader.GlUniformMixin",
     "shader.RenderSystemMixin",
     "shader.ShaderAccessor",
     "shader.ShaderMixin",

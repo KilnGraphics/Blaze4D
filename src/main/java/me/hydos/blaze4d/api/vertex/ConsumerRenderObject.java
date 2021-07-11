@@ -27,7 +27,7 @@ public class ConsumerRenderObject implements Renderable {
     public InstanceInfo instanceInfo;
 
     public ConsumerRenderObject(ObjectInfo info, Rosella rosella) {
-        this.renderInfo.consumer = info.consumer();
+        this.renderInfo.bufferProvider = info.bufferProvider();
         VertexFormat.DrawMode drawMode = info.drawMode();
         this.format = info.format();
         this.shader = info.shader();
@@ -43,19 +43,19 @@ public class ConsumerRenderObject implements Renderable {
         switch (drawMode) {
             case TRIANGLES, QUADS -> {
                 if (format != net.minecraft.client.render.VertexFormats.BLIT_SCREEN) {
-                    returnValue = Materials.TRIANGLES.build(shader, textures, renderInfo.consumer.getFormat());
+                    returnValue = Materials.TRIANGLES.build(shader, textures, renderInfo.bufferProvider.getFormat());
                 }
             }
 
             case TRIANGLE_STRIP, DEBUG_LINE_STRIP -> {
                 if (format == net.minecraft.client.render.VertexFormats.POSITION) {
-                    returnValue = Materials.TRIANGLE_STRIP.build(shader, textures, renderInfo.consumer.getFormat());
+                    returnValue = Materials.TRIANGLE_STRIP.build(shader, textures, renderInfo.bufferProvider.getFormat());
                 }
             }
 
-            case TRIANGLE_FAN -> returnValue = Materials.TRIANGLE_FAN.build(shader, textures, renderInfo.consumer.getFormat());
+            case TRIANGLE_FAN -> returnValue = Materials.TRIANGLE_FAN.build(shader, textures, renderInfo.bufferProvider.getFormat());
 
-            case LINES, DEBUG_LINES -> returnValue = Materials.LINES.build(shader, textures, renderInfo.consumer.getFormat());
+            case LINES, DEBUG_LINES -> returnValue = Materials.LINES.build(shader, textures, renderInfo.bufferProvider.getFormat());
 
             default -> throw new RuntimeException("Unsupported Draw Mode:  " + drawMode);
         }

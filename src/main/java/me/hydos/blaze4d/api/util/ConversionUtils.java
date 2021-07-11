@@ -1,13 +1,21 @@
 package me.hydos.blaze4d.api.util;
 
 import me.hydos.rosella.render.texture.ImageFormat;
+import me.hydos.rosella.render.vertex.VertexFormatElements;
+import net.minecraft.client.render.VertexFormatElement;
+import net.minecraft.client.render.VertexFormats;
 import org.lwjgl.opengl.GL11;
 import org.lwjgl.opengl.GL14;
 import org.lwjgl.opengl.GL30;
 import org.lwjgl.opengl.GL33;
 import org.lwjgl.vulkan.VK10;
 
-public abstract class GlConversions {
+import java.util.Collections;
+import java.util.Map;
+
+import static net.minecraft.client.render.VertexFormats.POSITION_ELEMENT;
+
+public abstract class ConversionUtils {
 
     public static int glToVkBlendFunc(int glBlendFunc) {
         return switch (glBlendFunc) {
@@ -90,4 +98,24 @@ public abstract class GlConversions {
             default -> throw new RuntimeException("GL image format " + glImageFormat + " is invalid or does not have a rosella equivalent");
         };
     }
+
+    public static int glToVkDefaultImageFormat(int glImageFormat) {
+        return switch (glImageFormat) {
+            case GL11.GL_RGBA -> VK10.VK_FORMAT_R8G8B8A8_UNORM;
+            case GL11.GL_RGB -> VK10.VK_FORMAT_R8G8B8_UNORM;
+            case GL30.GL_RG -> VK10.VK_FORMAT_R8G8_UNORM;
+            case GL11.GL_RED -> VK10.VK_FORMAT_R8_UNORM;
+            default -> throw new RuntimeException("GL image format " + glImageFormat + " is invalid or does not have a vulkan equivalent");
+        };
+    }
+
+    public static final Map<VertexFormatElement, me.hydos.rosella.render.vertex.VertexFormatElement> ELEMENT_CONVERSION_MAP = Map.of(
+            VertexFormats.POSITION_ELEMENT, VertexFormatElements.POSITION,
+            VertexFormats.COLOR_ELEMENT, VertexFormatElements.COLOR4ub,
+            VertexFormats.LIGHT_ELEMENT, VertexFormatElements.UVs,
+            VertexFormats.NORMAL_ELEMENT, VertexFormatElements.NORMAL,
+            VertexFormats.OVERLAY_ELEMENT, VertexFormatElements.UVs,
+            VertexFormats.TEXTURE_0_ELEMENT, VertexFormatElements.UVf,
+            VertexFormats.PADDING_ELEMENT, VertexFormatElements.PADDINGb
+    );
 }

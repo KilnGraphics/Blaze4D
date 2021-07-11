@@ -1,5 +1,6 @@
 package me.hydos.rosella.scene.object;
 
+import it.unimi.dsi.fastutil.ints.IntArrayList;
 import me.hydos.rosella.Rosella;
 import me.hydos.rosella.device.VulkanDevice;
 import me.hydos.rosella.memory.Memory;
@@ -16,8 +17,6 @@ import org.joml.Vector2fc;
 import org.joml.Vector3f;
 import org.joml.Vector3fc;
 import org.lwjgl.assimp.Assimp;
-
-import java.util.ArrayList;
 
 public class RenderObject implements Renderable {
 
@@ -42,20 +41,22 @@ public class RenderObject implements Renderable {
         ModelLoader.SimpleModel model = ModelLoader.loadModel(modelId, Assimp.aiProcess_FlipUVs | Assimp.aiProcess_DropNormals);
         int vertexCount = model.getPositions().size();
 
-        renderInfo.consumer.clear();
+        BufferVertexConsumer vertexConsumer = (BufferVertexConsumer) renderInfo.bufferProvider;
+
+        vertexConsumer.clear();
         Vector3f color = new Vector3f(1.0f, 1.0f, 1.0f);
         for (int i = 0; i < vertexCount; i++) {
             Vector3fc pos = model.getPositions().get(i);
             Vector2fc uvs = model.getTexCoords().get(i);
             // TODO: is this conversion doing what it should be? should convert int representing unsigned byte to signed byte through wrapping
-            renderInfo.consumer
+            vertexConsumer
                     .pos(pos.x(), pos.y(), pos.z())
                     .color((byte) (int) color.x(), (byte) (int) color.y(), (byte) (int) color.z())
                     .uv(uvs.x(), uvs.y())
                     .nextVertex();
         }
 
-        renderInfo.indices = new ArrayList<>(model.getIndices().size());
+        renderInfo.indices = new IntArrayList(model.getIndices().size());
         renderInfo.indices.addAll(model.getIndices());
     }
 

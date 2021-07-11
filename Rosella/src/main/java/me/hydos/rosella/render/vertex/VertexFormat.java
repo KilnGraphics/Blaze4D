@@ -27,11 +27,11 @@ public class VertexFormat {
         }
         vkAttributes.rewind();
 
-        this.size = offset;
+        this.size = offset; // TODO: this is ok i think?
 
         this.vkBindings = VkVertexInputBindingDescription.callocStack(1)
                 .binding(0)
-                .stride(getSize())
+                .stride(size)
                 .inputRate(VK10.VK_VERTEX_INPUT_RATE_VERTEX);
     }
 
@@ -40,7 +40,7 @@ public class VertexFormat {
     }
 
     public VkVertexInputBindingDescription.Buffer getVkBindings() {
-        return vkBindings;
+        return vkBindings; // FIXME why is this null?
     }
 
     public int getSize() {

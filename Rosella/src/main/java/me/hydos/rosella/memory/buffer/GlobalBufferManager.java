@@ -1,21 +1,20 @@
 package me.hydos.rosella.memory.buffer;
 
+import it.unimi.dsi.fastutil.objects.Object2IntMap;
 import it.unimi.dsi.fastutil.objects.Object2IntOpenHashMap;
 import me.hydos.rosella.Rosella;
 import me.hydos.rosella.memory.BufferInfo;
 import me.hydos.rosella.memory.Memory;
 import me.hydos.rosella.render.info.RenderInfo;
 import me.hydos.rosella.render.renderer.Renderer;
-import me.hydos.rosella.render.vertex.BufferVertexConsumer;
+import me.hydos.rosella.render.vertex.BufferProvider;
 import me.hydos.rosella.vkobjects.VkCommon;
 import org.lwjgl.system.MemoryStack;
 
 import java.nio.ByteBuffer;
 import java.nio.LongBuffer;
 import java.util.HashSet;
-import java.util.Map;
 import java.util.Set;
-import java.util.function.Consumer;
 
 import static org.lwjgl.system.MemoryStack.stackPush;
 import static org.lwjgl.util.vma.Vma.VMA_MEMORY_USAGE_CPU_TO_GPU;
@@ -35,8 +34,8 @@ public class GlobalBufferManager {
     public BufferInfo vertexBuffer;
     public BufferInfo indexBuffer;
 
-    public final Map<RenderInfo, Integer> indicesOffsetMap = new Object2IntOpenHashMap<>();
-    public final Map<RenderInfo, Integer> vertexOffsetMap = new Object2IntOpenHashMap<>();
+    public final Object2IntMap<RenderInfo> indicesOffsetMap = new Object2IntOpenHashMap<>();
+    public final Object2IntMap<RenderInfo> vertexOffsetMap = new Object2IntOpenHashMap<>();
 
     public GlobalBufferManager(Rosella rosella) {
         this.memory = rosella.common.memory;
@@ -114,7 +113,7 @@ public class GlobalBufferManager {
     private BufferInfo createVertexBuffer(Set<RenderInfo> renderList) {
         int totalSize = 0;
         for (RenderInfo info : renderList) {
-            totalSize += info.consumer.getVertexSize() * info.consumer.getVertexCount();
+            totalSize += info.bufferProvider.getVertexSize() * info.bufferProvider.getVertexCount();
         }
 
         try (MemoryStack stack = stackPush()) {
@@ -124,12 +123,14 @@ public class GlobalBufferManager {
             BufferInfo stagingBuffer = memory.createStagingBuf(finalTotalSize, pBuffer, stack, data -> {
                 ByteBuffer dst = data.getByteBuffer(0, finalTotalSize);
                 int vertexOffset = 0;
+                int bufferOffset = 0;
                 for (RenderInfo renderInfo : renderList) {
                     vertexOffsetMap.put(renderInfo, vertexOffset);
-                    for (Consumer<ByteBuffer> bufConsumer : ((BufferVertexConsumer) renderInfo.consumer).getBufferConsumerQueue()) {
-                        bufConsumer.accept(dst);
+                    for(BufferProvider.PositionedBuffer src : renderInfo.bufferProvider.getBuffers()) {
+                        dst.put(bufferOffset + src.startPos(), src.buffer(), 0, src.length());
                     }
-                    vertexOffset += renderInfo.consumer.getVertexSize() * renderInfo.consumer.getVertexCount();
+                    vertexOffset += renderInfo.bufferProvider.getVertexCount();
+                    bufferOffset += renderInfo.bufferProvider.getVertexSize() * renderInfo.bufferProvider.getVertexCount();
                 }
             });
 
