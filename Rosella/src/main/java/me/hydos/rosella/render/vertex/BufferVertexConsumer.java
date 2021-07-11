@@ -22,7 +22,7 @@ public final class BufferVertexConsumer implements BufferProvider { // FIXME mak
         // TODO:
         // store a list of bytebuffers along with the current bytebuffer. when finished with a draw,
         // add it to the list and create a new one.
-        return Collections.singletonList(new PositionedBuffer(buffer, 0, vertexCount + format.getSize()));
+        return Collections.singletonList(new PositionedBuffer(buffer, 0, 0, vertexCount + format.getSize()));
     }
 
     @Override

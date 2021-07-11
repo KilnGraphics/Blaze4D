@@ -45,8 +45,8 @@ public class StoredBufferProvider implements BufferProvider {
         return totalVertexCount;
     }
 
-    public void addBuffer(ByteBuffer byteBuffer, int vertexCount) {
-        buffers.add(new PositionedBuffer(byteBuffer, totalVertexCount * getVertexSize(), vertexCount * getVertexSize()));
+    public void addBuffer(ByteBuffer byteBuffer, int posOffset, int vertexCount) {
+        buffers.add(new PositionedBuffer(byteBuffer, posOffset, totalVertexCount * getVertexSize(), vertexCount * getVertexSize()));
         totalVertexCount += vertexCount;
     }
 }

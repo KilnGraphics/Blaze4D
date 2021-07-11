@@ -14,5 +14,5 @@ public interface BufferProvider {
 
     int getVertexCount();
 
-    record PositionedBuffer(ByteBuffer buffer, int startPos, int length) {}
+    record PositionedBuffer(ByteBuffer buffer, int srcPos, int dstPos, int length) {}
 }

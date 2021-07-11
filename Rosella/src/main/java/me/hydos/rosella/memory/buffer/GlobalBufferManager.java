@@ -127,7 +127,7 @@ public class GlobalBufferManager {
                 for (RenderInfo renderInfo : renderList) {
                     vertexOffsetMap.put(renderInfo, vertexOffset);
                     for(BufferProvider.PositionedBuffer src : renderInfo.bufferProvider.getBuffers()) {
-                        dst.put(bufferOffset + src.startPos(), src.buffer(), 0, src.length());
+                        dst.put(bufferOffset + src.dstPos(), src.buffer(), src.srcPos(), src.length());
                     }
                     vertexOffset += renderInfo.bufferProvider.getVertexCount();
                     bufferOffset += renderInfo.bufferProvider.getVertexSize() * renderInfo.bufferProvider.getVertexCount();

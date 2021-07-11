@@ -28,7 +28,7 @@
     "texture.RenderSystemMixin",
     "texture.TextureManagerMixin",
     "texture.TextureUtilMixin",
-    "vertices.BufferBuilderMixin",
+    "vertices.BufferBuilderAccessor",
     "vertices.VertexBufferMixin"
   ],
   "injectors": {
