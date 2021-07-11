@@ -1,5 +1,6 @@
 package me.hydos.blaze4d.mixin.integration;
 
+import me.hydos.aftermath.Aftermath;
 import me.hydos.blaze4d.Blaze4D;
 import me.hydos.rosella.Rosella;
 import me.hydos.rosella.display.GlfwWindow;
@@ -26,6 +27,8 @@ import java.io.InputStream;
 import java.nio.ByteBuffer;
 import java.nio.IntBuffer;
 import java.util.Optional;
+
+import net.fabricmc.loader.api.FabricLoader;
 
 @Mixin(net.minecraft.client.util.Window.class)
 public abstract class WindowMixin {
@@ -139,5 +142,6 @@ public abstract class WindowMixin {
             Blaze4D.rosella.teardown();
             Blaze4D.rosella = null;
         }
+        Aftermath.disableGPUCrashDumps();
     }
 }
