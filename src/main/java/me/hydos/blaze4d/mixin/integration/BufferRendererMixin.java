@@ -33,7 +33,7 @@ public class BufferRendererMixin {
         Vec3f shaderLightDirections0 = GlobalRenderSystem.shaderLightDirections0.copy();
         Vec3f shaderLightDirections1 = GlobalRenderSystem.shaderLightDirections1.copy();
 
-        int srcBufferEnd = ((BufferBuilderAccessor) bufferBuilder).blaze4d$getNextDrawStart();
+        int srcBufferStart = ((BufferBuilderAccessor) bufferBuilder).blaze4d$getNextDrawStart();
 
         Pair<BufferBuilder.DrawArrayParameters, ByteBuffer> drawData = bufferBuilder.popData();
         BufferBuilder.DrawArrayParameters drawInfo = drawData.getFirst(); // TODO: use the textured info from this to know if we should pass a blank texture array
@@ -53,10 +53,6 @@ public class BufferRendererMixin {
 
             return new StoredBufferProvider(rosellaFormat);
         });
-
-        int srcBufferStart = srcBufferEnd - (drawInfo.getCount() * format.getVertexSize());
-
-        System.out.println(srcBufferStart + ", " + srcBufferEnd);
 
         storedBufferProvider.addBuffer(drawData.getSecond(), srcBufferStart, drawInfo.getCount()); // getCount is actually getVertexCount and someone mapped them wrong
         ci.cancel();
