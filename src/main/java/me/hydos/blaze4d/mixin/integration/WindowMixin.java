@@ -117,6 +117,15 @@ public abstract class WindowMixin {
         GLFW.glfwSetWindowPosCallback(this.handle, this::onWindowPosChanged);
         GLFW.glfwSetWindowFocusCallback(this.handle, this::onWindowFocusChanged);
         GLFW.glfwSetCursorEnterCallback(this.handle, this::onCursorEnterChanged);
+
+        try {
+            AftermathHandler.initialize();
+        } catch (Exception exception) {
+            // We don't really care if this doesn't work, especially outside of development
+            if (FabricLoader.getInstance().isDevelopmentEnvironment()) {
+                exception.printStackTrace();
+            }
+        }
     }
 
     @Inject(method = "setIcon", at = @At(value = "INVOKE", target = "Lorg/lwjgl/glfw/GLFW;glfwSetWindowIcon(JLorg/lwjgl/glfw/GLFWImage$Buffer;)V"), locals = LocalCapture.CAPTURE_FAILSOFT)

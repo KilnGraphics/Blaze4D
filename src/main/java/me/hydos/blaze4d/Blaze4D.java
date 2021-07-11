@@ -35,14 +35,5 @@ public class Blaze4D implements ClientModInitializer {
         } catch (UnsatisfiedLinkError e) {
             LOGGER.warn("Unable to find renderdoc on path.");
         }
-
-        try {
-            AftermathHandler.initialize();
-        } catch (Exception exception) {
-            // We don't really care if this doesn't work, especially outside of development
-            if (FabricLoader.getInstance().isDevelopmentEnvironment()) {
-                exception.printStackTrace();
-            }
-        }
     }
 }

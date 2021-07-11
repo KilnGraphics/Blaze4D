@@ -17,8 +17,8 @@ public class Aftermath {
             System.getProperty("os.name").toLowerCase().contains("windows") ? "WinAftermath.dll" : "LinuxAftermath",
             false);
 
-    private static final long GFSDK_Aftermath_EnableGpuCrashDumps = APIUtil.apiGetFunctionAddress(AFTERMATH, "GFSDK_Aftermath_DisableGpuCrashDumps");
-    private static final long GFSDK_Aftermath_DisableGpuCrashDumps = APIUtil.apiGetFunctionAddress(AFTERMATH, "GFSDK_Aftermath_EnableGpuCrashDumps");
+    private static final long GFSDK_Aftermath_EnableGpuCrashDumps = APIUtil.apiGetFunctionAddress(AFTERMATH, "GFSDK_Aftermath_EnableGpuCrashDumps");
+    private static final long GFSDK_Aftermath_DisableGpuCrashDumps = APIUtil.apiGetFunctionAddress(AFTERMATH, "GFSDK_Aftermath_DisableGpuCrashDumps");
     private static final long GFSDK_Aftermath_GpuCrashDump_CreateDecoder = APIUtil.apiGetFunctionAddress(AFTERMATH, "GFSDK_Aftermath_GpuCrashDump_CreateDecoder");
     private static final long GFSDK_Aftermath_GpuCrashDump_DestroyDecoder = APIUtil.apiGetFunctionAddress(AFTERMATH, "GFSDK_Aftermath_GpuCrashDump_DestroyDecoder");
     private static final long GFSDK_Aftermath_GpuCrashDump_GetBaseInfo = APIUtil.apiGetFunctionAddress(AFTERMATH, "GFSDK_Aftermath_GpuCrashDump_GetBaseInfo");
