@@ -18,16 +18,18 @@ public class VertexFormat {
         int offset = 0;
         for (int idx = 0; idx < elements.length; idx++) {
             VertexFormatElement element = elements[idx];
-            vkAttributes.get(idx)
-                    .binding(0)
-                    .location(idx)
-                    .format(element.vkType())
-                    .offset(offset);
+            if (element.vkType() != VertexFormatElements.VK_FORMAT_PADDING) {
+                vkAttributes.get(idx)
+                        .binding(0)
+                        .location(idx)
+                        .format(element.vkType())
+                        .offset(offset);
+            }
             offset += element.byteLength();
         }
         vkAttributes.rewind();
 
-        this.size = offset; // TODO: this is ok i think?
+        this.size = offset;
 
         this.vkBindings = VkVertexInputBindingDescription.callocStack(1)
                 .binding(0)
