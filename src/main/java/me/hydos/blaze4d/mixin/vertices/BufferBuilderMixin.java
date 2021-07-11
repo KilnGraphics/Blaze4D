@@ -14,6 +14,7 @@ import org.joml.Matrix4f;
 import org.joml.Vector3f;
 import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.Overwrite;
+import org.spongepowered.asm.mixin.Shadow;
 import org.spongepowered.asm.mixin.Unique;
 import org.spongepowered.asm.mixin.injection.At;
 import org.spongepowered.asm.mixin.injection.Inject;
@@ -26,6 +27,8 @@ import static net.minecraft.client.render.VertexFormats.*;
 
 @Mixin(BufferBuilder.class)
 public abstract class BufferBuilderMixin extends FixedColorVertexConsumer implements UploadableConsumer {
+
+    @Shadow public abstract void reset();
 
     private BufferVertexConsumer consumer;
 
@@ -132,6 +135,15 @@ public abstract class BufferBuilderMixin extends FixedColorVertexConsumer implem
     public VertexConsumer overlay(int u, int v) {
         consumer.uv((short) u, (short) v);
         return this;
+    }
+
+    /**
+     * @author Blaze4D
+     * @reason To fix console spam
+     */
+    @Overwrite
+    public void clear() {
+        this.reset();
     }
 
     @Override
