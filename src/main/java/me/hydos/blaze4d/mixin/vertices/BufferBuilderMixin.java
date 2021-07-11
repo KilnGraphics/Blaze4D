@@ -63,6 +63,18 @@ public abstract class BufferBuilderMixin extends FixedColorVertexConsumer {
 //            } else if (consumerCreationInfo.format().equals(POSITION_TEXTURE_COLOR_LIGHT)) {
 //                consumer = new BufferVertexConsumer(VertexFormats.POSITION_UV_COLOR4_LIGHT);
 //            } else {
+
+//            ImmutableList<VertexFormatElement> mcElements = consumerCreationInfo.format().getElements();
+//            List<me.hydos.rosella.render.vertex.VertexFormatElement> rosellaElements = new ObjectArrayList<>(mcElements.size()); // this size may change so we're not using a raw array
+//            for (VertexFormatElement mcElement : mcElements) {
+//                me.hydos.rosella.render.vertex.VertexFormatElement rosellaElement = ConversionUtils.ELEMENT_CONVERSION_MAP.get(mcElement);
+//                if (rosellaElement != null) {
+//                    rosellaElements.add(rosellaElement);
+//                } else {
+//                    System.out.println("HIT! ON " + mcElement);
+//                }
+//            }
+//            return new StoredBufferProvider(VertexFormats.getFormat(rosellaElements.toArray(me.hydos.rosella.render.vertex.VertexFormatElement[]::new)));
             ImmutableList<VertexFormatElement> mcElements = format.getElements();
             me.hydos.rosella.render.vertex.VertexFormatElement[] rosellaElements = new me.hydos.rosella.render.vertex.VertexFormatElement[mcElements.size()]; // this size may change so we're not using a raw array
             for (int i = 0; i < mcElements.size(); i++) {

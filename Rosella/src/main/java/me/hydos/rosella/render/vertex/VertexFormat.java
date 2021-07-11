@@ -40,7 +40,7 @@ public class VertexFormat {
     }
 
     public VkVertexInputBindingDescription.Buffer getVkBindings() {
-        return vkBindings; // FIXME why is this null?
+        return vkBindings;
     }
 
     public int getSize() {
