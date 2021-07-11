@@ -48,12 +48,13 @@ public class VulkanInstance {
             VkDebugUtilsMessengerCreateInfoEXT debugMessengerCreateInfo;
 
             {
-                IntBuffer validationFeatures = stack.callocInt(5)
+                IntBuffer validationFeatures = stack.callocInt(6)
                         .put(EXTValidationFeatures.VK_VALIDATION_FEATURE_ENABLE_BEST_PRACTICES_EXT)
                         .put(EXTValidationFeatures.VK_VALIDATION_FEATURE_ENABLE_GPU_ASSISTED_EXT)
                         .put(EXTValidationFeatures.VK_VALIDATION_FEATURE_ENABLE_DEBUG_PRINTF_EXT)
                         .put(EXTValidationFeatures.VK_VALIDATION_FEATURE_ENABLE_SYNCHRONIZATION_VALIDATION_EXT)
-                        .put(EXTValidationFeatures.VK_VALIDATION_FEATURE_ENABLE_GPU_ASSISTED_RESERVE_BINDING_SLOT_EXT);
+                        .put(EXTValidationFeatures.VK_VALIDATION_FEATURE_ENABLE_GPU_ASSISTED_RESERVE_BINDING_SLOT_EXT)
+                        .put(301);
 
                 VkValidationFeaturesEXT extValidationFeatures = VkValidationFeaturesEXT.callocStack(stack)
                         .sType(EXTValidationFeatures.VK_STRUCTURE_TYPE_VALIDATION_FEATURES_EXT)
