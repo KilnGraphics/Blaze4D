@@ -5,7 +5,6 @@ import com.mojang.datafixers.util.Pair;
 import me.hydos.blaze4d.api.GlobalRenderSystem;
 import me.hydos.blaze4d.api.util.ConversionUtils;
 import me.hydos.blaze4d.api.vertex.ConsumerCreationInfo;
-import me.hydos.blaze4d.mixin.vertices.BufferBuilderAccessor;
 import me.hydos.rosella.render.vertex.StoredBufferProvider;
 import me.hydos.rosella.render.vertex.VertexFormats;
 import net.minecraft.client.render.BufferBuilder;
@@ -15,6 +14,7 @@ import net.minecraft.client.render.VertexFormatElement;
 import net.minecraft.util.math.Vec3f;
 import org.joml.Matrix4f;
 import org.joml.Vector3f;
+import org.lwjgl.system.MemoryUtil;
 import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.injection.At;
 import org.spongepowered.asm.mixin.injection.Inject;
@@ -32,8 +32,6 @@ public class BufferRendererMixin {
         Vector3f chunkOffset = new Vector3f(GlobalRenderSystem.chunkOffset);
         Vec3f shaderLightDirections0 = GlobalRenderSystem.shaderLightDirections0.copy();
         Vec3f shaderLightDirections1 = GlobalRenderSystem.shaderLightDirections1.copy();
-
-        int srcBufferStart = ((BufferBuilderAccessor) bufferBuilder).blaze4d$getNextDrawStart();
 
         Pair<BufferBuilder.DrawArrayParameters, ByteBuffer> drawData = bufferBuilder.popData();
         BufferBuilder.DrawArrayParameters drawInfo = drawData.getFirst(); // TODO: use the textured info from this to know if we should pass a blank texture array
@@ -54,7 +52,10 @@ public class BufferRendererMixin {
             return new StoredBufferProvider(rosellaFormat);
         });
 
-        storedBufferProvider.addBuffer(drawData.getSecond(), srcBufferStart, drawInfo.getCount()); // getCount is actually getVertexCount and someone mapped them wrong
+        ByteBuffer originalBuffer = drawData.getSecond();
+        ByteBuffer copiedBuffer = MemoryUtil.memAlloc(originalBuffer.limit());
+        copiedBuffer.put(0, originalBuffer, 0, copiedBuffer.limit());
+        storedBufferProvider.addBuffer(copiedBuffer, 0, drawInfo.getCount()); // getCount is actually getVertexCount and someone mapped them wrong
         ci.cancel();
     }
 }
