@@ -13,7 +13,6 @@ import me.hydos.rosella.render.info.InstanceInfo;
 import me.hydos.rosella.render.info.RenderInfo;
 import me.hydos.rosella.render.material.Material;
 import me.hydos.rosella.render.shader.RawShaderProgram;
-import me.hydos.rosella.render.shader.ShaderProgram;
 import me.hydos.rosella.render.swapchain.DepthBuffer;
 import me.hydos.rosella.render.swapchain.Frame;
 import me.hydos.rosella.render.swapchain.RenderPass;
@@ -363,23 +362,14 @@ public class Renderer {
         }
     }
 
-    private void bindBigBuffers(
-            GlobalBufferManager bufferManager,
-            MemoryStack stack,
-            VkCommandBuffer commandBuffer
-    ) {
+    private void bindBigBuffers(GlobalBufferManager bufferManager, MemoryStack stack, VkCommandBuffer commandBuffer) {
         LongBuffer offsets = stack.longs(0);
         LongBuffer vertexBuffers = stack.longs(bufferManager.vertexBuffer.buffer());
         vkCmdBindVertexBuffers(commandBuffer, 0, vertexBuffers, offsets);
         vkCmdBindIndexBuffer(commandBuffer, bufferManager.indexBuffer.buffer(), 0, VK_INDEX_TYPE_UINT32);
     }
 
-    private void bindInstanceInfo(
-            InstanceInfo instanceInfo,
-            MemoryStack matrix,
-            VkCommandBuffer commandBuffer,
-            int commandBufferIndex
-    ) {
+    private void bindInstanceInfo(InstanceInfo instanceInfo, MemoryStack matrix, VkCommandBuffer commandBuffer, int commandBufferIndex) {
         vkCmdBindPipeline(
                 commandBuffer,
                 VK_PIPELINE_BIND_POINT_GRAPHICS,
@@ -405,6 +395,7 @@ public class Renderer {
 
     /**
      * Same as clearColor but you have to rebuild the command buffers
+     *
      * @param color the colour you want the clear colour to change to
      */
     public void lazilyClearColor(Color color) {

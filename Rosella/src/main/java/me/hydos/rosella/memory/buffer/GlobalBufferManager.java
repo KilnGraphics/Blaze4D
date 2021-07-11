@@ -12,7 +12,9 @@ import org.lwjgl.system.MemoryStack;
 
 import java.nio.ByteBuffer;
 import java.nio.LongBuffer;
-import java.util.*;
+import java.util.HashSet;
+import java.util.Map;
+import java.util.Set;
 import java.util.function.Consumer;
 
 import static org.lwjgl.system.MemoryStack.stackPush;
@@ -74,11 +76,13 @@ public class GlobalBufferManager {
             BufferInfo stagingBuffer = memory.createStagingBuf(finalTotalSize, pBuffer, stack, data -> {
                 ByteBuffer dst = data.getByteBuffer(0, finalTotalSize);
 
-                List<Integer> allIndices = new ArrayList<>();
+                int indexOffset = 0;
                 for (RenderInfo renderInfo : renderList) {
-                    indicesOffsetMap.put(renderInfo, allIndices.size());
-                    Memory.memcpy(dst, renderInfo.indices);
-                    allIndices.addAll(renderInfo.indices);
+                    indicesOffsetMap.put(renderInfo, indexOffset);
+                    for (int index : renderInfo.indices) {
+                        dst.putInt(index);
+                    }
+                    indexOffset += renderInfo.indices.size();
                 }
             });
 

@@ -200,27 +200,6 @@ public abstract class Memory {
     }
 
     /**
-     * Creates an index buffer from an list of indices
-     */
-    public BufferInfo createIndexBuffer(Rosella engine, List<Integer> indices) {
-        try (MemoryStack stack = stackPush()) {
-            int size = (Integer.BYTES * indices.size());
-            LongBuffer pBuffer = stack.mallocLong(1);
-            BufferInfo stagingBuffer = engine.common.memory.createStagingBuf(size, pBuffer, stack, data -> memcpy(data.getByteBuffer(0, size), indices));
-            BufferInfo indexBufferInfo = createBuffer(
-                    size,
-                    VK10.VK_BUFFER_USAGE_TRANSFER_DST_BIT | VK10.VK_BUFFER_USAGE_INDEX_BUFFER_BIT,
-                    Vma.VMA_MEMORY_USAGE_CPU_TO_GPU,
-                    pBuffer
-            );
-            long indexBuffer = pBuffer.get(0);
-            copyBuffer(stagingBuffer.buffer(), indexBuffer, size, engine.renderer, engine.common.device);
-            stagingBuffer.free(common.device, this);
-            return indexBufferInfo;
-        }
-    }
-
-    /**
      * Forces a buffer to be freed
      */
     public void freeBuffer(BufferInfo buffer) {
@@ -248,15 +227,6 @@ public abstract class Memory {
         }
 
         destroyAllocator(allocator);
-    }
-
-    /**
-     * Copies indices into the specified buffer
-     */
-    public static void memcpy(ByteBuffer buffer, List<Integer> indices) {
-        for (int index : indices) {
-            buffer.putInt(index);
-        }
     }
 
     /**
