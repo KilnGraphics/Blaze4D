@@ -22,7 +22,7 @@ public class RenderObject implements Renderable {
 
     private final Material material;
     private final Resource modelId;
-    public final RenderInfo renderInfo = new RenderInfo(new BufferVertexConsumer(VertexFormats.POSITION_COLOR3_UV));
+    public final RenderInfo renderInfo = new RenderInfo(new BufferVertexConsumer(VertexFormats.POSITION_COLOR3_UV0));
     public InstanceInfo instanceInfo;
 
     public final Matrix4f modelMatrix = new Matrix4f();

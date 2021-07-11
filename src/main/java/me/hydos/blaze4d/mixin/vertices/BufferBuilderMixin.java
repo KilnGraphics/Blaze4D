@@ -40,47 +40,18 @@ public abstract class BufferBuilderMixin extends FixedColorVertexConsumer {
         VertexFormat format = drawInfo.getVertexFormat();
 
         StoredBufferProvider storedBufferProvider = GlobalRenderSystem.GLOBAL_BUFFER_PROVIDERS.computeIfAbsent(new ConsumerCreationInfo(drawInfo.getMode(), format, GlobalRenderSystem.createTextureArray(), GlobalRenderSystem.activeShader, projMatrix, viewMatrix, chunkOffset, shaderLightDirections0, shaderLightDirections1), consumerCreationInfo -> {
-            //            if (consumerCreationInfo.format().equals(POSITION)) {
-//                consumer = new BufferVertexConsumer(VertexFormats.POSITION);
-//            } else if (consumerCreationInfo.format().equals(POSITION_COLOR)) {
-//                consumer = new BufferVertexConsumer(VertexFormats.POSITION_COLOR4);
-//            } else if (consumerCreationInfo.format().equals(POSITION_COLOR_TEXTURE) || consumerCreationInfo.format().equals(BLIT_SCREEN)) {
-//                consumer = new BufferVertexConsumer(VertexFormats.POSITION_COLOR4_UV);
-//            } else if (consumerCreationInfo.format().equals(POSITION_TEXTURE)) {
-//                consumer = new BufferVertexConsumer(VertexFormats.POSITION_UV);
-//            } else if (consumerCreationInfo.format().equals(POSITION_TEXTURE_COLOR)) {
-//                consumer = new BufferVertexConsumer(VertexFormats.POSITION_UV_COLOR4);
-//            } else if (consumerCreationInfo.format().equals(LINES)) {
-//                consumer = new BufferVertexConsumer(VertexFormats.POSITION_COLOR4_NORMAL);
-//            } else if (consumerCreationInfo.format().equals(POSITION_COLOR_TEXTURE_LIGHT)) {
-//                consumer = new BufferVertexConsumer(VertexFormats.POSITION_COLOR4_UV_LIGHT);
-//            } else if (consumerCreationInfo.format().equals(POSITION_COLOR_TEXTURE_LIGHT_NORMAL)) {
-//                consumer = new BufferVertexConsumer(VertexFormats.POSITION_COLOR4_UV_LIGHT_NORMAL);
-//            } else if (consumerCreationInfo.format().equals(POSITION_COLOR_TEXTURE_OVERLAY_LIGHT_NORMAL)) {
-//                consumer = new BufferVertexConsumer(VertexFormats.POSITION_COLOR4_UV_UV0_LIGHT_NORMAL);
-//            } else if (consumerCreationInfo.format().equals(POSITION_TEXTURE_COLOR_NORMAL)) {
-//                consumer = new BufferVertexConsumer(VertexFormats.POSITION_UV_COLOR4_NORMAL);
-//            } else if (consumerCreationInfo.format().equals(POSITION_TEXTURE_COLOR_LIGHT)) {
-//                consumer = new BufferVertexConsumer(VertexFormats.POSITION_UV_COLOR4_LIGHT);
-//            } else {
+              me.hydos.rosella.render.vertex.VertexFormat rosellaFormat = ConversionUtils.FORMAT_CONVERSION_MAP.get(consumerCreationInfo.format().getElements());
 
-//            ImmutableList<VertexFormatElement> mcElements = consumerCreationInfo.format().getElements();
-//            List<me.hydos.rosella.render.vertex.VertexFormatElement> rosellaElements = new ObjectArrayList<>(mcElements.size()); // this size may change so we're not using a raw array
-//            for (VertexFormatElement mcElement : mcElements) {
-//                me.hydos.rosella.render.vertex.VertexFormatElement rosellaElement = ConversionUtils.ELEMENT_CONVERSION_MAP.get(mcElement);
-//                if (rosellaElement != null) {
-//                    rosellaElements.add(rosellaElement);
-//                } else {
-//                    System.out.println("HIT! ON " + mcElement);
-//                }
-//            }
-//            return new StoredBufferProvider(VertexFormats.getFormat(rosellaElements.toArray(me.hydos.rosella.render.vertex.VertexFormatElement[]::new)));
-            ImmutableList<VertexFormatElement> mcElements = format.getElements();
-            me.hydos.rosella.render.vertex.VertexFormatElement[] rosellaElements = new me.hydos.rosella.render.vertex.VertexFormatElement[mcElements.size()]; // this size may change so we're not using a raw array
-            for (int i = 0; i < mcElements.size(); i++) {
-                rosellaElements[i] = ConversionUtils.ELEMENT_CONVERSION_MAP.get(mcElements.get(i));
-            }
-            return new StoredBufferProvider(VertexFormats.getFormat(rosellaElements));
+              if (rosellaFormat == null) {
+                  ImmutableList<VertexFormatElement> mcElements = consumerCreationInfo.format().getElements();
+                  me.hydos.rosella.render.vertex.VertexFormatElement[] rosellaElements = new me.hydos.rosella.render.vertex.VertexFormatElement[mcElements.size()]; // this size may change so we're not using a raw array
+                  for (int i = 0; i < mcElements.size(); i++) {
+                      rosellaElements[i] = ConversionUtils.ELEMENT_CONVERSION_MAP.get(mcElements.get(i));
+                  }
+                  rosellaFormat = VertexFormats.getFormat(rosellaElements);
+              }
+
+            return new StoredBufferProvider(rosellaFormat);
         });
 
         storedBufferProvider.addBuffer(drawData.getSecond(), drawInfo.getCount()); // getCount is actually getVertexCount and someone mapped them wrong

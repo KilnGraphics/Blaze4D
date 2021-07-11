@@ -20,7 +20,7 @@ import org.jetbrains.annotations.NotNull;
 public class ConsumerRenderObject implements Renderable {
 
     // Render Implementation Fields
-    public final RenderInfo renderInfo = new RenderInfo(new BufferVertexConsumer(VertexFormats.POSITION_COLOR3_UV));
+    public final RenderInfo renderInfo = new RenderInfo(new BufferVertexConsumer(VertexFormats.POSITION_COLOR3_UV0));
     private final VertexFormat format;
     private final Texture[] textures;
     private final ShaderProgram shader;

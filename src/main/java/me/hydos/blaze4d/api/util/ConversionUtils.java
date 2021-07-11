@@ -1,7 +1,9 @@
 package me.hydos.blaze4d.api.util;
 
+import com.google.common.collect.ImmutableList;
 import me.hydos.rosella.render.texture.ImageFormat;
 import me.hydos.rosella.render.vertex.VertexFormatElements;
+import net.minecraft.client.render.VertexFormat;
 import net.minecraft.client.render.VertexFormatElement;
 import net.minecraft.client.render.VertexFormats;
 import org.lwjgl.opengl.GL11;
@@ -117,5 +119,26 @@ public abstract class ConversionUtils {
             VertexFormats.OVERLAY_ELEMENT, VertexFormatElements.UVs,
             VertexFormats.TEXTURE_0_ELEMENT, VertexFormatElements.UVf,
             VertexFormats.PADDING_ELEMENT, VertexFormatElements.PADDINGb
+    );
+
+    // BLIT_SCREEN counts as a duplicate because the underlying list is the same as POSITION_TEXTURE_COLOR,
+    // so it is not included here.
+    // for some reason the default VertexFormat implementation has equals and hashcode not order dependant,
+    // so we have to get the underlying element map and do it ourselves. this is still faster than manually
+    // constructing a new one from the elements every time.
+    public static final Map<ImmutableList<VertexFormatElement>, me.hydos.rosella.render.vertex.VertexFormat> FORMAT_CONVERSION_MAP = Map.ofEntries(
+            Map.entry(VertexFormats.POSITION_COLOR_TEXTURE_LIGHT_NORMAL.getElements(), me.hydos.rosella.render.vertex.VertexFormats.POSITION_COLOR4_UV0_UV2_NORMAL),
+            Map.entry(VertexFormats.POSITION_COLOR_TEXTURE_OVERLAY_LIGHT_NORMAL.getElements(), me.hydos.rosella.render.vertex.VertexFormats.POSITION_COLOR4_UV0_UV1_UV2_NORMAL),
+            Map.entry(VertexFormats.POSITION_TEXTURE_COLOR_LIGHT.getElements(), me.hydos.rosella.render.vertex.VertexFormats.POSITION_UV0_COLOR4_UV2),
+            Map.entry(VertexFormats.POSITION.getElements(), me.hydos.rosella.render.vertex.VertexFormats.POSITION),
+            Map.entry(VertexFormats.POSITION_COLOR.getElements(), me.hydos.rosella.render.vertex.VertexFormats.POSITION_COLOR4),
+            Map.entry(VertexFormats.LINES.getElements(), me.hydos.rosella.render.vertex.VertexFormats.POSITION_COLOR4_NORMAL),
+            Map.entry(VertexFormats.POSITION_COLOR_LIGHT.getElements(), me.hydos.rosella.render.vertex.VertexFormats.POSITION_COLOR4_UV2),
+            Map.entry(VertexFormats.POSITION_TEXTURE.getElements(), me.hydos.rosella.render.vertex.VertexFormats.POSITION_UV0),
+            Map.entry(VertexFormats.POSITION_COLOR_TEXTURE.getElements(), me.hydos.rosella.render.vertex.VertexFormats.POSITION_COLOR4_UV0),
+            Map.entry(VertexFormats.POSITION_TEXTURE_COLOR.getElements(), me.hydos.rosella.render.vertex.VertexFormats.POSITION_UV0_COLOR4),
+            Map.entry(VertexFormats.POSITION_COLOR_TEXTURE_LIGHT.getElements(), me.hydos.rosella.render.vertex.VertexFormats.POSITION_COLOR4_UV0_UV2),
+            Map.entry(VertexFormats.POSITION_TEXTURE_LIGHT_COLOR.getElements(), me.hydos.rosella.render.vertex.VertexFormats.POSITION_UV0_UV2_COLOR4),
+            Map.entry(VertexFormats.POSITION_TEXTURE_COLOR_NORMAL.getElements(), me.hydos.rosella.render.vertex.VertexFormats.POSITION_UV0_COLOR4_NORMAL)
     );
 }
