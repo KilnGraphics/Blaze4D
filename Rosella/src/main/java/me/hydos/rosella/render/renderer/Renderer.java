@@ -86,7 +86,12 @@ public class Renderer {
         }
         depthBuffer.createDepthResources(common.device, swapchain, this);
         createFrameBuffers();
-//      engine.camera.createViewAndProj(swapchain)
+
+        // Engine may still be initialising so we do a null check just in case
+        if (objectManager.pipelineManager != null) {
+            objectManager.pipelineManager.invalidatePipelines(common);
+        }
+
         rebuildCommandBuffers(renderPass, objectManager);
         createSyncObjects();
     }
@@ -167,7 +172,7 @@ public class Renderer {
             if (vkResult == KHRSwapchain.VK_ERROR_OUT_OF_DATE_KHR || vkResult == KHRSwapchain.VK_SUBOPTIMAL_KHR || recreateSwapChain) {
                 recreateSwapChain = false;
                 recreateSwapChain(rosella.common.display, rosella);
-                ((SimpleObjectManager) rosella.objectManager).pipelineManager.invalidatePipelines(swapchain, rosella);
+                ((SimpleObjectManager) rosella.objectManager).pipelineManager.invalidatePipelines(common);
             } else if (vkResult != VK_SUCCESS) {
                 throw new RuntimeException("Failed to present swap chain image");
             }
@@ -179,12 +184,8 @@ public class Renderer {
     }
 
     private void recreateSwapChain(Display window, Rosella rosella) {
-        try (MemoryStack stack = MemoryStack.stackPush()) {
-            IntBuffer width = stack.ints(0);
-            IntBuffer height = stack.ints(0);
-            while (width.get(0) == 0 && height.get(0) == 0) {
-                window.waitForNonZeroSize();
-            }
+        while (window.width == 0 || window.height == 0) {
+            window.waitForNonZeroSize();
         }
 
         rosella.common.device.waitForIdle();

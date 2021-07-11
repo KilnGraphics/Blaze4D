@@ -39,8 +39,8 @@ class TextureManager(val common: VkCommon) { // TODO: add layers, maybe not in t
         reusableTexIds.enqueue(textureId)
     }
 
-    fun getTexture(textureId: Int): Texture? {
-        return textureMap[textureId]
+    fun getTexture(textureId: Int): Texture {
+        return textureMap[textureId]!!
     }
 
     fun createTexture(

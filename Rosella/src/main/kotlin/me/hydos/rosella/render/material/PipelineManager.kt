@@ -10,7 +10,6 @@ import me.hydos.rosella.render.swapchain.RenderPass
 import me.hydos.rosella.render.swapchain.Swapchain
 import me.hydos.rosella.render.util.ok
 import me.hydos.rosella.render.vertex.VertexFormat
-import me.hydos.rosella.scene.`object`.impl.SimpleObjectManager
 import me.hydos.rosella.vkobjects.VkCommon
 import org.lwjgl.system.MemoryStack
 import org.lwjgl.vulkan.*
@@ -51,17 +50,13 @@ class PipelineManager(var common: VkCommon, val renderer: Renderer) {
         return getPipeline(createInfo)
     }
 
-    fun invalidatePipelines(swapchain: Swapchain, rosella: Rosella) {
+    fun invalidatePipelines(common: VkCommon) {
         for (pipeline in pipelines.values) {
-            VK10.vkDestroyPipeline(rosella.common.device.rawDevice, pipeline.graphicsPipeline, null)
-            VK10.vkDestroyPipelineLayout(rosella.common.device.rawDevice, pipeline.pipelineLayout, null)
+            VK10.vkDestroyPipeline(common.device.rawDevice, pipeline.graphicsPipeline, null)
+            VK10.vkDestroyPipelineLayout(common.device.rawDevice, pipeline.pipelineLayout, null)
         }
 
         pipelines.clear()
-        rosella.renderer.rebuildCommandBuffers(
-            rosella.renderer.renderPass,
-            rosella.objectManager as SimpleObjectManager
-        )
     }
 
     fun isValidPipeline(pipeline: PipelineInfo): Boolean {
