@@ -7,6 +7,7 @@ import me.hydos.rosella.render.material.Material;
 import me.hydos.rosella.render.resource.Resource;
 import me.hydos.rosella.render.shader.RawShaderProgram;
 import net.minecraft.client.gl.GlUniform;
+import net.minecraft.util.math.MathHelper;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
@@ -89,6 +90,6 @@ public class MinecraftShaderProgram extends RawShaderProgram {
             steps.add(step);
         }
 
-        return new MinecraftUbo(memory, material, steps, size);
+        return new MinecraftUbo(memory, material, steps, MathHelper.roundUpToMultiple(size, 16));
     }
 }
