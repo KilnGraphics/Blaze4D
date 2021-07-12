@@ -53,9 +53,12 @@ public class BufferRendererMixin {
         });
 
         ByteBuffer originalBuffer = drawData.getSecond();
+        // TODO: figure out a way to slowly add to a staging buffer throughout the frame.
+        // this would get rid of the need to copy the buffer here, and it would also get rid of the
+        // need to free it also.
         ByteBuffer copiedBuffer = MemoryUtil.memAlloc(originalBuffer.limit());
         copiedBuffer.put(0, originalBuffer, 0, copiedBuffer.limit());
-        storedBufferProvider.addBuffer(copiedBuffer, 0, drawInfo.getCount()); // getCount is actually getVertexCount and someone mapped them wrong
+        storedBufferProvider.addBuffer(copiedBuffer, 0, drawInfo.getCount(), true); // getCount is actually getVertexCount and someone mapped them wrong
         ci.cancel();
     }
 }

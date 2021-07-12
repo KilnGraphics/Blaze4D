@@ -9,12 +9,13 @@ import org.apache.logging.log4j.Level;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.StringFormatterMessageFactory;
+import org.lwjgl.system.Configuration;
 
 public class Blaze4D implements ClientModInitializer {
 
     public static final Logger LOGGER = LogManager.getLogger("Blaze4D", new StringFormatterMessageFactory());
     public static final boolean VALIDATION_ENABLED = false;
-    public static final boolean RENDERDOC_ENABLED = false;
+    public static final boolean RENDERDOC_ENABLED = true;
 
     public static Rosella rosella;
     public static GlfwWindow window;
@@ -26,7 +27,7 @@ public class Blaze4D implements ClientModInitializer {
     @Override
     public void onInitializeClient() {
         ((org.apache.logging.log4j.core.Logger) LOGGER).setLevel(Level.ALL);
-//        Configuration.DEBUG_MEMORY_ALLOCATOR.set(true);
+        //Configuration.DEBUG_MEMORY_ALLOCATOR.set(true);
 
         try {
             if (RENDERDOC_ENABLED) {

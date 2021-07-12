@@ -6,7 +6,7 @@ import java.util.List;
 public interface BufferProvider {
     VertexFormat getFormat();
 
-    List<PositionedBuffer> getBuffers();
+    List<ManagedBuffer> getBuffers();
 
     void clear();
 
@@ -14,5 +14,5 @@ public interface BufferProvider {
 
     int getVertexCount();
 
-    record PositionedBuffer(ByteBuffer buffer, int srcPos, int dstPos, int length) {}
+    record ManagedBuffer(ByteBuffer buffer, int srcPos, int dstPos, int length, boolean shouldFree) {}
 }
