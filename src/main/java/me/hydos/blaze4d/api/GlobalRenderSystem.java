@@ -43,7 +43,7 @@ public class GlobalRenderSystem {
     public static int nextShaderProgramId = 1; // Same reason as above
 
     // Frame/Drawing Fields
-    public static Set<ConsumerRenderObject> currentFrameObjects = Collections.newSetFromMap(new Object2ObjectLinkedOpenHashMap<>()); // should be sorted
+    public static Set<ConsumerRenderObject> currentFrameObjects = Collections.newSetFromMap(new Object2ObjectLinkedOpenHashMap<>()); // this is sorted
 
     // Active Fields
     public static final int maxTextures = 12;

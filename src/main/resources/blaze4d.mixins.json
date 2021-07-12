@@ -24,6 +24,7 @@
     "shader.ShaderAccessor",
     "shader.ShaderMixin",
     "shader.WorldRendererMixin",
+    "texture.LightmapTextureManagerMixin",
     "texture.NativeImageMixin",
     "texture.RenderSystemMixin",
     "texture.TextureManagerMixin",
