@@ -18,6 +18,7 @@ import java.util.Set;
 
 import static org.lwjgl.system.MemoryStack.stackPush;
 import static org.lwjgl.util.vma.Vma.VMA_MEMORY_USAGE_CPU_TO_GPU;
+import static org.lwjgl.util.vma.Vma.VMA_MEMORY_USAGE_GPU_ONLY;
 import static org.lwjgl.vulkan.VK10.*;
 
 /**
@@ -45,6 +46,12 @@ public class GlobalBufferManager {
 
     public void nextFrame(Set<RenderInfo> renderObjects) {
         if (isFrameDifferent(lastRenderObjects, renderObjects)) {
+            if(this.vertexBuffer != null) {
+                memory.freeBuffer(this.vertexBuffer);
+            }
+            if(this.indexBuffer != null) {
+                memory.freeBuffer(this.indexBuffer);
+            }
             this.vertexBuffer = createVertexBuffer(renderObjects);
             this.indexBuffer = createIndexBuffer(renderObjects);
         }
@@ -155,7 +162,7 @@ public class GlobalBufferManager {
             BufferInfo vertexBuffer = memory.createBuffer(
                     finalTotalSize,
                     VK_BUFFER_USAGE_TRANSFER_DST_BIT | VK_BUFFER_USAGE_VERTEX_BUFFER_BIT,
-                    VMA_MEMORY_USAGE_CPU_TO_GPU,
+                    VMA_MEMORY_USAGE_GPU_ONLY,
                     pBuffer
             );
 
