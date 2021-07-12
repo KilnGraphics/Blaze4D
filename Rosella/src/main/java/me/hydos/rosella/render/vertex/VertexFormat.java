@@ -18,13 +18,11 @@ public class VertexFormat {
         int offset = 0;
         for (int idx = 0; idx < elements.length; idx++) {
             VertexFormatElement element = elements[idx];
-            if (element.vkType() != VertexFormatElements.VK_FORMAT_PADDING) {
-                vkAttributes.get(idx)
-                        .binding(0)
-                        .location(idx)
-                        .format(element.vkType())
-                        .offset(offset);
-            }
+            vkAttributes.get(idx)
+                    .binding(0)
+                    .location(idx)
+                    .format(element.vkType())
+                    .offset(offset);
             offset += element.byteLength();
         }
         vkAttributes.rewind();
