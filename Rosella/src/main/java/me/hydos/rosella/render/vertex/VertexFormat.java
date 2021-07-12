@@ -4,7 +4,7 @@ import org.lwjgl.vulkan.VK10;
 import org.lwjgl.vulkan.VkVertexInputAttributeDescription;
 import org.lwjgl.vulkan.VkVertexInputBindingDescription;
 
-public class  VertexFormat {
+public class VertexFormat {
     private final VertexFormatElement[] elements;
     private final VkVertexInputAttributeDescription.Buffer vkAttributes;
     private final VkVertexInputBindingDescription.Buffer vkBindings;
@@ -18,7 +18,7 @@ public class  VertexFormat {
         int offset = 0;
         for (int idx = 0; idx < elements.length; idx++) {
             VertexFormatElement element = elements[idx];
-            if (element.vkType() != VertexFormatElements.VK_FORMAT_PADDING) { // TODO: You have an empty attribute here if you have padding
+            if (element.vkType() != VertexFormatElements.VK_FORMAT_PADDING) {
                 vkAttributes.get(idx)
                         .binding(0)
                         .location(idx)
