@@ -34,31 +34,37 @@ public class BufferRendererMixin {
         Vec3f shaderLightDirections1 = GlobalRenderSystem.shaderLightDirections1.copy();
 
         Pair<BufferBuilder.DrawArrayParameters, ByteBuffer> drawData = bufferBuilder.popData();
-        BufferBuilder.DrawArrayParameters drawInfo = drawData.getFirst(); // TODO: use the textured info from this to know if we should pass a blank texture array
-        VertexFormat format = drawInfo.getVertexFormat();
-
-        StoredBufferProvider storedBufferProvider = GlobalRenderSystem.GLOBAL_BUFFER_PROVIDERS.computeIfAbsent(new ConsumerCreationInfo(drawInfo.getMode(), format, GlobalRenderSystem.createTextureArray(), GlobalRenderSystem.activeShader, projMatrix, viewMatrix, chunkOffset, shaderLightDirections0, shaderLightDirections1), consumerCreationInfo -> {
-            me.hydos.rosella.render.vertex.VertexFormat rosellaFormat = ConversionUtils.FORMAT_CONVERSION_MAP.get(consumerCreationInfo.format().getElements());
-
-            if (rosellaFormat == null) {
-                ImmutableList<VertexFormatElement> mcElements = consumerCreationInfo.format().getElements();
-                me.hydos.rosella.render.vertex.VertexFormatElement[] rosellaElements = new me.hydos.rosella.render.vertex.VertexFormatElement[mcElements.size()]; // this size may change so we're not using a raw array
-                for (int i = 0; i < mcElements.size(); i++) {
-                    rosellaElements[i] = ConversionUtils.ELEMENT_CONVERSION_MAP.get(mcElements.get(i));
-                }
-                rosellaFormat = VertexFormats.getFormat(rosellaElements);
-            }
-
-            return new StoredBufferProvider(rosellaFormat);
-        });
-
+        BufferBuilder.DrawArrayParameters drawInfo = drawData.getFirst(); // TODO: what does textured actually mean? i think it's something to do with index buffers
         ByteBuffer originalBuffer = drawData.getSecond();
-        // TODO: figure out a way to slowly add to a staging buffer throughout the frame.
-        // this would get rid of the need to copy the buffer here, and it would also get rid of the
-        // need to free it also.
-        ByteBuffer copiedBuffer = MemoryUtil.memAlloc(originalBuffer.limit());
-        copiedBuffer.put(0, originalBuffer, 0, copiedBuffer.limit());
-        storedBufferProvider.addBuffer(copiedBuffer, 0, drawInfo.getCount(), true); // getCount is actually getVertexCount and someone mapped them wrong
+        originalBuffer.clear();
+
+        int vertexCount = drawInfo.getCount(); // getCount is actually getVertexCount and someone mapped them wrong
+
+        if (vertexCount > 0) {
+            VertexFormat format = drawInfo.getVertexFormat();
+
+            StoredBufferProvider storedBufferProvider = GlobalRenderSystem.GLOBAL_BUFFER_PROVIDERS.computeIfAbsent(new ConsumerCreationInfo(drawInfo.getMode(), format, GlobalRenderSystem.createTextureArray(), GlobalRenderSystem.activeShader, projMatrix, viewMatrix, chunkOffset, shaderLightDirections0, shaderLightDirections1), consumerCreationInfo -> {
+                me.hydos.rosella.render.vertex.VertexFormat rosellaFormat = ConversionUtils.FORMAT_CONVERSION_MAP.get(consumerCreationInfo.format().getElements());
+
+                if (rosellaFormat == null) {
+                    ImmutableList<VertexFormatElement> mcElements = consumerCreationInfo.format().getElements();
+                    me.hydos.rosella.render.vertex.VertexFormatElement[] rosellaElements = new me.hydos.rosella.render.vertex.VertexFormatElement[mcElements.size()]; // this size may change so we're not using a raw array
+                    for (int i = 0; i < mcElements.size(); i++) {
+                        rosellaElements[i] = ConversionUtils.ELEMENT_CONVERSION_MAP.get(mcElements.get(i));
+                    }
+                    rosellaFormat = VertexFormats.getFormat(rosellaElements);
+                }
+
+                return new StoredBufferProvider(rosellaFormat);
+            });
+
+            // TODO: figure out a way to accumulate these buffers to a staging buffer throughout the frame.
+            // this would get rid of the need to copy the buffer here as well as the need to free the copy.
+            ByteBuffer copiedBuffer = MemoryUtil.memAlloc(originalBuffer.limit());
+            MemoryUtil.memCopy(originalBuffer, copiedBuffer);
+            storedBufferProvider.addBuffer(copiedBuffer, 0, vertexCount, true);
+        }
+
         ci.cancel();
     }
 }
