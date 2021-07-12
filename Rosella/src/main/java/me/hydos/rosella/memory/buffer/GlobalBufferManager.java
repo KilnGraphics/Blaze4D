@@ -46,7 +46,7 @@ public class GlobalBufferManager {
 
     public void nextFrame(Set<RenderInfo> renderObjects) {
         if (isFrameDifferent(lastRenderObjects, renderObjects)) {
-            if(this.vertexBuffer != null) {
+            if(this.vertexBuffer != null) { // TODO: Dont forget to properly refractory this at some point
                 memory.freeBuffer(this.vertexBuffer);
             }
             if(this.indexBuffer != null) {
