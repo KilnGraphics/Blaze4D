@@ -171,8 +171,7 @@ open class RawShaderProgram(
                                 val texture = if (poolObj.samplerIndex == -1) {
                                     BlankTextures.getBlankTexture()
                                 } else {
-                                    currentTextures[poolObj.samplerIndex]
-                                        ?: BlankTextures.getBlankTexture() // FIXME: use 1x1 empty/missing tex here if null
+                                    currentTextures[poolObj.samplerIndex] ?: BlankTextures.getBlankTexture()
                                 }
 
                                 val imageInfo = VkDescriptorImageInfo.callocStack(1, stack)

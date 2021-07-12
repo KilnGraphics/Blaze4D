@@ -16,6 +16,7 @@ public class Blaze4D implements ClientModInitializer {
     public static final Logger LOGGER = LogManager.getLogger("Blaze4D", new StringFormatterMessageFactory());
     public static final boolean VALIDATION_ENABLED = false;
     public static final boolean RENDERDOC_ENABLED = true;
+    public static final boolean DEBUG_MEMORY_ENABLED = false;
 
     public static Rosella rosella;
     public static GlfwWindow window;
@@ -27,7 +28,7 @@ public class Blaze4D implements ClientModInitializer {
     @Override
     public void onInitializeClient() {
         ((org.apache.logging.log4j.core.Logger) LOGGER).setLevel(Level.ALL);
-        //Configuration.DEBUG_MEMORY_ALLOCATOR.set(true);
+        Configuration.DEBUG_MEMORY_ALLOCATOR.set(DEBUG_MEMORY_ENABLED);
 
         try {
             if (RENDERDOC_ENABLED) {

@@ -4,7 +4,6 @@ import it.unimi.dsi.fastutil.ints.Int2ObjectOpenHashMap;
 import it.unimi.dsi.fastutil.ints.IntArrayList;
 import it.unimi.dsi.fastutil.ints.IntList;
 import it.unimi.dsi.fastutil.ints.IntLists;
-import it.unimi.dsi.fastutil.objects.Object2ObjectLinkedOpenHashMap;
 import it.unimi.dsi.fastutil.objects.Object2ObjectOpenHashMap;
 import it.unimi.dsi.fastutil.objects.ObjectOpenHashSet;
 import me.hydos.blaze4d.Blaze4D;
@@ -139,7 +138,7 @@ public class GlobalRenderSystem {
         currentFrameObjects.add(renderObject);
     }
 
-    public static final Map<ConsumerCreationInfo, StoredBufferProvider> GLOBAL_BUFFER_PROVIDERS = new Object2ObjectLinkedOpenHashMap<>();
+    public static final Map<ConsumerCreationInfo, StoredBufferProvider> GLOBAL_BUFFER_PROVIDERS = new Object2ObjectOpenHashMap<>();
 
     public static void renderConsumers() {
         for (Map.Entry<ConsumerCreationInfo, StoredBufferProvider> entry : GLOBAL_BUFFER_PROVIDERS.entrySet()) {
