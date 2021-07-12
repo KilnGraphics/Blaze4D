@@ -16,14 +16,15 @@ public class VertexFormat {
         this.vkAttributes = VkVertexInputAttributeDescription.callocStack(elements.length);
 
         int offset = 0;
-        for (int idx = 0; idx < elements.length; idx++) {
-            VertexFormatElement element = elements[idx];
+        int elementIdx = 0;
+        for (VertexFormatElement element : elements) {
             if (element.vkType() != VertexFormatElements.VK_FORMAT_PADDING) {
-                vkAttributes.get(idx)
+                vkAttributes.get(elementIdx)
                         .binding(0)
-                        .location(idx)
+                        .location(elementIdx)
                         .format(element.vkType())
                         .offset(offset);
+                elementIdx++;
             }
             offset += element.byteLength();
         }
