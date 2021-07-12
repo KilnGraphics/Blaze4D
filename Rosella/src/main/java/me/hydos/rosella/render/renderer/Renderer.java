@@ -351,7 +351,7 @@ public class Renderer {
                     bindBigBuffers(rosella.bufferManager, stack, commandBuffer);
                     for (RenderInfo renderInfo : simpleObjectManager.renderObjects.keySet()) {
                         for (InstanceInfo instance : simpleObjectManager.renderObjects.get(renderInfo)) {
-                            bindInstanceInfo(instance, stack, commandBuffer, i);
+                            bindInstanceInfo(instance, stack, commandBuffer, i); // TODO: check if the instance info from the previous one is the same
                             vkCmdDrawIndexed(
                                     commandBuffer,
                                     renderInfo.getIndicesSize(),
