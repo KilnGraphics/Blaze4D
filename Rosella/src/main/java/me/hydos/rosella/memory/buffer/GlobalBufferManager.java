@@ -36,7 +36,6 @@ public class GlobalBufferManager {
 
     public final Object2IntMap<RenderInfo> indicesOffsetMap = new Object2IntOpenHashMap<>();
     public final Object2IntMap<RenderInfo> vertexOffsetMap = new Object2IntOpenHashMap<>();
-    public final Object2IntMap<RenderInfo> bufferOffsetMap = new Object2IntOpenHashMap<>();
 
     public GlobalBufferManager(Rosella rosella) {
         this.memory = rosella.common.memory;
@@ -117,22 +116,38 @@ public class GlobalBufferManager {
             totalSize += info.bufferProvider.getVertexSize() * info.bufferProvider.getVertexCount();
         }
 
+        // We need to add all of the padding to the size of the buffer
+        int tmpBufferOffset = 0;
+        for (RenderInfo renderInfo : renderList) {
+            int vertexSize = renderInfo.bufferProvider.getVertexSize();
+            if(tmpBufferOffset % vertexSize != 0) {
+                int padding = vertexSize - (tmpBufferOffset % vertexSize);
+                tmpBufferOffset += padding;
+                totalSize += padding;
+            }
+            tmpBufferOffset += vertexSize * renderInfo.bufferProvider.getVertexCount();
+        }
+
         try (MemoryStack stack = stackPush()) {
             LongBuffer pBuffer = stack.mallocLong(1);
             int finalTotalSize = totalSize;
 
             BufferInfo stagingBuffer = memory.createStagingBuf(finalTotalSize, pBuffer, stack, data -> {
                 ByteBuffer dst = data.getByteBuffer(0, finalTotalSize);
-                int vertexOffset = 0;
                 int bufferOffset = 0;
                 for (RenderInfo renderInfo : renderList) {
+                    int vertexSize = renderInfo.bufferProvider.getVertexSize();
+                    if(bufferOffset % vertexSize != 0) {
+                        bufferOffset += vertexSize - (bufferOffset % vertexSize);
+                    }
+
+                    int vertexOffset = bufferOffset / renderInfo.bufferProvider.getVertexSize();
                     vertexOffsetMap.put(renderInfo, vertexOffset);
-                    bufferOffsetMap.put(renderInfo, bufferOffset);
+
                     for(BufferProvider.ManagedBuffer src : renderInfo.bufferProvider.getBuffers()) {
                         dst.put(bufferOffset + src.dstPos(), src.buffer(), src.srcPos(), src.length());
                     }
                     renderInfo.bufferProvider.clear();
-                    vertexOffset += renderInfo.bufferProvider.getVertexCount();
                     bufferOffset += renderInfo.bufferProvider.getVertexSize() * renderInfo.bufferProvider.getVertexCount();
                 }
             });
