@@ -377,7 +377,7 @@ public class Renderer {
         vkCmdBindIndexBuffer(commandBuffer, bufferManager.indexBuffer.buffer(), 0, VK_INDEX_TYPE_UINT32);
     }
 
-    private void bindInstanceInfo(InstanceInfo instanceInfo, MemoryStack matrix, VkCommandBuffer commandBuffer, int commandBufferIndex) {
+    private void bindInstanceInfo(InstanceInfo instanceInfo, MemoryStack stack, VkCommandBuffer commandBuffer, int commandBufferIndex) {
         vkCmdBindPipeline(
                 commandBuffer,
                 VK_PIPELINE_BIND_POINT_GRAPHICS,
@@ -389,7 +389,7 @@ public class Renderer {
                 VK_PIPELINE_BIND_POINT_GRAPHICS,
                 instanceInfo.material().pipeline.getPipelineLayout(),
                 0,
-                matrix.longs(instanceInfo.ubo().getDescriptors().getDescriptorSets().get(commandBufferIndex)),
+                stack.longs(instanceInfo.ubo().getDescriptors().getDescriptorSets().get(commandBufferIndex)),
                 null
         );
     }
