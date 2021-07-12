@@ -350,7 +350,7 @@ public class Renderer {
                 if (rosella.bufferManager != null && !simpleObjectManager.renderObjects.isEmpty()) {
                     bindBigBuffers(rosella.bufferManager, stack, commandBuffer);
                     for (RenderInfo renderInfo : simpleObjectManager.renderObjects.keySet()) {
-                        for (InstanceInfo instance : simpleObjectManager.renderObjects.get(renderInfo)) {//rosella.bufferManager.vertexOffsetMap.get(renderInfo)
+                        for (InstanceInfo instance : simpleObjectManager.renderObjects.get(renderInfo)) {
                             bindInstanceInfo(instance, stack, commandBuffer, i);
                             vkCmdDrawIndexed(
                                     commandBuffer,

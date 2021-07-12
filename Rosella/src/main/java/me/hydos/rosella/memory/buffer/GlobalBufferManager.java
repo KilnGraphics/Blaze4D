@@ -18,6 +18,7 @@ import java.util.Set;
 
 import static org.lwjgl.system.MemoryStack.stackPush;
 import static org.lwjgl.util.vma.Vma.VMA_MEMORY_USAGE_CPU_TO_GPU;
+import static org.lwjgl.util.vma.Vma.VMA_MEMORY_USAGE_GPU_ONLY;
 import static org.lwjgl.vulkan.VK10.*;
 
 /**
@@ -45,6 +46,12 @@ public class GlobalBufferManager {
 
     public void nextFrame(Set<RenderInfo> renderObjects) {
         if (isFrameDifferent(lastRenderObjects, renderObjects)) {
+            if(this.vertexBuffer != null) { // TODO: Dont forget to properly refractory this at some point
+                memory.freeBuffer(this.vertexBuffer);
+            }
+            if(this.indexBuffer != null) {
+                memory.freeBuffer(this.indexBuffer);
+            }
             this.vertexBuffer = createVertexBuffer(renderObjects);
             this.indexBuffer = createIndexBuffer(renderObjects);
         }
@@ -116,21 +123,38 @@ public class GlobalBufferManager {
             totalSize += info.bufferProvider.getVertexSize() * info.bufferProvider.getVertexCount();
         }
 
+        // We need to add all of the padding to the size of the buffer
+        int tmpBufferOffset = 0;
+        for (RenderInfo renderInfo : renderList) {
+            int vertexSize = renderInfo.bufferProvider.getVertexSize();
+            if(tmpBufferOffset % vertexSize != 0) {
+                int padding = vertexSize - (tmpBufferOffset % vertexSize);
+                tmpBufferOffset += padding;
+                totalSize += padding;
+            }
+            tmpBufferOffset += vertexSize * renderInfo.bufferProvider.getVertexCount();
+        }
+
         try (MemoryStack stack = stackPush()) {
             LongBuffer pBuffer = stack.mallocLong(1);
             int finalTotalSize = totalSize;
 
             BufferInfo stagingBuffer = memory.createStagingBuf(finalTotalSize, pBuffer, stack, data -> {
                 ByteBuffer dst = data.getByteBuffer(0, finalTotalSize);
-                int vertexOffset = 0;
                 int bufferOffset = 0;
                 for (RenderInfo renderInfo : renderList) {
+                    int vertexSize = renderInfo.bufferProvider.getVertexSize();
+                    if(bufferOffset % vertexSize != 0) {
+                        bufferOffset += vertexSize - (bufferOffset % vertexSize);
+                    }
+
+                    int vertexOffset = bufferOffset / renderInfo.bufferProvider.getVertexSize();
                     vertexOffsetMap.put(renderInfo, vertexOffset);
+
                     for(BufferProvider.ManagedBuffer src : renderInfo.bufferProvider.getBuffers()) {
                         dst.put(bufferOffset + src.dstPos(), src.buffer(), src.srcPos(), src.length());
                     }
                     renderInfo.bufferProvider.clear();
-                    vertexOffset += renderInfo.bufferProvider.getVertexCount();
                     bufferOffset += renderInfo.bufferProvider.getVertexSize() * renderInfo.bufferProvider.getVertexCount();
                 }
             });
@@ -138,7 +162,7 @@ public class GlobalBufferManager {
             BufferInfo vertexBuffer = memory.createBuffer(
                     finalTotalSize,
                     VK_BUFFER_USAGE_TRANSFER_DST_BIT | VK_BUFFER_USAGE_VERTEX_BUFFER_BIT,
-                    VMA_MEMORY_USAGE_CPU_TO_GPU,
+                    VMA_MEMORY_USAGE_GPU_ONLY,
                     pBuffer
             );
 
