@@ -36,6 +36,7 @@ public class GlobalBufferManager {
 
     public final Object2IntMap<RenderInfo> indicesOffsetMap = new Object2IntOpenHashMap<>();
     public final Object2IntMap<RenderInfo> vertexOffsetMap = new Object2IntOpenHashMap<>();
+    public final Object2IntMap<RenderInfo> bufferOffsetMap = new Object2IntOpenHashMap<>();
 
     public GlobalBufferManager(Rosella rosella) {
         this.memory = rosella.common.memory;
@@ -126,6 +127,7 @@ public class GlobalBufferManager {
                 int bufferOffset = 0;
                 for (RenderInfo renderInfo : renderList) {
                     vertexOffsetMap.put(renderInfo, vertexOffset);
+                    bufferOffsetMap.put(renderInfo, bufferOffset);
                     for(BufferProvider.ManagedBuffer src : renderInfo.bufferProvider.getBuffers()) {
                         dst.put(bufferOffset + src.dstPos(), src.buffer(), src.srcPos(), src.length());
                     }
