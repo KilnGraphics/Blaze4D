@@ -140,7 +140,7 @@ public abstract class WindowMixin {
     @Inject(method = "close", at = @At("HEAD"))
     private void freeRosella(CallbackInfo ci) {
         if (Blaze4D.rosella != null) {
-            Blaze4D.rosella.teardown();
+            Blaze4D.rosella.free();
             Blaze4D.rosella = null;
         }
         Aftermath.disableGPUCrashDumps();

@@ -78,7 +78,7 @@ public class Rosella {
     /**
      * Free's the vulkan resources.
      */
-    public void teardown() {
+    public void free() {
         common.device.waitForIdle();
         objectManager.free();
         renderer.free();
