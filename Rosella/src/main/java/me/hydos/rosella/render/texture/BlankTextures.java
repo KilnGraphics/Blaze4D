@@ -4,9 +4,6 @@ import me.hydos.rosella.render.renderer.Renderer;
 import org.lwjgl.vulkan.VK10;
 
 public final class BlankTextures {
-    private BlankTextures() {
-        // noop
-    }
 
     private static Texture BLANK_TEXTURE;
 

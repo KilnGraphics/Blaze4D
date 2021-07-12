@@ -7,11 +7,11 @@ import me.hydos.rosella.render.swapchain.RenderPass
 import me.hydos.rosella.render.vertex.VertexFormat
 
 data class PipelineCreateInfo(
-	val renderPass: RenderPass,
-	val descriptorSetLayout: Long,
-	val polygonMode: Int,
-	val shader: ShaderProgram,
-	val topology: Topology,
-	val vertexFormat: VertexFormat,
-	val stateInfo: StateInfo,
+    val renderPass: RenderPass,
+    val descriptorSetLayout: Long,
+    val polygonMode: Int,
+    val shader: ShaderProgram,
+    val topology: Topology,
+    val vertexFormat: VertexFormat,
+    val stateInfo: StateInfo,
 )

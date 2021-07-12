@@ -1,6 +1,6 @@
 package me.hydos.rosella.render.material.state
 
-data class StateInfo (
+data class StateInfo(
     var colorMask: Int,
     var depthMask: Boolean,
 

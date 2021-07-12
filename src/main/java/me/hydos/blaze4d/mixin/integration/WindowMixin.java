@@ -1,5 +1,7 @@
 package me.hydos.blaze4d.mixin.integration;
 
+import me.hydos.aftermath.Aftermath;
+import me.hydos.blaze4d.AftermathHandler;
 import me.hydos.blaze4d.Blaze4D;
 import me.hydos.rosella.Rosella;
 import me.hydos.rosella.display.GlfwWindow;
@@ -27,8 +29,14 @@ import java.nio.ByteBuffer;
 import java.nio.IntBuffer;
 import java.util.Optional;
 
+import net.fabricmc.loader.api.FabricLoader;
+
 @Mixin(net.minecraft.client.util.Window.class)
 public abstract class WindowMixin {
+
+    @Shadow
+    @Final
+    private static Logger LOGGER;
 
     @Shadow
     private Optional<VideoMode> videoMode;
@@ -45,22 +53,10 @@ public abstract class WindowMixin {
     @Shadow
     private int y;
 
-    @Shadow
-    protected abstract void updateWindowRegion();
-
     @Mutable
     @Shadow
     @Final
     private long handle;
-
-    @Shadow
-    protected abstract void onWindowPosChanged(long window, int x, int y);
-
-    @Shadow
-    protected abstract void onWindowFocusChanged(long window, boolean focused);
-
-    @Shadow
-    protected abstract void onCursorEnterChanged(long window, boolean entered);
 
     @Shadow
     private int width;
@@ -78,15 +74,29 @@ public abstract class WindowMixin {
     private int framebufferHeight;
 
     @Shadow
-    @Final
-    private static Logger LOGGER;
+    protected abstract void updateWindowRegion();
+
+    @Shadow
+    protected abstract void onWindowPosChanged(long window, int x, int y);
+
+    @Shadow
+    protected abstract void onWindowFocusChanged(long window, boolean focused);
+
+    @Shadow
+    protected abstract void onCursorEnterChanged(long window, boolean entered);
+
+    @Inject(method = "throwGlError", at = @At("HEAD"), cancellable = true)
+    private static void silenceGl(int error, long description, CallbackInfo ci) {
+        String message = "suppressed GLFW/OpenGL error " + error + ": " + MemoryUtil.memUTF8(description);
+        LOGGER.warn(message);
+    }
 
     @Inject(method = "<init>", at = @At("TAIL"))
     private void initializeRosellaWindow(WindowEventHandler eventHandler, MonitorTracker monitorTracker, WindowSettings settings, String videoMode, String title, CallbackInfo ci) {
         // Destroy The OpenGL Window before Minecraft Gets Too Attached
         GLFW.glfwDestroyWindow(this.handle);
 
-        Blaze4D.window = new GlfwWindow(this.width, this.height, title + " - Rosella (fps: ??)", true);
+        Blaze4D.window = new GlfwWindow(this.width, this.height, title, true);
         Blaze4D.rosella = new Rosella(Blaze4D.window, "Blaze4D", Blaze4D.VALIDATION_ENABLED);
         Blaze4D.finishAndRender();
 
@@ -111,17 +121,20 @@ public abstract class WindowMixin {
         GLFW.glfwSetWindowPosCallback(this.handle, this::onWindowPosChanged);
         GLFW.glfwSetWindowFocusCallback(this.handle, this::onWindowFocusChanged);
         GLFW.glfwSetCursorEnterCallback(this.handle, this::onCursorEnterChanged);
+
+        try {
+            AftermathHandler.initialize();
+        } catch (Exception exception) {
+            // We don't really care if this doesn't work, especially outside of development
+            if (FabricLoader.getInstance().isDevelopmentEnvironment()) {
+                exception.printStackTrace();
+            }
+        }
     }
 
     @Inject(method = "setIcon", at = @At(value = "INVOKE", target = "Lorg/lwjgl/glfw/GLFW;glfwSetWindowIcon(JLorg/lwjgl/glfw/GLFWImage$Buffer;)V"), locals = LocalCapture.CAPTURE_FAILSOFT)
     private void setIcon(InputStream icon16, InputStream icon32, CallbackInfo ci, MemoryStack memoryStack, IntBuffer intBuffer, IntBuffer intBuffer2, IntBuffer intBuffer3, GLFWImage.Buffer buffer, ByteBuffer byteBuffer, ByteBuffer byteBuffer2) {
         GLFW.glfwSetWindowIcon(Blaze4D.window.pWindow, buffer);
-    }
-
-    @Inject(method = "throwGlError", at = @At("HEAD"), cancellable = true)
-    private static void silenceGl(int error, long description, CallbackInfo ci) {
-        String message = "suppressed GLFW/OpenGL error " + error + ": " + MemoryUtil.memUTF8(description);
-        LOGGER.warn(message);
     }
 
     @Inject(method = "close", at = @At("HEAD"))
@@ -130,5 +143,6 @@ public abstract class WindowMixin {
             Blaze4D.rosella.teardown();
             Blaze4D.rosella = null;
         }
+        Aftermath.disableGPUCrashDumps();
     }
 }

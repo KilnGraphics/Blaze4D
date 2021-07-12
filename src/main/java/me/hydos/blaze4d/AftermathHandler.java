@@ -1,12 +1,5 @@
 package me.hydos.blaze4d;
 
-import me.hydos.aftermath.AftermathCallbackCreationHelper;
-import me.hydos.aftermath.Aftermath;
-import me.hydos.aftermath.struct.GFSDK_Aftermath_GpuCrashDump_BaseInfo;
-import net.minecraft.client.MinecraftClient;
-import org.lwjgl.system.MemoryStack;
-import org.lwjgl.system.MemoryUtil;
-
 import java.io.FileOutputStream;
 import java.io.IOException;
 import java.nio.ByteBuffer;
@@ -18,78 +11,84 @@ import java.nio.file.Path;
 import java.util.Arrays;
 import java.util.HashMap;
 import java.util.Map;
-import java.util.concurrent.locks.Lock;
-import java.util.concurrent.locks.ReentrantLock;
 import java.util.stream.Collectors;
 
-public class AftermathHandler {
-    private static final Map<long[], String> SHADER_DEBUG_INFO = new HashMap<>();
-    private static final ShaderDatabase shaderDatabase = new ShaderDatabase();
+import me.hydos.aftermath.Aftermath;
+import me.hydos.aftermath.AftermathCallbackCreationHelper;
+import me.hydos.aftermath.struct.GFSDK_Aftermath_GpuCrashDump_BaseInfo;
+import org.lwjgl.system.MemoryStack;
+import org.lwjgl.system.MemoryUtil;
 
-    public static final Lock LOCK = new ReentrantLock();
+import net.minecraft.client.MinecraftClient;
+
+public class AftermathHandler {
+    private final Map<long[], String> SHADER_DEBUG_INFO = new HashMap<>();
+    private final ShaderDatabase shaderDatabase = new ShaderDatabase();
 
     public static void initialize() {
-        Aftermath.enableGPUCrashDumps(
+        int result = Aftermath.enableGPUCrashDumps(
                 Aftermath.AFTERMATH_API_VERSION,
                 Aftermath.GPU_CRASH_DUMP_WATCHED_API_FLAGS_VULKAN,
                 Aftermath.GPU_CRASH_DUMP_FEATURE_FLAGS_DEFER_DEBUG_INFO_CALLBACKS,
-                (pGpuCrashDump, gpuCrashDumpSize, pUserData) -> {
-                    LOCK.lock();
-                    try {
-                        writeGpuCrashDumpToFile(pGpuCrashDump, gpuCrashDumpSize);
-                    } catch (IOException e) {
-                        throw new IOException("Failed to write Gpu crash dump to file", e);
-                    }
-                    LOCK.unlock();
-                },
-                (pShaderDebugInfo, shaderDebugInfoSize, pUserData) -> {
-                    LOCK.lock();
-                    try (MemoryStack stack = MemoryStack.stackPush()) {
-                        LongBuffer pIdentifier = stack.callocLong(2);
-                        Aftermath.getShaderDebugInfoIdentifier(
-                                Aftermath.AFTERMATH_API_VERSION,
-                                pShaderDebugInfo,
-                                shaderDebugInfoSize,
-                                pIdentifier);
-
-                        // Store information for decoding of GPU crash dumps with shader address mapping
-                        // from within the application.
-                        String data = MemoryUtil.memUTF8(pShaderDebugInfo, shaderDebugInfoSize);
-                        SHADER_DEBUG_INFO.put(pIdentifier.array(), data);
-
-                        // Write to file for later in-depth analysis of crash dumps with Nsight Graphics
-                        try {
-                            Files.writeString(Path.of(".", "shader-" + Arrays.stream(pIdentifier.array()).mapToObj(Long::toString).collect(Collectors.joining("-")) + ".nvdbg"), data);
-                        } catch (IOException e) {
-                            e.printStackTrace();
-                        }
-                    }
-                    LOCK.unlock();
-                },
-                (addValue, pUserData) -> {
-                    Map<Integer, String> info = Map.of(Aftermath.GPU_CRASH_DUMP_DESCRIPTION_KEY_APPLICATION_NAME, "Blaze 4D",
-                            Aftermath.GPU_CRASH_DUMP_DESCRIPTION_KEY_APPLICATION_VERSION, "v1.0",
-                            Aftermath.GPU_CRASH_DUMP_DESCRIPTION_KEY_USER_DEFINED, "Gpu Crash Dump Blaze4D Info",
-                            Aftermath.GPU_CRASH_DUMP_DESCRIPTION_KEY_USER_DEFINED + 1, "Engine State: Rendering.",
-                            Aftermath.GPU_CRASH_DUMP_DESCRIPTION_KEY_USER_DEFINED + 2, "Current Screen: " + MinecraftClient.getInstance().currentScreen.getTitle().asString()
-                    );
-                    info.forEach(AftermathCallbackCreationHelper.createAddGpuCrashDumpDescription(addValue));
-                },
-                new Object()
+                AftermathHandler::onGpuCrashDump,
+                AftermathHandler::onShaderDebugInfo,
+                AftermathHandler::onGpuCrashDescription,
+                new AftermathHandler()
         );
-    }
-
-    private static class ShaderDatabase {
-        public ByteBuffer findShaderBinary(long shaderHash) {
-            return null;
-        }
-
-        public ByteBuffer findShaderBinaryWithDebugData(String shaderDebugName) {
-            return null;
+        if (result != 1) {
+            Blaze4D.LOGGER.error("Failed to initialize Aftermath 0x%x", result);
         }
     }
 
-    private static void writeGpuCrashDumpToFile(long pGpuCrashDump, int gpuCrashDumpSize) throws IOException {
+    private static void onGpuCrashDump(long pGpuCrashDump, int gpuCrashDumpSize, long pUserData) {
+        AftermathHandler handler = MemoryUtil.memGlobalRefToObject(pUserData);
+        handler.onGpuCrashDump(pGpuCrashDump, gpuCrashDumpSize);
+    }
+
+    private static void onShaderDebugInfo(long pShaderDebugInfo, int shaderDebugInfoSize, long pUserData) {
+        AftermathHandler handler = MemoryUtil.memGlobalRefToObject(pUserData);
+        handler.onShaderDebugInfo(pShaderDebugInfo, shaderDebugInfoSize);
+    }
+
+    private static void onGpuCrashDescription(long addValueCallback, long pUserData) {
+        AftermathHandler handler = MemoryUtil.memGlobalRefToObject(pUserData);
+        handler.onGpuCrashDescription(addValueCallback);
+    }
+
+    private void onGpuCrashDescription(long addValueCallback) {
+        Map<Integer, String> info = Map.of(Aftermath.GPU_CRASH_DUMP_DESCRIPTION_KEY_APPLICATION_NAME, "Blaze 4D",
+                Aftermath.GPU_CRASH_DUMP_DESCRIPTION_KEY_APPLICATION_VERSION, "v1.0",
+                Aftermath.GPU_CRASH_DUMP_DESCRIPTION_KEY_USER_DEFINED, "Gpu Crash Dump Blaze4D Info",
+                Aftermath.GPU_CRASH_DUMP_DESCRIPTION_KEY_USER_DEFINED + 1, "Engine State: Rendering.",
+                Aftermath.GPU_CRASH_DUMP_DESCRIPTION_KEY_USER_DEFINED + 2, "Current Screen: " + MinecraftClient.getInstance().currentScreen
+        );
+        info.forEach(AftermathCallbackCreationHelper.createAddGpuCrashDumpDescription(addValueCallback));
+    }
+
+    private void onShaderDebugInfo(long pShaderDebugInfo, int shaderDebugInfoSize) {
+        try (MemoryStack stack = MemoryStack.stackPush()) {
+            LongBuffer pIdentifier = stack.callocLong(2);
+            Aftermath.getShaderDebugInfoIdentifier(
+                    Aftermath.AFTERMATH_API_VERSION,
+                    pShaderDebugInfo,
+                    shaderDebugInfoSize,
+                    pIdentifier);
+
+            // Store information for decoding of GPU crash dumps with shader address mapping
+            // from within the application.
+            String data = MemoryUtil.memUTF8(pShaderDebugInfo, shaderDebugInfoSize);
+            SHADER_DEBUG_INFO.put(pIdentifier.array(), data);
+
+            // Write to file for later in-depth analysis of crash dumps with Nsight Graphics
+            try {
+                Files.writeString(Path.of(".", "shader-" + Arrays.stream(pIdentifier.array()).mapToObj(Long::toString).collect(Collectors.joining("-")) + ".nvdbg"), data);
+            } catch (IOException e) {
+                e.printStackTrace();
+            }
+        }
+    }
+
+    private void onGpuCrashDump(long pGpuCrashDump, int gpuCrashDumpSize) {
         try (MemoryStack stack = MemoryStack.stackPush()) {
             // Create a GPU crash dump decoder object for the GPU crash dump.
             LongBuffer pDecoder = stack.callocLong(1);
@@ -181,11 +180,22 @@ public class AftermathHandler {
             // Write the the crash dump data as JSON to a file.
             String jsonFileName = crashDumpFileName + ".json";
             FileOutputStream jsonDumpFile = new FileOutputStream(jsonFileName);
-            jsonDumpFile.write(MemoryUtil.memUTF8(pJsonBuffer).getBytes(StandardCharsets.UTF_8));
+            jsonDumpFile.write(MemoryUtil.memUTF8Safe(pJsonBuffer).getBytes(StandardCharsets.UTF_8));
 
             // Destroy the GPU crash dump decoder object.
             Aftermath.destroyDecoder(decoder);
-            Aftermath.disableGPUCrashDumps();
+        } catch (Exception e) {
+            throw new RuntimeException("Failed to write Gpu crash dump to file", e);
+        }
+    }
+
+    private static class ShaderDatabase {
+        public ByteBuffer findShaderBinary(long shaderHash) {
+            return null;
+        }
+
+        public ByteBuffer findShaderBinaryWithDebugData(String shaderDebugName) {
+            return null;
         }
     }
 }

@@ -3,23 +3,24 @@ package me.hydos.rosella.render.descriptorsets
 import me.hydos.rosella.device.VulkanDevice
 import org.lwjgl.vulkan.VK10
 
-class DescriptorSet(var descriptorPool: Long = 0L) {
-	var descriptorSets = ArrayList<Long>()
+class DescriptorSet(var descriptorPool: Long? = null) {
+    var descriptorSets = ArrayList<Long>()
 
-	fun free(device: VulkanDevice) {
-		if (descriptorPool != 0L) {
+    fun free(device: VulkanDevice) {
+        descriptorPool?.also {
+            for (descriptorSet in descriptorSets) {
+                if (descriptorSet != 0L) {
+                    VK10.vkFreeDescriptorSets(device.rawDevice, it, descriptorSet)
+                }
+            }
 
-			val listIterator = descriptorSets.listIterator()
-			for (descriptorSet in listIterator) {
-				if (descriptorSet != 0L) {
-					VK10.vkFreeDescriptorSets(device.rawDevice, descriptorPool, descriptorSet)
-				}
-				listIterator.remove()
-			}
-		}
-	}
+            descriptorSets.clear()
+        }
 
-	fun add(descriptorSet: Long) {
-		descriptorSets.add(descriptorSet)
-	}
+        descriptorPool = null
+    }
+
+    fun add(descriptorSet: Long) {
+        descriptorSets.add(descriptorSet)
+    }
 }

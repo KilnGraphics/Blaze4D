@@ -1,56 +1,24 @@
 package me.hydos.blaze4d.api.shader;
 
+import com.google.common.collect.ImmutableMap;
+import me.hydos.rosella.device.VulkanDevice;
+import me.hydos.rosella.memory.Memory;
+import me.hydos.rosella.render.material.Material;
+import me.hydos.rosella.render.resource.Resource;
+import me.hydos.rosella.render.shader.RawShaderProgram;
+import net.minecraft.client.gl.GlUniform;
+import org.jetbrains.annotations.NotNull;
+import org.jetbrains.annotations.Nullable;
+
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
 
-import com.google.common.collect.ImmutableMap;
-import me.hydos.rosella.device.VulkanDevice;
-import me.hydos.rosella.render.material.Material;
-import me.hydos.rosella.render.resource.Resource;
-import me.hydos.rosella.render.shader.RawShaderProgram;
-import me.hydos.rosella.memory.Memory;
-import org.jetbrains.annotations.NotNull;
-import org.jetbrains.annotations.Nullable;
-
-import net.minecraft.client.gl.GlUniform;
-
 public class MinecraftShaderProgram extends RawShaderProgram {
+
     public static final Map<String, MinecraftUbo.AddUboMemoryStep> UBO_MEMORY_STEP_MAP;
-    public static Map<Integer, Integer> UNIFORM_SIZES;
-
-    private final List<GlUniform> uniforms;
-    private final List<String> samplerNames;
-
-    public MinecraftShaderProgram(@Nullable Resource vertexShader, @Nullable Resource fragmentShader, @NotNull VulkanDevice device, @NotNull Memory memory, int maxObjCount, List<GlUniform> uniforms, List<String> samplerNames) {
-        super(vertexShader, fragmentShader, device, memory, maxObjCount, createPoolTypes(samplerNames));
-        this.uniforms = uniforms;
-        this.samplerNames = samplerNames;
-    }
-
-    private static PoolObjectInfo[] createPoolTypes(List<String> samplerNames) {
-        List<PoolObjectInfo> types = new ArrayList<>();
-        types.add(PoolUboInfo.INSTANCE);
-        for (String name : samplerNames) {
-            if (name.equals("DiffuseSampler")) {
-                types.add(new PoolSamplerInfo(-1)); // TODO: set to framebuffer
-            } else {
-                types.add(new PoolSamplerInfo(Integer.parseInt(name.substring(7))));
-            }
-        }
-        return types.toArray(PoolObjectInfo[]::new);
-    }
-
-    public MinecraftUbo createMinecraftUbo(@NotNull Memory memory, Material material) {
-        int size = uniforms.stream().map(GlUniform::getDataType).map(UNIFORM_SIZES::get).reduce(0, Integer::sum);
-        List<MinecraftUbo.AddUboMemoryStep> steps = uniforms.stream().map(GlUniform::getName).map(UBO_MEMORY_STEP_MAP::get).collect(Collectors.toList());
-        if (steps.contains(null)) {
-            throw new RuntimeException("something bad happened: uniforms are " + uniforms);
-        }
-
-        return new MinecraftUbo(memory, material, steps, size);
-    }
+    public static final Map<Integer, Integer> UNIFORM_SIZES;
 
     static {
         UBO_MEMORY_STEP_MAP = new ImmutableMap.Builder<String, MinecraftUbo.AddUboMemoryStep>()
@@ -80,5 +48,47 @@ public class MinecraftShaderProgram extends RawShaderProgram {
                 .put(7, 4 * Float.BYTES)
                 .put(10, 4 * 4 * Float.BYTES)
                 .build();
+    }
+
+    private final List<GlUniform> uniforms;
+    private final List<String> samplerNames;
+
+    public MinecraftShaderProgram(@Nullable Resource vertexShader, @Nullable Resource fragmentShader, @NotNull VulkanDevice device, @NotNull Memory memory, int maxObjCount, List<GlUniform> uniforms, List<String> samplerNames) {
+        super(vertexShader, fragmentShader, device, memory, maxObjCount, createPoolTypes(samplerNames));
+        this.uniforms = uniforms;
+        this.samplerNames = samplerNames;
+    }
+
+    private static PoolObjectInfo[] createPoolTypes(List<String> samplerNames) {
+        List<PoolObjectInfo> types = new ArrayList<>();
+        types.add(PoolUboInfo.INSTANCE);
+
+        for (String name : samplerNames) {
+            if (name.equals("DiffuseSampler")) {
+                types.add(new PoolSamplerInfo(-1)); // TODO: set to framebuffer
+            } else {
+                types.add(new PoolSamplerInfo(Integer.parseInt(name.substring(7))));
+            }
+        }
+
+        return types.toArray(PoolObjectInfo[]::new);
+    }
+
+    public MinecraftUbo createMinecraftUbo(@NotNull Memory memory, Material material) {
+        List<MinecraftUbo.AddUboMemoryStep> steps = new ArrayList<>();
+        int size = 0;
+
+        for (GlUniform uniform : uniforms) {
+            MinecraftUbo.AddUboMemoryStep step = UBO_MEMORY_STEP_MAP.get(uniform.getName());
+
+            if (step == null) {
+                throw new RuntimeException("something bad happened: uniforms are " + uniforms);
+            }
+
+            size += UNIFORM_SIZES.get(uniform.getDataType());
+            steps.add(step);
+        }
+
+        return new MinecraftUbo(memory, material, steps, size);
     }
 }

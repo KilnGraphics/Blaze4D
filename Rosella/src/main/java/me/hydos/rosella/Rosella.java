@@ -6,8 +6,9 @@ import me.hydos.rosella.display.Display;
 import me.hydos.rosella.logging.DebugLogger;
 import me.hydos.rosella.logging.DefaultDebugLogger;
 import me.hydos.rosella.memory.Memory;
+import me.hydos.rosella.memory.ThreadPoolMemory;
+import me.hydos.rosella.memory.buffer.GlobalBufferManager;
 import me.hydos.rosella.render.renderer.Renderer;
-import me.hydos.rosella.render.swapchain.Frame;
 import me.hydos.rosella.render.texture.BlankTextures;
 import me.hydos.rosella.scene.object.ObjectManager;
 import me.hydos.rosella.scene.object.impl.SimpleObjectManager;
@@ -40,6 +41,7 @@ public class Rosella {
     public static final Logger LOGGER = LogManager.getLogger("Rosella", new StringFormatterMessageFactory());
     public static final int VULKAN_VERSION = VK_API_VERSION_1_2;
     public static final int POLYGON_MODE = VK_POLYGON_MODE_FILL;
+    public final GlobalBufferManager bufferManager;
     public final VkCommon common = new VkCommon();
     public final Renderer renderer;
     public final ObjectManager objectManager;
@@ -60,13 +62,14 @@ public class Rosella {
         common.surface = display.createSurface(common);
         common.device = new VulkanDevice(common, requestedValidationLayers);
         common.queues = new VulkanQueues(common);
-        common.memory = new Memory(common);
+        common.memory = new ThreadPoolMemory(common);
 
         // Setup the object manager
         this.objectManager = new SimpleObjectManager(this, common);
-        this.renderer = new Renderer(common, display, this); //TODO: make swapchain, etc initialization happen outside of the renderer and in here
+        this.renderer = new Renderer(this); //TODO: make swapchain, etc initialization happen outside of the renderer and in here
         BlankTextures.initialize(((SimpleObjectManager) objectManager).textureManager, renderer);
         this.objectManager.postInit(renderer);
+        this.bufferManager = new GlobalBufferManager(this);
 
         // Tell the display we are initialized
         display.onReady();
@@ -77,19 +80,13 @@ public class Rosella {
      */
     public void teardown() {
         common.device.waitForIdle();
-        objectManager.free(this);
-        renderer.freeSwapChain(this);
-
-        for (Frame frame : renderer.inFlightFrames) {
-            vkDestroySemaphore(common.device.rawDevice, frame.renderFinishedSemaphore(), null);
-            vkDestroySemaphore(common.device.rawDevice, frame.imageAvailableSemaphore(), null);
-            vkDestroyFence(common.device.rawDevice, frame.fence(), null);
-        }
+        objectManager.free();
+        renderer.free();
 
         // Free the rest of it
-        common.memory.teardown();
+        common.memory.free();
 
-        vkDestroyCommandPool(common.device.rawDevice, renderer.getCommandPool(), null);
+        vkDestroyCommandPool(common.device.rawDevice, renderer.commandPool, null);
         vkDestroyDevice(common.device.rawDevice, null);
         vkDestroySurfaceKHR(common.vkInstance.rawInstance, common.surface, null);
         vkDestroyInstance(common.vkInstance.rawInstance, null);

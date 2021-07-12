@@ -1,11 +1,5 @@
 package me.hydos.rosella.device;
 
-import java.nio.IntBuffer;
-import java.util.Collections;
-import java.util.List;
-import java.util.Set;
-import java.util.stream.Collectors;
-
 import me.hydos.rosella.render.swapchain.Swapchain;
 import me.hydos.rosella.render.swapchain.SwapchainSupportDetails;
 import me.hydos.rosella.vkobjects.VkCommon;
@@ -13,9 +7,15 @@ import org.lwjgl.PointerBuffer;
 import org.lwjgl.system.MemoryStack;
 import org.lwjgl.vulkan.*;
 
+import java.nio.IntBuffer;
+import java.util.Collections;
+import java.util.List;
+import java.util.Set;
+import java.util.stream.Collectors;
+
+import static me.hydos.rosella.memory.Memory.asPtrBuffer;
 import static me.hydos.rosella.render.VkKt.findQueueFamilies;
 import static me.hydos.rosella.render.util.VkUtilsKt.ok;
-import static me.hydos.rosella.memory.Memory.asPtrBuffer;
 import static org.lwjgl.vulkan.KHRSwapchain.VK_KHR_SWAPCHAIN_EXTENSION_NAME;
 import static org.lwjgl.vulkan.VK10.*;
 
@@ -23,6 +23,7 @@ import static org.lwjgl.vulkan.VK10.*;
  * The object which represents both a Physical and Logical device used by {@link me.hydos.rosella.Rosella}
  */
 public class VulkanDevice {
+
     private static final Set<String> REQUIRED_EXTENSIONS = Collections.singleton(VK_KHR_SWAPCHAIN_EXTENSION_NAME);
 
     public final QueueFamilyIndices indices;

@@ -1,7 +1,7 @@
 rootProject.name = "Aftermath"
 
 pluginManagement {
-	repositories {
-		gradlePluginPortal()
-	}
+    repositories {
+        gradlePluginPortal()
+    }
 }

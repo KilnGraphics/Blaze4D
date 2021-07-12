@@ -3,9 +3,10 @@ package me.hydos.blaze4d.mixin.integration;
 import com.mojang.blaze3d.platform.GlStateManager;
 import com.mojang.blaze3d.systems.RenderSystem;
 import me.hydos.blaze4d.Blaze4D;
-import me.hydos.blaze4d.api.util.GlConversions;
 import me.hydos.blaze4d.api.GlobalRenderSystem;
+import me.hydos.blaze4d.api.util.ConversionUtils;
 import me.hydos.rosella.scene.object.impl.SimpleObjectManager;
+import me.hydos.rosella.util.Color;
 import org.lwjgl.opengl.GL13;
 import org.lwjgl.vulkan.VK10;
 import org.spongepowered.asm.mixin.Mixin;
@@ -45,7 +46,7 @@ public class GlStateManagerMixin {
 
     @Inject(method = "_logicOp", at = @At("HEAD"), cancellable = true)
     private static void logicOp(int op, CallbackInfo ci) {
-        GlobalRenderSystem.currentStateInfo.setColorLogicOp(GlConversions.glToVkLogicOp(op));
+        GlobalRenderSystem.currentStateInfo.setColorLogicOp(ConversionUtils.glToVkLogicOp(op));
         ci.cancel();
     }
 
@@ -96,7 +97,7 @@ public class GlStateManagerMixin {
 
     @Inject(method = "_depthFunc", at = @At("HEAD"), cancellable = true)
     private static void depthFunc(int func, CallbackInfo ci) {
-        GlobalRenderSystem.currentStateInfo.setDepthCompareOp(GlConversions.glToVkDepthFunc(func));
+        GlobalRenderSystem.currentStateInfo.setDepthCompareOp(ConversionUtils.glToVkDepthFunc(func));
         ci.cancel();
     }
 
@@ -114,14 +115,14 @@ public class GlStateManagerMixin {
 
     @Inject(method = "_blendEquation", at = @At("HEAD"), cancellable = true)
     private static void blendEquation(int mode, CallbackInfo ci) {
-        GlobalRenderSystem.currentStateInfo.setBlendOp(GlConversions.glToVkBlendOp(mode));
+        GlobalRenderSystem.currentStateInfo.setBlendOp(ConversionUtils.glToVkBlendOp(mode));
         ci.cancel();
     }
 
     @Inject(method = "_blendFunc", at = @At("HEAD"), cancellable = true)
     private static void blendFunc(int srcFactor, int dstFactor, CallbackInfo ci) {
-        int vkSrcFactor = GlConversions.glToVkBlendFunc(srcFactor);
-        int vkDstFactor = GlConversions.glToVkBlendFunc(dstFactor);
+        int vkSrcFactor = ConversionUtils.glToVkBlendFunc(srcFactor);
+        int vkDstFactor = ConversionUtils.glToVkBlendFunc(dstFactor);
         GlobalRenderSystem.currentStateInfo.setSrcColorBlendFactor(vkSrcFactor);
         GlobalRenderSystem.currentStateInfo.setDstColorBlendFactor(vkDstFactor);
         GlobalRenderSystem.currentStateInfo.setSrcAlphaBlendFactor(vkSrcFactor);
@@ -131,10 +132,10 @@ public class GlStateManagerMixin {
 
     @Inject(method = "_blendFuncSeparate", at = @At("HEAD"), cancellable = true)
     private static void blendFunc(int srcFactorRGB, int dstFactorRGB, int srcFactorAlpha, int dstFactorAlpha, CallbackInfo ci) {
-        GlobalRenderSystem.currentStateInfo.setSrcColorBlendFactor(GlConversions.glToVkBlendFunc(srcFactorRGB));
-        GlobalRenderSystem.currentStateInfo.setDstColorBlendFactor(GlConversions.glToVkBlendFunc(dstFactorRGB));
-        GlobalRenderSystem.currentStateInfo.setSrcAlphaBlendFactor(GlConversions.glToVkBlendFunc(srcFactorAlpha));
-        GlobalRenderSystem.currentStateInfo.setDstAlphaBlendFactor(GlConversions.glToVkBlendFunc(dstFactorAlpha));
+        GlobalRenderSystem.currentStateInfo.setSrcColorBlendFactor(ConversionUtils.glToVkBlendFunc(srcFactorRGB));
+        GlobalRenderSystem.currentStateInfo.setDstColorBlendFactor(ConversionUtils.glToVkBlendFunc(dstFactorRGB));
+        GlobalRenderSystem.currentStateInfo.setSrcAlphaBlendFactor(ConversionUtils.glToVkBlendFunc(srcFactorAlpha));
+        GlobalRenderSystem.currentStateInfo.setDstAlphaBlendFactor(ConversionUtils.glToVkBlendFunc(dstFactorAlpha));
         ci.cancel();
     }
 
@@ -208,6 +209,6 @@ public class GlStateManagerMixin {
     @Overwrite
     public static void _clearColor(float red, float green, float blue, float alpha) {
         RenderSystem.assertThread(RenderSystem::isOnRenderThreadOrInit);
-        Blaze4D.rosella.renderer.clearColor(red, green, blue, Blaze4D.rosella);
+        Blaze4D.rosella.renderer.lazilyClearColor(new Color(red, green, blue, alpha));
     }
 }

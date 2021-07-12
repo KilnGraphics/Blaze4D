@@ -4,19 +4,19 @@ import me.hydos.rosella.Rosella
 
 class ShaderManager(val rosella: Rosella) {
 
-	var cachedShaders = HashMap<RawShaderProgram, ShaderProgram>()
+    var cachedShaders = HashMap<RawShaderProgram, ShaderProgram>()
 
-	fun getOrCreateShader(rawShader: RawShaderProgram): ShaderProgram? {
-		if (!cachedShaders.containsKey(rawShader)) {
-			cachedShaders[rawShader] = ShaderProgram(rawShader, rosella, rawShader.maxObjCount)
-		}
+    fun getOrCreateShader(rawShader: RawShaderProgram): ShaderProgram? {
+        if (!cachedShaders.containsKey(rawShader)) {
+            cachedShaders[rawShader] = ShaderProgram(rawShader, rosella, rawShader.maxObjCount)
+        }
 
-		return cachedShaders[rawShader]
-	}
+        return cachedShaders[rawShader]
+    }
 
-	fun free() {
-		for (value in cachedShaders.values) {
-			value.raw.free()
-		}
-	}
+    fun free() {
+        for (value in cachedShaders.values) {
+            value.raw.free()
+        }
+    }
 }

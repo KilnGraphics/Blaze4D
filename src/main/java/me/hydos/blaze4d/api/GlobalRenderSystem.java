@@ -1,12 +1,14 @@
 package me.hydos.blaze4d.api;
 
-import java.util.*;
-
 import it.unimi.dsi.fastutil.ints.Int2ObjectOpenHashMap;
+import it.unimi.dsi.fastutil.ints.IntArrayList;
+import it.unimi.dsi.fastutil.ints.IntList;
+import it.unimi.dsi.fastutil.ints.IntLists;
 import it.unimi.dsi.fastutil.objects.Object2ObjectOpenHashMap;
 import it.unimi.dsi.fastutil.objects.ObjectOpenHashSet;
 import me.hydos.blaze4d.Blaze4D;
 import me.hydos.blaze4d.api.shader.ShaderContext;
+import me.hydos.rosella.render.vertex.StoredBufferProvider;
 import me.hydos.blaze4d.api.vertex.ConsumerCreationInfo;
 import me.hydos.blaze4d.api.vertex.ConsumerRenderObject;
 import me.hydos.blaze4d.api.vertex.ObjectInfo;
@@ -17,14 +19,14 @@ import me.hydos.rosella.render.resource.Identifier;
 import me.hydos.rosella.render.shader.RawShaderProgram;
 import me.hydos.rosella.render.shader.ShaderProgram;
 import me.hydos.rosella.render.texture.Texture;
-import me.hydos.rosella.render.vertex.BufferVertexConsumer;
 import me.hydos.rosella.scene.object.impl.SimpleObjectManager;
 import net.minecraft.client.render.VertexFormat;
+import net.minecraft.util.math.Vec3f;
 import org.joml.Matrix4f;
 import org.joml.Vector3f;
-
-import net.minecraft.util.math.Vec3f;
 import org.lwjgl.vulkan.VK10;
+
+import java.util.*;
 
 /**
  * Used to make bits of the code easier to manage.
@@ -43,8 +45,8 @@ public class GlobalRenderSystem {
     public static Set<ConsumerRenderObject> currentFrameObjects = new ObjectOpenHashSet<>();
 
     // Active Fields
-    public static final int MAX_TEXTURES = 12;
-    public static int[] boundTextureIds = new int[MAX_TEXTURES]; // TODO: generate an identifier instead of using int id, or switch everything over to ints
+    public static final int maxTextures = 12;
+    public static int[] boundTextureIds = new int[maxTextures]; // TODO: generate an identifier instead of using int id, or switch everything over to ints
     public static int activeTexture = 0;
 
     static {
@@ -107,19 +109,14 @@ public class GlobalRenderSystem {
         GlobalRenderSystem.renderConsumers(); //TODO: move this probably
 
         ((SimpleObjectManager) Blaze4D.rosella.objectManager).renderObjects.clear();
-        if (currentFrameObjects.size() < 2000) {
-            for (ConsumerRenderObject renderObject : currentFrameObjects) {
-                Blaze4D.rosella.objectManager.addObject(renderObject);
-            }
-        } else {
-            Blaze4D.LOGGER.warn("Skipped a frame");
+        for (ConsumerRenderObject renderObject : currentFrameObjects) {
+            Blaze4D.rosella.objectManager.addObject(renderObject);
         }
-
 
         Blaze4D.rosella.renderer.rebuildCommandBuffers(Blaze4D.rosella.renderer.renderPass, (SimpleObjectManager) Blaze4D.rosella.objectManager);
 
         Blaze4D.window.update();
-        Blaze4D.rosella.renderer.render(Blaze4D.rosella);
+        Blaze4D.rosella.renderer.render();
 
         for (ConsumerRenderObject consumerRenderObject : currentFrameObjects) {
             consumerRenderObject.free(Blaze4D.rosella.common.memory, Blaze4D.rosella.common.device);
@@ -128,8 +125,8 @@ public class GlobalRenderSystem {
     }
 
     public static Texture[] createTextureArray() {
-        Texture[] textures = new Texture[MAX_TEXTURES];
-        for(int i = 0; i < MAX_TEXTURES; i++) {
+        Texture[] textures = new Texture[maxTextures];
+        for(int i = 0; i < maxTextures; i++) {
             int texId = boundTextureIds[i];
             textures[i] = texId == -1 ? null : ((SimpleObjectManager) Blaze4D.rosella.objectManager).textureManager.getTexture(texId);
         }
@@ -141,12 +138,12 @@ public class GlobalRenderSystem {
         currentFrameObjects.add(renderObject);
     }
 
-    public static final Map<ConsumerCreationInfo, BufferVertexConsumer> GLOBAL_CONSUMERS_FOR_BATCH_RENDERING = new Object2ObjectOpenHashMap<>();
+    public static final Map<ConsumerCreationInfo, StoredBufferProvider> GLOBAL_BUFFER_PROVIDERS = new Object2ObjectOpenHashMap<>();
 
     public static void renderConsumers() {
-        for (Map.Entry<ConsumerCreationInfo, BufferVertexConsumer> entry : GLOBAL_CONSUMERS_FOR_BATCH_RENDERING.entrySet()) {
-            BufferVertexConsumer consumer = entry.getValue();
-            List<Integer> indices = new ArrayList<>();
+        for (Map.Entry<ConsumerCreationInfo, StoredBufferProvider> entry : GLOBAL_BUFFER_PROVIDERS.entrySet()) {
+            StoredBufferProvider bufferProvider = entry.getValue();
+            IntList indices = new IntArrayList();
             ConsumerCreationInfo creationInfo = entry.getKey();
 
             if (creationInfo.drawMode() == VertexFormat.DrawMode.QUADS) {
@@ -160,7 +157,7 @@ public class GlobalRenderSystem {
                 //      /             \   /
                 //    v2-----------------v3
 
-                for (int i = 0; i < consumer.getVertexCount(); i += 4) {
+                for (int i = 0; i < bufferProvider.getVertexCount(); i += 4) {
                     indices.add(i);
                     indices.add(1 + i);
                     indices.add(2 + i);
@@ -170,14 +167,14 @@ public class GlobalRenderSystem {
                     indices.add(i);
                 }
             } else {
-                for (int i = 0; i < consumer.getVertexCount(); i++) {
+                for (int i = 0; i < bufferProvider.getVertexCount(); i++) {
                     indices.add(i);
                 }
             }
 
-            if (consumer.getVertexCount() != 0) {
+            if (bufferProvider.getVertexCount() != 0) {
                 ObjectInfo objectInfo = new ObjectInfo(
-                        consumer,
+                        bufferProvider,
                         creationInfo.drawMode(),
                         creationInfo.format(),
                         creationInfo.shader(),
@@ -187,13 +184,13 @@ public class GlobalRenderSystem {
                         creationInfo.chunkOffset(),
                         creationInfo.shaderLightDirections0(),
                         creationInfo.shaderLightDirections1(),
-                        Collections.unmodifiableList(indices)
+                        IntLists.unmodifiable(indices)
                 );
                 if (creationInfo.shader() != null) {
                     GlobalRenderSystem.uploadObject(objectInfo, Blaze4D.rosella);
                 }
             }
         }
-        GLOBAL_CONSUMERS_FOR_BATCH_RENDERING.clear();
+        GLOBAL_BUFFER_PROVIDERS.clear();
     }
 }

@@ -12,42 +12,42 @@ import me.hydos.rosella.render.swapchain.Swapchain
  */
 abstract class Ubo : MemoryCloseable {
 
-	/**
-	 * Called when the uniform buffers should be created
-	 */
-	abstract fun create(swapchain: Swapchain)
+    /**
+     * Called when the uniform buffers should be created
+     */
+    abstract fun create(swapchain: Swapchain)
 
-	/**
-	 * Called before each frame to update the ubo
-	 */
-	abstract fun update(currentImg: Int, swapchain: Swapchain)
+    /**
+     * Called before each frame to update the ubo
+     */
+    abstract fun update(currentImg: Int, swapchain: Swapchain)
 
-	/**
-	 * Called when the program is closing and free's memory
-	 */
-	abstract fun free()
+    /**
+     * Called when the program is closing and free's memory
+     */
+    abstract fun free()
 
-	/**
-	 * Gets the size of the ubo
-	 */
-	abstract fun getSize(): Int
+    /**
+     * Gets the size of the ubo
+     */
+    abstract fun getSize(): Int
 
-	/**
-	 * Gets an list of pointers to the ubo frames
-	 */
-	abstract fun getUniformBuffers(): List<BufferInfo>
+    /**
+     * Gets an list of pointers to the ubo frames
+     */
+    abstract fun getUniformBuffers(): List<BufferInfo>
 
-	/**
-	 * Gets the descriptor sets used with this ubo
-	 */
-	abstract fun getDescriptors(): DescriptorSet
+    /**
+     * Gets the descriptor sets used with this ubo
+     */
+    abstract fun getDescriptors(): DescriptorSet
 
-	/**
-	 * Called when the program is closing and free's memory
-	 */
-	override fun free(device: VulkanDevice?, memory: Memory?) {
-		free()
-	}
+    /**
+     * Called when the program is closing and free's memory
+     */
+    override fun free(device: VulkanDevice?, memory: Memory?) {
+        free()
+    }
 
-	abstract fun setDescriptors(descriptorSets: DescriptorSet)
+    abstract fun setDescriptors(descriptorSets: DescriptorSet)
 }

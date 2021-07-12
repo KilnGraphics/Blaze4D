@@ -1,11 +1,10 @@
 package me.hydos.rosella.render.info;
 
-import me.hydos.rosella.Rosella;
+import it.unimi.dsi.fastutil.ints.IntList;
 import me.hydos.rosella.device.VulkanDevice;
-import me.hydos.rosella.memory.MemoryCloseable;
-import me.hydos.rosella.memory.BufferInfo;
 import me.hydos.rosella.memory.Memory;
-import me.hydos.rosella.render.vertex.VertexConsumer;
+import me.hydos.rosella.memory.MemoryCloseable;
+import me.hydos.rosella.render.vertex.BufferProvider;
 import org.jetbrains.annotations.NotNull;
 
 import java.util.List;
@@ -15,58 +14,19 @@ import java.util.List;
  */
 public class RenderInfo implements MemoryCloseable {
 
-    public VertexConsumer consumer;
-    public List<Integer> indices;
+    public BufferProvider bufferProvider;
+    public IntList indices;
 
-    private BufferInfo vertexBuffer;
-    private BufferInfo indexBuffer;
-
-    public RenderInfo(@NotNull VertexConsumer consumer) {
-        this.consumer = consumer;
-    }
-
-    /**
-     * If the RenderInfo is indeed unique to the current scene, an Vertex and Index buffer will be created
-     */
-    public void createBuffers(Memory memory, Rosella rosella) {
-        vertexBuffer = memory.createVertexBuffer(rosella, consumer);
-        indexBuffer = memory.createIndexBuffer(rosella, indices);
+    public RenderInfo(@NotNull BufferProvider bufferProvider) {
+        this.bufferProvider = bufferProvider;
     }
 
     @Override
     public boolean equals(Object obj) {
         if (obj instanceof RenderInfo) {
-            return consumer.equals(((RenderInfo) obj).consumer);
+            return bufferProvider.equals(((RenderInfo) obj).bufferProvider);
         }
         return false;
-    }
-
-    /**
-     * A safe way to get access to buffers. this method will throw a {@link RuntimeException} if the vertex buffer is null
-     *
-     * @return a {@link BufferInfo} with Vertex data
-     */
-    public BufferInfo getVertexBuffer() {
-        if (vertexBuffer == null) {
-            throw new RuntimeException("Tried to access buffers when not set. (This is probably an internal error)");
-        }
-        return vertexBuffer;
-    }
-
-    /**
-     * A safe way to get access to buffers. this method will throw a {@link RuntimeException} if the index buffer is null
-     *
-     * @return a {@link BufferInfo} with Index data
-     */
-    public BufferInfo getIndexBuffer() {
-        if (indexBuffer == null) {
-            throw new RuntimeException("Tried to access buffers when not set. (This is probably an internal error)");
-        }
-        return indexBuffer;
-    }
-
-    public boolean areBuffersAllocated() {
-        return indexBuffer != null && vertexBuffer != null;
     }
 
     /**
@@ -83,11 +43,5 @@ public class RenderInfo implements MemoryCloseable {
 
     @Override
     public void free(VulkanDevice device, Memory memory) {
-        if(vertexBuffer != null) {
-            vertexBuffer.free(device, memory);
-        }
-        if(indexBuffer != null) {
-            indexBuffer.free(device, memory);
-        }
     }
 }

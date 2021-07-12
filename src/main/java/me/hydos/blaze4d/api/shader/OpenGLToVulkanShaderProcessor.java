@@ -1,13 +1,13 @@
 package me.hydos.blaze4d.api.shader;
 
+import net.minecraft.client.gl.GlUniform;
+
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
-
-import net.minecraft.client.gl.GlUniform;
 
 public class OpenGLToVulkanShaderProcessor {
 
@@ -21,7 +21,10 @@ public class OpenGLToVulkanShaderProcessor {
         int samplers = 1;
 
         for (int i = 0; i < lines.size(); i++) {
-            String line = lines.get(i);
+            String line = lines.get(i)
+                    .replace("gl_VertexID", "gl_VertexIndex")
+                    .replace("gl_InstanceID", "gl_InstanceIndex");
+            lines.set(i, line);
 
             if (line.matches("#version \\d*")) {
                 lines.set(i, """
@@ -34,7 +37,7 @@ public class OpenGLToVulkanShaderProcessor {
                 lines.set(i, "layout(location = " + (outVariables++) + ") " + line);
             } else if (line.matches("uniform .*")) {
                 Matcher uniformMatcher = Pattern.compile("uniform\\s(\\w*)\\s(\\w*);").matcher(line);
-                if(!uniformMatcher.find()){
+                if (!uniformMatcher.find()) {
                     throw new RuntimeException("Unable to parse shader line: " + line);
                 }
                 String type = uniformMatcher.group(1);
@@ -45,6 +48,7 @@ public class OpenGLToVulkanShaderProcessor {
                     i--;
                 }
             } else if (line.matches("void main\\(\\) \\{")) {
+
                 List<String> uboNames = glUniforms.stream().map(GlUniform::getName).toList();
 
                 for (String uboName : uboNames) {

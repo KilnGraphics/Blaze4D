@@ -51,11 +51,9 @@ public class SimpleObjectManager implements ObjectManager {
     @Override
     public Renderable addObject(Renderable obj) {
         if (!renderObjects.containsKey(obj.getRenderInfo())) {
-            if(!obj.isReady()) {
-                obj.getRenderInfo().createBuffers(rosella.common.memory, rosella);
-            }
             renderObjects.put(obj.getRenderInfo(), new ArrayList<>());
         }
+//        obj.onAddedToScene(common, renderer, rosella.common.memory);
         obj.onAddedToScene(rosella);
         renderObjects.get(obj.getRenderInfo()).add(obj.getInstanceInfo());
         return obj;
@@ -86,7 +84,7 @@ public class SimpleObjectManager implements ObjectManager {
     }
 
     @Override
-    public void free(Rosella rosella) {
+    public void free() {
         for (Material material : materials) {
             material.getShader().free();
         }

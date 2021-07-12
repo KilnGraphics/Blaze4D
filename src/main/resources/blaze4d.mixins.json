@@ -8,7 +8,7 @@
   "client": [
     "blaze3d.RenderSystemMixin",
     "buffers.GlStateManagerMixin",
-    "debug.TextureManagerMixin",
+    "debug.Sprite$AnimationMixin",
     "integration.BufferRendererMixin",
     "integration.FramebufferMixin",
     "integration.GlDebugMixin",
@@ -19,6 +19,7 @@
     "integration.WindowMixin",
     "matrices.RenderSystemMixin",
     "shader.GlStateManagerMixin",
+    "shader.GlUniformMixin",
     "shader.RenderSystemMixin",
     "shader.ShaderAccessor",
     "shader.ShaderMixin",
@@ -27,7 +28,6 @@
     "texture.RenderSystemMixin",
     "texture.TextureManagerMixin",
     "texture.TextureUtilMixin",
-    "vertices.BufferBuilderMixin",
     "vertices.VertexBufferMixin"
   ],
   "injectors": {

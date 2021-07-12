@@ -2,9 +2,6 @@ package me.hydos.blaze4d.mixin.integration;
 
 import me.hydos.blaze4d.api.GlobalRenderSystem;
 import net.minecraft.client.MinecraftClient;
-import net.minecraft.client.render.Tessellator;
-
-import me.hydos.blaze4d.api.vertex.UploadableConsumer;
 import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.injection.At;
 import org.spongepowered.asm.mixin.injection.Inject;
