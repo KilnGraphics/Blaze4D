@@ -16,6 +16,9 @@ public class DMATransfer {
         return 0; // TODO: do not forget to actually update this once implemented
     }
 
+
+    // TODO: All of these functions with wait semaphores / wait fences need some sort of callback to inform them that they can use the semaphores and fences again
+
     /**
      * Performs a buffer acquire operation in the transfer queue making the buffer available to transfer operations.
      * The release operation from the source queue and any memory barriers <b>must</b> first be performed by the callee.
