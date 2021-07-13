@@ -37,7 +37,12 @@ public class GlDebugInfoMixin {
 
     private static String tryParseVendorId(int vendorId) {
         return switch (vendorId) {
-            case 4318 -> "NVIDIA Corporation";
+            case 0x10DE -> "NVIDIA Corporation";
+            case 0x1002 -> "AMD";
+            case 0x8086 -> "INTEL";
+            case 0x13B5 -> "ARM";
+            case 0x1010 -> "ImgTec";
+            case 0x5143 -> "Qualcomm";
             default -> "Vendor unknown. Vendor ID: " + vendorId;
         };
     }
