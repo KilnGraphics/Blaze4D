@@ -15,8 +15,8 @@ class ShaderManager(val rosella: Rosella) {
     }
 
     fun free() {
-        for (value in cachedShaders.values) {
-            value.raw.free()
+        for (program in cachedShaders.values) {
+            program.free()
         }
     }
 }

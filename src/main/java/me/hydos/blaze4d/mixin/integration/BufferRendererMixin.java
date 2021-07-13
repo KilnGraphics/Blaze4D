@@ -2,6 +2,7 @@ package me.hydos.blaze4d.mixin.integration;
 
 import com.google.common.collect.ImmutableList;
 import com.mojang.datafixers.util.Pair;
+import it.unimi.dsi.fastutil.objects.ObjectObjectImmutablePair;
 import me.hydos.blaze4d.api.GlobalRenderSystem;
 import me.hydos.blaze4d.api.util.ConversionUtils;
 import me.hydos.blaze4d.api.vertex.ConsumerCreationInfo;
@@ -43,7 +44,18 @@ public class BufferRendererMixin {
         if (vertexCount > 0) {
             VertexFormat format = drawInfo.getVertexFormat();
 
-            StoredBufferProvider storedBufferProvider = GlobalRenderSystem.GLOBAL_BUFFER_PROVIDERS.computeIfAbsent(new ConsumerCreationInfo(drawInfo.getMode(), format, GlobalRenderSystem.createTextureArray(), GlobalRenderSystem.activeShader, projMatrix, viewMatrix, chunkOffset, shaderLightDirections0, shaderLightDirections1), consumerCreationInfo -> {
+            StoredBufferProvider storedBufferProvider = null;
+            ConsumerCreationInfo consumerCreationInfo = new ConsumerCreationInfo(drawInfo.getMode(), format, GlobalRenderSystem.createTextureArray(), GlobalRenderSystem.activeShader, projMatrix, viewMatrix, chunkOffset, shaderLightDirections0, shaderLightDirections1);
+            int providersSize = GlobalRenderSystem.GLOBAL_BUFFER_PROVIDERS.size();
+
+            if (providersSize > 0) {
+                it.unimi.dsi.fastutil.Pair<ConsumerCreationInfo, StoredBufferProvider> lastPair = GlobalRenderSystem.GLOBAL_BUFFER_PROVIDERS.get(providersSize - 1);
+                if (lastPair.key().equals(consumerCreationInfo)) {
+                    storedBufferProvider = lastPair.value();
+                }
+            }
+
+            if (storedBufferProvider == null) {
                 me.hydos.rosella.render.vertex.VertexFormat rosellaFormat = ConversionUtils.FORMAT_CONVERSION_MAP.get(consumerCreationInfo.format().getElements());
 
                 if (rosellaFormat == null) {
@@ -55,8 +67,9 @@ public class BufferRendererMixin {
                     rosellaFormat = VertexFormats.getFormat(rosellaElements);
                 }
 
-                return new StoredBufferProvider(rosellaFormat);
-            });
+                storedBufferProvider = new StoredBufferProvider(rosellaFormat);
+                GlobalRenderSystem.GLOBAL_BUFFER_PROVIDERS.add(new ObjectObjectImmutablePair<>(consumerCreationInfo, storedBufferProvider));
+            }
 
             // TODO: figure out a way to accumulate these buffers to a staging buffer throughout the frame.
             // this would get rid of the need to copy the buffer here as well as the need to free the copy.

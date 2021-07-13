@@ -13,22 +13,30 @@ public class VertexFormat {
     VertexFormat(VertexFormatElement... elements) {
         this.elements = elements;
 
-        this.vkAttributes = VkVertexInputAttributeDescription.callocStack(elements.length);
+        int correctedLength = 0;
+        for (VertexFormatElement vertexFormatElement : elements) {
+            if (vertexFormatElement.vkType() != VertexFormatElements.VK_FORMAT_PADDING) {
+                correctedLength++;
+            }
+        }
+
+        this.vkAttributes = VkVertexInputAttributeDescription.callocStack(correctedLength);
 
         int offset = 0;
-        for (int idx = 0; idx < elements.length; idx++) {
-            VertexFormatElement element = elements[idx];
+        int elementIdx = 0;
+        for (VertexFormatElement element : elements) {
             if (element.vkType() != VertexFormatElements.VK_FORMAT_PADDING) {
-                vkAttributes.get(idx)
+                vkAttributes.get(elementIdx)
                         .binding(0)
-                        .location(idx)
+                        .location(elementIdx)
                         .format(element.vkType())
                         .offset(offset);
+                elementIdx++;
             }
             offset += element.byteLength();
         }
         vkAttributes.rewind();
-
+        
         this.size = offset;
 
         this.vkBindings = VkVertexInputBindingDescription.callocStack(1)

@@ -1,14 +1,14 @@
 package me.hydos.blaze4d.api;
 
+import it.unimi.dsi.fastutil.Pair;
 import it.unimi.dsi.fastutil.ints.Int2ObjectOpenHashMap;
 import it.unimi.dsi.fastutil.ints.IntArrayList;
 import it.unimi.dsi.fastutil.ints.IntList;
 import it.unimi.dsi.fastutil.ints.IntLists;
-import it.unimi.dsi.fastutil.objects.Object2ObjectOpenHashMap;
-import it.unimi.dsi.fastutil.objects.ObjectOpenHashSet;
+import it.unimi.dsi.fastutil.objects.Object2ObjectLinkedOpenHashMap;
+import it.unimi.dsi.fastutil.objects.ObjectArrayList;
 import me.hydos.blaze4d.Blaze4D;
 import me.hydos.blaze4d.api.shader.ShaderContext;
-import me.hydos.rosella.render.vertex.StoredBufferProvider;
 import me.hydos.blaze4d.api.vertex.ConsumerCreationInfo;
 import me.hydos.blaze4d.api.vertex.ConsumerRenderObject;
 import me.hydos.blaze4d.api.vertex.ObjectInfo;
@@ -19,6 +19,8 @@ import me.hydos.rosella.render.resource.Identifier;
 import me.hydos.rosella.render.shader.RawShaderProgram;
 import me.hydos.rosella.render.shader.ShaderProgram;
 import me.hydos.rosella.render.texture.Texture;
+import me.hydos.rosella.render.texture.TextureManager;
+import me.hydos.rosella.render.vertex.StoredBufferProvider;
 import me.hydos.rosella.scene.object.impl.SimpleObjectManager;
 import net.minecraft.client.render.VertexFormat;
 import net.minecraft.util.math.Vec3f;
@@ -42,16 +44,12 @@ public class GlobalRenderSystem {
     public static int nextShaderProgramId = 1; // Same reason as above
 
     // Frame/Drawing Fields
-    public static Set<ConsumerRenderObject> currentFrameObjects = new ObjectOpenHashSet<>();
+    public static Set<ConsumerRenderObject> currentFrameObjects = Collections.newSetFromMap(new Object2ObjectLinkedOpenHashMap<>()); // should be sorted
 
     // Active Fields
     public static final int maxTextures = 12;
     public static int[] boundTextureIds = new int[maxTextures]; // TODO: generate an identifier instead of using int id, or switch everything over to ints
     public static int activeTexture = 0;
-
-    static {
-        Arrays.fill(boundTextureIds, -1);
-    }
 
     public static ShaderProgram activeShader;
 
@@ -128,7 +126,7 @@ public class GlobalRenderSystem {
         Texture[] textures = new Texture[maxTextures];
         for(int i = 0; i < maxTextures; i++) {
             int texId = boundTextureIds[i];
-            textures[i] = texId == -1 ? null : ((SimpleObjectManager) Blaze4D.rosella.objectManager).textureManager.getTexture(texId);
+            textures[i] = texId == TextureManager.BLANK_TEXTURE_ID ? null : ((SimpleObjectManager) Blaze4D.rosella.objectManager).textureManager.getTexture(texId);
         }
         return textures;
     }
@@ -138,13 +136,13 @@ public class GlobalRenderSystem {
         currentFrameObjects.add(renderObject);
     }
 
-    public static final Map<ConsumerCreationInfo, StoredBufferProvider> GLOBAL_BUFFER_PROVIDERS = new Object2ObjectOpenHashMap<>();
+    public static final List<Pair<ConsumerCreationInfo, StoredBufferProvider>> GLOBAL_BUFFER_PROVIDERS = new ObjectArrayList<>();
 
     public static void renderConsumers() {
-        for (Map.Entry<ConsumerCreationInfo, StoredBufferProvider> entry : GLOBAL_BUFFER_PROVIDERS.entrySet()) {
-            StoredBufferProvider bufferProvider = entry.getValue();
+        for (Pair<ConsumerCreationInfo, StoredBufferProvider> entry : GLOBAL_BUFFER_PROVIDERS) {
+            StoredBufferProvider bufferProvider = entry.value();
             IntList indices = new IntArrayList();
-            ConsumerCreationInfo creationInfo = entry.getKey();
+            ConsumerCreationInfo creationInfo = entry.key();
 
             if (creationInfo.drawMode() == VertexFormat.DrawMode.QUADS) {
                 // Convert Quads to Triangle Strips

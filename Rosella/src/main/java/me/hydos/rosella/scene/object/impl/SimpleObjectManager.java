@@ -85,9 +85,6 @@ public class SimpleObjectManager implements ObjectManager {
 
     @Override
     public void free() {
-        for (Material material : materials) {
-            material.getShader().free();
-        }
         materials.clear();
 
         shaderManager.free();
