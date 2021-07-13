@@ -13,7 +13,14 @@ public class VertexFormat {
     VertexFormat(VertexFormatElement... elements) {
         this.elements = elements;
 
-        this.vkAttributes = VkVertexInputAttributeDescription.callocStack(elements.length);
+        int correctedLength = 0;
+        for (VertexFormatElement vertexFormatElement : elements) {
+            if (vertexFormatElement.vkType() != VertexFormatElements.VK_FORMAT_PADDING) {
+                correctedLength++;
+            }
+        }
+
+        this.vkAttributes = VkVertexInputAttributeDescription.callocStack(correctedLength);
 
         int offset = 0;
         int elementIdx = 0;
@@ -29,6 +36,11 @@ public class VertexFormat {
             offset += element.byteLength();
         }
         vkAttributes.rewind();
+
+        System.out.println("Vertex Attributes: ");
+        for (int i = 0; i < correctedLength; i++) {
+            System.out.printf("\tIndex %d: location %d, binding: %d, format: %d, offset: %d\n", i, vkAttributes.get(i).location(), vkAttributes.get(i).binding(), vkAttributes.get(i).format(), vkAttributes.get(i).offset());
+        }
 
         this.size = offset;
 
