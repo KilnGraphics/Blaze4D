@@ -3,6 +3,7 @@ package me.hydos.rosella.memory;
 import org.jetbrains.annotations.Nullable;
 
 import java.nio.ByteBuffer;
+import java.util.concurrent.Callable;
 
 public class DMATransfer {
 
@@ -16,9 +17,6 @@ public class DMATransfer {
         return 0; // TODO: do not forget to actually update this once implemented
     }
 
-
-    // TODO: All of these functions with wait semaphores / wait fences need some sort of callback to inform them that they can use the semaphores and fences again
-
     /**
      * Performs a buffer acquire operation in the transfer queue making the buffer available to transfer operations.
      * The release operation from the source queue and any memory barriers <b>must</b> first be performed by the callee.
@@ -27,9 +25,9 @@ public class DMATransfer {
      * @param buffer The buffer to acquire
      * @param srcQueue The queue that previously had ownership of the buffer
      * @param waitSemaphores A list of semaphores to wait on before executing the acquire operation
-     * @param waitFences A list of fences to wait on before submitting the acquire operation
+     * @param completedCb A function that is called once the passed semaphores are safe to reuse
      */
-    public void acquireBuffer(long buffer, long srcQueue, @Nullable long[] waitSemaphores, @Nullable long[] waitFences) {
+    public void acquireBuffer(long buffer, long srcQueue, @Nullable long[] waitSemaphores, @Nullable Callable<Void> completedCb) {
     }
 
     /**
@@ -40,9 +38,9 @@ public class DMATransfer {
      * @param image The image to acquire
      * @param srcQueue The queue that previously had ownership of the image
      * @param waitSemaphores A list of semaphores to wait on before executing the acquire operation
-     * @param waitFences A list of fences to wait on before submitting the acquire operation
+     * @param completedCb A function that is called once the passed semaphores are safe to reuse
      */
-    public void acquireImage(long image, long srcQueue, @Nullable long[] waitSemaphores, @Nullable long[] waitFences) {
+    public void acquireImage(long image, long srcQueue, @Nullable long[] waitSemaphores, @Nullable Callable<Void> completedCb) {
     }
 
     /**
@@ -51,9 +49,9 @@ public class DMATransfer {
      *
      * @param buffer The buffer to acquire
      * @param waitSemaphores A list of semaphores to wait on before using the buffer
-     * @param waitFences A list of fences to wait on before using the buffer
+     * @param completedCb A function that is called once the passed semaphores are safe to reuse
      */
-    public void acquireSharedBuffer(long buffer, @Nullable long[] waitSemaphores, @Nullable long[] waitFences) {
+    public void acquireSharedBuffer(long buffer, @Nullable long[] waitSemaphores, @Nullable Callable<Void> completedCb) {
     }
 
     /**
@@ -62,9 +60,9 @@ public class DMATransfer {
      *
      * @param image The image to acquire
      * @param waitSemaphores A list of semaphores to wait on before using the image
-     * @param waitFences A list of fences to wait on before using the image
+     * @param completedCb A function that is called once the passed semaphores are safe to reuse
      */
-    public void acquireSharedImage(long image, @Nullable long[] waitSemaphores, @Nullable long[] waitFences) {
+    public void acquireSharedImage(long image, @Nullable long[] waitSemaphores, @Nullable Callable<Void> completedCb) {
     }
 
     /**
@@ -75,9 +73,9 @@ public class DMATransfer {
      * @param buffer The buffer to release
      * @param dstQueue The queue that will next take ownership of the buffer
      * @param signalSemaphores A list of semaphores to signal when the operation is complete
-     * @param signalFences A list of fences to signal when the operation is complete
+     * @param completedCb A function that is called once the release operation has completed
      */
-    public void releaseBuffer(long buffer, long dstQueue, @Nullable long[] signalSemaphores, @Nullable long[] signalFences) {
+    public void releaseBuffer(long buffer, long dstQueue, @Nullable long[] signalSemaphores, @Nullable Callable<Void> completedCb) {
     }
 
     /**
@@ -88,9 +86,9 @@ public class DMATransfer {
      * @param image The image to release
      * @param dstQueue The queue that will next take ownership of the image
      * @param signalSemaphores A list of semaphores to signal when the operation is complete
-     * @param signalFences A list of fences to signal when the operation is complete
+     * @param completedCb A function that is called once the release operation has completed
      */
-    public void releaseImage(long image, long dstQueue, @Nullable long[] signalSemaphores, @Nullable long[] signalFences) {
+    public void releaseImage(long image, long dstQueue, @Nullable long[] signalSemaphores, @Nullable Callable<Void> completedCb) {
     }
 
     /**
@@ -99,9 +97,9 @@ public class DMATransfer {
      *
      * @param buffer The buffer to release
      * @param signalSemaphores A list of semaphores to signal when the buffer is ready to use
-     * @param signalFences A list of fences to signal when the buffer is ready to use
+     * @param completedCb A function that is called once the release operation has completed
      */
-    public void releaseSharedBuffer(long buffer, @Nullable long[] signalSemaphores, @Nullable long[] signalFences) {
+    public void releaseSharedBuffer(long buffer, @Nullable long[] signalSemaphores, @Nullable Callable<Void> completedCb) {
     }
 
     /**
@@ -110,9 +108,9 @@ public class DMATransfer {
      *
      * @param image The image to release
      * @param signalSemaphores A list of semaphores to signal when the image is ready to use
-     * @param signalFences A list of fences to signal when the image is ready to use
+     * @param completedCb A function that is called once the release operation has completed
      */
-    public void releaseSharedImage(long image, @Nullable long[] signalSemaphores, @Nullable long[] signalFences) {
+    public void releaseSharedImage(long image, @Nullable long[] signalSemaphores, @Nullable Callable<Void> completedCb) {
     }
 
     /**
@@ -138,9 +136,9 @@ public class DMATransfer {
      * @param srcBuffer The source buffer
      * @param srcOffset The offset in the source buffer from where the data should be copied from
      * @param dstBuffer The destination buffer
-     * @param signalFences A list of fences to signal once the operation has completed
+     * @param completedCb A function that is called once the transfer has completed
      */
-    public void transferBufferToHost(long srcBuffer, long srcOffset, ByteBuffer dstBuffer, @Nullable long[] signalFences) {
+    public void transferBufferToHost(long srcBuffer, long srcOffset, ByteBuffer dstBuffer, @Nullable Callable<Void> completedCb) {
     }
 
 
