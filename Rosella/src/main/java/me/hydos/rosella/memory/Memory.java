@@ -193,8 +193,8 @@ public abstract class Memory {
             VkSubmitInfo submitInfo = VkSubmitInfo.callocStack(stack)
                     .sType(VK10.VK_STRUCTURE_TYPE_SUBMIT_INFO)
                     .pCommandBuffers(pCommandBuffer);
-            ok(VK10.vkQueueSubmit(renderer.queues.graphicsQueue, submitInfo, VK10.VK_NULL_HANDLE));
-            ok(VK10.vkQueueWaitIdle(renderer.queues.graphicsQueue));
+            ok(renderer.queues.graphicsQueue.vkQueueSubmit(submitInfo, VK10.VK_NULL_HANDLE));
+            ok(renderer.queues.graphicsQueue.vkQueueWaitIdle());
             VK10.vkFreeCommandBuffers(device.rawDevice, renderer.commandPool, pCommandBuffer);
         }
     }
