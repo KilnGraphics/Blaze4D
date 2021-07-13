@@ -161,7 +161,7 @@ class PipelineManager(var common: VkCommon, val renderer: Renderer) {
                     .lineWidth(stateInfo.lineWidth)
                     .cullMode(if (stateInfo.cullEnabled) VK10.VK_CULL_MODE_BACK_BIT else VK10.VK_CULL_MODE_NONE)
                     .frontFace(VK10.VK_FRONT_FACE_COUNTER_CLOCKWISE) // TODO: try messing with this
-                    .depthBiasEnable(false) // TODO: possibly causes flickering
+                    .depthBiasEnable(false)
 
             /**
              * Multisampling
