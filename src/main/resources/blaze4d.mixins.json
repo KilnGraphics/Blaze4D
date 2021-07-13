@@ -9,8 +9,8 @@
     "blaze3d.RenderSystemMixin",
     "buffers.GlStateManagerMixin",
     "debug.Sprite$AnimationMixin",
-    "integration.BufferRendererMixin",
     "integration.FramebufferMixin",
+    "integration.GlDebugInfoMixin",
     "integration.GlDebugMixin",
     "integration.GlStateManagerMixin",
     "integration.MinecraftClientMixin",
@@ -29,6 +29,7 @@
     "texture.RenderSystemMixin",
     "texture.TextureManagerMixin",
     "texture.TextureUtilMixin",
+    "vertices.BufferRendererMixin",
     "vertices.VertexBufferMixin"
   ],
   "injectors": {

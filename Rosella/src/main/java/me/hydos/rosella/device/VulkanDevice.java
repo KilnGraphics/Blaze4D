@@ -30,6 +30,7 @@ public class VulkanDevice {
     public VkDevice rawDevice;
     public VkPhysicalDevice physicalDevice;
     public PhysicalDeviceFeatures physicalDeviceFeatures;
+    public Properties properties;
 
     public VulkanDevice(VkCommon common, List<String> validationLayers) {
         try (MemoryStack stack = MemoryStack.stackPush()) {
@@ -49,6 +50,7 @@ public class VulkanDevice {
 
                 if (deviceSuitable(device, common)) {
                     this.physicalDevice = device;
+                    setDeviceInfo();
                     break;
                 }
             }
@@ -80,6 +82,15 @@ public class VulkanDevice {
             PointerBuffer pDevice = stack.pointers(VK_NULL_HANDLE);
             ok(vkCreateDevice(physicalDevice, deviceCreateInfo, null, pDevice));
             rawDevice = new VkDevice(pDevice.get(0), physicalDevice, deviceCreateInfo);
+        }
+    }
+
+    private void setDeviceInfo() {
+        try (MemoryStack stack = MemoryStack.stackPush()) {
+            VkPhysicalDeviceProperties properties = VkPhysicalDeviceProperties.callocStack(stack);
+            vkGetPhysicalDeviceProperties(physicalDevice, properties);
+
+            this.properties = new Properties(properties);
         }
     }
 
@@ -259,5 +270,35 @@ public class VulkanDevice {
         public boolean sparseResidencyAliased;
         public boolean variableMultisampleRate;
         public boolean inheritedQueries;
+    }
+
+    public static class Properties {
+
+        public final int deviceId;
+        public final String deviceName;
+        public final String apiVersion;
+        public final int driverVersion;
+        public final int vendorId;
+
+        public Properties(VkPhysicalDeviceProperties properties) {
+            this.deviceId = properties.deviceID();
+            this.deviceName = properties.deviceNameString();
+            this.apiVersion = fromVkVersion(properties.apiVersion());
+            this.driverVersion = properties.driverVersion();
+            this.vendorId = properties.vendorID();
+        }
+
+        /**
+         * Turns integer VkVersion into a string version
+         *
+         * @param apiVersion the integer passed from vulkan
+         * @return a readable string
+         */
+        private String fromVkVersion(int apiVersion) {
+            int major = VK_VERSION_MAJOR(apiVersion);
+            int minor = VK_VERSION_MINOR(apiVersion);
+            int patch = VK_VERSION_PATCH(apiVersion);
+            return major + "." + minor + "." + patch;
+        }
     }
 }
