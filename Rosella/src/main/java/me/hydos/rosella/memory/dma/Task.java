@@ -4,19 +4,9 @@ import java.util.concurrent.atomic.AtomicBoolean;
 
 public abstract class Task {
 
-    private final AtomicBoolean ready;
     protected Task next = null;
 
-    protected Task(boolean initialReady) {
-        this.ready = new AtomicBoolean(initialReady);
-    }
-
-    public boolean isReady() {
-        return this.ready.get();
-    }
-
-    public void setReady() {
-        this.ready.set(true);
+    protected Task() {
     }
 
     public void setNext(Task next) {
@@ -26,6 +16,9 @@ public abstract class Task {
     public Task getNext() {
         return this.next;
     }
+
+    public abstract boolean canRecord(DMARecorder recorder);
+    public abstract void record(DMARecorder recorder);
 
     public abstract boolean shouldSignal();
 

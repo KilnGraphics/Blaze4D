@@ -1,14 +1,19 @@
 package me.hydos.rosella.memory;
 
 import it.unimi.dsi.fastutil.longs.Long2ObjectOpenHashMap;
+import it.unimi.dsi.fastutil.longs.LongOpenHashSet;
 import kotlin.NotImplementedError;
 import me.hydos.rosella.memory.dma.BufferAcquireTask;
 import me.hydos.rosella.memory.dma.BufferReleaseTask;
+import me.hydos.rosella.memory.dma.DMARecorder;
 import me.hydos.rosella.memory.dma.Task;
 import org.jetbrains.annotations.Nullable;
 
 import java.nio.ByteBuffer;
 import java.util.Map;
+import java.util.Set;
+import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.locks.Condition;
 import java.util.concurrent.locks.Lock;
 import java.util.concurrent.locks.ReentrantLock;
 
@@ -29,6 +34,9 @@ public class DMATransfer {
     private Task lastTask = null;
 
     private final Lock lock = new ReentrantLock();
+    private final Condition taskAvailable = lock.newCondition();
+
+    private final AtomicBoolean shouldTerminate = new AtomicBoolean(false);
 
     public DMATransfer() {
     }
@@ -308,15 +316,73 @@ public class DMATransfer {
             lastTask.setNext(task);
         }
         lastTask = task;
-    }
-
-    private void removeTasks(Task task) {
-        this.nextTask = task.getNext();
-        if(this.nextTask == null) {
-            this.lastTask = null;
-        }
+        taskAvailable.signal();
     }
 
     public record BufferImageCopy(long bufferOffset, int bufferRowLength, int bufferImageHeight) { // TODO: pain
+    }
+
+    private class DMAWorker implements Runnable {
+
+        DMARecorder recorder = new DMARecorder();
+
+        @Override
+        public void run() {
+            while(!shouldTerminate.get()) {
+                if(!tryRunTask()) {
+                    try {
+                        lock.lock();
+                        taskAvailable.awaitNanos(1000);
+                    } catch (InterruptedException ignored) {
+                        // TODO: ???
+                    } finally {
+                        lock.unlock();
+                    }
+                }
+            }
+        }
+
+        private boolean tryRunTask() {
+            Task currentTask;
+            try {
+                lock.lock();
+                if(nextTask == null) {
+                    return false;
+                }
+                currentTask = nextTask;
+            } finally {
+                lock.unlock();
+            }
+
+            recorder.reset();
+            recorder.begin();
+            for(int taskIndex = 0; (taskIndex < 20) && (currentTask != null); taskIndex++) { // TODO: Max tasks constant
+                if(!currentTask.canRecord(recorder)) {
+                    try {
+                        lock.lock();
+                        nextTask = currentTask;
+                    } finally {
+                        lock.unlock();
+                    }
+                    break;
+                }
+
+                currentTask.record(recorder);
+
+                try {
+                    lock.lock();
+                    currentTask = currentTask.getNext();
+                    if(currentTask == null) {
+                        nextTask = null;
+                        lastTask = null;
+                    }
+                } finally {
+                    lock.unlock();
+                }
+            }
+            recorder.end();
+
+            return true;
+        }
     }
 }

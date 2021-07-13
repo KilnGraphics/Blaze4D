@@ -1,27 +1,43 @@
 package me.hydos.rosella.memory.dma;
 
+import it.unimi.dsi.fastutil.longs.LongArraySet;
 import org.jetbrains.annotations.Nullable;
 import org.lwjgl.vulkan.VK10;
 import org.lwjgl.vulkan.VkBufferMemoryBarrier;
 
+import java.util.Collection;
+import java.util.Set;
+
 public class BufferAcquireTask extends Task {
 
     private final Runnable completeCb;
-    private final long[] waitSemaphores;
+    private final Set<Long> waitSemaphores;
 
     private final long buffer;
     private final int srcQueue;
     private final int dstQueue;
 
-    public BufferAcquireTask(boolean initialReady, long buffer, int srcQueue, int dstQueue, @Nullable long[] waitSemaphores, @Nullable Runnable completeCb) {
-        super(initialReady);
+    public BufferAcquireTask(long buffer, int srcQueue, int dstQueue, @Nullable Collection<Long> waitSemaphores, @Nullable Runnable completeCb) {
+        super();
 
         this.completeCb = completeCb;
-        this.waitSemaphores = waitSemaphores;
+        this.waitSemaphores = new LongArraySet();
+        if(waitSemaphores != null) {
+            this.waitSemaphores.addAll(waitSemaphores);
+        }
 
         this.buffer = buffer;
         this.srcQueue = srcQueue;
         this.dstQueue = dstQueue;
+    }
+
+    @Override
+    public boolean canRecord(DMARecorder recorder) {
+        return false;
+    }
+
+    @Override
+    public void record(DMARecorder recorder) {
     }
 
     @Override
@@ -45,7 +61,7 @@ public class BufferAcquireTask extends Task {
         return this.srcQueue == this.dstQueue;
     }
 
-    public long[] getWaitSemaphores() {
+    public Set<Long> getWaitSemaphores() {
         return waitSemaphores;
     }
 
