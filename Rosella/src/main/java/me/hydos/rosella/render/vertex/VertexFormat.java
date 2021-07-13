@@ -36,12 +36,7 @@ public class VertexFormat {
             offset += element.byteLength();
         }
         vkAttributes.rewind();
-
-        System.out.println("Vertex Attributes: ");
-        for (int i = 0; i < correctedLength; i++) {
-            System.out.printf("\tIndex %d: location %d, binding: %d, format: %d, offset: %d\n", i, vkAttributes.get(i).location(), vkAttributes.get(i).binding(), vkAttributes.get(i).format(), vkAttributes.get(i).offset());
-        }
-
+        
         this.size = offset;
 
         this.vkBindings = VkVertexInputBindingDescription.callocStack(1)
