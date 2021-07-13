@@ -9,7 +9,6 @@ import me.hydos.rosella.render.renderer.Renderer
 import me.hydos.rosella.render.resource.Resource
 import me.hydos.rosella.render.shader.ubo.Ubo
 import me.hydos.rosella.render.swapchain.Swapchain
-import me.hydos.rosella.render.texture.BlankTextures
 import me.hydos.rosella.render.texture.Texture
 import me.hydos.rosella.render.texture.TextureManager
 import me.hydos.rosella.render.util.ok
@@ -169,9 +168,9 @@ open class RawShaderProgram(
                         VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER -> {
                             if (poolObj is PoolSamplerInfo) {
                                 val texture = if (poolObj.samplerIndex == -1) {
-                                    BlankTextures.getBlankTexture()
+                                    TextureManager.BLANK_TEXTURE
                                 } else {
-                                    currentTextures[poolObj.samplerIndex] ?: BlankTextures.getBlankTexture()
+                                    currentTextures[poolObj.samplerIndex] ?: TextureManager.BLANK_TEXTURE
                                 }
 
                                 val imageInfo = VkDescriptorImageInfo.callocStack(1, stack)

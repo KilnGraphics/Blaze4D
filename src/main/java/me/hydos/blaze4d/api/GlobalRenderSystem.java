@@ -19,6 +19,7 @@ import me.hydos.rosella.render.resource.Identifier;
 import me.hydos.rosella.render.shader.RawShaderProgram;
 import me.hydos.rosella.render.shader.ShaderProgram;
 import me.hydos.rosella.render.texture.Texture;
+import me.hydos.rosella.render.texture.TextureManager;
 import me.hydos.rosella.render.vertex.StoredBufferProvider;
 import me.hydos.rosella.scene.object.impl.SimpleObjectManager;
 import net.minecraft.client.render.VertexFormat;
@@ -49,10 +50,6 @@ public class GlobalRenderSystem {
     public static final int maxTextures = 12;
     public static int[] boundTextureIds = new int[maxTextures]; // TODO: generate an identifier instead of using int id, or switch everything over to ints
     public static int activeTexture = 0;
-
-    static {
-        Arrays.fill(boundTextureIds, -1);
-    }
 
     public static ShaderProgram activeShader;
 
@@ -129,7 +126,7 @@ public class GlobalRenderSystem {
         Texture[] textures = new Texture[maxTextures];
         for(int i = 0; i < maxTextures; i++) {
             int texId = boundTextureIds[i];
-            textures[i] = texId == -1 ? null : ((SimpleObjectManager) Blaze4D.rosella.objectManager).textureManager.getTexture(texId);
+            textures[i] = texId == TextureManager.BLANK_TEXTURE_ID ? null : ((SimpleObjectManager) Blaze4D.rosella.objectManager).textureManager.getTexture(texId);
         }
         return textures;
     }

@@ -5,11 +5,9 @@ import me.hydos.rosella.device.VulkanQueues;
 import me.hydos.rosella.display.Display;
 import me.hydos.rosella.logging.DebugLogger;
 import me.hydos.rosella.logging.DefaultDebugLogger;
-import me.hydos.rosella.memory.Memory;
 import me.hydos.rosella.memory.ThreadPoolMemory;
 import me.hydos.rosella.memory.buffer.GlobalBufferManager;
 import me.hydos.rosella.render.renderer.Renderer;
-import me.hydos.rosella.render.texture.BlankTextures;
 import me.hydos.rosella.scene.object.ObjectManager;
 import me.hydos.rosella.scene.object.impl.SimpleObjectManager;
 import me.hydos.rosella.vkobjects.VkCommon;
@@ -67,7 +65,7 @@ public class Rosella {
         // Setup the object manager
         this.objectManager = new SimpleObjectManager(this, common);
         this.renderer = new Renderer(this); //TODO: make swapchain, etc initialization happen outside of the renderer and in here
-        BlankTextures.initialize(((SimpleObjectManager) objectManager).textureManager, renderer);
+        ((SimpleObjectManager) objectManager).textureManager.initializeBlankTexture(renderer);
         this.objectManager.postInit(renderer);
         this.bufferManager = new GlobalBufferManager(this);
 
