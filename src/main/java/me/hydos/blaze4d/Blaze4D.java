@@ -4,7 +4,6 @@ import me.hydos.rosella.Rosella;
 import me.hydos.rosella.display.GlfwWindow;
 import me.hydos.rosella.scene.object.impl.SimpleObjectManager;
 import net.fabricmc.api.ClientModInitializer;
-import org.apache.logging.log4j.Level;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.StringFormatterMessageFactory;
@@ -13,7 +12,7 @@ import org.lwjgl.system.Configuration;
 public class Blaze4D implements ClientModInitializer {
 
     public static final Logger LOGGER = LogManager.getLogger("Blaze4D", new StringFormatterMessageFactory());
-    public static final boolean VALIDATION_ENABLED = true;
+    public static final boolean VALIDATION_ENABLED = false;
     public static final boolean RENDERDOC_ENABLED = false;
     public static final boolean DEBUG_MEMORY_ENABLED = false;
 
@@ -26,7 +25,7 @@ public class Blaze4D implements ClientModInitializer {
 
     @Override
     public void onInitializeClient() {
-        ((org.apache.logging.log4j.core.Logger) LOGGER).setLevel(Level.ALL);
+//        ((org.apache.logging.log4j.core.Logger) LOGGER).setLevel(Level.ALL);
         Configuration.DEBUG_MEMORY_ALLOCATOR.set(DEBUG_MEMORY_ENABLED);
 
         try {
