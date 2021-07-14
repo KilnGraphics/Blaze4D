@@ -1,5 +1,10 @@
 package me.hydos.blaze4d.api.shader;
 
+import it.unimi.dsi.fastutil.objects.Object2IntMap;
+import it.unimi.dsi.fastutil.objects.Object2IntOpenHashMap;
+import it.unimi.dsi.fastutil.objects.ObjectIntImmutablePair;
+import it.unimi.dsi.fastutil.objects.ObjectIntPair;
+import me.hydos.blaze4d.api.GlobalRenderSystem;
 import net.minecraft.client.gl.GlUniform;
 
 import java.util.ArrayList;
@@ -11,14 +16,14 @@ import java.util.regex.Pattern;
 
 public class OpenGLToVulkanShaderProcessor {
 
-    public static List<String> convertOpenGLToVulkanShader(List<String> source, List<GlUniform> glUniforms) {
+    public static ObjectIntPair<List<String>> process(List<String> source, List<GlUniform> glUniforms, Object2IntMap<String> currentSamplerBindings, int initialSamplerBinding) {
         List<String> lines = new ArrayList<>(source.stream()
                 .flatMap(line -> Arrays.stream(line.split("\n")))
                 .toList());
 
         int inVariables = 0;
         int outVariables = 0;
-        int samplers = 1;
+        int samplerBinding = initialSamplerBinding;
 
         for (int i = 0; i < lines.size(); i++) {
             String line = lines.get(i)
@@ -42,7 +47,14 @@ public class OpenGLToVulkanShaderProcessor {
                 }
                 String type = uniformMatcher.group(1);
                 if (type.equals("sampler2D")) {
-                    lines.set(i, line.replace("uniform", "layout(binding = " + samplers++ + ") uniform"));
+                    String name = uniformMatcher.group(2);
+                    int existingBinding = currentSamplerBindings.getInt(name);
+                    if (existingBinding == GlobalRenderSystem.SAMPLER_NOT_BOUND) {
+                        currentSamplerBindings.put(name, samplerBinding);
+                        lines.set(i, line.replace("uniform", "layout(binding = " + samplerBinding++ + ") uniform"));
+                    } else {
+                        lines.set(i, line.replace("uniform", "layout(binding = " + existingBinding + ") uniform"));
+                    }
                 } else {
                     lines.remove(i);
                     i--;
@@ -67,9 +79,10 @@ public class OpenGLToVulkanShaderProcessor {
 
         }
 
-        return lines.stream()
-                .flatMap(line -> Arrays.stream(line.split("\n")))
-                .toList();
+        return new ObjectIntImmutablePair<>(
+                lines.stream().flatMap(line -> Arrays.stream(line.split("\n"))).toList(),
+                samplerBinding
+        );
     }
 
     private static String getDataTypeName(int dataType) {
@@ -119,6 +132,6 @@ public class OpenGLToVulkanShaderProcessor {
                     normal = ProjMat * ModelViewMat * vec4(Normal, 0.0);
                 }
                 """;
-        System.out.println(String.join("\n", convertOpenGLToVulkanShader(List.of(originalShader), Map.of("ModelViewMat", 10, "ProjMat", 10, "ChunkOffset", 6).entrySet().stream().map(entry -> new GlUniform(entry.getKey(), entry.getValue(), 0, null)).toList())));
+        System.out.println(String.join("\n", process(List.of(originalShader), Map.of("ModelViewMat", 10, "ProjMat", 10, "ChunkOffset", 6).entrySet().stream().map(entry -> new GlUniform(entry.getKey(), entry.getValue(), 0, null)).toList(), new Object2IntOpenHashMap<>(), 1).key()));
     }
 }

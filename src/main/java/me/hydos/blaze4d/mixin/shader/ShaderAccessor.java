@@ -12,7 +12,4 @@ public interface ShaderAccessor {
 
     @Accessor(value = "uniforms")
     List<GlUniform> blaze4d$getUniforms();
-
-    @Accessor(value = "samplerNames")
-    List<String> blaze4d$getSamplerNames();
 }

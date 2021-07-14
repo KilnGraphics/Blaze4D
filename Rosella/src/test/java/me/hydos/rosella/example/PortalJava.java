@@ -111,7 +111,7 @@ public class PortalJava {
                         rosella.common.memory,
                         10,
                         RawShaderProgram.PoolUboInfo.INSTANCE,
-                        new RawShaderProgram.PoolSamplerInfo(0)
+                        new RawShaderProgram.PoolSamplerInfo(-1, 0)
                 )
         );
 
@@ -123,7 +123,7 @@ public class PortalJava {
                         rosella.common.memory,
                         10,
                         RawShaderProgram.PoolUboInfo.INSTANCE,
-                        new RawShaderProgram.PoolSamplerInfo(0)
+                        new RawShaderProgram.PoolSamplerInfo(-1, 0)
                 )
         );
     }

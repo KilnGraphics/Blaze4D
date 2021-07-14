@@ -44,7 +44,7 @@ open class RawShaderProgram(
     fun prepareTexturesForRender(
         renderer: Renderer,
         textureManager: TextureManager
-    ) { // TODO: move this or make it less gross
+    ) { // TODO: should we move this?
         preparableTextures.forEach {
             if (it != null) {
                 textureManager.prepareTexture(renderer, it)
@@ -90,7 +90,7 @@ open class RawShaderProgram(
 
             poolObjects.forEachIndexed { i, poolObj ->
                 bindings[i]
-                    .binding(i)
+                    .binding(if (poolObj.getBindingLocation() == -1) i else poolObj.getBindingLocation())
                     .descriptorCount(1)
                     .descriptorType(poolObj.getVkType())
                     .pImmutableSamplers(null)
@@ -153,9 +153,10 @@ open class RawShaderProgram(
                 val descriptorSet = pDescriptorSets[i]
                 bufferInfo.buffer(ubo.getUniformBuffers()[i].buffer())
                 poolObjects.forEachIndexed { index, poolObj ->
+                    // TODO OPT: maybe group descriptors up by type if that's faster than defining each one by itself
                     val descriptorWrite = descriptorWrites[index]
                         .sType(VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET)
-                        .dstBinding(index)
+                        .dstBinding(if (poolObj.getBindingLocation() == -1) index else poolObj.getBindingLocation())
                         .dstArrayElement(0)
                         .descriptorType(poolObj.getVkType())
                         .descriptorCount(1)
@@ -199,12 +200,21 @@ open class RawShaderProgram(
     }
 
     interface PoolObjectInfo {
+        /**
+         * If -1, the object will use the current index in the list when iterating
+         * TODO: when converting this to java, make a static variable for -1 and use that
+         */
+        fun getBindingLocation(): Int
         fun getVkType(): Int
         fun getShaderStage(): Int
     }
 
     enum class PoolUboInfo : PoolObjectInfo {
         INSTANCE;
+
+        override fun getBindingLocation(): Int {
+            return -1
+        }
 
         override fun getVkType(): Int {
             return VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER
@@ -215,7 +225,12 @@ open class RawShaderProgram(
         }
     }
 
-    data class PoolSamplerInfo(val samplerIndex: Int) : PoolObjectInfo {
+    data class PoolSamplerInfo(private val bindingLocation: Int, val samplerIndex: Int) : PoolObjectInfo {
+
+        override fun getBindingLocation(): Int {
+            return bindingLocation
+        }
+
         override fun getVkType(): Int {
             return VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER
         }

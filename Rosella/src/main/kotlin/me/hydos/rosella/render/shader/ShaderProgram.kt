@@ -2,7 +2,6 @@ package me.hydos.rosella.render.shader
 
 import me.hydos.rosella.Rosella
 import me.hydos.rosella.device.VulkanDevice
-import me.hydos.rosella.render.util.ShaderType
 import me.hydos.rosella.render.util.compileShaderFile
 import me.hydos.rosella.render.util.ok
 import me.hydos.rosella.ubo.DescriptorManager

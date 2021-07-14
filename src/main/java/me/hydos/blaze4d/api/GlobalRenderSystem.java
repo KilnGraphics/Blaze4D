@@ -6,9 +6,7 @@ import it.unimi.dsi.fastutil.ints.Int2ObjectOpenHashMap;
 import it.unimi.dsi.fastutil.ints.IntArrayList;
 import it.unimi.dsi.fastutil.ints.IntList;
 import it.unimi.dsi.fastutil.ints.IntLists;
-import it.unimi.dsi.fastutil.objects.Object2ObjectLinkedOpenHashMap;
-import it.unimi.dsi.fastutil.objects.ObjectArrayList;
-import it.unimi.dsi.fastutil.objects.ObjectObjectImmutablePair;
+import it.unimi.dsi.fastutil.objects.*;
 import me.hydos.blaze4d.Blaze4D;
 import me.hydos.blaze4d.api.shader.ShaderContext;
 import me.hydos.blaze4d.api.util.ConversionUtils;
@@ -88,7 +86,14 @@ public class GlobalRenderSystem {
     public static Vec3f shaderLightDirections1 = new Vec3f();
 
     // Captured Shader for more dynamic uniforms and samplers
-    public static ShaderAccessor blaze4d$capturedShader = null;
+    public static ShaderAccessor blaze4d$capturedShaderProgram = null;
+    public static final int SAMPLER_NOT_BOUND = -1;
+    public static Object2IntMap<String> processedSamplers = new Object2IntOpenHashMap<>();
+    public static int currentSamplerBinding = 1; // we start at 1 because 0 is reserved for the main UBO
+
+    static {
+        processedSamplers.defaultReturnValue(SAMPLER_NOT_BOUND);
+    }
 
     //=================
     // Shader Methods

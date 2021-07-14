@@ -1,8 +1,10 @@
 package me.hydos.blaze4d.api.util;
 
 import com.google.common.collect.ImmutableList;
+import me.hydos.rosella.render.shader.ShaderType;
 import me.hydos.rosella.render.texture.ImageFormat;
 import me.hydos.rosella.render.vertex.VertexFormatElements;
+import net.minecraft.client.gl.Program;
 import net.minecraft.client.render.VertexFormat;
 import net.minecraft.client.render.VertexFormatElement;
 import net.minecraft.client.render.VertexFormats;
@@ -141,4 +143,11 @@ public abstract class ConversionUtils {
             Map.entry(VertexFormats.POSITION_TEXTURE_LIGHT_COLOR.getElements(), me.hydos.rosella.render.vertex.VertexFormats.POSITION_UV0_UV2_COLOR4),
             Map.entry(VertexFormats.POSITION_TEXTURE_COLOR_NORMAL.getElements(), me.hydos.rosella.render.vertex.VertexFormats.POSITION_UV0_COLOR4_NORMAL)
     );
+
+    public static ShaderType mcToRosellaShaderType(Program.Type mcType) {
+        return switch (mcType) {
+            case VERTEX -> ShaderType.VERTEX_SHADER;
+            case FRAGMENT -> ShaderType.FRAGMENT_SHADER;
+        };
+    }
 }

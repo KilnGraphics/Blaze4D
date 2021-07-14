@@ -10,7 +10,7 @@ import me.hydos.blaze4d.api.util.ByteArrayResource;
 import me.hydos.rosella.render.resource.Identifier;
 import me.hydos.rosella.render.resource.Resource;
 import me.hydos.rosella.render.shader.RawShaderProgram;
-import me.hydos.rosella.render.util.ShaderType;
+import me.hydos.rosella.render.shader.ShaderType;
 import me.hydos.rosella.scene.object.impl.SimpleObjectManager;
 import org.lwjgl.opengl.GL20;
 import org.spongepowered.asm.mixin.Mixin;
@@ -37,6 +37,7 @@ public class GlStateManagerMixin {
     public static int glCreateShader(int type) {
         RenderSystem.assertThread(RenderSystem::isOnRenderThread);
         // Check last shader's type to see if they belong in the same shader
+        // TODO: maybe support more shader types in the future?
         ShaderType rosellaType = type == GL20.GL_VERTEX_SHADER ? ShaderType.VERTEX_SHADER : ShaderType.FRAGMENT_SHADER;
         ShaderContext shaderContext = new ShaderContext();
         shaderContext.glShaderType = type;
@@ -102,8 +103,9 @@ public class GlStateManagerMixin {
                 Blaze4D.rosella.common.device,
                 Blaze4D.rosella.common.memory,
                 GlobalRenderSystem.DEFAULT_MAX_OBJECTS,
-                GlobalRenderSystem.blaze4d$capturedShader.blaze4d$getUniforms(),
-                GlobalRenderSystem.blaze4d$capturedShader.blaze4d$getSamplerNames());
+                GlobalRenderSystem.blaze4d$capturedShaderProgram.blaze4d$getUniforms(),
+                GlobalRenderSystem.processedSamplers);
+        GlobalRenderSystem.processedSamplers.clear();
         GlobalRenderSystem.SHADER_PROGRAM_MAP.put(GlobalRenderSystem.nextShaderProgramId, program);
         Blaze4D.rosella.renderer.rebuildCommandBuffers(Blaze4D.rosella.renderer.renderPass, (SimpleObjectManager) Blaze4D.rosella.objectManager);
         return GlobalRenderSystem.nextShaderProgramId++;

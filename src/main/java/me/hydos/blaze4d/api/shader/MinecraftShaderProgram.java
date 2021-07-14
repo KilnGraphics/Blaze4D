@@ -1,11 +1,14 @@
 package me.hydos.blaze4d.api.shader;
 
 import com.google.common.collect.ImmutableMap;
+import it.unimi.dsi.fastutil.objects.Object2IntMap;
+import it.unimi.dsi.fastutil.objects.Object2IntOpenHashMap;
 import me.hydos.rosella.device.VulkanDevice;
 import me.hydos.rosella.memory.Memory;
 import me.hydos.rosella.render.material.Material;
 import me.hydos.rosella.render.resource.Resource;
 import me.hydos.rosella.render.shader.RawShaderProgram;
+import me.hydos.rosella.render.shader.ShaderType;
 import net.minecraft.client.gl.GlUniform;
 import net.minecraft.util.math.MathHelper;
 import org.jetbrains.annotations.NotNull;
@@ -14,7 +17,6 @@ import org.jetbrains.annotations.Nullable;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
-import java.util.stream.Collectors;
 
 public class MinecraftShaderProgram extends RawShaderProgram {
 
@@ -52,23 +54,25 @@ public class MinecraftShaderProgram extends RawShaderProgram {
     }
 
     private final List<GlUniform> uniforms;
-    private final List<String> samplerNames;
+    private final Object2IntMap<String> samplers;
 
-    public MinecraftShaderProgram(@Nullable Resource vertexShader, @Nullable Resource fragmentShader, @NotNull VulkanDevice device, @NotNull Memory memory, int maxObjCount, List<GlUniform> uniforms, List<String> samplerNames) {
-        super(vertexShader, fragmentShader, device, memory, maxObjCount, createPoolTypes(samplerNames));
+    public MinecraftShaderProgram(@Nullable Resource vertexShader, @Nullable Resource fragmentShader, @NotNull VulkanDevice device, @NotNull Memory memory, int maxObjCount, List<GlUniform> uniforms, Object2IntMap<String> samplers) {
+        super(vertexShader, fragmentShader, device, memory, maxObjCount, createPoolTypes(samplers));
         this.uniforms = uniforms;
-        this.samplerNames = samplerNames;
+        this.samplers = samplers;
     }
 
-    private static PoolObjectInfo[] createPoolTypes(List<String> samplerNames) {
+    private static PoolObjectInfo[] createPoolTypes(Object2IntMap<String> samplers) {
         List<PoolObjectInfo> types = new ArrayList<>();
         types.add(PoolUboInfo.INSTANCE);
 
-        for (String name : samplerNames) {
+        for (Object2IntMap.Entry<String> sampler : samplers.object2IntEntrySet()) {
+            String name = sampler.getKey();
+            int bindingLocation = sampler.getIntValue();
             if (name.equals("DiffuseSampler")) {
-                types.add(new PoolSamplerInfo(-1)); // TODO: set to framebuffer
+                types.add(new PoolSamplerInfo(bindingLocation, -1)); // TODO: set to framebuffer
             } else {
-                types.add(new PoolSamplerInfo(Integer.parseInt(name.substring(7))));
+                types.add(new PoolSamplerInfo(bindingLocation, Integer.parseInt(name.substring(7))));
             }
         }
 
