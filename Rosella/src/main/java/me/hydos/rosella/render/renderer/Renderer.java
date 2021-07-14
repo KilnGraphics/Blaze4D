@@ -158,7 +158,7 @@ public class Renderer {
                     .pCommandBuffers(stack.pointers(commandBuffers.get(imageIndex)));
 
             ok(vkResetFences(rosella.common.device.rawDevice, thisFrame.pFence()));
-            ok(vkQueueSubmit(queues.graphicsQueue, submitInfo, thisFrame.fence()));
+            ok(queues.graphicsQueue.vkQueueSubmit(submitInfo, thisFrame.fence()));
 
             VkPresentInfoKHR presentInfo = VkPresentInfoKHR.callocStack(stack)
                     .sType(KHRSwapchain.VK_STRUCTURE_TYPE_PRESENT_INFO_KHR)
@@ -167,7 +167,7 @@ public class Renderer {
                     .pSwapchains(stack.longs(swapchain.getSwapChain()))
                     .pImageIndices(pImageIndex);
 
-            vkResult = KHRSwapchain.vkQueuePresentKHR(queues.presentQueue, presentInfo);
+            vkResult = queues.presentQueue.vkQueuePresentKHR(presentInfo);
 
             if (vkResult == KHRSwapchain.VK_ERROR_OUT_OF_DATE_KHR || vkResult == KHRSwapchain.VK_SUBOPTIMAL_KHR || recreateSwapChain) {
                 recreateSwapChain = false;
