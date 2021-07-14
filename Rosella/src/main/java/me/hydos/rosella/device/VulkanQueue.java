@@ -29,10 +29,6 @@ public final class VulkanQueue {
         return this.family;
     }
 
-    public Lock getLock() {
-        return lock;
-    }
-
     public int vkQueueSubmit(VkSubmitInfo submit, long fence) {
         int result;
         try {
