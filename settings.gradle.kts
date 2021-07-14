@@ -15,4 +15,3 @@ pluginManagement {
 }
 
 include("Rosella")
-include("Aftermath")
