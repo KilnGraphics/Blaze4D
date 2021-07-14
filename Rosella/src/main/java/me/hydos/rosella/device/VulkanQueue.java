@@ -73,7 +73,10 @@ public final class VulkanQueue {
         return result;
     }
 
-    // THIS IS BAD. VERY VERY BAD. DO NOT DO THIS. EVER... (but if for some reason you do need to here is a safe function)
+    /**
+     * THIS IS BAD. VERY VERY BAD. DO NOT DO THIS. EVER... (but if for some reason you do need to here is a safe function)
+     */
+    @Deprecated
     public int vkQueueWaitIdle() {
         int result;
         try {
