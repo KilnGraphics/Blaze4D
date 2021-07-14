@@ -51,6 +51,7 @@ public class Renderer {
     public final DepthBuffer depthBuffer;
 
     // Should the swap chain be recreated next render
+    private boolean initialSwapchainCreated;
     private boolean recreateSwapChain;
     private boolean requireHardRebuild;
 
@@ -72,6 +73,7 @@ public class Renderer {
 
         VkKt.createCmdPool(common.device, this, common.surface);
         createSwapChain(common, common.display, ((SimpleObjectManager) rosella.objectManager));
+        initialSwapchainCreated = true;
     }
 
     public Swapchain swapchain;
@@ -276,8 +278,10 @@ public class Renderer {
         }
     }
 
-    public void windowResizeCallback() {
-        this.recreateSwapChain = true;
+    public void queueRecreateSwapchain() {
+        if (initialSwapchainCreated) {
+            recreateSwapChain = true;
+        }
     }
 
     private void createFrameBuffers() {

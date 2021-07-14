@@ -31,7 +31,7 @@ class Swapchain(
             val swapchainSupport: SwapchainSupportDetails = querySwapchainSupport(physicalDevice, it, surface)
 
             val surfaceFormat: VkSurfaceFormatKHR = chooseSwapSurfaceFormat(swapchainSupport.formats)!!
-            val presentMode: Int = chooseSwapPresentMode(swapchainSupport.presentModes)
+            val presentMode: Int = chooseSwapPresentMode(swapchainSupport.presentModes, display.doVsync)
             val extent: VkExtent2D = chooseSwapExtent(swapchainSupport.capabilities, display)!!
 
             val imageCount: IntBuffer = it.ints(swapchainSupport.capabilities.minImageCount() + 1)
@@ -92,13 +92,17 @@ class Swapchain(
             .orElse(availableFormats[0])
     }
 
-    private fun chooseSwapPresentMode(availablePresentModes: IntBuffer): Int {
-        for (i in 0 until availablePresentModes.capacity()) {
-            if (availablePresentModes[i] == VK_PRESENT_MODE_IMMEDIATE_KHR) { // Vsync = VK_PRESENT_MODE_MAILBOX_KHR
-                return availablePresentModes[i]
+    private fun chooseSwapPresentMode(availablePresentModes: IntBuffer, doVsync: Boolean): Int {
+        val presentTable = if (doVsync) VSYNC_PREFERRED_PRESENT_TABLE else NO_VSYNC_PREFERRED_PRESENT_TABLE
+
+        for (presentMode in presentTable) {
+            for (i in 0 until availablePresentModes.capacity()) {
+                if (availablePresentModes[i] == presentMode) {
+                    return presentMode
+                }
             }
         }
-        return VK_PRESENT_MODE_FIFO_KHR
+        return -1 // this should never hit
     }
 
     private fun chooseSwapExtent(capabilities: VkSurfaceCapabilitiesKHR, display: Display): VkExtent2D? {
@@ -120,6 +124,8 @@ class Swapchain(
 
     companion object {
         private const val UINT32_MAX = -0x1
+        private val VSYNC_PREFERRED_PRESENT_TABLE: Array<Int> = arrayOf(VK_PRESENT_MODE_MAILBOX_KHR, VK_PRESENT_MODE_FIFO_KHR, VK_PRESENT_MODE_FIFO_RELAXED_KHR, VK_PRESENT_MODE_IMMEDIATE_KHR)
+        private val NO_VSYNC_PREFERRED_PRESENT_TABLE: Array<Int> = arrayOf(VK_PRESENT_MODE_IMMEDIATE_KHR, VK_PRESENT_MODE_FIFO_RELAXED_KHR, VK_PRESENT_MODE_MAILBOX_KHR, VK_PRESENT_MODE_FIFO_KHR)
 
         fun querySwapchainSupport(
             device: VkPhysicalDevice,

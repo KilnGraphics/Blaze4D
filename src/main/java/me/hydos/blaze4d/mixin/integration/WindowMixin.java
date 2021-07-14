@@ -5,7 +5,6 @@ import me.hydos.blaze4d.AftermathHandler;
 import me.hydos.blaze4d.Blaze4D;
 import me.hydos.rosella.Rosella;
 import me.hydos.rosella.display.GlfwWindow;
-import me.hydos.rosella.scene.object.impl.SimpleObjectManager;
 import net.minecraft.client.WindowEventHandler;
 import net.minecraft.client.WindowSettings;
 import net.minecraft.client.util.Monitor;
@@ -123,10 +122,7 @@ public abstract class WindowMixin {
         this.framebufferHeight = this.height;
 
         this.updateWindowRegion();
-        GLFW.glfwSetFramebufferSizeCallback(this.handle, (window, width, height) -> {
-            Blaze4D.rosella.renderer.windowResizeCallback(); // TODO: move this
-            this.onFramebufferSizeChanged(window, width, height);
-        });
+        GLFW.glfwSetFramebufferSizeCallback(this.handle, this::onFramebufferSizeChanged);
         GLFW.glfwSetWindowPosCallback(this.handle, this::onWindowPosChanged);
         GLFW.glfwSetWindowSizeCallback(this.handle, this::onWindowSizeChanged);
         GLFW.glfwSetWindowFocusCallback(this.handle, this::onWindowFocusChanged);
@@ -140,6 +136,21 @@ public abstract class WindowMixin {
                 exception.printStackTrace();
             }
         }
+    }
+
+    @Inject(method = "onFramebufferSizeChanged", at = @At("HEAD"))
+    private void noticeRenderer(long window, int width, int height, CallbackInfo ci) {
+        Blaze4D.rosella.renderer.queueRecreateSwapchain();
+    }
+
+    @Inject(method = "setVsync", at = @At(value = "INVOKE", target = "Lorg/lwjgl/glfw/GLFW;glfwSwapInterval(I)V"), cancellable = true)
+    private void setVsync(boolean vsync, CallbackInfo ci) {
+        boolean previousVsync = Blaze4D.window.doVsync;
+        if (previousVsync != vsync) {
+            Blaze4D.window.doVsync = vsync;
+            Blaze4D.rosella.renderer.queueRecreateSwapchain(); // TODO: move this probably
+        }
+        ci.cancel();
     }
 
     @Inject(method = "setIcon", at = @At(value = "INVOKE", target = "Lorg/lwjgl/glfw/GLFW;glfwSetWindowIcon(JLorg/lwjgl/glfw/GLFWImage$Buffer;)V"), locals = LocalCapture.CAPTURE_FAILSOFT)
