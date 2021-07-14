@@ -3,8 +3,10 @@ package me.hydos.blaze4d.mixin.vertices;
 import com.mojang.datafixers.util.Pair;
 import me.hydos.blaze4d.api.GlobalRenderSystem;
 import me.hydos.blaze4d.api.shader.MinecraftUbo;
+import net.minecraft.client.MinecraftClient;
 import net.minecraft.client.gl.VertexBuffer;
 import net.minecraft.client.render.BufferBuilder;
+import net.minecraft.client.render.Camera;
 import net.minecraft.client.render.Shader;
 import net.minecraft.util.math.Vec3f;
 import org.joml.Matrix4f;
@@ -24,7 +26,7 @@ public class VertexBufferMixin {
 
     /**
      * @author Blaze4D
-     * @reason To render the world
+     * @reason To render
      */
     @Overwrite
     private void uploadInternal(BufferBuilder bufferBuilder) {

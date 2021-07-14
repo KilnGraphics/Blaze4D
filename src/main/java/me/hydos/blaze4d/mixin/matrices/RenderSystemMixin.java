@@ -34,18 +34,15 @@ public class RenderSystemMixin {
                 matrix4f.a23 / 2.0F,
                 matrix4f.a33
         );
-        ci.cancel();
     }
 
     @Inject(method = "_backupProjectionMatrix", at = @At("HEAD"), cancellable = true)
     private static void backupProjection(CallbackInfo ci) {
         savedProjection = GlobalRenderSystem.projectionMatrix;
-        ci.cancel();
     }
 
     @Inject(method = "_restoreProjectionMatrix", at = @At("HEAD"), cancellable = true)
     private static void restoreProjection(CallbackInfo ci) {
         GlobalRenderSystem.projectionMatrix = savedProjection;
-        ci.cancel();
     }
 }

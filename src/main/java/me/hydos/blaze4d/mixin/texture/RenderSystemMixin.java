@@ -12,7 +12,7 @@ import org.spongepowered.asm.mixin.injection.Inject;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfoReturnable;
 
-@Mixin(RenderSystem.class)
+@Mixin(value = RenderSystem.class, remap = false)
 public class RenderSystemMixin {
 
     @Inject(method = "setShaderTexture(ILnet/minecraft/util/Identifier;)V", remap = false, at = @At("HEAD"), cancellable = true)

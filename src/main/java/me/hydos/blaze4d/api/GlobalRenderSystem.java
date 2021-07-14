@@ -34,7 +34,10 @@ import org.lwjgl.system.MemoryUtil;
 import org.lwjgl.vulkan.VK10;
 
 import java.nio.ByteBuffer;
-import java.util.*;
+import java.util.Collections;
+import java.util.List;
+import java.util.Map;
+import java.util.Set;
 
 /**
  * Used to make bits of the code easier to manage.
@@ -116,8 +119,7 @@ public class GlobalRenderSystem {
      */
     public static void render() {
         Blaze4D.rosella.common.device.waitForIdle();
-
-        GlobalRenderSystem.renderConsumers(); //TODO: move this probably
+        GlobalRenderSystem.renderConsumers();
 
         ((SimpleObjectManager) Blaze4D.rosella.objectManager).renderObjects.clear();
         for (ConsumerRenderObject renderObject : currentFrameObjects) {
@@ -137,7 +139,7 @@ public class GlobalRenderSystem {
 
     public static Texture[] createTextureArray() {
         Texture[] textures = new Texture[maxTextures];
-        for(int i = 0; i < maxTextures; i++) {
+        for (int i = 0; i < maxTextures; i++) {
             int texId = boundTextureIds[i];
             textures[i] = texId == TextureManager.BLANK_TEXTURE_ID ? null : ((SimpleObjectManager) Blaze4D.rosella.objectManager).textureManager.getTexture(texId);
         }

@@ -2,6 +2,7 @@ package me.hydos.blaze4d.mixin.shader;
 
 import it.unimi.dsi.fastutil.objects.ObjectListIterator;
 import me.hydos.blaze4d.api.GlobalRenderSystem;
+import me.hydos.blaze4d.api.shader.MinecraftUbo;
 import net.minecraft.client.gl.GlUniform;
 import net.minecraft.client.gl.VertexBuffer;
 import net.minecraft.client.render.RenderLayer;
@@ -25,4 +26,14 @@ public class WorldRendererMixin {
     private void redirectChunkOffset(RenderLayer renderLayer, MatrixStack matrices, double x, double y, double z, Matrix4f matrix4f, CallbackInfo ci, boolean bl, ObjectListIterator<?> objectListIterator, VertexFormat vertexFormat, Shader shader, GlUniform glUniform, boolean bl2, WorldRenderer.ChunkInfo chunkInfo2, ChunkBuilder.BuiltChunk builtChunk, VertexBuffer vertexBuffer, BlockPos blockPos) {
         GlobalRenderSystem.chunkOffset.set((double) blockPos.getX() - x, (double) blockPos.getY() - y, (double) blockPos.getZ() - z);
     }
+
+    @Inject(method = "renderLayer", at = @At(value = "INVOKE", target = "Lnet/minecraft/client/gl/GlUniform;set(Lnet/minecraft/util/math/Matrix4f;)V", ordinal = 0), require = 0)
+    private void redirectModelViewMatrix(RenderLayer renderLayer, MatrixStack matrices, double d, double e, double f, Matrix4f modelViewMatrix, CallbackInfo ci) {
+        GlobalRenderSystem.modelViewMatrix.set(MinecraftUbo.toJoml(matrices.peek().getModel()));
+    }
+
+//    @Inject(method = "renderLayer", at = @At(value = "INVOKE", target = "Lnet/minecraft/client/gl/GlUniform;set(Lnet/minecraft/util/math/Matrix4f;)V", ordinal = 1), require = 0)
+//    private void redirectProjectionMatrix(RenderLayer renderLayer, MatrixStack matrices, double d, double e, double f, Matrix4f projectionMatrix, CallbackInfo ci) {
+//        GlobalRenderSystem.projectionMatrix.set(MinecraftUbo.toJoml(projectionMatrix));
+//    } //TODO: this fixes flat clouds somehow but the world gets flipped?
 }
