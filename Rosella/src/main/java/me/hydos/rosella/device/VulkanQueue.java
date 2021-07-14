@@ -32,10 +32,10 @@ public final class VulkanQueue {
     public int vkQueueSubmit(VkSubmitInfo submit, long fence) {
         int result;
         try {
-            lock.lock();
+            this.lock.lock();
             result = VK10.vkQueueSubmit(this.queue, submit, fence);
         } finally {
-            lock.unlock();
+            this.lock.unlock();
         }
         return result;
     }
@@ -43,10 +43,10 @@ public final class VulkanQueue {
     public int vkQueueSubmit(VkSubmitInfo.Buffer pSubmits, long fence) {
         int result;
         try {
-            lock.lock();
+            this.lock.lock();
             result = VK10.vkQueueSubmit(this.queue, pSubmits, fence);
         } finally {
-            lock.unlock();
+            this.lock.unlock();
         }
         return result;
     }
@@ -54,10 +54,10 @@ public final class VulkanQueue {
     public int vkQueueBindSparse(VkBindSparseInfo bindInfo, long fence) {
         int result;
         try {
-            lock.lock();
+            this.lock.lock();
             result = VK10.vkQueueBindSparse(this.queue, bindInfo, fence);
         } finally {
-            lock.unlock();
+            this.lock.unlock();
         }
         return result;
     }
@@ -65,10 +65,10 @@ public final class VulkanQueue {
     public int vkQueueBindSparse(VkBindSparseInfo.Buffer pBindInfo, long fence) {
         int result;
         try {
-            lock.lock();
+            this.lock.lock();
             result = VK10.vkQueueBindSparse(this.queue, pBindInfo, fence);
         } finally {
-            lock.unlock();
+            this.lock.unlock();
         }
         return result;
     }
@@ -77,10 +77,10 @@ public final class VulkanQueue {
     public int vkQueueWaitIdle() {
         int result;
         try {
-            lock.lock();
+            this.lock.lock();
             result = VK10.vkQueueWaitIdle(this.queue);
         } finally {
-            lock.unlock();
+            this.lock.unlock();
         }
         return result;
     }
@@ -88,10 +88,10 @@ public final class VulkanQueue {
     public int vkQueuePresentKHR(VkPresentInfoKHR presentInfo) {
         int result;
         try {
-            lock.lock();
+            this.lock.lock();
             result = KHRSwapchain.vkQueuePresentKHR(this.queue, presentInfo);
         } finally {
-            lock.unlock();
+            this.lock.unlock();
         }
         return result;
     }
