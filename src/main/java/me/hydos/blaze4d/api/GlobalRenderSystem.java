@@ -192,6 +192,7 @@ public class GlobalRenderSystem {
                         creationInfo.format(),
                         creationInfo.shader(),
                         creationInfo.textures(),
+                        creationInfo.stateInfo(),
                         creationInfo.projMatrix(),
                         creationInfo.viewMatrix(),
                         creationInfo.chunkOffset(),
@@ -218,7 +219,7 @@ public class GlobalRenderSystem {
             VertexFormat format = drawInfo.getVertexFormat();
 
             StoredBufferProvider storedBufferProvider = null;
-            ConsumerCreationInfo consumerCreationInfo = new ConsumerCreationInfo(drawInfo.getMode(), format, GlobalRenderSystem.createTextureArray(), GlobalRenderSystem.activeShader, projMatrix, viewMatrix, chunkOffset, shaderLightDirections0, shaderLightDirections1);
+            ConsumerCreationInfo consumerCreationInfo = new ConsumerCreationInfo(drawInfo.getMode(), format, GlobalRenderSystem.activeShader, GlobalRenderSystem.createTextureArray(), GlobalRenderSystem.currentStateInfo.snapshot(), projMatrix, viewMatrix, chunkOffset, shaderLightDirections0, shaderLightDirections1);
             int providersSize = GlobalRenderSystem.GLOBAL_BUFFER_PROVIDERS.size();
 
             if (providersSize > 0) {

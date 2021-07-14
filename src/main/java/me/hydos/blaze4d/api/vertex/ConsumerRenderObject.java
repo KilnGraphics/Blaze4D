@@ -9,6 +9,7 @@ import me.hydos.rosella.memory.Memory;
 import me.hydos.rosella.render.info.InstanceInfo;
 import me.hydos.rosella.render.info.RenderInfo;
 import me.hydos.rosella.render.material.Material;
+import me.hydos.rosella.render.material.state.StateInfo;
 import me.hydos.rosella.render.shader.ShaderProgram;
 import me.hydos.rosella.render.texture.Texture;
 import me.hydos.rosella.render.vertex.BufferVertexConsumer;
@@ -24,6 +25,7 @@ public class ConsumerRenderObject implements Renderable {
     private final VertexFormat format;
     private final Texture[] textures;
     private final ShaderProgram shader;
+    private final StateInfo stateInfo;
     public InstanceInfo instanceInfo;
 
     public ConsumerRenderObject(ObjectInfo info, Rosella rosella) {
@@ -32,6 +34,7 @@ public class ConsumerRenderObject implements Renderable {
         this.format = info.format();
         this.shader = info.shader();
         this.textures = info.textures();
+        this.stateInfo = info.stateInfo();
         Material material = getMaterial(drawMode);
         instanceInfo = new InstanceInfo(((MinecraftShaderProgram) info.shader().getRaw()).createMinecraftUbo(rosella.common.memory, material), material);
         ((MinecraftUbo) instanceInfo.ubo()).setUniforms(info.projMatrix(), info.viewMatrix(), info.chunkOffset(), info.shaderLightDirections0(), info.shaderLightDirections1());
@@ -43,19 +46,19 @@ public class ConsumerRenderObject implements Renderable {
         switch (drawMode) {
             case TRIANGLES, QUADS -> {
                 if (format != net.minecraft.client.render.VertexFormats.BLIT_SCREEN) {
-                    returnValue = Materials.TRIANGLES.build(shader, textures, renderInfo.bufferProvider.getFormat());
+                    returnValue = Materials.TRIANGLES.build(shader, textures, renderInfo.bufferProvider.getFormat(), stateInfo);
                 }
             }
 
             case TRIANGLE_STRIP, DEBUG_LINE_STRIP -> {
                 if (format == net.minecraft.client.render.VertexFormats.POSITION) {
-                    returnValue = Materials.TRIANGLE_STRIP.build(shader, textures, renderInfo.bufferProvider.getFormat());
+                    returnValue = Materials.TRIANGLE_STRIP.build(shader, textures, renderInfo.bufferProvider.getFormat(), stateInfo);
                 }
             }
 
-            case TRIANGLE_FAN -> returnValue = Materials.TRIANGLE_FAN.build(shader, textures, renderInfo.bufferProvider.getFormat());
+            case TRIANGLE_FAN -> returnValue = Materials.TRIANGLE_FAN.build(shader, textures, renderInfo.bufferProvider.getFormat(), stateInfo);
 
-            case LINES, DEBUG_LINES -> returnValue = Materials.LINES.build(shader, textures, renderInfo.bufferProvider.getFormat());
+            case LINES, DEBUG_LINES -> returnValue = Materials.LINES.build(shader, textures, renderInfo.bufferProvider.getFormat(), stateInfo);
 
             default -> throw new RuntimeException("Unsupported Draw Mode:  " + drawMode);
         }

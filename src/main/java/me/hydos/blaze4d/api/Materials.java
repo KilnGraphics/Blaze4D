@@ -41,8 +41,8 @@ public class Materials {
     }
 
     public static record MaterialBuilder(String originalPath, Topology topology) {
-        public Material build(ShaderProgram shader, Texture[] textures, VertexFormat format) {
-            return MATERIAL_CACHE.computeIfAbsent(new MaterialInfo(this, shader, textures, format, GlobalRenderSystem.currentStateInfo.snapshot()), info -> {
+        public Material build(ShaderProgram shader, Texture[] textures, VertexFormat format, StateInfo stateInfo) {
+            return MATERIAL_CACHE.computeIfAbsent(new MaterialInfo(this, shader, textures, format, stateInfo), info -> {
                 Blaze4dMaterial material = new Blaze4dMaterial(
                         shader,
                         topology,

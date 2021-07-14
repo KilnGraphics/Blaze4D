@@ -3,6 +3,7 @@ package me.hydos.blaze4d.mixin.vertices;
 import com.mojang.datafixers.util.Pair;
 import me.hydos.blaze4d.api.GlobalRenderSystem;
 import me.hydos.blaze4d.api.shader.MinecraftUbo;
+import me.hydos.blaze4d.api.util.ConversionUtils;
 import net.minecraft.client.MinecraftClient;
 import net.minecraft.client.gl.VertexBuffer;
 import net.minecraft.client.render.BufferBuilder;
@@ -30,6 +31,7 @@ public class VertexBufferMixin {
      */
     @Overwrite
     private void uploadInternal(BufferBuilder bufferBuilder) {
+        // TODO OPT: upload to rosella once but use a flag to make sure it's not cleared. it can then be referenced with an int to redraw.
         this.drawData = bufferBuilder.popData();
     }
 
@@ -39,7 +41,7 @@ public class VertexBufferMixin {
      */
     @Overwrite
     public void innerSetShader(net.minecraft.util.math.Matrix4f mcModelViewMatrix, net.minecraft.util.math.Matrix4f mcProjectionMatrix, Shader shader) {
-        Matrix4f projMatrix = new Matrix4f(GlobalRenderSystem.projectionMatrix);
+        Matrix4f projMatrix = ConversionUtils.mcToJomlProjectionMatrix(mcProjectionMatrix);
         Matrix4f modelViewMatrix = MinecraftUbo.toJoml(mcModelViewMatrix);
         Vector3f chunkOffset = new Vector3f(GlobalRenderSystem.chunkOffset);
         Vec3f shaderLightDirections0 = GlobalRenderSystem.shaderLightDirections0.copy();

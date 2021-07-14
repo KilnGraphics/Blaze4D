@@ -8,6 +8,7 @@ import net.minecraft.client.gl.Program;
 import net.minecraft.client.render.VertexFormat;
 import net.minecraft.client.render.VertexFormatElement;
 import net.minecraft.client.render.VertexFormats;
+import org.joml.Matrix4f;
 import org.lwjgl.opengl.GL11;
 import org.lwjgl.opengl.GL14;
 import org.lwjgl.opengl.GL30;
@@ -149,5 +150,26 @@ public abstract class ConversionUtils {
             case VERTEX -> ShaderType.VERTEX_SHADER;
             case FRAGMENT -> ShaderType.FRAGMENT_SHADER;
         };
+    }
+
+    public static Matrix4f mcToJomlProjectionMatrix(net.minecraft.util.math.Matrix4f mcMatrix) {
+        return new org.joml.Matrix4f(
+                mcMatrix.a00,
+                mcMatrix.a10,
+                mcMatrix.a20,
+                mcMatrix.a30,
+                mcMatrix.a01,
+                -mcMatrix.a11,
+                mcMatrix.a21,
+                mcMatrix.a31,
+                mcMatrix.a02,
+                mcMatrix.a12,
+                mcMatrix.a22 / 2.0F,
+                mcMatrix.a32,
+                mcMatrix.a03,
+                -mcMatrix.a13,
+                mcMatrix.a23 / 2.0F,
+                mcMatrix.a33
+        );
     }
 }
