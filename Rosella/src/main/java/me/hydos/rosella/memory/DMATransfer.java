@@ -1,13 +1,16 @@
 package me.hydos.rosella.memory;
 
 import it.unimi.dsi.fastutil.longs.Long2ObjectOpenHashMap;
+import it.unimi.dsi.fastutil.longs.LongArraySet;
 import it.unimi.dsi.fastutil.longs.LongOpenHashSet;
 import kotlin.NotImplementedError;
+import me.hydos.rosella.device.VulkanQueue;
 import me.hydos.rosella.memory.dma.BufferAcquireTask;
 import me.hydos.rosella.memory.dma.BufferReleaseTask;
 import me.hydos.rosella.memory.dma.DMARecorder;
 import me.hydos.rosella.memory.dma.Task;
 import org.jetbrains.annotations.Nullable;
+import org.lwjgl.vulkan.VkCommandBuffer;
 
 import java.nio.ByteBuffer;
 import java.util.Map;
@@ -25,7 +28,7 @@ public class DMATransfer {
         RELEASE_QUEUED,
     }
 
-    private final int transferQueueFamily = 0;
+    private final VulkanQueue transferQueue;
 
     private final Map<Long, ResourceState> ownedBuffers = new Long2ObjectOpenHashMap<>();
     private final Map<Long, ResourceState> ownedImages = new Long2ObjectOpenHashMap<>();
@@ -38,7 +41,8 @@ public class DMATransfer {
 
     private final AtomicBoolean shouldTerminate = new AtomicBoolean(false);
 
-    public DMATransfer() {
+    public DMATransfer(VulkanQueue transferQueue) {
+        this.transferQueue = transferQueue;
     }
 
     /**
@@ -48,7 +52,7 @@ public class DMATransfer {
      * @return The transfer queue family index
      */
     public int getTransferQueueFamily() {
-        return this.transferQueueFamily;
+        return this.transferQueue.getQueueFamily();
     }
 
     /**
@@ -61,35 +65,28 @@ public class DMATransfer {
      * @param waitSemaphores A list of semaphores to wait on before executing the acquire operation
      * @param completedCb A function that is called once the passed semaphores are safe to reuse
      */
-    public void acquireBuffer(long buffer, int srcQueue, @Nullable long[] waitSemaphores, @Nullable Runnable completedCb) {
+    public void acquireBuffer(long buffer, int srcQueue, @Nullable Set<Long> waitSemaphores, @Nullable Runnable completedCb) {
+        boolean runCompleted = false;
         try {
             lock.lock();
-            if(this.ownedBuffers.containsKey(buffer)) {
-                ResourceState currentState = this.ownedBuffers.get(buffer);
-                if(currentState != ResourceState.RELEASE_QUEUED) {
-                    throw new RuntimeException("Buffer is already owned by the DMA engine and no release operation is queued!");
-                }
-                if(waitSemaphores == null) {
-                    throw new RuntimeException("Buffer has release operation queued but no wait semaphores are provided. Synchronization is required here!");
-                }
-            }
+            validateAcquireBuffer(buffer);
 
-            if(srcQueue != this.transferQueueFamily || waitSemaphores != null) {
-                this.recordTask(new BufferAcquireTask(true, buffer, srcQueue, this.transferQueueFamily, waitSemaphores, completedCb));
+            if(srcQueue != this.transferQueue.getQueueFamily() || waitSemaphores != null) {
+                this.recordTask(new BufferAcquireTask(buffer, srcQueue, this.transferQueue.getQueueFamily(), waitSemaphores, completedCb));
                 this.ownedBuffers.put(buffer, ResourceState.ACQUIRE_QUEUED);
 
             } else {
-                // No barrier is required
+                // No acquire operation is required
                 this.ownedBuffers.put(buffer, ResourceState.ACQUIRED);
-
-                if(completedCb != null) {
-                    // TODO: make async
-                    completedCb.run();
-                }
+                runCompleted = completedCb != null;
             }
 
         } finally {
             lock.unlock();
+        }
+
+        if(runCompleted) {
+            completedCb.run();
         }
     }
 
@@ -103,7 +100,7 @@ public class DMATransfer {
      * @param waitSemaphores A list of semaphores to wait on before executing the acquire operation
      * @param completedCb A function that is called once the passed semaphores are safe to reuse
      */
-    public void acquireImage(long image, int srcQueue, @Nullable long[] waitSemaphores, @Nullable Runnable completedCb) {
+    public void acquireImage(long image, int srcQueue, @Nullable Set<Long> waitSemaphores, @Nullable Runnable completedCb) {
         throw new NotImplementedError("Big F");
     }
 
@@ -115,35 +112,28 @@ public class DMATransfer {
      * @param waitSemaphores A list of semaphores to wait on before using the buffer
      * @param completedCb A function that is called once the passed semaphores are safe to reuse
      */
-    public void acquireSharedBuffer(long buffer, @Nullable long[] waitSemaphores, @Nullable Runnable completedCb) {
+    public void acquireSharedBuffer(long buffer, @Nullable Set<Long> waitSemaphores, @Nullable Runnable completedCb) {
+        boolean runCompleted = false;
         try {
             lock.lock();
-            if(this.ownedBuffers.containsKey(buffer)) {
-                ResourceState currentState = this.ownedBuffers.get(buffer);
-                if(currentState != ResourceState.RELEASE_QUEUED) {
-                    throw new RuntimeException("Buffer is already owned by the DMA engine and no release operation is queued!");
-                }
-                if(waitSemaphores == null) {
-                    throw new RuntimeException("Buffer has release operation queued but no wait semaphores are provided. Synchronization is required here!");
-                }
-            }
+            validateAcquireBuffer(buffer);
 
             if(waitSemaphores != null) {
-                this.recordTask(new BufferAcquireTask(true, buffer, 0, 0, waitSemaphores, completedCb));
+                this.recordTask(new BufferAcquireTask(buffer, 0, 0, waitSemaphores, completedCb));
                 this.ownedBuffers.put(buffer, ResourceState.ACQUIRE_QUEUED);
 
             } else {
-                // No barrier task is required
+                // No acquire operation is required
                 this.ownedBuffers.put(buffer, ResourceState.ACQUIRED);
-
-                if(completedCb != null) {
-                    // TODO: make async
-                    completedCb.run();
-                }
+                runCompleted = completedCb != null;
             }
 
         } finally {
             lock.unlock();
+        }
+
+        if(runCompleted) {
+            completedCb.run();
         }
     }
 
@@ -155,7 +145,7 @@ public class DMATransfer {
      * @param waitSemaphores A list of semaphores to wait on before using the image
      * @param completedCb A function that is called once the passed semaphores are safe to reuse
      */
-    public void acquireSharedImage(long image, @Nullable long[] waitSemaphores, @Nullable Runnable completedCb) {
+    public void acquireSharedImage(long image, @Nullable Set<Long> waitSemaphores, @Nullable Runnable completedCb) {
         throw new NotImplementedError("Big F");
     }
 
@@ -169,29 +159,28 @@ public class DMATransfer {
      * @param signalSemaphores A list of semaphores to signal when the operation is complete
      * @param completedCb A function that is called once the release operation has completed
      */
-    public void releaseBuffer(long buffer, int dstQueue, @Nullable long[] signalSemaphores, @Nullable Runnable completedCb) {
+    public void releaseBuffer(long buffer, int dstQueue, @Nullable Set<Long> signalSemaphores, @Nullable Runnable completedCb) {
+        boolean runCompleted = false;
         try {
             lock.lock();
-            if(this.ownedBuffers.getOrDefault(buffer, ResourceState.RELEASE_QUEUED) == ResourceState.RELEASE_QUEUED) {
-                throw new RuntimeException("Buffer already has a release operation queued or buffer is not owned by the DMA engine!");
-            }
+            validateReleaseBuffer(buffer);
 
-            if(dstQueue != this.transferQueueFamily || signalSemaphores != null) {
-                this.recordTask(new BufferReleaseTask(true, buffer, this.transferQueueFamily, dstQueue, signalSemaphores, completedCb));
+            if(dstQueue != this.transferQueue.getQueueFamily() || signalSemaphores != null) {
+                this.recordTask(new BufferReleaseTask(buffer, this.transferQueue.getQueueFamily(), dstQueue, signalSemaphores, completedCb));
                 this.ownedBuffers.put(buffer, ResourceState.RELEASE_QUEUED);
 
             } else {
-                // No barrier is required
+                // No release operation is required
                 this.ownedBuffers.remove(buffer);
-
-                if(completedCb != null) {
-                    // TODO: make async
-                    completedCb.run();
-                }
+                runCompleted = completedCb != null;
             }
 
         } finally {
             lock.unlock();
+        }
+
+        if(runCompleted) {
+            completedCb.run();
         }
     }
 
@@ -205,7 +194,7 @@ public class DMATransfer {
      * @param signalSemaphores A list of semaphores to signal when the operation is complete
      * @param completedCb A function that is called once the release operation has completed
      */
-    public void releaseImage(long image, int dstQueue, @Nullable long[] signalSemaphores, @Nullable Runnable completedCb) {
+    public void releaseImage(long image, int dstQueue, @Nullable Set<Long> signalSemaphores, @Nullable Runnable completedCb) {
         throw new NotImplementedError("Big F");
     }
 
@@ -217,29 +206,27 @@ public class DMATransfer {
      * @param signalSemaphores A list of semaphores to signal when the buffer is ready to use
      * @param completedCb A function that is called once the release operation has completed
      */
-    public void releaseSharedBuffer(long buffer, @Nullable long[] signalSemaphores, @Nullable Runnable completedCb) {
+    public void releaseSharedBuffer(long buffer, @Nullable Set<Long> signalSemaphores, @Nullable Runnable completedCb) {
+        boolean runCompleted = false;
         try {
             lock.lock();
-            if(this.ownedBuffers.getOrDefault(buffer, ResourceState.RELEASE_QUEUED) == ResourceState.RELEASE_QUEUED) {
-                throw new RuntimeException("Buffer already has a release operation queued or buffer is not owned by the DMA engine!");
-            }
 
             if(signalSemaphores != null) {
-                this.recordTask(new BufferReleaseTask(true, buffer, 0, 0, signalSemaphores, completedCb));
+                this.recordTask(new BufferReleaseTask(buffer, 0, 0, signalSemaphores, completedCb));
                 this.ownedBuffers.put(buffer, ResourceState.RELEASE_QUEUED);
 
             } else {
-                // No barrier is required
+                // No release operation is required
                 this.ownedBuffers.remove(buffer);
-
-                if(completedCb != null) {
-                    // TODO: make async
-                    completedCb.run();
-                }
+                runCompleted = completedCb != null;
             }
 
         } finally {
             lock.unlock();
+        }
+
+        if(runCompleted) {
+            completedCb.run();
         }
     }
 
@@ -251,7 +238,7 @@ public class DMATransfer {
      * @param signalSemaphores A list of semaphores to signal when the image is ready to use
      * @param completedCb A function that is called once the release operation has completed
      */
-    public void releaseSharedImage(long image, @Nullable long[] signalSemaphores, @Nullable Runnable completedCb) {
+    public void releaseSharedImage(long image, @Nullable Set<Long> signalSemaphores, @Nullable Runnable completedCb) {
         throw new NotImplementedError("Big F");
     }
 
@@ -307,6 +294,21 @@ public class DMATransfer {
      */
     public void transferBuffer(long srcBuffer, long srcOffset, long dstBuffer, long dstOffset, long size) {
         throw new NotImplementedError("Big F");
+    }
+
+    private void validateAcquireBuffer(long buffer) {
+        if(this.ownedBuffers.containsKey(buffer)) {
+            ResourceState currentState = this.ownedBuffers.get(buffer);
+            if(currentState != ResourceState.RELEASE_QUEUED) {
+                throw new RuntimeException("Buffer is already owned by the DMA engine and no release operation is queued!");
+            }
+        }
+    }
+
+    private void validateReleaseBuffer(long buffer) {
+        if(this.ownedBuffers.getOrDefault(buffer, ResourceState.RELEASE_QUEUED) == ResourceState.RELEASE_QUEUED) {
+            throw new RuntimeException("Buffer already has a release operation queued or is not owned by the DMA engine!");
+        }
     }
 
     private void recordTask(Task task) {

@@ -1,27 +1,43 @@
 package me.hydos.rosella.memory.dma;
 
+import it.unimi.dsi.fastutil.longs.LongArraySet;
 import org.jetbrains.annotations.Nullable;
 import org.lwjgl.vulkan.VK10;
 import org.lwjgl.vulkan.VkBufferMemoryBarrier;
 
+import java.util.Set;
+
 public class BufferReleaseTask extends Task {
 
     private final Runnable completeCb;
-    private final long[] signalSemaphores;
+    private final Set<Long> signalSemaphores;
 
     private final long buffer;
     private final int srcQueue;
     private final int dstQueue;
 
-    public BufferReleaseTask(boolean initialReady, long buffer, int srcQueue, int dstQueue, @Nullable long[] signalSemaphores, @Nullable Runnable completedCb) {
-        super(initialReady);
+    public BufferReleaseTask(long buffer, int srcQueue, int dstQueue, @Nullable Set<Long> signalSemaphores, @Nullable Runnable completedCb) {
+        super();
 
         this.completeCb = completedCb;
-        this.signalSemaphores = signalSemaphores;
+        this.signalSemaphores = new LongArraySet();
+        if(signalSemaphores != null) {
+            this.signalSemaphores.addAll(signalSemaphores);
+        }
 
         this.buffer = buffer;
         this.srcQueue = srcQueue;
         this.dstQueue = dstQueue;
+    }
+
+    @Override
+    public boolean canRecord(DMARecorder recorder) {
+        return false;
+    }
+
+    @Override
+    public void record(DMARecorder recorder) {
+
     }
 
     @Override
@@ -43,10 +59,6 @@ public class BufferReleaseTask extends Task {
 
     public boolean isBarrierRequired() {
         return this.srcQueue != this.dstQueue;
-    }
-
-    public long[] getSignalSemaphores() {
-        return signalSemaphores;
     }
 
     public void fillMemoryBarrier(VkBufferMemoryBarrier barrier) {
