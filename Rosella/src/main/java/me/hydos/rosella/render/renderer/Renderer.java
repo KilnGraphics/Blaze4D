@@ -178,6 +178,7 @@ public class Renderer {
             vkResult = queues.presentQueue.vkQueuePresentKHR(presentInfo);
 
             if (vkResult == KHRSwapchain.VK_ERROR_OUT_OF_DATE_KHR || vkResult == KHRSwapchain.VK_SUBOPTIMAL_KHR || recreateSwapChain) {
+                // TODO OPT: add a lazier method for iconification, use the glfw callback for it
                 recreateSwapChain = false;
                 requireHardRebuild = true;
                 recreateSwapChain(rosella.common.display, rosella);
