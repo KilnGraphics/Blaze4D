@@ -1,7 +1,7 @@
 import org.gradle.internal.os.OperatingSystem
 
 plugins {
-    id("fabric-loom") version "0.9-SNAPSHOT"
+    id("fabric-loom") version "0.9.25"
     id("io.github.juuxel.loom-quiltflower") version "1.1.1"
     `maven-publish`
 }
@@ -51,7 +51,7 @@ dependencies {
     modImplementation("net.fabricmc", "fabric-loader", properties["loader_version"].toString())
 
     include(implementation(project(":Rosella"))!!)
-    implementation(project(":Aftermath"))
+    include(implementation("com.oroarmor", "aftermath", "1.0.0-beta"))
 
     include("org.joml", "joml", "1.10.1")
     include("org.lwjgl", "lwjgl-shaderc", lwjglVersion)
