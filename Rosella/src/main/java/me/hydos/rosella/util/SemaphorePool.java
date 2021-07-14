@@ -7,8 +7,7 @@ import org.lwjgl.vulkan.VkDevice;
 import org.lwjgl.vulkan.VkSemaphoreCreateInfo;
 
 import java.nio.LongBuffer;
-import java.util.Set;
-import java.util.Stack;
+import java.util.*;
 import java.util.concurrent.locks.Lock;
 import java.util.concurrent.locks.ReentrantLock;
 
@@ -19,7 +18,7 @@ public class SemaphorePool {
     private final VkDevice device;
 
     private final Set<Long> ownedSemaphores = new LongOpenHashSet();
-    private final Stack<Long> availableSemaphores = new Stack<>();
+    private final Deque<Long> availableSemaphores = new ArrayDeque<>();
 
     private final Lock lock = new ReentrantLock();
 
@@ -31,10 +30,10 @@ public class SemaphorePool {
         long result;
         try {
             lock();
-            if(availableSemaphores.isEmpty()) {
+            if(this.availableSemaphores.isEmpty()) {
                 allocateSemaphores(ALLOCATION_SIZE);
             }
-            result = availableSemaphores.pop();
+            result = this.availableSemaphores.removeFirst();
         } finally {
            unlock();
         }
@@ -44,10 +43,10 @@ public class SemaphorePool {
     public void returnSemaphore(long semaphore) {
         try {
             lock();
-            if(!ownedSemaphores.contains(semaphore)) {
+            if(!this.ownedSemaphores.contains(semaphore)) {
                 throw new RuntimeException("Tried to return semaphore to semaphore pool that is not owned by the pool");
             }
-            availableSemaphores.push(semaphore);
+            this.availableSemaphores.addFirst(semaphore);
         } finally {
             unlock();
         }
@@ -60,7 +59,7 @@ public class SemaphorePool {
                 throw new RuntimeException("Tried to destroy semaphore pool where not all semaphores are returned");
             }
 
-            for(long semaphore : ownedSemaphores) {
+            for(long semaphore : this.ownedSemaphores) {
                 VK10.vkDestroySemaphore(this.device, semaphore, null);
             }
             this.ownedSemaphores.clear();
@@ -77,13 +76,13 @@ public class SemaphorePool {
 
             LongBuffer pSemaphore = stack.longs(0);
             for(int i = 0; i < count; i++) {
-                int result = VK10.vkCreateSemaphore(device, info, null, pSemaphore);
+                int result = VK10.vkCreateSemaphore(this.device, info, null, pSemaphore);
                 if(result != VK10.VK_SUCCESS) {
                     throw new RuntimeException("Failed to allocate semaphores");
                 }
 
                 this.ownedSemaphores.add(pSemaphore.get());
-                this.availableSemaphores.push(pSemaphore.get());
+                this.availableSemaphores.addFirst(pSemaphore.get());
             }
         }
     }
