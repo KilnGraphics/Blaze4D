@@ -10,6 +10,7 @@ import me.hydos.rosella.memory.buffer.GlobalBufferManager;
 import me.hydos.rosella.render.renderer.Renderer;
 import me.hydos.rosella.scene.object.ObjectManager;
 import me.hydos.rosella.scene.object.impl.SimpleObjectManager;
+import me.hydos.rosella.util.SemaphorePool;
 import me.hydos.rosella.vkobjects.VkCommon;
 import me.hydos.rosella.vkobjects.VulkanInstance;
 import org.apache.logging.log4j.Level;
@@ -61,6 +62,7 @@ public class Rosella {
         common.device = new VulkanDevice(common, requestedValidationLayers);
         common.queues = new VulkanQueues(common);
         common.memory = new ThreadPoolMemory(common);
+        common.semaphorePool = new SemaphorePool(common.device.rawDevice);
 
         // Setup the object manager
         this.objectManager = new SimpleObjectManager(this, common);
@@ -83,6 +85,7 @@ public class Rosella {
 
         // Free the rest of it
         common.memory.free();
+        common.semaphorePool.free();
 
         vkDestroyCommandPool(common.device.rawDevice, renderer.commandPool, null);
         vkDestroyDevice(common.device.rawDevice, null);
