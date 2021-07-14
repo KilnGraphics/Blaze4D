@@ -32,7 +32,7 @@ public class GlDebugInfoMixin {
      */
     @Overwrite
     public static String getVersion() {
-        return "Vulkan Api Version: " + Blaze4D.rosella.common.device.properties.apiVersion;
+        return "Vulkan API Version: " + Blaze4D.rosella.common.device.properties.apiVersion;
     }
 
     private static String tryParseVendorId(int vendorId) {
