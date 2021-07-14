@@ -129,8 +129,8 @@ fun endSingleTimeCommands(commandBuffer: VkCommandBuffer, device: VulkanDevice, 
         val submitInfo = VkSubmitInfo.callocStack(1, stack)
             .sType(VK_STRUCTURE_TYPE_SUBMIT_INFO)
             .pCommandBuffers(stack.pointers(commandBuffer))
-        vkQueueSubmit(renderer.queues.graphicsQueue, submitInfo, VK_NULL_HANDLE)
-        vkQueueWaitIdle(renderer.queues.graphicsQueue)
+        renderer.queues.graphicsQueue.vkQueueSubmit(submitInfo, VK_NULL_HANDLE)
+        renderer.queues.graphicsQueue.vkQueueWaitIdle()
         vkFreeCommandBuffers(device.rawDevice, renderer.commandPool, commandBuffer)
     }
 }
