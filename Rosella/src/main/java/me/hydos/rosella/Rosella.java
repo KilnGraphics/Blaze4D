@@ -90,11 +90,12 @@ public class Rosella {
         vkDestroyCommandPool(common.device.rawDevice, renderer.commandPool, null);
         vkDestroyDevice(common.device.rawDevice, null);
         vkDestroySurfaceKHR(common.vkInstance.rawInstance, common.surface, null);
-        vkDestroyInstance(common.vkInstance.rawInstance, null);
-
+        
         common.vkInstance.messenger.ifPresent(messenger -> { // FIXME
             vkDestroyDebugUtilsMessengerEXT(common.vkInstance.rawInstance, messenger, null);
         });
+
+        vkDestroyInstance(common.vkInstance.rawInstance, null);
 
         common.display.exit();
     }
