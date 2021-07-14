@@ -11,7 +11,9 @@ import net.minecraft.client.util.Monitor;
 import net.minecraft.client.util.MonitorTracker;
 import net.minecraft.client.util.VideoMode;
 import org.apache.logging.log4j.Logger;
+import org.lwjgl.glfw.Callbacks;
 import org.lwjgl.glfw.GLFW;
+import org.lwjgl.glfw.GLFWErrorCallback;
 import org.lwjgl.glfw.GLFWImage;
 import org.lwjgl.system.MemoryStack;
 import org.lwjgl.system.MemoryUtil;
@@ -89,6 +91,8 @@ public abstract class WindowMixin {
 
     @Shadow protected abstract void onFramebufferSizeChanged(long window, int width, int height);
 
+    @Shadow @Final private GLFWErrorCallback errorCallback;
+
     @Inject(method = "throwGlError", at = @At("HEAD"), cancellable = true)
     private static void silenceGl(int error, long description, CallbackInfo ci) {
         String message = "suppressed GLFW/OpenGL error " + error + ": " + MemoryUtil.memUTF8(description);
@@ -158,12 +162,16 @@ public abstract class WindowMixin {
         GLFW.glfwSetWindowIcon(Blaze4D.window.pWindow, buffer);
     }
 
-    @Inject(method = "close", at = @At("HEAD"))
+    @Inject(method = "close", at = @At("HEAD"), cancellable = true)
     private void freeRosella(CallbackInfo ci) {
+        Callbacks.glfwFreeCallbacks(this.handle);
+        this.errorCallback.close();
+
         if (Blaze4D.rosella != null) {
             Blaze4D.rosella.free();
             Blaze4D.rosella = null;
         }
         Aftermath.disableGPUCrashDumps();
+        ci.cancel();
     }
 }
