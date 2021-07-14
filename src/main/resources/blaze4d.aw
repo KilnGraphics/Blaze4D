@@ -26,3 +26,6 @@ accessible  field   net/minecraft/util/math/Matrix4f   a30   F
 accessible  field   net/minecraft/util/math/Matrix4f   a31   F
 accessible  field   net/minecraft/util/math/Matrix4f   a32   F
 accessible  field   net/minecraft/util/math/Matrix4f   a33   F
+
+# Access to ChunkInfo for world rendering
+accessible class net/minecraft/client/render/WorldRenderer$ChunkInfo

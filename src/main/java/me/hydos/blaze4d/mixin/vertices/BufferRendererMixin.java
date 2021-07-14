@@ -22,12 +22,12 @@ public class BufferRendererMixin {
     @Overwrite
     public static void draw(BufferBuilder bufferBuilder) {
         Matrix4f projMatrix = new Matrix4f(GlobalRenderSystem.projectionMatrix);
-        Matrix4f viewMatrix = new Matrix4f(GlobalRenderSystem.modelViewMatrix);
+        Matrix4f modelViewMatrix = new Matrix4f(GlobalRenderSystem.modelViewMatrix);
         Vector3f chunkOffset = new Vector3f(GlobalRenderSystem.chunkOffset);
         Vec3f shaderLightDirections0 = GlobalRenderSystem.shaderLightDirections0.copy();
         Vec3f shaderLightDirections1 = GlobalRenderSystem.shaderLightDirections1.copy();
 
-        GlobalRenderSystem.drawVertices(projMatrix, viewMatrix, chunkOffset, shaderLightDirections0, shaderLightDirections1, bufferBuilder.popData());
+        GlobalRenderSystem.drawVertices(projMatrix, modelViewMatrix, chunkOffset, shaderLightDirections0, shaderLightDirections1, bufferBuilder.popData());
     }
 
     /**
