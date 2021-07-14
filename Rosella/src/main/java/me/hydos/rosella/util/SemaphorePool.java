@@ -53,7 +53,7 @@ public class SemaphorePool {
         }
     }
 
-    public void destroy() {
+    public void free() {
         try{
             lock();
             if(this.ownedSemaphores.size() != this.availableSemaphores.size()) {
