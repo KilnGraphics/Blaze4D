@@ -52,9 +52,12 @@ public class Renderer {
 
     // Should the swap chain be recreated next render
     private boolean recreateSwapChain;
+    private boolean requireHardRebuild;
 
     // The clear color
-    private Color clearColor = new Color(50, 50, 50, 0);
+    private Color clearColor = new Color(50, 50, 50, 0); // TODO: move this somewhere else, maybe in StateInfo?
+    private float clearDepth = 1.0f;
+    private int clearStencil = 0;
 
     private List<Frame> inFlightFrames = new ObjectArrayList<>();
     private Map<Integer, Frame> imagesInFlight = new Int2ObjectOpenHashMap<>();
@@ -81,15 +84,16 @@ public class Renderer {
         this.swapchain = new Swapchain(display, common.device.rawDevice, common.device.physicalDevice, common.surface);
         this.renderPass = new RenderPass(common.device, swapchain, this);
         VkKt.createImgViews(swapchain, common.device);
-        for (Material material : objectManager.materials) {
-            material.pipeline = objectManager.pipelineManager.getPipeline(material, this);
-        }
         depthBuffer.createDepthResources(common.device, swapchain, this);
         createFrameBuffers();
 
         // Engine may still be initialising so we do a null check just in case
         if (objectManager.pipelineManager != null) {
             objectManager.pipelineManager.invalidatePipelines(common);
+        }
+
+        for (Material material : objectManager.materials) {
+            material.pipeline = objectManager.pipelineManager.getPipeline(material, this);
         }
 
         rebuildCommandBuffers(renderPass, objectManager);
@@ -127,7 +131,9 @@ public class Renderer {
                     pImageIndex
             );
 
-            if (vkResult == KHRSwapchain.VK_ERROR_OUT_OF_DATE_KHR) {
+            if (vkResult == KHRSwapchain.VK_ERROR_OUT_OF_DATE_KHR || recreateSwapChain) {
+                recreateSwapChain = false;
+                requireHardRebuild = true;
                 recreateSwapChain(rosella.common.display, rosella);
                 return;
             }
@@ -171,8 +177,8 @@ public class Renderer {
 
             if (vkResult == KHRSwapchain.VK_ERROR_OUT_OF_DATE_KHR || vkResult == KHRSwapchain.VK_SUBOPTIMAL_KHR || recreateSwapChain) {
                 recreateSwapChain = false;
+                requireHardRebuild = true;
                 recreateSwapChain(rosella.common.display, rosella);
-                ((SimpleObjectManager) rosella.objectManager).pipelineManager.invalidatePipelines(common);
             } else if (vkResult != VK_SUCCESS) {
                 throw new RuntimeException("Failed to present swap chain image");
             }
@@ -196,6 +202,7 @@ public class Renderer {
     public void freeSwapChain() {
         for (RawShaderProgram shader : ((SimpleObjectManager) rosella.objectManager).shaderManager.getCachedShaders().keySet()) {
             vkDestroyDescriptorPool(rosella.common.device.rawDevice, shader.getDescriptorPool(), null);
+            shader.setDescriptorPool(0);
         }
 
         clearCommandBuffers(rosella.common.device);
@@ -269,7 +276,7 @@ public class Renderer {
         }
     }
 
-    public void windowResizeCallback(int width, int height) {
+    public void windowResizeCallback() {
         this.recreateSwapChain = true;
     }
 
@@ -298,73 +305,80 @@ public class Renderer {
      * Create the Command Buffers
      */
     public void rebuildCommandBuffers(RenderPass renderPass, SimpleObjectManager simpleObjectManager) {
-        simpleObjectManager.rebuildCmdBuffers(renderPass, null, null); //TODO: move it into here
+        if (!recreateSwapChain) {
+            simpleObjectManager.rebuildCmdBuffers(renderPass, null, null); //TODO: move it into here
 
-        for (List<InstanceInfo> instances : simpleObjectManager.renderObjects.values()) {
-            for (InstanceInfo instance : instances) {
-                instance.rebuild(rosella);
+            for (List<InstanceInfo> instances : simpleObjectManager.renderObjects.values()) {
+                for (InstanceInfo instance : instances) {
+                    if(requireHardRebuild) {
+                        instance.hardRebuild(rosella);
+                    } else {
+                        instance.rebuild(rosella);
+                    }
+                }
             }
-        }
+            requireHardRebuild = false;
 
-        try (MemoryStack stack = MemoryStack.stackPush()) {
-            int commandBuffersCount = swapchain.getFrameBuffers().size();
+            try (MemoryStack stack = MemoryStack.stackPush()) {
+                int commandBuffersCount = swapchain.getFrameBuffers().size();
 
-            commandBuffers = new ObjectArrayList<>(commandBuffersCount);
+                commandBuffers = new ObjectArrayList<>(commandBuffersCount);
 
-            PointerBuffer pCommandBuffers = VkKt.allocateCmdBuffers(
-                    stack,
-                    common.device,
-                    commandPool,
-                    commandBuffersCount,
-                    VK_COMMAND_BUFFER_LEVEL_PRIMARY
-            );
-
-            for (int i = 0; i < commandBuffersCount; i++) {
-                commandBuffers.add(
-                        new VkCommandBuffer(
-                                pCommandBuffers.get(i),
-                                common.device.rawDevice
-                        )
+                PointerBuffer pCommandBuffers = VkKt.allocateCmdBuffers(
+                        stack,
+                        common.device,
+                        commandPool,
+                        commandBuffersCount,
+                        VK_COMMAND_BUFFER_LEVEL_PRIMARY
                 );
-            }
 
-            VkCommandBufferBeginInfo beginInfo = VkKt.createBeginInfo(stack);
-            VkRenderPassBeginInfo renderPassInfo = VkKt.createRenderPassInfo(stack, renderPass);
-            VkRect2D renderArea = VkKt.createRenderArea(stack, 0, 0, swapchain);
-            VkClearValue.Buffer clearValues = VkKt.createClearValues(stack, clearColor.rAsFloat(), clearColor.gAsFloat(), clearColor.bAsFloat(), 1.0f, 0);
+                for (int i = 0; i < commandBuffersCount; i++) {
+                    commandBuffers.add(
+                            new VkCommandBuffer(
+                                    pCommandBuffers.get(i),
+                                    common.device.rawDevice
+                            )
+                    );
+                }
 
-            renderPassInfo.renderArea(renderArea)
-                    .pClearValues(clearValues);
+                VkCommandBufferBeginInfo beginInfo = VkKt.createBeginInfo(stack);
+                VkRenderPassBeginInfo renderPassInfo = VkKt.createRenderPassInfo(stack, renderPass);
+                VkRect2D renderArea = VkKt.createRenderArea(stack, 0, 0, swapchain);
+                VkClearValue.Buffer clearValues = VkKt.createClearValues(stack, clearColor.rAsFloat(), clearColor.gAsFloat(), clearColor.bAsFloat(), clearDepth, clearStencil);
 
-            if (rosella.bufferManager != null && !simpleObjectManager.renderObjects.isEmpty()) {
-                rosella.bufferManager.nextFrame(simpleObjectManager.renderObjects.keySet());
-            }
-
-            for (int i = 0; i < commandBuffersCount; i++) {
-                VkCommandBuffer commandBuffer = commandBuffers.get(i);
-                ok(vkBeginCommandBuffer(commandBuffer, beginInfo));
-                renderPassInfo.framebuffer(swapchain.getFrameBuffers().get(i));
-
-                vkCmdBeginRenderPass(commandBuffer, renderPassInfo, VK_SUBPASS_CONTENTS_INLINE);
+                renderPassInfo.renderArea(renderArea)
+                        .pClearValues(clearValues);
 
                 if (rosella.bufferManager != null && !simpleObjectManager.renderObjects.isEmpty()) {
-                    bindBigBuffers(rosella.bufferManager, stack, commandBuffer);
-                    for (RenderInfo renderInfo : simpleObjectManager.renderObjects.keySet()) {
-                        for (InstanceInfo instance : simpleObjectManager.renderObjects.get(renderInfo)) {
-                            bindInstanceInfo(instance, stack, commandBuffer, i); // TODO: check if the instance info from the previous one is the same
-                            vkCmdDrawIndexed(
-                                    commandBuffer,
-                                    renderInfo.getIndicesSize(),
-                                    1,
-                                    rosella.bufferManager.indicesOffsetMap.getInt(renderInfo),
-                                    rosella.bufferManager.vertexOffsetMap.getInt(renderInfo),
-                                    0
-                            );
-                        }
-                    }
+                    rosella.bufferManager.nextFrame(simpleObjectManager.renderObjects.keySet());
+                }
 
-                    vkCmdEndRenderPass(commandBuffer);
-                    ok(vkEndCommandBuffer(commandBuffer));
+                for (int i = 0; i < commandBuffersCount; i++) {
+                    VkCommandBuffer commandBuffer = commandBuffers.get(i);
+                    ok(vkBeginCommandBuffer(commandBuffer, beginInfo));
+                    renderPassInfo.framebuffer(swapchain.getFrameBuffers().get(i));
+
+                    vkCmdBeginRenderPass(commandBuffer, renderPassInfo, VK_SUBPASS_CONTENTS_INLINE);
+
+                    if (rosella.bufferManager != null && !simpleObjectManager.renderObjects.isEmpty()) {
+                        bindBigBuffers(rosella.bufferManager, stack, commandBuffer);
+                        for (RenderInfo renderInfo : simpleObjectManager.renderObjects.keySet()) {
+                            for (InstanceInfo instance : simpleObjectManager.renderObjects.get(renderInfo)) {
+                                bindInstanceInfo(instance, stack, commandBuffer, i); // TODO: check if the instance info from the previous one is the same
+                                vkCmdDrawIndexed(
+                                        commandBuffer,
+                                        renderInfo.getIndicesSize(),
+                                        1,
+                                        rosella.bufferManager.indicesOffsetMap.getInt(renderInfo),
+                                        rosella.bufferManager.vertexOffsetMap.getInt(renderInfo),
+                                        0
+                                );
+                            }
+                        }
+
+                        vkCmdEndRenderPass(commandBuffer);
+                        ok(vkEndCommandBuffer(commandBuffer));
+                    }
                 }
             }
         }
@@ -407,9 +421,15 @@ public class Renderer {
      * @param color the colour you want the clear colour to change to
      */
     public void lazilyClearColor(Color color) {
-        if (clearColor != color) {
-            clearColor = color;
-        }
+        clearColor = color;
+    }
+
+    public void lazilyClearDepth(float depth) {
+        clearDepth = depth;
+    }
+
+    public void lazilyClearStencil(int stencil) {
+        clearStencil = stencil;
     }
 
     public void free() {

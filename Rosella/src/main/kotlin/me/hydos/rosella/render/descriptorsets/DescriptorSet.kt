@@ -20,6 +20,11 @@ class DescriptorSet(var descriptorPool: Long? = null) {
         descriptorPool = null
     }
 
+    fun clear() {
+        descriptorSets.clear()
+        descriptorPool = null
+    }
+
     fun add(descriptorSet: Long) {
         descriptorSets.add(descriptorSet)
     }

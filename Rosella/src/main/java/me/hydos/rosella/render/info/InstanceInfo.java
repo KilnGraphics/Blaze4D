@@ -38,7 +38,7 @@ public record InstanceInfo(Ubo ubo,
      * @param rosella the Rosella
      */
     public void hardRebuild(@NotNull Rosella rosella) {
-        material.getShader().getDescriptorManager().freeDescriptorSet(ubo.getDescriptors());
+        material.getShader().getDescriptorManager().clearDescriptorSet(ubo.getDescriptors());
         ubo.free(rosella.common.device, rosella.common.memory);
 
         if (ubo.getUniformBuffers().size() == 0) {

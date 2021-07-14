@@ -52,4 +52,9 @@ public class DescriptorManager {
         set.free(device);
         activeDescriptorCount--;
     }
+
+    public void clearDescriptorSet(DescriptorSet set) {
+        set.clear();
+        activeDescriptorCount--;
+    }
 }

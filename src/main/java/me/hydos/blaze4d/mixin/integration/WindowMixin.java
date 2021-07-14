@@ -5,6 +5,7 @@ import me.hydos.blaze4d.AftermathHandler;
 import me.hydos.blaze4d.Blaze4D;
 import me.hydos.rosella.Rosella;
 import me.hydos.rosella.display.GlfwWindow;
+import me.hydos.rosella.scene.object.impl.SimpleObjectManager;
 import net.minecraft.client.WindowEventHandler;
 import net.minecraft.client.WindowSettings;
 import net.minecraft.client.util.Monitor;
@@ -85,6 +86,10 @@ public abstract class WindowMixin {
     @Shadow
     protected abstract void onCursorEnterChanged(long window, boolean entered);
 
+    @Shadow protected abstract void onWindowSizeChanged(long window, int width, int height);
+
+    @Shadow protected abstract void onFramebufferSizeChanged(long window, int width, int height);
+
     @Inject(method = "throwGlError", at = @At("HEAD"), cancellable = true)
     private static void silenceGl(int error, long description, CallbackInfo ci) {
         String message = "suppressed GLFW/OpenGL error " + error + ": " + MemoryUtil.memUTF8(description);
@@ -118,7 +123,12 @@ public abstract class WindowMixin {
         this.framebufferHeight = this.height;
 
         this.updateWindowRegion();
+        GLFW.glfwSetFramebufferSizeCallback(this.handle, (window, width, height) -> {
+            Blaze4D.rosella.renderer.windowResizeCallback(); // TODO: move this
+            this.onFramebufferSizeChanged(window, width, height);
+        });
         GLFW.glfwSetWindowPosCallback(this.handle, this::onWindowPosChanged);
+        GLFW.glfwSetWindowSizeCallback(this.handle, this::onWindowSizeChanged);
         GLFW.glfwSetWindowFocusCallback(this.handle, this::onWindowFocusChanged);
         GLFW.glfwSetCursorEnterCallback(this.handle, this::onCursorEnterChanged);
 

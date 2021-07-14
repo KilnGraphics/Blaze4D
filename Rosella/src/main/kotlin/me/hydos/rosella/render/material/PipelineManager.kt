@@ -178,8 +178,8 @@ class PipelineManager(var common: VkCommon, val renderer: Renderer) {
                     .depthTestEnable(stateInfo.depthTestEnabled)
                     .depthWriteEnable(stateInfo.depthMask)
                     .depthCompareOp(stateInfo.depthCompareOp)
-                    .depthBoundsTestEnable(false)
-                    .minDepthBounds(0.0f)
+                    .depthBoundsTestEnable(true)
+                    .minDepthBounds(-1.0f)
                     .maxDepthBounds(1.0f)
                     .stencilTestEnable(stateInfo.stencilEnabled) // TODO: fix stencil settings
 

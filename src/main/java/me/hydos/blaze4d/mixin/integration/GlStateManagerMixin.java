@@ -20,7 +20,6 @@ import org.spongepowered.asm.mixin.injection.callback.CallbackInfoReturnable;
 public class GlStateManagerMixin {
 
     @Inject(method = {
-            "_clearDepth",
             "_texParameter(IIF)V",
             "_texParameter(III)V",
             "_texImage2D",
@@ -201,6 +200,18 @@ public class GlStateManagerMixin {
         for (int textureId : is) {
             ((SimpleObjectManager) Blaze4D.rosella.objectManager).textureManager.deleteTexture(textureId);
         }
+        ci.cancel();
+    }
+
+    @Inject(method = "_clearStencil", at = @At("HEAD"), cancellable = true)
+    private static void clearStencil(int stencil, CallbackInfo ci) {
+        Blaze4D.rosella.renderer.lazilyClearStencil(stencil); // TODO: should this value be converted ogl to vk?
+        ci.cancel();
+    }
+
+    @Inject(method = "_clearDepth", at = @At("HEAD"), cancellable = true)
+    private static void clearDepth(double depth, CallbackInfo ci) {
+        Blaze4D.rosella.renderer.lazilyClearDepth((float) depth);
         ci.cancel();
     }
 
