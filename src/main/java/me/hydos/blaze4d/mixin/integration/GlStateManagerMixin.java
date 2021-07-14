@@ -26,7 +26,10 @@ public class GlStateManagerMixin {
             "_texImage2D",
             "_clear",
             "_glBindFramebuffer",
-            "_polygonOffset"
+            "_polygonOffset",
+            "_polygonMode",
+            "_enablePolygonOffset",
+            "_disablePolygonOffset"
     }, at = @At("HEAD"), cancellable = true)
     private static void unimplementedGlCalls(CallbackInfo ci) {
         //TODO: IMPL

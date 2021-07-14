@@ -1,6 +1,6 @@
 package me.hydos.blaze4d.mixin.integration;
 
-import me.hydos.aftermath.Aftermath;
+import com.oroarmor.aftermath.Aftermath;
 import me.hydos.blaze4d.AftermathHandler;
 import me.hydos.blaze4d.Blaze4D;
 import me.hydos.rosella.Rosella;

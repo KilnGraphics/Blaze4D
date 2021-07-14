@@ -13,9 +13,9 @@ import java.util.HashMap;
 import java.util.Map;
 import java.util.stream.Collectors;
 
-import me.hydos.aftermath.Aftermath;
-import me.hydos.aftermath.AftermathCallbackCreationHelper;
-import me.hydos.aftermath.struct.GFSDK_Aftermath_GpuCrashDump_BaseInfo;
+import com.oroarmor.aftermath.Aftermath;
+import com.oroarmor.aftermath.AftermathCallbackCreationHelper;
+import com.oroarmor.aftermath.struct.GFSDK_Aftermath_GpuCrashDump_BaseInfo;
 import org.lwjgl.system.MemoryStack;
 import org.lwjgl.system.MemoryUtil;
 
