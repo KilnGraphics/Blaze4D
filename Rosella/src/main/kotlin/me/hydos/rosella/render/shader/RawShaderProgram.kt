@@ -120,7 +120,6 @@ open class RawShaderProgram(
         this.preparableTextures.addAll(currentTextures)
 
         if (descriptorPool == 0L) {
-            logger.warn("Descriptor Pools are invalid! rebuilding... (THIS IS NOT FAST)")
             createPool(swapchain)
         }
         if (descriptorSetLayout == 0L) {

@@ -138,7 +138,7 @@ public abstract class WindowMixin {
         }
     }
 
-    @Inject(method = "onFramebufferSizeChanged", at = @At("HEAD"))
+    @Inject(method = "onFramebufferSizeChanged", at = @At(value = "INVOKE", target = "Lnet/minecraft/client/WindowEventHandler;onResolutionChanged()V"))
     private void noticeRenderer(long window, int width, int height, CallbackInfo ci) {
         Blaze4D.rosella.renderer.queueRecreateSwapchain();
     }
