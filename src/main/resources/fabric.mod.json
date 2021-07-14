@@ -21,6 +21,9 @@
   "entrypoints": {
     "client": [
       "me.hydos.blaze4d.Blaze4D"
+    ],
+    "preLaunch": [
+      "me.hydos.blaze4d.Blaze4DPreLaunch"
     ]
   },
   "mixins": [
