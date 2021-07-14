@@ -15,6 +15,7 @@ public class Blaze4D implements ClientModInitializer {
     public static final boolean VALIDATION_ENABLED = true;
     public static final boolean RENDERDOC_ENABLED = true;
     public static final boolean DEBUG_MEMORY_ENABLED = false;
+    public static final int LWJGL_STACK_SIZE = 69420;
 
     public static Rosella rosella;
     public static GlfwWindow window;
@@ -27,6 +28,7 @@ public class Blaze4D implements ClientModInitializer {
     public void onInitializeClient() {
 //        ((org.apache.logging.log4j.core.Logger) LOGGER).setLevel(Level.ALL);
         Configuration.DEBUG_MEMORY_ALLOCATOR.set(DEBUG_MEMORY_ENABLED);
+        Configuration.STACK_SIZE.set(LWJGL_STACK_SIZE);
 
         try {
             if (RENDERDOC_ENABLED) {
