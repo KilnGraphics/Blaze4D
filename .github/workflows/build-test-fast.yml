@@ -3,11 +3,11 @@
 # certain platforms or Java versions, and provides a first line of defence
 # against bad commits.
 
-name: build-test-fast
+name: build test fast
 on: [pull_request, push]
 
 jobs:
-  build:
+  build-test-fast:
     strategy:
       matrix:
         # Use these Java versions
@@ -42,7 +42,7 @@ jobs:
           name: Artifacts-${{ matrix.os }}
           path: build/libs/
       - name: capture test reports
-        if: ${{ steps.test.outcome != 'skipped'}}
+        if: steps.test.outcome != 'skipped'
         uses: actions/upload-artifact@v2
         with:
           name: Fast-Test-Reports-${{ matrix.os }}
