@@ -47,7 +47,7 @@ repositories {
 
 dependencies {
     minecraft("net.minecraft", "minecraft", properties["minecraft_version"].toString())
-    mappings("net.fabricmc", "yarn", properties["yarn_mappings"].toString(), classifier = "v2")
+    mappings(loom.officialMojangMappings())
     modImplementation("net.fabricmc", "fabric-loader", properties["loader_version"].toString())
 
     include(implementation(project(":Rosella"))!!)

@@ -55,7 +55,7 @@ public class GlStateManagerMixin {
      */
     @Overwrite
     @Nullable
-    public static ByteBuffer mapBuffer(int target, int access) {
+    public static ByteBuffer _glMapBuffer(int target, int access) {
         RenderSystem.assertThread(RenderSystem::isOnRenderThreadOrInit);
         ByteBuffer buffer = ByteBuffer.allocate(80092);
         BUFFER_MAP.put(target, buffer);

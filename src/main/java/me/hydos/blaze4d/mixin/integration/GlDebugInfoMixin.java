@@ -1,11 +1,11 @@
 package me.hydos.blaze4d.mixin.integration;
 
-import com.mojang.blaze3d.platform.GlDebugInfo;
+import com.mojang.blaze3d.platform.GlUtil;
 import me.hydos.blaze4d.Blaze4D;
 import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.Overwrite;
 
-@Mixin(GlDebugInfo.class)
+@Mixin(GlUtil.class)
 public class GlDebugInfoMixin {
 
     /**
@@ -31,7 +31,7 @@ public class GlDebugInfoMixin {
      * @reason Reroute to Rosella equivalent
      */
     @Overwrite
-    public static String getVersion() {
+    public static String getOpenGLVersion() {
         return "Vulkan API Version: " + Blaze4D.rosella.common.device.properties.apiVersion;
     }
 

@@ -1,15 +1,12 @@
 package me.hydos.blaze4d.mixin.vertices;
 
+import com.mojang.blaze3d.vertex.BufferBuilder;
+import com.mojang.blaze3d.vertex.VertexBuffer;
 import com.mojang.datafixers.util.Pair;
 import me.hydos.blaze4d.api.GlobalRenderSystem;
 import me.hydos.blaze4d.api.shader.MinecraftUbo;
 import me.hydos.blaze4d.api.util.ConversionUtils;
-import net.minecraft.client.MinecraftClient;
-import net.minecraft.client.gl.VertexBuffer;
-import net.minecraft.client.render.BufferBuilder;
-import net.minecraft.client.render.Camera;
-import net.minecraft.client.render.Shader;
-import net.minecraft.util.math.Vec3f;
+import net.minecraft.client.renderer.ShaderInstance;
 import org.joml.Matrix4f;
 import org.joml.Vector3f;
 import org.spongepowered.asm.mixin.Mixin;
@@ -23,16 +20,16 @@ import java.nio.ByteBuffer;
 @Mixin(VertexBuffer.class)
 public class VertexBufferMixin {
 
-    private Pair<BufferBuilder.DrawArrayParameters, ByteBuffer> drawData;
+    private Pair<BufferBuilder.DrawState, ByteBuffer> drawData;
 
     /**
      * @author Blaze4D
      * @reason To render
      */
     @Overwrite
-    private void uploadInternal(BufferBuilder bufferBuilder) {
+    private void upload_(BufferBuilder bufferBuilder) {
         // TODO OPT: upload to rosella once but use a flag to make sure it's not cleared. it can then be referenced with an int to redraw.
-        this.drawData = bufferBuilder.popData();
+        this.drawData = bufferBuilder.popNextBuffer();
     }
 
     /**
@@ -40,12 +37,12 @@ public class VertexBufferMixin {
      * @reason To render the sky
      */
     @Overwrite
-    public void innerSetShader(net.minecraft.util.math.Matrix4f mcModelViewMatrix, net.minecraft.util.math.Matrix4f mcProjectionMatrix, Shader shader) {
+    public void _drawWithShader(com.mojang.math.Matrix4f mcModelViewMatrix, com.mojang.math.Matrix4f mcProjectionMatrix, ShaderInstance shader) {
         Matrix4f projMatrix = ConversionUtils.mcToJomlProjectionMatrix(mcProjectionMatrix);
         Matrix4f modelViewMatrix = ConversionUtils.mcToJomlMatrix(mcModelViewMatrix);
         Vector3f chunkOffset = new Vector3f(GlobalRenderSystem.chunkOffset);
-        Vec3f shaderLightDirections0 = GlobalRenderSystem.shaderLightDirections0.copy();
-        Vec3f shaderLightDirections1 = GlobalRenderSystem.shaderLightDirections1.copy();
+        com.mojang.math.Vector3f shaderLightDirections0 = GlobalRenderSystem.shaderLightDirections0.copy();
+        com.mojang.math.Vector3f shaderLightDirections1 = GlobalRenderSystem.shaderLightDirections1.copy();
         GlobalRenderSystem.drawVertices(projMatrix, modelViewMatrix, chunkOffset, shaderLightDirections0, shaderLightDirections1, drawData);
     }
 
@@ -54,12 +51,12 @@ public class VertexBufferMixin {
      * @reason To render the world
      */
     @Overwrite
-    public void drawVertices() {
+    public void drawChunkLayer() {
         Matrix4f projMatrix = new Matrix4f(GlobalRenderSystem.projectionMatrix);
         Matrix4f modelViewMatrix = new Matrix4f(GlobalRenderSystem.modelViewMatrix);
         Vector3f chunkOffset = new Vector3f(GlobalRenderSystem.chunkOffset);
-        Vec3f shaderLightDirections0 = GlobalRenderSystem.shaderLightDirections0.copy();
-        Vec3f shaderLightDirections1 = GlobalRenderSystem.shaderLightDirections1.copy();
+        com.mojang.math.Vector3f shaderLightDirections0 = GlobalRenderSystem.shaderLightDirections0.copy();
+        com.mojang.math.Vector3f shaderLightDirections1 = GlobalRenderSystem.shaderLightDirections1.copy();
         GlobalRenderSystem.drawVertices(projMatrix, modelViewMatrix, chunkOffset, shaderLightDirections0, shaderLightDirections1, drawData);
     }
 }

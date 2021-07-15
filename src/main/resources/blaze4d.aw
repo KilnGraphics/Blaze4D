@@ -1,31 +1,31 @@
 accessWidener   v1  named
 
 # Make animated textures stop animating
-accessible class net/minecraft/client/texture/Sprite$Animation
+accessible class net/minecraft/client/renderer/texture/TextureAtlasSprite$AnimatedTexture
 
 # Make Minecraft Shut Up
-accessible class net/minecraft/client/resource/VideoWarningManager$WarningPatternLoader
+accessible class net/minecraft/client/renderer/GpuWarnlistManager$Preparations
 
 # Access to Matrix4f so i can convert Minecraft matrices to JOML matrices
-accessible  field   net/minecraft/util/math/Matrix4f   a00   F
-accessible  field   net/minecraft/util/math/Matrix4f   a01   F
-accessible  field   net/minecraft/util/math/Matrix4f   a02   F
-accessible  field   net/minecraft/util/math/Matrix4f   a03   F
+accessible  field   com/mojang/math/Matrix4f   m00   F
+accessible  field   com/mojang/math/Matrix4f   m01   F
+accessible  field   com/mojang/math/Matrix4f   m02   F
+accessible  field   com/mojang/math/Matrix4f   m03   F
 
-accessible  field   net/minecraft/util/math/Matrix4f   a10   F
-accessible  field   net/minecraft/util/math/Matrix4f   a11   F
-accessible  field   net/minecraft/util/math/Matrix4f   a12   F
-accessible  field   net/minecraft/util/math/Matrix4f   a13   F
+accessible  field   com/mojang/math/Matrix4f   m10   F
+accessible  field   com/mojang/math/Matrix4f   m11   F
+accessible  field   com/mojang/math/Matrix4f   m12   F
+accessible  field   com/mojang/math/Matrix4f   m13   F
 
-accessible  field   net/minecraft/util/math/Matrix4f   a20   F
-accessible  field   net/minecraft/util/math/Matrix4f   a21   F
-accessible  field   net/minecraft/util/math/Matrix4f   a22   F
-accessible  field   net/minecraft/util/math/Matrix4f   a23   F
+accessible  field   com/mojang/math/Matrix4f   m20   F
+accessible  field   com/mojang/math/Matrix4f   m21   F
+accessible  field   com/mojang/math/Matrix4f   m22   F
+accessible  field   com/mojang/math/Matrix4f   m23   F
 
-accessible  field   net/minecraft/util/math/Matrix4f   a30   F
-accessible  field   net/minecraft/util/math/Matrix4f   a31   F
-accessible  field   net/minecraft/util/math/Matrix4f   a32   F
-accessible  field   net/minecraft/util/math/Matrix4f   a33   F
+accessible  field   com/mojang/math/Matrix4f   m30   F
+accessible  field   com/mojang/math/Matrix4f   m31   F
+accessible  field   com/mojang/math/Matrix4f   m32   F
+accessible  field   com/mojang/math/Matrix4f   m33   F
 
 # Access to ChunkInfo for world rendering
-accessible class net/minecraft/client/render/WorldRenderer$ChunkInfo
+accessible class net/minecraft/client/renderer/LevelRenderer$RenderChunkInfo

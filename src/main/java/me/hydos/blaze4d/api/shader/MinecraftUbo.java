@@ -1,5 +1,6 @@
 package me.hydos.blaze4d.api.shader;
 
+import com.mojang.blaze3d.platform.Window;
 import com.mojang.blaze3d.systems.RenderSystem;
 import me.hydos.blaze4d.Blaze4D;
 import me.hydos.blaze4d.api.util.ConversionUtils;
@@ -9,9 +10,7 @@ import me.hydos.rosella.render.descriptorsets.DescriptorSets;
 import me.hydos.rosella.render.material.Material;
 import me.hydos.rosella.render.shader.ubo.Ubo;
 import me.hydos.rosella.render.swapchain.Swapchain;
-import net.minecraft.client.MinecraftClient;
-import net.minecraft.client.util.Window;
-import net.minecraft.util.math.Vec3f;
+import net.minecraft.client.Minecraft;
 import org.jetbrains.annotations.NotNull;
 import org.joml.Matrix4f;
 import org.joml.Vector3f;
@@ -35,8 +34,8 @@ public class MinecraftUbo extends Ubo {
     public Matrix4f projectionMatrix;
     public Matrix4f viewTransformMatrix;
     public Vector3f chunkOffset;
-    public Vec3f shaderLightDirections0;
-    public Vec3f shaderLightDirections1;
+    public com.mojang.math.Vector3f shaderLightDirections0;
+    public com.mojang.math.Vector3f shaderLightDirections1;
     private int size;
 
     public MinecraftUbo(@NotNull Memory memory, Material material, List<AddUboMemoryStep> steps, int size) {
@@ -104,8 +103,8 @@ public class MinecraftUbo extends Ubo {
     }
 
     public void addScreenSize(ByteBuffer buffer) {
-        Window window = MinecraftClient.getInstance().getWindow();
-        putVec2i(window.getFramebufferWidth(), window.getFramebufferHeight(), buffer);
+        Window window = Minecraft.getInstance().getWindow();
+        putVec2i(window.getWidth(), window.getHeight(), buffer);
     }
 
     public void addGameTime(ByteBuffer buffer) {
@@ -185,17 +184,17 @@ public class MinecraftUbo extends Ubo {
         putFloat(vec3.z, buffer);
     }
 
-    protected void putVec3f(Vec3f vec3, ByteBuffer buffer) {
-        putFloat(vec3.getX(), buffer);
-        putFloat(vec3.getY(), buffer);
-        putFloat(vec3.getZ(), buffer);
+    protected void putVec3f(com.mojang.math.Vector3f vec3, ByteBuffer buffer) {
+        putFloat(vec3.x(), buffer);
+        putFloat(vec3.y(), buffer);
+        putFloat(vec3.z(), buffer);
     }
 
     private void beginUboWrite() {
         size = 0;
     }
 
-    public void setUniforms(Matrix4f projectionMatrix, Matrix4f viewTransformMatrix, Vector3f chunkOffset, Vec3f shaderLightDirections0, Vec3f shaderLightDirections1) {
+    public void setUniforms(Matrix4f projectionMatrix, Matrix4f viewTransformMatrix, Vector3f chunkOffset, com.mojang.math.Vector3f shaderLightDirections0, com.mojang.math.Vector3f shaderLightDirections1) {
         this.projectionMatrix = projectionMatrix;
         this.viewTransformMatrix = viewTransformMatrix;
         this.chunkOffset = chunkOffset;

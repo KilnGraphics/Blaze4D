@@ -1,13 +1,12 @@
 package me.hydos.blaze4d.api.util;
 
 import com.google.common.collect.ImmutableList;
+import com.mojang.blaze3d.shaders.Program;
+import com.mojang.blaze3d.vertex.DefaultVertexFormat;
+import com.mojang.blaze3d.vertex.VertexFormatElement;
 import me.hydos.rosella.render.shader.ShaderType;
 import me.hydos.rosella.render.texture.ImageFormat;
 import me.hydos.rosella.render.vertex.VertexFormatElements;
-import net.minecraft.client.gl.Program;
-import net.minecraft.client.render.VertexFormat;
-import net.minecraft.client.render.VertexFormatElement;
-import net.minecraft.client.render.VertexFormats;
 import org.joml.Matrix4f;
 import org.lwjgl.opengl.GL11;
 import org.lwjgl.opengl.GL14;
@@ -18,7 +17,7 @@ import org.lwjgl.vulkan.VK10;
 import java.util.Collections;
 import java.util.Map;
 
-import static net.minecraft.client.render.VertexFormats.POSITION_ELEMENT;
+import static com.mojang.blaze3d.vertex.DefaultVertexFormat.ELEMENT_POSITION;
 
 public abstract class ConversionUtils {
 
@@ -114,14 +113,14 @@ public abstract class ConversionUtils {
         };
     }
 
-    public static final Map<net.minecraft.client.render.VertexFormatElement, me.hydos.rosella.render.vertex.VertexFormatElement> ELEMENT_CONVERSION_MAP = Map.of(
-            VertexFormats.POSITION_ELEMENT, VertexFormatElements.POSITION,
-            VertexFormats.COLOR_ELEMENT, VertexFormatElements.COLOR4ub,
-            VertexFormats.LIGHT_ELEMENT, VertexFormatElements.UVs,
-            VertexFormats.NORMAL_ELEMENT, VertexFormatElements.NORMAL,
-            VertexFormats.OVERLAY_ELEMENT, VertexFormatElements.UVs,
-            VertexFormats.TEXTURE_0_ELEMENT, VertexFormatElements.UVf,
-            VertexFormats.PADDING_ELEMENT, VertexFormatElements.PADDINGb
+    public static final Map<com.mojang.blaze3d.vertex.VertexFormatElement, me.hydos.rosella.render.vertex.VertexFormatElement> ELEMENT_CONVERSION_MAP = Map.of(
+            DefaultVertexFormat.ELEMENT_POSITION, VertexFormatElements.POSITION,
+            DefaultVertexFormat.ELEMENT_COLOR, VertexFormatElements.COLOR4ub,
+            DefaultVertexFormat.ELEMENT_UV2, VertexFormatElements.UVs,
+            DefaultVertexFormat.ELEMENT_NORMAL, VertexFormatElements.NORMAL,
+            DefaultVertexFormat.ELEMENT_UV1, VertexFormatElements.UVs,
+            DefaultVertexFormat.ELEMENT_UV0, VertexFormatElements.UVf,
+            DefaultVertexFormat.ELEMENT_PADDING, VertexFormatElements.PADDINGb
     );
 
     // BLIT_SCREEN counts as a duplicate because the underlying list is the same as POSITION_TEXTURE_COLOR,
@@ -130,19 +129,19 @@ public abstract class ConversionUtils {
     // so we have to get the underlying element map and do it ourselves. this is still faster than manually
     // constructing a new one from the elements every time.
     public static final Map<ImmutableList<VertexFormatElement>, me.hydos.rosella.render.vertex.VertexFormat> FORMAT_CONVERSION_MAP = Map.ofEntries(
-            Map.entry(VertexFormats.POSITION_COLOR_TEXTURE_LIGHT_NORMAL.getElements(), me.hydos.rosella.render.vertex.VertexFormats.POSITION_COLOR4_UV0_UV2_NORMAL),
-            Map.entry(VertexFormats.POSITION_COLOR_TEXTURE_OVERLAY_LIGHT_NORMAL.getElements(), me.hydos.rosella.render.vertex.VertexFormats.POSITION_COLOR4_UV0_UV1_UV2_NORMAL),
-            Map.entry(VertexFormats.POSITION_TEXTURE_COLOR_LIGHT.getElements(), me.hydos.rosella.render.vertex.VertexFormats.POSITION_UV0_COLOR4_UV2),
-            Map.entry(VertexFormats.POSITION.getElements(), me.hydos.rosella.render.vertex.VertexFormats.POSITION),
-            Map.entry(VertexFormats.POSITION_COLOR.getElements(), me.hydos.rosella.render.vertex.VertexFormats.POSITION_COLOR4),
-            Map.entry(VertexFormats.LINES.getElements(), me.hydos.rosella.render.vertex.VertexFormats.POSITION_COLOR4_NORMAL),
-            Map.entry(VertexFormats.POSITION_COLOR_LIGHT.getElements(), me.hydos.rosella.render.vertex.VertexFormats.POSITION_COLOR4_UV2),
-            Map.entry(VertexFormats.POSITION_TEXTURE.getElements(), me.hydos.rosella.render.vertex.VertexFormats.POSITION_UV0),
-            Map.entry(VertexFormats.POSITION_COLOR_TEXTURE.getElements(), me.hydos.rosella.render.vertex.VertexFormats.POSITION_COLOR4_UV0),
-            Map.entry(VertexFormats.POSITION_TEXTURE_COLOR.getElements(), me.hydos.rosella.render.vertex.VertexFormats.POSITION_UV0_COLOR4),
-            Map.entry(VertexFormats.POSITION_COLOR_TEXTURE_LIGHT.getElements(), me.hydos.rosella.render.vertex.VertexFormats.POSITION_COLOR4_UV0_UV2),
-            Map.entry(VertexFormats.POSITION_TEXTURE_LIGHT_COLOR.getElements(), me.hydos.rosella.render.vertex.VertexFormats.POSITION_UV0_UV2_COLOR4),
-            Map.entry(VertexFormats.POSITION_TEXTURE_COLOR_NORMAL.getElements(), me.hydos.rosella.render.vertex.VertexFormats.POSITION_UV0_COLOR4_NORMAL)
+            Map.entry(DefaultVertexFormat.BLOCK.getElements(), me.hydos.rosella.render.vertex.VertexFormats.POSITION_COLOR4_UV0_UV2_NORMAL),
+            Map.entry(DefaultVertexFormat.NEW_ENTITY.getElements(), me.hydos.rosella.render.vertex.VertexFormats.POSITION_COLOR4_UV0_UV1_UV2_NORMAL),
+            Map.entry(DefaultVertexFormat.PARTICLE.getElements(), me.hydos.rosella.render.vertex.VertexFormats.POSITION_UV0_COLOR4_UV2),
+            Map.entry(DefaultVertexFormat.POSITION.getElements(), me.hydos.rosella.render.vertex.VertexFormats.POSITION),
+            Map.entry(DefaultVertexFormat.POSITION_COLOR.getElements(), me.hydos.rosella.render.vertex.VertexFormats.POSITION_COLOR4),
+            Map.entry(DefaultVertexFormat.POSITION_COLOR_NORMAL.getElements(), me.hydos.rosella.render.vertex.VertexFormats.POSITION_COLOR4_NORMAL),
+            Map.entry(DefaultVertexFormat.POSITION_COLOR_LIGHTMAP.getElements(), me.hydos.rosella.render.vertex.VertexFormats.POSITION_COLOR4_UV2),
+            Map.entry(DefaultVertexFormat.POSITION_TEX.getElements(), me.hydos.rosella.render.vertex.VertexFormats.POSITION_UV0),
+            Map.entry(DefaultVertexFormat.POSITION_COLOR_TEX.getElements(), me.hydos.rosella.render.vertex.VertexFormats.POSITION_COLOR4_UV0),
+            Map.entry(DefaultVertexFormat.POSITION_TEX_COLOR.getElements(), me.hydos.rosella.render.vertex.VertexFormats.POSITION_UV0_COLOR4),
+            Map.entry(DefaultVertexFormat.POSITION_COLOR_TEX_LIGHTMAP.getElements(), me.hydos.rosella.render.vertex.VertexFormats.POSITION_COLOR4_UV0_UV2),
+            Map.entry(DefaultVertexFormat.POSITION_TEX_LIGHTMAP_COLOR.getElements(), me.hydos.rosella.render.vertex.VertexFormats.POSITION_UV0_UV2_COLOR4),
+            Map.entry(DefaultVertexFormat.POSITION_TEX_COLOR_NORMAL.getElements(), me.hydos.rosella.render.vertex.VertexFormats.POSITION_UV0_COLOR4_NORMAL)
     );
 
     public static ShaderType mcToRosellaShaderType(Program.Type mcType) {
@@ -152,45 +151,45 @@ public abstract class ConversionUtils {
         };
     }
 
-    public static org.joml.Matrix4f mcToJomlProjectionMatrix(net.minecraft.util.math.Matrix4f mcMatrix) {
-        return new org.joml.Matrix4f(
-                mcMatrix.a00,
-                mcMatrix.a10,
-                mcMatrix.a20,
-                mcMatrix.a30,
-                mcMatrix.a01,
-                -mcMatrix.a11,
-                mcMatrix.a21,
-                mcMatrix.a31,
-                mcMatrix.a02,
-                mcMatrix.a12,
-                mcMatrix.a22 / 2.0F,
-                mcMatrix.a32,
-                mcMatrix.a03,
-                -mcMatrix.a13,
-                mcMatrix.a23 / 2.0F,
-                mcMatrix.a33
+    public static Matrix4f mcToJomlProjectionMatrix(com.mojang.math.Matrix4f mcMatrix) {
+        return new Matrix4f(
+                mcMatrix.m00,
+                mcMatrix.m10,
+                mcMatrix.m20,
+                mcMatrix.m30,
+                mcMatrix.m01,
+                -mcMatrix.m11,
+                mcMatrix.m21,
+                mcMatrix.m31,
+                mcMatrix.m02,
+                mcMatrix.m12,
+                mcMatrix.m22 / 2.0F,
+                mcMatrix.m32,
+                mcMatrix.m03,
+                -mcMatrix.m13,
+                mcMatrix.m23 / 2.0F,
+                mcMatrix.m33
         );
     }
 
-    public static org.joml.Matrix4f mcToJomlMatrix(net.minecraft.util.math.Matrix4f mcMatrix) {
-       return new org.joml.Matrix4f(
-                mcMatrix.a00,
-                mcMatrix.a10,
-                mcMatrix.a20,
-                mcMatrix.a30,
-                mcMatrix.a01,
-                mcMatrix.a11,
-                mcMatrix.a21,
-                mcMatrix.a31,
-                mcMatrix.a02,
-                mcMatrix.a12,
-                mcMatrix.a22,
-                mcMatrix.a32,
-                mcMatrix.a03,
-                mcMatrix.a13,
-                mcMatrix.a23,
-                mcMatrix.a33
+    public static Matrix4f mcToJomlMatrix(com.mojang.math.Matrix4f mcMatrix) {
+       return new Matrix4f(
+                mcMatrix.m00,
+                mcMatrix.m10,
+                mcMatrix.m20,
+                mcMatrix.m30,
+                mcMatrix.m01,
+                mcMatrix.m11,
+                mcMatrix.m21,
+                mcMatrix.m31,
+                mcMatrix.m02,
+                mcMatrix.m12,
+                mcMatrix.m22,
+                mcMatrix.m32,
+                mcMatrix.m03,
+                mcMatrix.m13,
+                mcMatrix.m23,
+                mcMatrix.m33
         );
     }
 }

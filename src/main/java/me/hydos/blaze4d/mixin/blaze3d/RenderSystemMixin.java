@@ -1,7 +1,7 @@
 package me.hydos.blaze4d.mixin.blaze3d;
 
 import com.mojang.blaze3d.systems.RenderSystem;
-import net.minecraft.client.render.Tessellator;
+import com.mojang.blaze3d.vertex.Tesselator;
 import org.lwjgl.glfw.GLFW;
 import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.Overwrite;
@@ -30,7 +30,7 @@ public class RenderSystemMixin {
     @Overwrite
     public static void flipFrame(long window) {
         RenderSystem.replayQueue();
-        Tessellator.getInstance().getBuffer().clear();
+        Tesselator.getInstance().getBuilder().clear();
         GLFW.glfwPollEvents();
     }
 }

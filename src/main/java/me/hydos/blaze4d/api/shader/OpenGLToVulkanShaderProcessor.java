@@ -1,12 +1,11 @@
 package me.hydos.blaze4d.api.shader;
 
+import com.mojang.blaze3d.shaders.Uniform;
 import it.unimi.dsi.fastutil.objects.Object2IntMap;
 import it.unimi.dsi.fastutil.objects.Object2IntOpenHashMap;
 import it.unimi.dsi.fastutil.objects.ObjectIntImmutablePair;
 import it.unimi.dsi.fastutil.objects.ObjectIntPair;
 import me.hydos.blaze4d.api.GlobalRenderSystem;
-import net.minecraft.client.gl.GlUniform;
-
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
@@ -16,7 +15,7 @@ import java.util.regex.Pattern;
 
 public class OpenGLToVulkanShaderProcessor {
 
-    public static ObjectIntPair<List<String>> process(List<String> source, List<GlUniform> glUniforms, Object2IntMap<String> currentSamplerBindings, int initialSamplerBinding) {
+    public static ObjectIntPair<List<String>> process(List<String> source, List<Uniform> glUniforms, Object2IntMap<String> currentSamplerBindings, int initialSamplerBinding) {
         List<String> lines = new ArrayList<>(source.stream()
                 .flatMap(line -> Arrays.stream(line.split("\n")))
                 .toList());
@@ -61,7 +60,7 @@ public class OpenGLToVulkanShaderProcessor {
                 }
             } else if (line.matches("void main\\(\\) \\{")) {
 
-                List<String> uboNames = glUniforms.stream().map(GlUniform::getName).toList();
+                List<String> uboNames = glUniforms.stream().map(Uniform::getName).toList();
 
                 for (String uboName : uboNames) {
                     for (int j = 0; j < lines.size(); j++) {
@@ -69,7 +68,7 @@ public class OpenGLToVulkanShaderProcessor {
                     }
                 }
 
-                List<String> uboImports = glUniforms.stream().map(glUniform -> String.format("%s %s;", getDataTypeName(glUniform.getDataType()), glUniform.getName())).toList();
+                List<String> uboImports = glUniforms.stream().map(glUniform -> String.format("%s %s;", getDataTypeName(glUniform.getType()), glUniform.getName())).toList();
                 StringBuilder uboInsert = new StringBuilder("layout(binding = 0) uniform UniformBufferObject {\n");
                 uboImports.forEach(string -> uboInsert.append("\t").append(string).append("\n"));
                 uboInsert.append("} ubo;\n\n");
@@ -132,6 +131,6 @@ public class OpenGLToVulkanShaderProcessor {
                     normal = ProjMat * ModelViewMat * vec4(Normal, 0.0);
                 }
                 """;
-        System.out.println(String.join("\n", process(List.of(originalShader), Map.of("ModelViewMat", 10, "ProjMat", 10, "ChunkOffset", 6).entrySet().stream().map(entry -> new GlUniform(entry.getKey(), entry.getValue(), 0, null)).toList(), new Object2IntOpenHashMap<>(), 1).key()));
+        System.out.println(String.join("\n", process(List.of(originalShader), Map.of("ModelViewMat", 10, "ProjMat", 10, "ChunkOffset", 6).entrySet().stream().map(entry -> new Uniform(entry.getKey(), entry.getValue(), 0, null)).toList(), new Object2IntOpenHashMap<>(), 1).key()));
     }
 }

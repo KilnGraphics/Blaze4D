@@ -1,6 +1,6 @@
 package me.hydos.blaze4d.mixin.debug;
 
-import net.minecraft.client.texture.TextureManager;
+import net.minecraft.client.renderer.texture.TextureManager;
 import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.injection.At;
 import org.spongepowered.asm.mixin.injection.Inject;

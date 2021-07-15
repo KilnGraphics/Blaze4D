@@ -1,6 +1,9 @@
 package me.hydos.blaze4d.api;
 
 import com.google.common.collect.ImmutableList;
+import com.mojang.blaze3d.vertex.BufferBuilder;
+import com.mojang.blaze3d.vertex.VertexFormat;
+import com.mojang.blaze3d.vertex.VertexFormatElement;
 import it.unimi.dsi.fastutil.Pair;
 import it.unimi.dsi.fastutil.ints.Int2ObjectOpenHashMap;
 import it.unimi.dsi.fastutil.ints.IntArrayList;
@@ -24,10 +27,6 @@ import me.hydos.rosella.render.texture.TextureManager;
 import me.hydos.rosella.render.vertex.StoredBufferProvider;
 import me.hydos.rosella.render.vertex.VertexFormats;
 import me.hydos.rosella.scene.object.impl.SimpleObjectManager;
-import net.minecraft.client.render.BufferBuilder;
-import net.minecraft.client.render.VertexFormat;
-import net.minecraft.client.render.VertexFormatElement;
-import net.minecraft.util.math.Vec3f;
 import org.joml.Matrix4f;
 import org.joml.Vector3f;
 import org.lwjgl.system.MemoryUtil;
@@ -85,8 +84,8 @@ public class GlobalRenderSystem {
     public static Matrix4f projectionMatrix = new Matrix4f();
     public static Matrix4f modelViewMatrix = new Matrix4f();
     public static Vector3f chunkOffset = new Vector3f();
-    public static Vec3f shaderLightDirections0 = new Vec3f();
-    public static Vec3f shaderLightDirections1 = new Vec3f();
+    public static com.mojang.math.Vector3f shaderLightDirections0 = new com.mojang.math.Vector3f();
+    public static com.mojang.math.Vector3f shaderLightDirections1 = new com.mojang.math.Vector3f();
 
     // Captured Shader for more dynamic uniforms and samplers
     public static ShaderAccessor blaze4d$capturedShaderProgram = null;
@@ -159,7 +158,7 @@ public class GlobalRenderSystem {
             IntList indices = new IntArrayList();
             ConsumerCreationInfo creationInfo = entry.key();
 
-            if (creationInfo.drawMode() == VertexFormat.DrawMode.QUADS) {
+            if (creationInfo.drawMode() == VertexFormat.Mode.QUADS) {
                 // Convert Quads to Triangle Strips
                 //  0, 1, 2
                 //  0, 2, 3
@@ -208,22 +207,22 @@ public class GlobalRenderSystem {
         GLOBAL_BUFFER_PROVIDERS.clear();
     }
 
-    public static void drawVertices(Matrix4f projMatrix, Matrix4f viewMatrix, Vector3f chunkOffset, Vec3f shaderLightDirections0, Vec3f shaderLightDirections1, com.mojang.datafixers.util.Pair<BufferBuilder.DrawArrayParameters, ByteBuffer> drawData) {
-        BufferBuilder.DrawArrayParameters drawInfo = drawData.getFirst(); // TODO: what does textured actually mean? i think it's something to do with index buffers
+    public static void drawVertices(Matrix4f projMatrix, Matrix4f viewMatrix, Vector3f chunkOffset, com.mojang.math.Vector3f shaderLightDirections0, com.mojang.math.Vector3f shaderLightDirections1, com.mojang.datafixers.util.Pair<BufferBuilder.DrawState, ByteBuffer> drawData) {
+        BufferBuilder.DrawState drawInfo = drawData.getFirst(); // TODO: what does textured actually mean? i think it's something to do with index buffers
         ByteBuffer originalBuffer = drawData.getSecond();
         originalBuffer.clear();
 
-        int vertexCount = drawInfo.getCount(); // getCount is actually getVertexCount and someone mapped them wrong
+        int vertexCount = drawInfo.vertexCount(); // getCount is actually getVertexCount and someone mapped them wrong
 
         if (vertexCount > 0) {
-            VertexFormat format = drawInfo.getVertexFormat();
+            VertexFormat format = drawInfo.format();
 
             StoredBufferProvider storedBufferProvider = null;
-            ConsumerCreationInfo consumerCreationInfo = new ConsumerCreationInfo(drawInfo.getMode(), format, GlobalRenderSystem.activeShader, GlobalRenderSystem.createTextureArray(), GlobalRenderSystem.currentStateInfo.snapshot(), projMatrix, viewMatrix, chunkOffset, shaderLightDirections0, shaderLightDirections1);
+            ConsumerCreationInfo consumerCreationInfo = new ConsumerCreationInfo(drawInfo.mode(), format, GlobalRenderSystem.activeShader, GlobalRenderSystem.createTextureArray(), GlobalRenderSystem.currentStateInfo.snapshot(), projMatrix, viewMatrix, chunkOffset, shaderLightDirections0, shaderLightDirections1);
             int providersSize = GlobalRenderSystem.GLOBAL_BUFFER_PROVIDERS.size();
 
             if (providersSize > 0) {
-                it.unimi.dsi.fastutil.Pair<ConsumerCreationInfo, StoredBufferProvider> lastPair = GlobalRenderSystem.GLOBAL_BUFFER_PROVIDERS.get(providersSize - 1);
+                Pair<ConsumerCreationInfo, StoredBufferProvider> lastPair = GlobalRenderSystem.GLOBAL_BUFFER_PROVIDERS.get(providersSize - 1);
                 if (lastPair.key().equals(consumerCreationInfo)) {
                     storedBufferProvider = lastPair.value();
                 }

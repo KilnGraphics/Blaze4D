@@ -9,14 +9,12 @@ import me.hydos.rosella.render.material.state.StateInfo;
 import me.hydos.rosella.render.shader.ShaderProgram;
 import me.hydos.rosella.render.texture.Texture;
 import me.hydos.rosella.render.vertex.VertexFormat;
-
 import java.util.Map;
 
 /**
  * Holds all {@link me.hydos.rosella.Rosella} {@link Material}'s used in Blaze4D and Minecraft
  */
 public class Materials {
-
     public static final MaterialBuilder TRIANGLES = register(
             "triangles",
             Topology.TRIANGLES

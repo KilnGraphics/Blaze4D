@@ -1,19 +1,18 @@
 package me.hydos.blaze4d.api.vertex;
 
+import com.mojang.blaze3d.vertex.VertexFormat;
 import me.hydos.rosella.render.material.state.StateInfo;
 import me.hydos.rosella.render.shader.ShaderProgram;
 import me.hydos.rosella.render.texture.Texture;
-import net.minecraft.client.render.VertexFormat;
-import net.minecraft.util.math.Vec3f;
 import org.joml.Matrix4f;
 import org.joml.Vector3f;
 
 import java.util.Arrays;
 import java.util.Objects;
 
-public record ConsumerCreationInfo(VertexFormat.DrawMode drawMode, VertexFormat format, ShaderProgram shader, Texture[] textures,
+public record ConsumerCreationInfo(VertexFormat.Mode drawMode, VertexFormat format, ShaderProgram shader, Texture[] textures,
                                    StateInfo stateInfo, Matrix4f projMatrix, Matrix4f viewMatrix, Vector3f chunkOffset,
-                                   Vec3f shaderLightDirections0, Vec3f shaderLightDirections1) {
+                                   com.mojang.math.Vector3f shaderLightDirections0, com.mojang.math.Vector3f shaderLightDirections1) {
     @Override
     public boolean equals(Object o) {
         if (this == o) return true;

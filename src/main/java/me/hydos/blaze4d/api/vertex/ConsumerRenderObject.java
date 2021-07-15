@@ -1,5 +1,6 @@
 package me.hydos.blaze4d.api.vertex;
 
+import com.mojang.blaze3d.vertex.VertexFormat;
 import me.hydos.blaze4d.api.Materials;
 import me.hydos.blaze4d.api.shader.MinecraftShaderProgram;
 import me.hydos.blaze4d.api.shader.MinecraftUbo;
@@ -15,7 +16,6 @@ import me.hydos.rosella.render.texture.Texture;
 import me.hydos.rosella.render.vertex.BufferVertexConsumer;
 import me.hydos.rosella.render.vertex.VertexFormats;
 import me.hydos.rosella.scene.object.Renderable;
-import net.minecraft.client.render.VertexFormat;
 import org.jetbrains.annotations.NotNull;
 
 public class ConsumerRenderObject implements Renderable {
@@ -30,7 +30,7 @@ public class ConsumerRenderObject implements Renderable {
 
     public ConsumerRenderObject(ObjectInfo info, Rosella rosella) {
         this.renderInfo.bufferProvider = info.bufferProvider();
-        VertexFormat.DrawMode drawMode = info.drawMode();
+        VertexFormat.Mode drawMode = info.drawMode();
         this.format = info.format();
         this.shader = info.shader();
         this.textures = info.textures();
@@ -41,17 +41,17 @@ public class ConsumerRenderObject implements Renderable {
         this.renderInfo.indices = info.indices();
     }
 
-    private Material getMaterial(VertexFormat.DrawMode drawMode) {
+    private Material getMaterial(VertexFormat.Mode drawMode) {
         Material returnValue = null;
         switch (drawMode) {
             case TRIANGLES, QUADS -> {
-                if (format != net.minecraft.client.render.VertexFormats.BLIT_SCREEN) {
+                if (format != com.mojang.blaze3d.vertex.DefaultVertexFormat.BLIT_SCREEN) {
                     returnValue = Materials.TRIANGLES.build(shader, textures, renderInfo.bufferProvider.getFormat(), stateInfo);
                 }
             }
 
             case TRIANGLE_STRIP, DEBUG_LINE_STRIP -> {
-                if (format == net.minecraft.client.render.VertexFormats.POSITION) {
+                if (format == com.mojang.blaze3d.vertex.DefaultVertexFormat.POSITION) {
                     returnValue = Materials.TRIANGLE_STRIP.build(shader, textures, renderInfo.bufferProvider.getFormat(), stateInfo);
                 }
             }

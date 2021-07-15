@@ -1,16 +1,15 @@
 package me.hydos.blaze4d.mixin.shader;
 
-import net.minecraft.client.gl.GlUniform;
 import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.injection.At;
 import org.spongepowered.asm.mixin.injection.Inject;
 import org.spongepowered.asm.mixin.injection.Redirect;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
-
+import com.mojang.blaze3d.shaders.Uniform;
 import java.nio.FloatBuffer;
 import java.nio.IntBuffer;
 
-@Mixin(GlUniform.class)
+@Mixin(Uniform.class)
 public abstract class GlUniformMixin {
 
 //    @Redirect(method = "<init>", at = @At(value = "INVOKE", target = "Lorg/lwjgl/system/MemoryUtil;memAllocInt(I)Ljava/nio/IntBuffer;"))
