@@ -135,6 +135,22 @@ public abstract class Memory {
     }
 
     /**
+     * Allocates an image buffer
+     *
+     * @param pImageCreateInfo Information related to the image which will be contained
+     * @param pAllocationCreateInfo Information related to the allocation itself
+     * @return The bundle of the image and the allocation addresses
+     */
+    public BufferInfo createImageBuffer(VkImageCreateInfo pImageCreateInfo, VmaAllocationCreateInfo pAllocationCreateInfo) {
+        try (MemoryStack stack = MemoryStack.create()) {
+            LongBuffer image = stack.mallocLong(1);
+            PointerBuffer allocation = stack.mallocPointer(1);
+            ok(Vma.vmaCreateImage(allocator, pImageCreateInfo, pAllocationCreateInfo, image, allocation, null));
+            return new BufferInfo(image.get(), allocation.get());
+        }
+    }
+
+    /**
      * Used for creating the buffer written to before copied to the GPU
      */
     public BufferInfo createStagingBuf(int size, LongBuffer pBuffer, MemoryStack stack, Consumer<PointerBuffer> callback) {
@@ -149,7 +165,6 @@ public abstract class Memory {
         callback.accept(data);
         return stagingBuffer;
     }
-
 
     /**
      * Used to create a Vulkan Memory Allocator Buffer.
