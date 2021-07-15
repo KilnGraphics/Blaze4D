@@ -155,7 +155,7 @@ class PipelineManager(var common: VkCommon, val renderer: Renderer) {
             val rasterizer: VkPipelineRasterizationStateCreateInfo =
                 VkPipelineRasterizationStateCreateInfo.callocStack(it)
                     .sType(VK10.VK_STRUCTURE_TYPE_PIPELINE_RASTERIZATION_STATE_CREATE_INFO)
-                    .depthClampEnable(false)
+                    .depthClampEnable(true)
                     .rasterizerDiscardEnable(false)
                     .polygonMode(polygonMode)
                     .lineWidth(stateInfo.lineWidth)
