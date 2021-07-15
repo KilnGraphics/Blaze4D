@@ -3,8 +3,8 @@
 # certain platforms or Java versions, and provides a first line of defence
 # against bad commits.
 
-name: build
-on: [pull_request, push]
+name: build-test-slow
+on: workflow_dispatch
 
 jobs:
   build:
@@ -32,8 +32,10 @@ jobs:
       - name: build
         run: ./gradlew build
       - name: capture build artifacts
-        if: ${{ matrix.java == '16' }} 
+        if: ${{ matrix.java == '16' }}
         uses: actions/upload-artifact@v2
         with:
           name: Artifacts-${{ matrix.os }}
           path: build/libs/
+      - name: test
+        run: ./gradlew slowCITest
