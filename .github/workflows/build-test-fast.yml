@@ -29,13 +29,12 @@ jobs:
       - name: make gradle wrapper executable
         if: ${{ runner.os != 'Windows' }}
         run: chmod +x ./gradlew
-      - name: build
-        run: ./gradlew build
+        # Running the tests includes building
+      - name: test
+        run: ./gradlew fastCITest
       - name: capture build artifacts
         if: ${{ matrix.java == '16' }} 
         uses: actions/upload-artifact@v2
         with:
           name: Artifacts-${{ matrix.os }}
           path: build/libs/
-      - name: test
-        run: ./gradlew fastCITest
