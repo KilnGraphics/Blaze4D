@@ -60,10 +60,15 @@ tasks.register<Test>("fastCITest") {
     useJUnitPlatform {
         excludeTags("exclude_frequent_ci")
     }
+
+    // Github will not generate reports if the build fails
+    ignoreFailures = true
 }
 
 tasks.register<Test>("slowCITest") {
     useJUnitPlatform {
     } // In the future we can add tags to exclude tests that require certain vulkan features which arent available on github
 
+    // Github will not generate reports if the build fails
+    ignoreFailures = true
 }

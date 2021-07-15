@@ -29,7 +29,8 @@ jobs:
       - name: make gradle wrapper executable
         if: ${{ runner.os != 'Windows' }}
         run: chmod +x ./gradlew
-        # Running the tests includes building
+      - name: build
+        run: ./gradlew jar
       - name: test
         run: ./gradlew fastCITest
       - name: capture build artifacts
@@ -38,3 +39,8 @@ jobs:
         with:
           name: Artifacts-${{ matrix.os }}
           path: build/libs/
+      - name: capture test reports
+        uses: actions/upload-artifact@v2
+        with:
+          name: Fast-Test-Reports-${{ matrix.os }}
+          path: Rosella/build/reports/tests/fastCITest

@@ -29,6 +29,8 @@ jobs:
       - name: make gradle wrapper executable
         if: ${{ runner.os != 'Windows' }}
         run: chmod +x ./gradlew
+      - name: build
+        run: ./gradlew jar
       - name: test
         run: ./gradlew slowCITest
       - name: capture build artifacts

@@ -3,6 +3,7 @@ package me.hydos.rosella;
 import me.hydos.rosella.annotations.ExcludeFrequentCI;
 import me.hydos.rosella.util.Color;
 
+import org.junit.jupiter.api.Order;
 import org.junit.jupiter.api.Test;
 import static org.junit.jupiter.api.Assertions.*;
 
@@ -17,7 +18,6 @@ class TempTest {
         assertEquals(c.a(), 255);
     }
 
-    @ExcludeFrequentCI
     @Test
     void test2() {
         Color c = new Color(1.0f, 0.0f, 0.5f, 1.0f);
@@ -27,8 +27,15 @@ class TempTest {
         assertEquals(c.a(), 255);
     }
 
+    @ExcludeFrequentCI
     @Test
+    @Order(1)
     void test3() {
         fail("This is an intended fail");
+    }
+
+    @Test
+    @Order(2)
+    void test4() {
     }
 }
