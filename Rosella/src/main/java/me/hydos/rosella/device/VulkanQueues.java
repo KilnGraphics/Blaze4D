@@ -18,7 +18,7 @@ public class VulkanQueues {
 
     public VulkanQueues(VkCommon common) {
         try (MemoryStack stack = MemoryStack.stackPush()) {
-            PointerBuffer pQueues = stack.pointers(VK_NULL_HANDLE); -
+            PointerBuffer pQueues = stack.pointers(VK_NULL_HANDLE);
             vkGetDeviceQueue(common.device.rawDevice, common.device.indices.graphicsFamily, 0, pQueues);
             this.graphicsQueue = new VulkanQueue(new VkQueue((pQueues.get(0)), common.device.rawDevice), common.device.indices.graphicsFamily);
 
