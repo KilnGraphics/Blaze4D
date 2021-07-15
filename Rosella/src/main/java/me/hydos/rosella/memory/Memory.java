@@ -5,6 +5,7 @@ import it.unimi.dsi.fastutil.longs.LongSet;
 import it.unimi.dsi.fastutil.longs.LongSets;
 import me.hydos.rosella.Rosella;
 import me.hydos.rosella.device.VulkanDevice;
+import me.hydos.rosella.memory.dma.StagingMemoryPool;
 import me.hydos.rosella.render.renderer.Renderer;
 import me.hydos.rosella.vkobjects.VkCommon;
 import org.lwjgl.PointerBuffer;
@@ -39,6 +40,8 @@ public abstract class Memory {
     private final ThreadPoolExecutor deallocatorThreadPool;
     private int threadNo;
 
+    private final StagingMemoryPool testPool;
+
     private boolean running = true;
 
     public Memory(VkCommon common) {
@@ -53,6 +56,9 @@ public abstract class Memory {
                 new LinkedBlockingQueue<>(),
                 r -> new Thread(r, "Deallocator Thread " + threadNo++),
                 (r, executor) -> {/* noop */});
+
+        this.testPool = new StagingMemoryPool(this.allocator);
+        this.testPool.randomTests();
     }
 
     /**

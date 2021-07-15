@@ -11,6 +11,9 @@ import org.lwjgl.vulkan.VkBufferCreateInfo;
 
 import java.nio.ByteBuffer;
 import java.nio.LongBuffer;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.Random;
 import java.util.concurrent.locks.Lock;
 import java.util.concurrent.locks.ReentrantLock;
 
@@ -220,6 +223,7 @@ public class StagingMemoryPool {
          */
         private long findVirtualFit(long size) {
             if(this.isFull()) {
+                System.out.println("IS FULL");
                 return INVALID_ADDRESS;
             }
 
@@ -229,11 +233,11 @@ public class StagingMemoryPool {
 
             long result = INVALID_ADDRESS;
             if(realHead < realTail) {
-                if(realHead - realTail >= size) {
+                if(realTail - realHead >= size) {
                     result = this.virtualHeadOffset;
                 }
             } else {
-                if(realHead - this.bufferSize >= size) {
+                if(this.bufferSize - realHead >= size) {
                     result = this.virtualHeadOffset;
                 } else {
                     // TODO: we can remove the header size from the size here if there is enough space at the end of the buffer. But we need to tell that the callee somehow
@@ -264,5 +268,75 @@ public class StagingMemoryPool {
         private static boolean isPowerOf2(long value) {
             return (value > 0L) && (value & value-1) == 0;
         }
+    }
+
+    public void randomTests() {
+        Random rand = new Random();
+        List<Allocation> allocations = new ArrayList<>();
+        Allocation allocation = null;
+
+        System.out.println("Running staging memory pool tests");
+
+        System.out.println("Allocate - Free:");
+        allocation = this.allocate(1020L);
+        assert(this.mainBuffer.virtualHeadOffset == 1024L);
+        assert(this.mainBuffer.getBlockSizeIfEmpty(0) == INVALID_ADDRESS);
+
+        allocation.free();
+        assert(this.mainBuffer.virtualHeadOffset == 1024L);
+        assert(this.mainBuffer.virtualTailOffset == 1024L);
+
+        System.out.println("Allocate - Free unaligned:");
+        allocation = this.allocate(1019L);
+        assert(this.mainBuffer.virtualHeadOffset == 2048L);
+        assert(this.mainBuffer.getBlockSizeIfEmpty(0) == INVALID_ADDRESS);
+
+        allocation.free();
+        assert(this.mainBuffer.virtualHeadOffset == 2048L);
+        assert(this.mainBuffer.virtualTailOffset == 2048L);
+
+        System.out.println("Allocate - Free a lot:");
+        for(int i = 0; i < 128; i++) {
+            allocations.add(this.allocate(1020L));
+        }
+        for(Allocation alloc : allocations) {
+            alloc.free();
+        }
+        allocations.clear();
+        assert(this.mainBuffer.virtualHeadOffset == 2048L + (1024L * 128L));
+        assert(this.mainBuffer.virtualTailOffset == 2048L + (1024L * 128L));
+
+        System.out.println("Allocate - Free a lot unaligned:");
+        for(int i = 0; i < 128; i++) {
+            allocations.add(this.allocate(1017L));
+        }
+        for(Allocation alloc : allocations) {
+            alloc.free();
+        }
+        allocations.clear();
+        assert(this.mainBuffer.virtualHeadOffset == 2048L + (1024L * 128L * 2L));
+        assert(this.mainBuffer.virtualTailOffset == 2048L + (1024L * 128L * 2L));
+
+        System.out.println("Allocate - Free random:");
+        for(int i = 0; i < 128; i++) {
+            allocations.add(this.allocate(1020L));
+        }
+        while(!allocations.isEmpty()) {
+            allocations.remove(rand.nextInt(allocations.size())).free();
+        }
+
+        assert(this.mainBuffer.virtualHeadOffset == 2048L + (1024L * 128L * 3L));
+        assert(this.mainBuffer.virtualTailOffset == 2048L + (1024L * 128L * 3L));
+
+        System.out.println("Allocate - Free random unaligned:");
+        for(int i = 0; i < 128; i++) {
+            allocations.add(this.allocate(1018L));
+        }
+        while(!allocations.isEmpty()) {
+            allocations.remove(rand.nextInt(allocations.size())).free();
+        }
+
+        assert(this.mainBuffer.virtualHeadOffset == 2048L + (1024L * 128L * 4L));
+        assert(this.mainBuffer.virtualTailOffset == 2048L + (1024L * 128L * 4L));
     }
 }
