@@ -26,4 +26,9 @@ class TempTest {
         assertEquals(c.b(), 127);
         assertEquals(c.a(), 255);
     }
+
+    @Test
+    void test3() {
+        fail("This is an intended fail");
+    }
 }
