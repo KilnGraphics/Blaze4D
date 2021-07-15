@@ -4,6 +4,9 @@ import it.unimi.dsi.fastutil.longs.LongArrayList;
 import me.hydos.rosella.device.VulkanDevice;
 import me.hydos.rosella.memory.Memory;
 import me.hydos.rosella.memory.MemoryCloseable;
+import org.lwjgl.system.MemoryUtil;
+
+import java.nio.LongBuffer;
 
 public class DescriptorSets implements MemoryCloseable {
 
@@ -21,7 +24,13 @@ public class DescriptorSets implements MemoryCloseable {
 
     @Override
     public void free(VulkanDevice device, Memory memory) {
-        memory.freeDescriptorSets(device, descriptorPool, descriptorSets);
+        LongBuffer buffer = MemoryUtil.memAllocLong(descriptorSets.size());
+        for (long descriptorSet : descriptorSets) {
+            if (descriptorSet != 0L) {
+                buffer.put(descriptorSet);
+            }
+        }
+        memory.freeDescriptorSets(device, descriptorPool, buffer);
     }
 
     /**

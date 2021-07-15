@@ -208,19 +208,10 @@ public abstract class Memory {
     /**
      * Frees a LongArrayList of descriptor sets
      */
-    public void freeDescriptorSets(VulkanDevice device, long descriptorPool, LongArrayList descriptorSets) {
+    public void freeDescriptorSets(VulkanDevice device, long descriptorPool, LongBuffer descriptorSets) {
         deallocatorThreadPool.execute(() -> {
-            try (MemoryStack stack = stackPush()) {
-                int newSize = 0;
-                LongBuffer buffer = stack.mallocLong(descriptorSets.size());
-                for (long descriptorSet : descriptorSets) {
-                    if (descriptorSet != 0L) {
-                        buffer.put(descriptorSet);
-                        newSize++;
-                    }
-                }
-                VK10.vkFreeDescriptorSets(device.rawDevice, descriptorPool, buffer.flip());
-            }
+            VK10.vkFreeDescriptorSets(device.rawDevice, descriptorPool, descriptorSets.flip());
+            MemoryUtil.memFree(descriptorSets);
         });
     }
 
