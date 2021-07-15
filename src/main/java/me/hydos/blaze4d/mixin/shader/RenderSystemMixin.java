@@ -4,6 +4,7 @@ import com.mojang.blaze3d.systems.RenderSystem;
 import me.hydos.blaze4d.Blaze4D;
 import me.hydos.blaze4d.api.GlobalRenderSystem;
 import me.hydos.blaze4d.api.shader.MinecraftUbo;
+import me.hydos.blaze4d.api.util.ConversionUtils;
 import me.hydos.rosella.render.shader.RawShaderProgram;
 import me.hydos.rosella.scene.object.impl.SimpleObjectManager;
 import net.minecraft.client.render.Shader;
@@ -51,7 +52,7 @@ public abstract class RenderSystemMixin {
 
     @Inject(method = "applyModelViewMatrix", at = @At("HEAD"))
     private static void setOurModelViewMatrix(CallbackInfo ci) {
-        GlobalRenderSystem.modelViewMatrix = MinecraftUbo.toJoml(modelViewStack.peek().getModel());
+        GlobalRenderSystem.modelViewMatrix = ConversionUtils.mcToJomlMatrix(modelViewStack.peek().getModel());
     }
 
     @Inject(method = "setupShaderLights", at = @At("TAIL"))

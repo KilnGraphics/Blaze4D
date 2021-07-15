@@ -114,7 +114,7 @@ public abstract class ConversionUtils {
         };
     }
 
-    public static final Map<VertexFormatElement, me.hydos.rosella.render.vertex.VertexFormatElement> ELEMENT_CONVERSION_MAP = Map.of(
+    public static final Map<net.minecraft.client.render.VertexFormatElement, me.hydos.rosella.render.vertex.VertexFormatElement> ELEMENT_CONVERSION_MAP = Map.of(
             VertexFormats.POSITION_ELEMENT, VertexFormatElements.POSITION,
             VertexFormats.COLOR_ELEMENT, VertexFormatElements.COLOR4ub,
             VertexFormats.LIGHT_ELEMENT, VertexFormatElements.UVs,
@@ -152,7 +152,7 @@ public abstract class ConversionUtils {
         };
     }
 
-    public static Matrix4f mcToJomlProjectionMatrix(net.minecraft.util.math.Matrix4f mcMatrix) {
+    public static org.joml.Matrix4f mcToJomlProjectionMatrix(net.minecraft.util.math.Matrix4f mcMatrix) {
         return new org.joml.Matrix4f(
                 mcMatrix.a00,
                 mcMatrix.a10,
@@ -169,6 +169,27 @@ public abstract class ConversionUtils {
                 mcMatrix.a03,
                 -mcMatrix.a13,
                 mcMatrix.a23 / 2.0F,
+                mcMatrix.a33
+        );
+    }
+
+    public static org.joml.Matrix4f mcToJomlMatrix(net.minecraft.util.math.Matrix4f mcMatrix) {
+       return new org.joml.Matrix4f(
+                mcMatrix.a00,
+                mcMatrix.a10,
+                mcMatrix.a20,
+                mcMatrix.a30,
+                mcMatrix.a01,
+                mcMatrix.a11,
+                mcMatrix.a21,
+                mcMatrix.a31,
+                mcMatrix.a02,
+                mcMatrix.a12,
+                mcMatrix.a22,
+                mcMatrix.a32,
+                mcMatrix.a03,
+                mcMatrix.a13,
+                mcMatrix.a23,
                 mcMatrix.a33
         );
     }

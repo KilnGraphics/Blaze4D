@@ -42,7 +42,7 @@ public class VertexBufferMixin {
     @Overwrite
     public void innerSetShader(net.minecraft.util.math.Matrix4f mcModelViewMatrix, net.minecraft.util.math.Matrix4f mcProjectionMatrix, Shader shader) {
         Matrix4f projMatrix = ConversionUtils.mcToJomlProjectionMatrix(mcProjectionMatrix);
-        Matrix4f modelViewMatrix = MinecraftUbo.toJoml(mcModelViewMatrix);
+        Matrix4f modelViewMatrix = ConversionUtils.mcToJomlMatrix(mcModelViewMatrix);
         Vector3f chunkOffset = new Vector3f(GlobalRenderSystem.chunkOffset);
         Vec3f shaderLightDirections0 = GlobalRenderSystem.shaderLightDirections0.copy();
         Vec3f shaderLightDirections1 = GlobalRenderSystem.shaderLightDirections1.copy();

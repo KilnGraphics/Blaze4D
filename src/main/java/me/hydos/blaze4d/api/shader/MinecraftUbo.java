@@ -2,6 +2,7 @@ package me.hydos.blaze4d.api.shader;
 
 import com.mojang.blaze3d.systems.RenderSystem;
 import me.hydos.blaze4d.Blaze4D;
+import me.hydos.blaze4d.api.util.ConversionUtils;
 import me.hydos.rosella.memory.BufferInfo;
 import me.hydos.rosella.memory.Memory;
 import me.hydos.rosella.render.descriptorsets.DescriptorSet;
@@ -43,32 +44,6 @@ public class MinecraftUbo extends Ubo {
         this.descSets = new DescriptorSet(material.getShader().getRaw().getDescriptorPool());
         this.totalSize = size;
         this.steps = steps;
-    }
-
-    public static Matrix4f toJoml(net.minecraft.util.math.Matrix4f mcMatrix) {
-        Matrix4f jomlMatrix = new Matrix4f();
-
-        jomlMatrix.m00(mcMatrix.a00);
-        jomlMatrix.m01(mcMatrix.a10);
-        jomlMatrix.m02(mcMatrix.a20);
-        jomlMatrix.m03(mcMatrix.a30);
-
-        jomlMatrix.m10(mcMatrix.a01);
-        jomlMatrix.m11(mcMatrix.a11);
-        jomlMatrix.m12(mcMatrix.a21);
-        jomlMatrix.m13(mcMatrix.a31);
-
-        jomlMatrix.m20(mcMatrix.a02);
-        jomlMatrix.m21(mcMatrix.a12);
-        jomlMatrix.m22(mcMatrix.a22);
-        jomlMatrix.m23(mcMatrix.a32);
-
-        jomlMatrix.m30(mcMatrix.a03);
-        jomlMatrix.m31(mcMatrix.a13);
-        jomlMatrix.m32(mcMatrix.a23);
-        jomlMatrix.m33(mcMatrix.a33);
-
-        return jomlMatrix;
     }
 
     @Override
@@ -138,7 +113,7 @@ public class MinecraftUbo extends Ubo {
     }
 
     public void addTextureMatrix(ByteBuffer buffer) {
-        putMat4(toJoml(RenderSystem.getTextureMatrix()), buffer);
+        putMat4(ConversionUtils.mcToJomlMatrix(RenderSystem.getTextureMatrix()), buffer);
     }
 
     public void addFogColor(ByteBuffer buffer) {
