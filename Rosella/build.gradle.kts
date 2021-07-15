@@ -47,4 +47,22 @@ dependencies {
     if (lwjglNatives == "natives-macos" || lwjglNatives == "natives-macos-arm64") {
         runtimeOnly("org.lwjgl", "lwjgl-vulkan", classifier = lwjglNatives)
     }
+
+    testImplementation("org.junit.jupiter:junit-jupiter:5.7.1")
+}
+
+tasks.test {
+    useJUnitPlatform {
+    }
+}
+
+tasks.register<Test>("fastCITest") {
+    useJUnitPlatform {
+        excludeTags("exclude_frequent_ci")
+    }
+}
+
+tasks.register<Test>("slowCITest") {
+    useJUnitPlatform {
+    } // In the future we can add tags to exclude tests that require certain vulkan features which arent available on github
 }
