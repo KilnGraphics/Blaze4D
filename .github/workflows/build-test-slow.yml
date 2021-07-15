@@ -3,11 +3,11 @@
 # certain platforms or Java versions, and provides a first line of defence
 # against bad commits.
 
-name: build
-on: [pull_request, push]
+name: build test slow
+on: workflow_dispatch
 
 jobs:
-  build:
+  build-test-slow:
     strategy:
       matrix:
         # Use these Java versions
@@ -30,10 +30,20 @@ jobs:
         if: ${{ runner.os != 'Windows' }}
         run: chmod +x ./gradlew
       - name: build
-        run: ./gradlew build
+        id: build
+        run: ./gradlew jar
+      - name: test
+        id: test
+        run: ./gradlew fastCITest
       - name: capture build artifacts
-        if: ${{ matrix.java == '16' }} 
+        if: ${{ matrix.java == '16' }}
         uses: actions/upload-artifact@v2
         with:
           name: Artifacts-${{ matrix.os }}
           path: build/libs/
+      - name: capture test reports
+        if: steps.test.outcome != 'skipped'
+        uses: actions/upload-artifact@v2
+        with:
+          name: Fast-Test-Reports-${{ matrix.os }}
+          path: Rosella/build/reports/tests/slowCITest
