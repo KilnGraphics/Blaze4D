@@ -5,7 +5,7 @@ import me.hydos.blaze4d.Blaze4D;
 import me.hydos.blaze4d.api.util.ConversionUtils;
 import me.hydos.rosella.memory.BufferInfo;
 import me.hydos.rosella.memory.Memory;
-import me.hydos.rosella.render.descriptorsets.DescriptorSet;
+import me.hydos.rosella.render.descriptorsets.DescriptorSets;
 import me.hydos.rosella.render.material.Material;
 import me.hydos.rosella.render.shader.ubo.Ubo;
 import me.hydos.rosella.render.swapchain.Swapchain;
@@ -30,7 +30,7 @@ public class MinecraftUbo extends Ubo {
     private final Memory memory;
     private final int totalSize;
     private final List<AddUboMemoryStep> steps;
-    public DescriptorSet descSets;
+    public DescriptorSets descSets;
     public List<BufferInfo> uboFrames = new ArrayList<>();
     public Matrix4f projectionMatrix;
     public Matrix4f viewTransformMatrix;
@@ -41,7 +41,7 @@ public class MinecraftUbo extends Ubo {
 
     public MinecraftUbo(@NotNull Memory memory, Material material, List<AddUboMemoryStep> steps, int size) {
         this.memory = memory;
-        this.descSets = new DescriptorSet(material.getShader().getRaw().getDescriptorPool());
+        this.descSets = new DescriptorSets(material.getShader().getRaw().getDescriptorPool());
         this.totalSize = size;
         this.steps = steps;
     }
@@ -219,12 +219,12 @@ public class MinecraftUbo extends Ubo {
 
     @NotNull
     @Override
-    public DescriptorSet getDescriptors() {
+    public DescriptorSets getDescriptors() {
         return descSets;
     }
 
     @Override
-    public void setDescriptors(@NotNull DescriptorSet descriptorSets) {
+    public void setDescriptors(@NotNull DescriptorSets descriptorSets) {
         this.descSets = descriptorSets;
     }
 

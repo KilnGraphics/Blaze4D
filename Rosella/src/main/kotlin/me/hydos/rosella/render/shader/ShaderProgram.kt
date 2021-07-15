@@ -22,7 +22,7 @@ class ShaderProgram(val raw: RawShaderProgram, val rosella: Rosella, maxObjects:
             vertexShaderCompiled = true
         }
     }
-    val descriptorManager = DescriptorManager(maxObjects, this, rosella.renderer.swapchain, rosella.common.device)
+    val descriptorManager = DescriptorManager(maxObjects, this, rosella.renderer.swapchain, rosella.common.device, rosella.common.memory)
 
     private var fragmentShaderCompiled: Boolean = false
     private var vertexShaderCompiled: Boolean = false

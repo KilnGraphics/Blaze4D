@@ -3,7 +3,7 @@ package me.hydos.rosella.render.shader.ubo
 import me.hydos.rosella.device.VulkanDevice
 import me.hydos.rosella.memory.BufferInfo
 import me.hydos.rosella.memory.Memory
-import me.hydos.rosella.render.descriptorsets.DescriptorSet
+import me.hydos.rosella.render.descriptorsets.DescriptorSets
 import me.hydos.rosella.render.shader.ShaderProgram
 import me.hydos.rosella.render.swapchain.Swapchain
 import me.hydos.rosella.render.util.alignas
@@ -23,7 +23,7 @@ open class RenderObjectUbo(
 ) : Ubo() {
 
     private var uboFrames: MutableList<BufferInfo> = ArrayList()
-    private var descSets: DescriptorSet = DescriptorSet(shaderProgram.raw.descriptorPool)
+    private var descSets: DescriptorSets = DescriptorSets(shaderProgram.raw.descriptorPool)
 
     override fun create(swapchain: Swapchain) {
         MemoryStack.stackPush().use { stack ->
@@ -73,11 +73,11 @@ open class RenderObjectUbo(
         return uboFrames
     }
 
-    override fun getDescriptors(): DescriptorSet {
+    override fun getDescriptors(): DescriptorSets {
         return descSets
     }
 
-    override fun setDescriptors(descriptorSets: DescriptorSet) {
+    override fun setDescriptors(descriptorSets: DescriptorSets) {
         this.descSets = descriptorSets
     }
 }

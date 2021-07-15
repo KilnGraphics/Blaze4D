@@ -4,7 +4,7 @@ import it.unimi.dsi.fastutil.Hash.VERY_FAST_LOAD_FACTOR
 import it.unimi.dsi.fastutil.objects.ReferenceOpenHashSet
 import me.hydos.rosella.device.VulkanDevice
 import me.hydos.rosella.memory.Memory
-import me.hydos.rosella.render.descriptorsets.DescriptorSet
+import me.hydos.rosella.render.descriptorsets.DescriptorSets
 import me.hydos.rosella.render.renderer.Renderer
 import me.hydos.rosella.render.resource.Resource
 import me.hydos.rosella.render.shader.ubo.Ubo
@@ -140,8 +140,7 @@ open class RawShaderProgram(
             vkAllocateDescriptorSets(device.rawDevice, allocInfo, pDescriptorSets)
                 .ok("Failed to allocate descriptor sets")
 
-            val descriptorSets = DescriptorSet(descriptorPool)
-            descriptorSets.descriptorSets = ArrayList(pDescriptorSets.capacity())
+            val descriptorSets = DescriptorSets(descriptorPool, pDescriptorSets.capacity())
             val bufferInfo = VkDescriptorBufferInfo.callocStack(1, stack)
                 .offset(0)
                 .range(ubo.getSize().toLong())
@@ -185,7 +184,7 @@ open class RawShaderProgram(
                     descriptorWrite.dstSet(descriptorSet)
                 }
                 vkUpdateDescriptorSets(device.rawDevice, descriptorWrites, null)
-                descriptorSets.descriptorPool = descriptorPool
+                descriptorSets.setDescriptorPool(descriptorPool)
                 descriptorSets.add(descriptorSet)
             }
 

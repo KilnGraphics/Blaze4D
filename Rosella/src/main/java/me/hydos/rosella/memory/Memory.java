@@ -1,5 +1,6 @@
 package me.hydos.rosella.memory;
 
+import it.unimi.dsi.fastutil.longs.LongArrayList;
 import it.unimi.dsi.fastutil.longs.LongOpenHashSet;
 import it.unimi.dsi.fastutil.longs.LongSet;
 import it.unimi.dsi.fastutil.longs.LongSets;
@@ -9,6 +10,7 @@ import me.hydos.rosella.render.renderer.Renderer;
 import me.hydos.rosella.vkobjects.VkCommon;
 import org.lwjgl.PointerBuffer;
 import org.lwjgl.system.MemoryStack;
+import org.lwjgl.system.MemoryUtil;
 import org.lwjgl.system.Pointer;
 import org.lwjgl.util.vma.Vma;
 import org.lwjgl.util.vma.VmaAllocationCreateInfo;
@@ -102,15 +104,12 @@ public abstract class Memory {
             PointerBuffer pAllocator = stack.mallocPointer(1);
             Vma.vmaCreateAllocator(createInfo, pAllocator);
 
-            Rosella.LOGGER.info("Allocator created: 0x%x", pAllocator.get(0));
-
             return pAllocator.get(0);
         }
     }
 
     private void destroyAllocator(long allocator) {
         Vma.vmaDestroyAllocator(allocator);
-        Rosella.LOGGER.info("Allocator destroyed: 0x%x", allocator);
     }
 
     /**
@@ -200,14 +199,33 @@ public abstract class Memory {
     }
 
     /**
-     * Forces a buffer to be freed
+     * Queues a buffer to be freed
      */
     public void freeBuffer(BufferInfo buffer) {
         deallocatorThreadPool.execute(() -> Vma.vmaDestroyBuffer(allocator, buffer.buffer(), buffer.allocation()));
     }
 
     /**
-     * Free's all created buffers and mapped memory
+     * Frees a LongArrayList of descriptor sets
+     */
+    public void freeDescriptorSets(VulkanDevice device, long descriptorPool, LongArrayList descriptorSets) {
+        deallocatorThreadPool.execute(() -> {
+            try (MemoryStack stack = stackPush()) {
+                int newSize = 0;
+                LongBuffer buffer = stack.mallocLong(descriptorSets.size());
+                for (long descriptorSet : descriptorSets) {
+                    if (descriptorSet != 0L) {
+                        buffer.put(descriptorSet);
+                        newSize++;
+                    }
+                }
+                VK10.vkFreeDescriptorSets(device.rawDevice, descriptorPool, buffer.flip());
+            }
+        });
+    }
+
+    /**
+     * Frees all created buffers and mapped memory
      */
     public void free() {
         for (long memory : mappedMemory) {

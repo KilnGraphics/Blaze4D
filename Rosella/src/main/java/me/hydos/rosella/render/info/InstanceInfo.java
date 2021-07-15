@@ -17,7 +17,7 @@ public record InstanceInfo(Ubo ubo,
     @Override
     public void free(VulkanDevice device, Memory memory) {
         ubo.free(device, memory);
-        material.getShader().getDescriptorManager().freeDescriptorSet(ubo.getDescriptors());
+        material.getShader().getDescriptorManager().freeDescriptorSets(ubo.getDescriptors());
     }
 
     /**
@@ -33,12 +33,12 @@ public record InstanceInfo(Ubo ubo,
     }
 
     /**
-     * Called when the {@link me.hydos.rosella.render.swapchain.Swapchain} needs to be recreated. all {@link me.hydos.rosella.render.descriptorsets.DescriptorSet}'s will need to be recreated
+     * Called when the {@link me.hydos.rosella.render.swapchain.Swapchain} needs to be recreated. all {@link me.hydos.rosella.render.descriptorsets.DescriptorSets}'s will need to be recreated
      *
      * @param rosella the Rosella
      */
     public void hardRebuild(@NotNull Rosella rosella) {
-        material.getShader().getDescriptorManager().clearDescriptorSet(ubo.getDescriptors());
+        material.getShader().getDescriptorManager().clearDescriptorSets(ubo.getDescriptors());
         ubo.free(rosella.common.device, rosella.common.memory);
 
         if (ubo.getUniformBuffers().size() == 0) {
