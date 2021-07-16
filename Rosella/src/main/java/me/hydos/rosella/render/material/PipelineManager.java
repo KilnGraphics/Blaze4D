@@ -173,7 +173,7 @@ public class PipelineManager {
     private VkPipelineInputAssemblyStateCreateInfo getPipelineInputAssemblyStateCreateInfo(Topology topology, MemoryStack stack) {
         return VkPipelineInputAssemblyStateCreateInfo.callocStack(stack)
                 .sType(VK10.VK_STRUCTURE_TYPE_PIPELINE_INPUT_ASSEMBLY_STATE_CREATE_INFO)
-                .topology(topology.getVkType())
+                .topology(topology.vkType)
                 .primitiveRestartEnable(false);
     }
 
