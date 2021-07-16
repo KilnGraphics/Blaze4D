@@ -43,5 +43,6 @@ public class RenderInfo implements MemoryCloseable {
 
     @Override
     public void free(VulkanDevice device, Memory memory) {
+        bufferProvider.free(device, memory);
     }
 }

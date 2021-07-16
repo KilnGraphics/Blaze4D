@@ -1,6 +1,8 @@
 package me.hydos.rosella.render.vertex;
 
 import it.unimi.dsi.fastutil.objects.ObjectArrayList;
+import me.hydos.rosella.device.VulkanDevice;
+import me.hydos.rosella.memory.Memory;
 import org.lwjgl.system.MemoryUtil;
 
 import java.nio.ByteBuffer;
@@ -29,11 +31,19 @@ public class StoredBufferProvider implements BufferProvider {
 
     @Override
     public void clear() {
-        // TODO: maybe this first part shouldn't be in clear, but in a new method called free? just a thought.
         for (ManagedBuffer buffer : buffers) {
             if (buffer.shouldFree()) {
                 MemoryUtil.memFree(buffer.buffer());
             }
+        }
+        buffers.clear();
+    }
+
+    @Override
+    public void free(VulkanDevice device, Memory memory) {
+        // TODO: should we ignore shouldFree here? should we even free in clear at all?
+        for (ManagedBuffer buffer : buffers) {
+            MemoryUtil.memFree(buffer.buffer());
         }
         buffers.clear();
     }

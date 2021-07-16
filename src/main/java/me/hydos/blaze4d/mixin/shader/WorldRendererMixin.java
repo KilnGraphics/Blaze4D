@@ -23,18 +23,18 @@ import org.spongepowered.asm.mixin.injection.callback.LocalCapture;
 @Mixin(value = LevelRenderer.class, priority = 1001)
 public class WorldRendererMixin {
 
-    @Inject(method = "renderChunkLayer", at = @At(value = "INVOKE", target = "Lcom/mojang/blaze3d/shaders/Uniform;set(FFF)V"), require = 0, locals = LocalCapture.CAPTURE_FAILSOFT)
+    @Inject(method = "renderChunkLayer", at = @At(value = "INVOKE", target = "Lcom/mojang/blaze3d/shaders/Uniform;set(FFF)V"), locals = LocalCapture.CAPTURE_FAILSOFT)
     private void redirectChunkOffset(RenderType renderLayer, PoseStack matrices, double x, double y, double z, Matrix4f matrix4f, CallbackInfo ci, boolean bl, ObjectListIterator<?> objectListIterator, VertexFormat vertexFormat, ShaderInstance shader, Uniform glUniform, boolean bl2, LevelRenderer.RenderChunkInfo chunkInfo2, ChunkRenderDispatcher.RenderChunk builtChunk, VertexBuffer vertexBuffer, BlockPos blockPos) {
         GlobalRenderSystem.chunkOffset.set((double) blockPos.getX() - x, (double) blockPos.getY() - y, (double) blockPos.getZ() - z);
     }
 
-    @Inject(method = "renderChunkLayer", at = @At(value = "INVOKE", target = "Lcom/mojang/blaze3d/shaders/Uniform;set(Lnet/minecraft/util/math/Matrix4f;)V", ordinal = 0), require = 0)
+    @Inject(method = "renderChunkLayer", at = @At(value = "INVOKE", target = "Lcom/mojang/blaze3d/shaders/Uniform;set(Lcom/mojang/math/Matrix4f;)V", ordinal = 0))
     private void redirectModelViewMatrix(RenderType renderLayer, PoseStack matrices, double d, double e, double f, Matrix4f modelViewMatrix, CallbackInfo ci) {
-        GlobalRenderSystem.modelViewMatrix.set(ConversionUtils.mcToJomlMatrix(matrices.last().pose()));
+        GlobalRenderSystem.tmpModelViewMatrix.set(ConversionUtils.mcToJomlMatrix(matrices.last().pose()));
     }
 
-    @Inject(method = "renderChunkLayer", at = @At(value = "INVOKE", target = "Lcom/mojang/blaze3d/shaders/Uniform;set(Lnet/minecraft/util/math/Matrix4f;)V", ordinal = 1), require = 0)
+    @Inject(method = "renderChunkLayer", at = @At(value = "INVOKE", target = "Lcom/mojang/blaze3d/shaders/Uniform;set(Lcom/mojang/math/Matrix4f;)V", ordinal = 1))
     private void redirectProjectionMatrix(RenderType renderLayer, PoseStack matrices, double d, double e, double f, Matrix4f projectionMatrix, CallbackInfo ci) {
-        GlobalRenderSystem.projectionMatrix.set(ConversionUtils.mcToJomlProjectionMatrix(projectionMatrix));
+        GlobalRenderSystem.tmpProjectionMatrix.set(ConversionUtils.mcToJomlProjectionMatrix(projectionMatrix));
     }
 }

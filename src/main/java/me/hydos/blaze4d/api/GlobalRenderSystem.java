@@ -37,6 +37,7 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.function.Consumer;
 
 /**
  * Used to make bits of the code easier to manage.
@@ -86,6 +87,10 @@ public class GlobalRenderSystem {
     public static Vector3f chunkOffset = new Vector3f();
     public static com.mojang.math.Vector3f shaderLightDirections0 = new com.mojang.math.Vector3f();
     public static com.mojang.math.Vector3f shaderLightDirections1 = new com.mojang.math.Vector3f();
+
+    // FIXME: dont rely on these
+    public static Matrix4f tmpProjectionMatrix = new Matrix4f();
+    public static Matrix4f tmpModelViewMatrix = new Matrix4f();
 
     // Captured Shader for more dynamic uniforms and samplers
     public static ShaderAccessor blaze4d$capturedShaderProgram = null;
@@ -158,6 +163,7 @@ public class GlobalRenderSystem {
             IntList indices = new IntArrayList();
             ConsumerCreationInfo creationInfo = entry.key();
 
+            // TODO: try getting index buffer from minecraft (VertexBuffer and BufferBuilder)
             if (creationInfo.drawMode() == VertexFormat.Mode.QUADS) {
                 // Convert Quads to Triangle Strips
                 //  0, 1, 2
@@ -207,48 +213,30 @@ public class GlobalRenderSystem {
         GLOBAL_BUFFER_PROVIDERS.clear();
     }
 
-    public static void drawVertices(Matrix4f projMatrix, Matrix4f viewMatrix, Vector3f chunkOffset, com.mojang.math.Vector3f shaderLightDirections0, com.mojang.math.Vector3f shaderLightDirections1, com.mojang.datafixers.util.Pair<BufferBuilder.DrawState, ByteBuffer> drawData) {
-        BufferBuilder.DrawState drawInfo = drawData.getFirst(); // TODO: what does textured actually mean? i think it's something to do with index buffers
-        ByteBuffer originalBuffer = drawData.getSecond();
-        originalBuffer.clear();
+    public static StoredBufferProvider getOrCreateBufferProvider(ConsumerCreationInfo consumerCreationInfo) {
+        int providersSize = GlobalRenderSystem.GLOBAL_BUFFER_PROVIDERS.size();
 
-        int vertexCount = drawInfo.vertexCount(); // getCount is actually getVertexCount and someone mapped them wrong
-
-        if (vertexCount > 0) {
-            VertexFormat format = drawInfo.format();
-
-            StoredBufferProvider storedBufferProvider = null;
-            ConsumerCreationInfo consumerCreationInfo = new ConsumerCreationInfo(drawInfo.mode(), format, GlobalRenderSystem.activeShader, GlobalRenderSystem.createTextureArray(), GlobalRenderSystem.currentStateInfo.snapshot(), projMatrix, viewMatrix, chunkOffset, shaderLightDirections0, shaderLightDirections1);
-            int providersSize = GlobalRenderSystem.GLOBAL_BUFFER_PROVIDERS.size();
-
-            if (providersSize > 0) {
-                Pair<ConsumerCreationInfo, StoredBufferProvider> lastPair = GlobalRenderSystem.GLOBAL_BUFFER_PROVIDERS.get(providersSize - 1);
-                if (lastPair.key().equals(consumerCreationInfo)) {
-                    storedBufferProvider = lastPair.value();
-                }
+        if (providersSize > 0) {
+            Pair<ConsumerCreationInfo, StoredBufferProvider> lastPair = GlobalRenderSystem.GLOBAL_BUFFER_PROVIDERS.get(providersSize - 1);
+            if (lastPair.key().equals(consumerCreationInfo)) {
+                return lastPair.value();
             }
-
-            if (storedBufferProvider == null) {
-                me.hydos.rosella.render.vertex.VertexFormat rosellaFormat = ConversionUtils.FORMAT_CONVERSION_MAP.get(consumerCreationInfo.format().getElements());
-
-                if (rosellaFormat == null) {
-                    ImmutableList<VertexFormatElement> mcElements = consumerCreationInfo.format().getElements();
-                    me.hydos.rosella.render.vertex.VertexFormatElement[] rosellaElements = new me.hydos.rosella.render.vertex.VertexFormatElement[mcElements.size()]; // this size may change so we're not using a raw array
-                    for (int i = 0; i < mcElements.size(); i++) {
-                        rosellaElements[i] = ConversionUtils.ELEMENT_CONVERSION_MAP.get(mcElements.get(i));
-                    }
-                    rosellaFormat = VertexFormats.getFormat(rosellaElements);
-                }
-
-                storedBufferProvider = new StoredBufferProvider(rosellaFormat);
-                GlobalRenderSystem.GLOBAL_BUFFER_PROVIDERS.add(new ObjectObjectImmutablePair<>(consumerCreationInfo, storedBufferProvider));
-            }
-
-            // TODO: figure out a way to accumulate these buffers to a staging buffer throughout the frame.
-            // this would get rid of the need to copy the buffer here as well as the need to free the copy.
-            ByteBuffer copiedBuffer = MemoryUtil.memAlloc(originalBuffer.limit());
-            MemoryUtil.memCopy(originalBuffer, copiedBuffer);
-            storedBufferProvider.addBuffer(copiedBuffer, 0, vertexCount, true);
         }
+
+        me.hydos.rosella.render.vertex.VertexFormat rosellaFormat = ConversionUtils.FORMAT_CONVERSION_MAP.get(consumerCreationInfo.format().getElements());
+
+        if (rosellaFormat == null) {
+            ImmutableList<VertexFormatElement> mcElements = consumerCreationInfo.format().getElements();
+            me.hydos.rosella.render.vertex.VertexFormatElement[] rosellaElements = new me.hydos.rosella.render.vertex.VertexFormatElement[mcElements.size()];
+            for (int i = 0; i < mcElements.size(); i++) {
+                rosellaElements[i] = ConversionUtils.ELEMENT_CONVERSION_MAP.get(mcElements.get(i));
+            }
+            rosellaFormat = VertexFormats.getFormat(rosellaElements);
+        }
+
+        StoredBufferProvider storedBufferProvider = new StoredBufferProvider(rosellaFormat);
+        GlobalRenderSystem.GLOBAL_BUFFER_PROVIDERS.add(new ObjectObjectImmutablePair<>(consumerCreationInfo, storedBufferProvider));
+        return storedBufferProvider;
     }
+
 }

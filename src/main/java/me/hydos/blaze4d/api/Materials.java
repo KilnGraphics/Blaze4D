@@ -31,6 +31,10 @@ public class Materials {
             "lines",
             Topology.LINE_LIST
     );
+    public static final MaterialBuilder LINE_STRIP = register(
+            "line_strip",
+            Topology.LINE_STRIP
+    );
 
     private static final Map<MaterialInfo, Material> MATERIAL_CACHE = new Object2ObjectLinkedOpenHashMap<>();
 

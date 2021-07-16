@@ -44,21 +44,23 @@ public class ConsumerRenderObject implements Renderable {
     private Material getMaterial(VertexFormat.Mode drawMode) {
         Material returnValue = null;
         switch (drawMode) {
-            case TRIANGLES, QUADS -> {
-                if (format != com.mojang.blaze3d.vertex.DefaultVertexFormat.BLIT_SCREEN) {
+            case TRIANGLES, QUADS, LINES -> {
+                if (format != com.mojang.blaze3d.vertex.DefaultVertexFormat.BLIT_SCREEN) { // TODO: why?
                     returnValue = Materials.TRIANGLES.build(shader, textures, renderInfo.bufferProvider.getFormat(), stateInfo);
                 }
             }
 
-            case TRIANGLE_STRIP, DEBUG_LINE_STRIP -> {
-                if (format == com.mojang.blaze3d.vertex.DefaultVertexFormat.POSITION) {
+            case TRIANGLE_STRIP, LINE_STRIP -> {
+                if (format == com.mojang.blaze3d.vertex.DefaultVertexFormat.POSITION) { // TODO: why?
                     returnValue = Materials.TRIANGLE_STRIP.build(shader, textures, renderInfo.bufferProvider.getFormat(), stateInfo);
                 }
             }
 
             case TRIANGLE_FAN -> returnValue = Materials.TRIANGLE_FAN.build(shader, textures, renderInfo.bufferProvider.getFormat(), stateInfo);
 
-            case LINES, DEBUG_LINES -> returnValue = Materials.LINES.build(shader, textures, renderInfo.bufferProvider.getFormat(), stateInfo);
+            case DEBUG_LINES -> returnValue = Materials.LINES.build(shader, textures, renderInfo.bufferProvider.getFormat(), stateInfo);
+
+            case DEBUG_LINE_STRIP -> returnValue = Materials.LINE_STRIP.build(shader, textures, renderInfo.bufferProvider.getFormat(), stateInfo);
 
             default -> throw new RuntimeException("Unsupported Draw Mode:  " + drawMode);
         }

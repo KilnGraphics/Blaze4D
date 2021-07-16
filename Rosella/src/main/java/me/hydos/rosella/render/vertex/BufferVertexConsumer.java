@@ -1,5 +1,8 @@
 package me.hydos.rosella.render.vertex;
 
+import me.hydos.rosella.device.VulkanDevice;
+import me.hydos.rosella.memory.Memory;
+
 import java.nio.ByteBuffer;
 import java.util.Collections;
 import java.util.List;
@@ -109,6 +112,11 @@ public final class BufferVertexConsumer implements BufferProvider { // FIXME mak
     public void clear() {
         this.buffer.clear(); // FIXME make a new buffer
         this.vertexCount = 0;
+    }
+
+    @Override
+    public void free(VulkanDevice device, Memory memory) {
+        // FIXME
     }
 
     @Override
