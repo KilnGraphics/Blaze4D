@@ -100,7 +100,7 @@ public class PipelineManager {
                     .module(vertShaderModule)
                     .pName(entryPoint);
 
-            shaderStages.get(0)
+            shaderStages.get(1)
                     .sType(VK10.VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO)
                     .stage(VK10.VK_SHADER_STAGE_FRAGMENT_BIT)
                     .module(fragShaderModule)
