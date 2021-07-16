@@ -2,7 +2,7 @@ package me.hydos.rosella.render.swapchain
 
 import me.hydos.rosella.device.VulkanDevice
 import me.hydos.rosella.render.renderer.Renderer
-import me.hydos.rosella.render.util.ok
+import me.hydos.rosella.util.VulkanUtils.ok
 import org.lwjgl.system.MemoryStack.stackPush
 import org.lwjgl.vulkan.*
 import org.lwjgl.vulkan.KHRSwapchain.VK_IMAGE_LAYOUT_PRESENT_SRC_KHR
@@ -68,7 +68,7 @@ class RenderPass(val device: VulkanDevice, private val swapchain: Swapchain, pri
                 .pDependencies(dependency)
 
             val pRenderPass: LongBuffer = it.mallocLong(1)
-            vkCreateRenderPass(device.rawDevice, renderPassInfo, null, pRenderPass).ok()
+            ok(vkCreateRenderPass(device.rawDevice, renderPassInfo, null, pRenderPass))
             renderPass = pRenderPass[0]
         }
     }

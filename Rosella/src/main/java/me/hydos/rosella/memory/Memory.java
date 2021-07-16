@@ -24,7 +24,7 @@ import java.util.*;
 import java.util.concurrent.*;
 import java.util.function.Consumer;
 
-import static me.hydos.rosella.render.util.VkUtilsKt.ok;
+import static me.hydos.rosella.util.VulkanUtils.ok;
 import static org.lwjgl.system.MemoryStack.stackPush;
 
 /**

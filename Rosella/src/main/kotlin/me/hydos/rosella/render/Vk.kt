@@ -16,7 +16,7 @@ import me.hydos.rosella.render.texture.ImageRegion
 import me.hydos.rosella.render.texture.Texture
 import me.hydos.rosella.render.texture.TextureImage
 import me.hydos.rosella.render.texture.UploadableImage
-import me.hydos.rosella.render.util.ok
+import me.hydos.rosella.util.VulkanUtils.ok
 import org.lwjgl.PointerBuffer
 import org.lwjgl.system.MemoryStack
 import org.lwjgl.vulkan.*
@@ -36,7 +36,7 @@ fun allocateCmdBuffers(
         .level(level)
         .commandBufferCount(commandBuffersCount)
     val pCommandBuffers = stack.callocPointer(commandBuffersCount)
-    vkAllocateCommandBuffers(device.rawDevice, allocInfo, pCommandBuffers).ok()
+    ok(vkAllocateCommandBuffers(device.rawDevice, allocInfo, pCommandBuffers))
     return pCommandBuffers
 }
 
@@ -71,7 +71,7 @@ fun createImageView(image: Long, format: Int, aspectFlags: Int, device: VulkanDe
             .layerCount(1)
 
         val pImageView = stack.mallocLong(1)
-        vkCreateImageView(device.rawDevice, viewInfo, null, pImageView).ok("Failed to create texture image view")
+        ok(vkCreateImageView(device.rawDevice, viewInfo, null, pImageView), "Failed to create texture image view")
         return pImageView[0]
     }
 }
@@ -97,7 +97,7 @@ fun createCmdPool(device: VulkanDevice, renderer: Renderer, surface: Long) {
             .sType(VK_STRUCTURE_TYPE_COMMAND_POOL_CREATE_INFO)
             .queueFamilyIndex(queueFamilyIndices.graphicsFamily)
         val pCommandPool = stack.mallocLong(1)
-        vkCreateCommandPool(device.rawDevice, poolInfo, null, pCommandPool).ok()
+        ok(vkCreateCommandPool(device.rawDevice, poolInfo, null, pCommandPool))
         renderer.commandPool = pCommandPool[0]
     }
 }
@@ -213,14 +213,14 @@ fun createImage(
             .usage(usage)
             .samples(VK_SAMPLE_COUNT_1_BIT)
             .sharingMode(VK_SHARING_MODE_EXCLUSIVE)
-        vkCreateImage(device.rawDevice, imageInfo, null, pTextureImage).ok("Failed to allocate image memory")
+        ok(vkCreateImage(device.rawDevice, imageInfo, null, pTextureImage), "Failed to allocate image memory")
         val memRequirements = VkMemoryRequirements.mallocStack(stack)
         vkGetImageMemoryRequirements(device.rawDevice, pTextureImage[0], memRequirements)
         val allocInfo = VkMemoryAllocateInfo.callocStack(stack)
             .sType(VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO)
             .allocationSize(memRequirements.size())
             .memoryTypeIndex(findMemoryType(memRequirements.memoryTypeBits(), memProperties, device))
-        vkAllocateMemory(device.rawDevice, allocInfo, null, pTextureImageMemory).ok("Failed to allocate image memory")
+        ok(vkAllocateMemory(device.rawDevice, allocInfo, null, pTextureImageMemory), "Failed to allocate image memory")
         vkBindImageMemory(device.rawDevice, pTextureImage[0], pTextureImageMemory[0], 0)
     }
 }

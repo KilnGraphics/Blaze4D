@@ -55,7 +55,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.concurrent.TimeUnit;
 
-import static me.hydos.rosella.render.util.VkUtilsKt.ok;
+import static me.hydos.rosella.util.VulkanUtils.ok;
 import static org.lwjgl.vulkan.KHRSwapchain.VK_IMAGE_LAYOUT_PRESENT_SRC_KHR;
 import static org.lwjgl.vulkan.VK10.*;
 

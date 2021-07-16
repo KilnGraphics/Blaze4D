@@ -26,7 +26,7 @@ import java.util.List;
 import java.util.Set;
 import java.util.stream.Collectors;
 
-import static me.hydos.rosella.render.util.VkUtilsKt.ok;
+import static me.hydos.rosella.util.VulkanUtils.ok;
 import static org.lwjgl.vulkan.EXTDebugUtils.vkDestroyDebugUtilsMessengerEXT;
 import static org.lwjgl.vulkan.KHRSurface.vkDestroySurfaceKHR;
 import static org.lwjgl.vulkan.VK10.*;
