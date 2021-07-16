@@ -39,17 +39,3 @@ class TextureSampler(private val createInfo: SamplerCreateInfo, device: VulkanDe
         }
     }
 }
-
-data class SamplerCreateInfo(val filter: TextureFilter, val wrap: WrapMode)
-
-enum class TextureFilter(val vkType: Int) {
-    NEAREST(VK10.VK_FILTER_NEAREST),
-    LINEAR(VK10.VK_FILTER_LINEAR)
-}
-
-enum class WrapMode(val vkType: Int) {
-    REPEAT(VK10.VK_SAMPLER_ADDRESS_MODE_REPEAT),
-    MIRRORED_REPEAT(VK10.VK_SAMPLER_ADDRESS_MODE_MIRRORED_REPEAT),
-    CLAMP_TO_EDGE(VK10.VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE),
-    CLAMP_TO_BORDER(VK10.VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_BORDER)
-}
