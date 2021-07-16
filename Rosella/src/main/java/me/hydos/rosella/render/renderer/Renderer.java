@@ -356,7 +356,6 @@ public class Renderer {
                 commandBuffers = new ObjectArrayList<>(commandBuffersCount);
 
                 PointerBuffer pCommandBuffers = VkKt.allocateCmdBuffers(
-                        stack,
                         common.device,
                         commandPool,
                         commandBuffersCount,
@@ -375,7 +374,7 @@ public class Renderer {
                 VkCommandBufferBeginInfo beginInfo = VkKt.createBeginInfo(stack);
                 VkRenderPassBeginInfo renderPassInfo = VkKt.createRenderPassInfo(stack, renderPass);
                 VkRect2D renderArea = VkKt.createRenderArea(stack, 0, 0, swapchain);
-                VkClearValue.Buffer clearValues = VkKt.createClearValues(stack, clearColor.rAsFloat(), clearColor.gAsFloat(), clearColor.bAsFloat(), clearDepth, clearStencil);
+                VkClearValue.Buffer clearValues = VkKt.createClearValues(clearColor.rAsFloat(), clearColor.gAsFloat(), clearColor.bAsFloat(), clearDepth, clearStencil);
 
                 renderPassInfo.renderArea(renderArea)
                         .pClearValues(clearValues);
