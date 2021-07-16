@@ -141,7 +141,7 @@ public abstract class Memory {
      * @return The bundle of the image and the allocation addresses
      */
     public BufferInfo createImageBuffer(VkImageCreateInfo pImageCreateInfo, VmaAllocationCreateInfo pAllocationCreateInfo) {
-        try (MemoryStack stack = MemoryStack.create()) {
+        try (MemoryStack stack = MemoryStack.stackPush()) {
             LongBuffer image = stack.mallocLong(1);
             PointerBuffer allocation = stack.mallocPointer(1);
             ok(Vma.vmaCreateImage(allocator, pImageCreateInfo, pAllocationCreateInfo, image, allocation, null));
