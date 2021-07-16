@@ -3,16 +3,13 @@ package me.hydos.rosella.render.texture;
 import it.unimi.dsi.fastutil.ints.IntArrayPriorityQueue;
 import it.unimi.dsi.fastutil.ints.IntPriorityQueue;
 import it.unimi.dsi.fastutil.ints.IntPriorityQueues;
+
+import java.util.*;
 import me.hydos.rosella.memory.Memory;
+import me.hydos.rosella.render.VkKt;
 import me.hydos.rosella.render.renderer.Renderer;
-import me.hydos.rosella.util.VkConc;
 import me.hydos.rosella.vkobjects.VkCommon;
 import org.lwjgl.vulkan.VK10;
-
-import java.util.HashMap;
-import java.util.HashSet;
-import java.util.Map;
-import java.util.Set;
 
 public class TextureManager {
 
@@ -36,9 +33,9 @@ public class TextureManager {
         return this.common;
     }
 
-    public void initializeBlankTexture(Renderer renderer, Memory memory) {
+    public void initializeBlankTexture(Renderer renderer) {
         if (BLANK_TEXTURE == null) {
-            createTexture(renderer, memory, BLANK_TEXTURE_ID, 1, 1, VK10.VK_FORMAT_R8G8B8A8_UNORM);
+            createTexture(renderer, BLANK_TEXTURE_ID, 1, 1, VK10.VK_FORMAT_R8G8B8A8_UNORM);
             setTextureSamplerNoCache(BLANK_TEXTURE_ID, new SamplerCreateInfo(TextureFilter.NEAREST, WrapMode.REPEAT));
             BLANK_TEXTURE = getTexture(BLANK_TEXTURE_ID);
             prepareTexture(renderer, BLANK_TEXTURE);
@@ -66,15 +63,10 @@ public class TextureManager {
         return textureMap.get(textureId);
     }
 
-    public void createTexture(Renderer renderer, Memory memory, int textureId, int width, int height, int imgFormat) {
+    public void createTexture(Renderer renderer, int textureId, int width, int height, int imgFormat) {
         TextureImage textureImage = new TextureImage(0L, 0L, 0L);
-        VkConc.createTextureImage(common.device, memory, renderer, width, height, imgFormat, textureImage);
-        textureImage.setView(VkConc.createImageView(
-                common.device,
-                textureImage.getTextureImage(),
-                imgFormat,
-                VK10.VK_IMAGE_ASPECT_COLOR_BIT
-        ));
+        VkKt.createTextureImage(renderer, common.device, width, height, imgFormat, textureImage);
+        textureImage.setView(VkKt.createTextureImageView(common.device, imgFormat, textureImage.getTextureImage()));
         textureMap.put(textureId, new Texture(imgFormat, width, height, textureImage, null));
     }
 
@@ -92,21 +84,21 @@ public class TextureManager {
     public void drawToExistingTexture(Renderer renderer, Memory memory, int textureId, UploadableImage image, ImageRegion srcRegion, ImageRegion dstRegion) {
         Texture texture = getTexture(textureId);
         if (preparedTextures.contains(texture)) {
-            VkConc.transitionImageLayout(
-                    common.device,
+            VkKt.transitionImageLayout(
                     renderer,
+                    common.device,
                     renderer.depthBuffer,
                     texture.getTextureImage().getTextureImage(),
-                    texture.getImageFormat(),
+                    texture.getImgFormat(),
                     VK10.VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL,
                     VK10.VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL
             );
             preparedTextures.remove(texture);
         }
 
-        VkConc.copyToTexture(
-                common.device,
+        VkKt.copyToTexture(
                 renderer,
+                common.device,
                 memory,
                 image,
                 srcRegion,
@@ -122,12 +114,12 @@ public class TextureManager {
 
     public void prepareTexture(Renderer renderer, Texture texture) {
         if (!preparedTextures.contains(texture)) {
-            VkConc.transitionImageLayout(
-                    common.device,
+            VkKt.transitionImageLayout(
                     renderer,
+                    common.device,
                     renderer.depthBuffer,
                     texture.getTextureImage().getTextureImage(),
-                    texture.getImageFormat(),
+                    texture.getImgFormat(),
                     VK10.VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
                     VK10.VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL
             );

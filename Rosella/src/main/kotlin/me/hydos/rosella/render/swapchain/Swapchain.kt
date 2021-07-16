@@ -2,7 +2,7 @@ package me.hydos.rosella.render.swapchain
 
 import me.hydos.rosella.device.QueueFamilyIndices
 import me.hydos.rosella.display.Display
-import me.hydos.rosella.util.VkConc
+import me.hydos.rosella.render.findQueueFamilies
 import me.hydos.rosella.util.VulkanUtils.ok
 import org.lwjgl.system.MemoryStack
 import org.lwjgl.vulkan.*
@@ -51,7 +51,7 @@ class Swapchain(
                 .imageArrayLayers(1)
                 .imageUsage(VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT)
 
-            val indices: QueueFamilyIndices = VkConc.findQueueFamilies(device.physicalDevice, surface)
+            val indices: QueueFamilyIndices = findQueueFamilies(device, surface)
 
             if (indices.graphicsFamily != indices.presentFamily) {
                 createInfo.imageSharingMode(VK_SHARING_MODE_CONCURRENT)
