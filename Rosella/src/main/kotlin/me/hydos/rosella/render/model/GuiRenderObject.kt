@@ -15,7 +15,7 @@ open class GuiRenderObject(
     private var colour: Vector3f = Vector3f(0f, 0f, 0f),
     viewMatrix: Matrix4f,
     projectionMatrix: Matrix4f
-) : RenderObject(Resource.Empty, material, viewMatrix, projectionMatrix) {
+) : RenderObject(Resource.Empty as Resource?, material, viewMatrix, projectionMatrix) {
 
     constructor(
         material: Material,

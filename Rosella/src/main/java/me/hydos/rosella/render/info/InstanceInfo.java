@@ -28,7 +28,7 @@ public record InstanceInfo(Ubo ubo,
     public void rebuild(@NotNull Rosella rosella) {
         if (ubo.getUniformBuffers().size() == 0) {
             ubo.create(rosella.renderer.swapchain);
-            material.getShader().getDescriptorManager().createNewDescriptor(material.textures, ubo);
+            material.getShader().getDescriptorManager().createNewDescriptor(material.getTextures(), ubo);
         }
     }
 
@@ -45,6 +45,6 @@ public record InstanceInfo(Ubo ubo,
             ubo.create(rosella.renderer.swapchain);
         }
 
-        material.getShader().getDescriptorManager().createNewDescriptor(material.textures, ubo);
+        material.getShader().getDescriptorManager().createNewDescriptor(material.getTextures(), ubo);
     }
 }

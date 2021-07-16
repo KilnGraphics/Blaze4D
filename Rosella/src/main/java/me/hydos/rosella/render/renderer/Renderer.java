@@ -25,7 +25,28 @@ import org.lwjgl.PointerBuffer;
 import org.lwjgl.system.MemoryStack;
 import org.lwjgl.system.MemoryUtil;
 import org.lwjgl.util.vma.VmaAllocationCreateInfo;
-import org.lwjgl.vulkan.*;
+import org.lwjgl.vulkan.KHRSwapchain;
+import org.lwjgl.vulkan.VkClearValue;
+import org.lwjgl.vulkan.VkCommandBuffer;
+import org.lwjgl.vulkan.VkCommandBufferAllocateInfo;
+import org.lwjgl.vulkan.VkCommandBufferBeginInfo;
+import org.lwjgl.vulkan.VkDevice;
+import org.lwjgl.vulkan.VkFenceCreateInfo;
+import org.lwjgl.vulkan.VkFormatProperties;
+import org.lwjgl.vulkan.VkFramebufferCreateInfo;
+import org.lwjgl.vulkan.VkImageBlit;
+import org.lwjgl.vulkan.VkImageCopy;
+import org.lwjgl.vulkan.VkImageCreateInfo;
+import org.lwjgl.vulkan.VkImageMemoryBarrier;
+import org.lwjgl.vulkan.VkImageSubresource;
+import org.lwjgl.vulkan.VkImageSubresourceRange;
+import org.lwjgl.vulkan.VkOffset3D;
+import org.lwjgl.vulkan.VkPresentInfoKHR;
+import org.lwjgl.vulkan.VkRect2D;
+import org.lwjgl.vulkan.VkRenderPassBeginInfo;
+import org.lwjgl.vulkan.VkSemaphoreCreateInfo;
+import org.lwjgl.vulkan.VkSubmitInfo;
+import org.lwjgl.vulkan.VkSubresourceLayout;
 
 import java.nio.IntBuffer;
 import java.nio.LongBuffer;
@@ -100,7 +121,7 @@ public class Renderer {
         }
 
         for (Material material : objectManager.materials) {
-            material.pipeline = objectManager.pipelineManager.getPipeline(material, this);
+            material.setPipeline(objectManager.pipelineManager.getPipeline(material, this));
         }
 
         rebuildCommandBuffers(renderPass, objectManager);
@@ -405,13 +426,13 @@ public class Renderer {
         vkCmdBindPipeline(
                 commandBuffer,
                 VK_PIPELINE_BIND_POINT_GRAPHICS,
-                instanceInfo.material().pipeline.getGraphicsPipeline()
+                instanceInfo.material().getPipeline().graphicsPipeline()
         );
 
         vkCmdBindDescriptorSets(
                 commandBuffer,
                 VK_PIPELINE_BIND_POINT_GRAPHICS,
-                instanceInfo.material().pipeline.getPipelineLayout(),
+                instanceInfo.material().getPipeline().pipelineLayout(),
                 0,
                 stack.longs(instanceInfo.ubo().getDescriptors().getRawDescriptorSets().getLong(commandBufferIndex)),
                 null
@@ -635,7 +656,7 @@ public class Renderer {
 
                 for (int x = 0; x < width; x++) {
                     if (isBGR) {
-
+                        // TODO: implement screenshot
                     } else {
 
                     }
