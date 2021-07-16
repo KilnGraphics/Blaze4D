@@ -241,13 +241,13 @@ public class VkConc {
                     texture.getTextureImage().getTextureImage(),
                     image.getWidth(),
                     image.getHeight(),
-                    sourceRegion.getXOffset(),
-                    sourceRegion.getYOffset(),
+                    sourceRegion.xOffset(),
+                    sourceRegion.yOffset(),
                     image.getFormat().getPixelSize(),
-                    destRegion.getWidth(),
-                    destRegion.getHeight(),
-                    destRegion.getXOffset(),
-                    destRegion.getYOffset()
+                    destRegion.width(),
+                    destRegion.height(),
+                    destRegion.xOffset(),
+                    destRegion.yOffset()
             );
 
             stagingBuf.free(device, memory);

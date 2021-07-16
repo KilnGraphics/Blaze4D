@@ -97,7 +97,7 @@ public class TextureManager {
                     renderer,
                     renderer.depthBuffer,
                     texture.getTextureImage().getTextureImage(),
-                    texture.getImgFormat(),
+                    texture.getImageFormat(),
                     VK10.VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL,
                     VK10.VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL
             );
@@ -127,7 +127,7 @@ public class TextureManager {
                     renderer,
                     renderer.depthBuffer,
                     texture.getTextureImage().getTextureImage(),
-                    texture.getImgFormat(),
+                    texture.getImageFormat(),
                     VK10.VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
                     VK10.VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL
             );
