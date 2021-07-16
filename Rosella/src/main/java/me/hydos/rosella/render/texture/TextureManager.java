@@ -36,9 +36,9 @@ public class TextureManager {
         return this.common;
     }
 
-    public void initializeBlankTexture(Renderer renderer) {
+    public void initializeBlankTexture(Renderer renderer, Memory memory) {
         if (BLANK_TEXTURE == null) {
-            createTexture(renderer, BLANK_TEXTURE_ID, 1, 1, VK10.VK_FORMAT_R8G8B8A8_UNORM);
+            createTexture(renderer, memory, BLANK_TEXTURE_ID, 1, 1, VK10.VK_FORMAT_R8G8B8A8_UNORM);
             setTextureSamplerNoCache(BLANK_TEXTURE_ID, new SamplerCreateInfo(TextureFilter.NEAREST, WrapMode.REPEAT));
             BLANK_TEXTURE = getTexture(BLANK_TEXTURE_ID);
             prepareTexture(renderer, BLANK_TEXTURE);
@@ -66,9 +66,9 @@ public class TextureManager {
         return textureMap.get(textureId);
     }
 
-    public void createTexture(Renderer renderer, int textureId, int width, int height, int imgFormat) {
+    public void createTexture(Renderer renderer, Memory memory, int textureId, int width, int height, int imgFormat) {
         TextureImage textureImage = new TextureImage(0L, 0L, 0L);
-        VkConc.createTextureImage(common.device, renderer, width, height, imgFormat, textureImage);
+        VkConc.createTextureImage(common.device, memory, renderer, width, height, imgFormat, textureImage);
         textureImage.setView(VkConc.createImageView(
                 common.device,
                 textureImage.getTextureImage(),

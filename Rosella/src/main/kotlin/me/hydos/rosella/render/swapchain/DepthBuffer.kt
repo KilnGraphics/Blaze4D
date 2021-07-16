@@ -1,9 +1,11 @@
 package me.hydos.rosella.render.swapchain
 
 import me.hydos.rosella.device.VulkanDevice
+import me.hydos.rosella.memory.Memory
 import me.hydos.rosella.render.renderer.Renderer
 import me.hydos.rosella.util.VkConc
 import org.lwjgl.system.MemoryStack
+import org.lwjgl.util.vma.Vma
 import org.lwjgl.vulkan.VK10.*
 import org.lwjgl.vulkan.VkFormatProperties
 import java.nio.IntBuffer
@@ -17,16 +19,17 @@ class DepthBuffer {
     private var depthImageMemory: Long = 0
     var depthImageView: Long = 0
 
-    fun createDepthResources(device: VulkanDevice, swapchain: Swapchain, renderer: Renderer) {
+    fun createDepthResources(device: VulkanDevice, memory: Memory, swapchain: Swapchain, renderer: Renderer) {
         val depthFormat: Int = findDepthFormat(device)
         val c = VkConc.createImage(
-            device,
+            memory,
             swapchain.swapChainExtent.width(),
             swapchain.swapChainExtent.height(),
             depthFormat,
             VK_IMAGE_TILING_OPTIMAL,
             VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT,
             VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT,
+            Vma.VMA_MEMORY_USAGE_GPU_ONLY
         )
         depthImage = c.buffer
         depthImageMemory = c.allocation

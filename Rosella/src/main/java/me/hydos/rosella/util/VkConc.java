@@ -3,6 +3,7 @@ package me.hydos.rosella.util;
 import me.hydos.rosella.device.QueueFamilyIndices;
 import me.hydos.rosella.device.VulkanDevice;
 import me.hydos.rosella.memory.BufferInfo;
+import me.hydos.rosella.memory.ImageInfo;
 import me.hydos.rosella.memory.Memory;
 import me.hydos.rosella.render.renderer.Renderer;
 import me.hydos.rosella.render.swapchain.DepthBuffer;
@@ -13,6 +14,8 @@ import me.hydos.rosella.render.texture.TextureImage;
 import me.hydos.rosella.render.texture.UploadableImage;
 import org.lwjgl.PointerBuffer;
 import org.lwjgl.system.MemoryStack;
+import org.lwjgl.util.vma.Vma;
+import org.lwjgl.util.vma.VmaAllocationCreateInfo;
 import org.lwjgl.vulkan.*;
 
 import java.nio.ByteBuffer;
@@ -48,12 +51,12 @@ public class VkConc {
                     .subresourceRange(subresourceRange -> subresourceRange.set(aspectFlags, 0, 1, 0, 1));
             LongBuffer buffer = stack.mallocLong(1);
             ok(vkCreateImageView(device.rawDevice, createInfo, null, buffer));
-            return buffer.get();
+            return buffer.get(0);
         }
     }
 
     public static void createImageViews(VulkanDevice device, Swapchain swapchain) {
-        ArrayList<Long> views = new ArrayList<>();
+        ArrayList<Long> views = new ArrayList<>(swapchain.getSwapChainImages().size());
         swapchain.setSwapChainImageViews(views);
 
         for (long image : swapchain.getSwapChainImages()) {
@@ -66,10 +69,11 @@ public class VkConc {
             QueueFamilyIndices indices = findQueueFamilies(device.rawDevice.getPhysicalDevice(), surface);
             VkCommandPoolCreateInfo createInfo = VkCommandPoolCreateInfo.mallocStack(stack)
                     .sType(VK_STRUCTURE_TYPE_COMMAND_POOL_CREATE_INFO)
-                    .queueFamilyIndex(indices.graphicsFamily);
-            LongBuffer buffer = stack.mallocLong(1);
-            ok(vkCreateCommandPool(device.rawDevice, createInfo, null, buffer));
-            renderer.commandPool = buffer.get();
+                    .queueFamilyIndex(indices.graphicsFamily)
+                    .pNext(VK_NULL_HANDLE);
+            LongBuffer pCommandPool = stack.mallocLong(1);
+            ok(vkCreateCommandPool(device.rawDevice, createInfo, null, pCommandPool));
+            renderer.commandPool = pCommandPool.get(0);
         }
     }
 
@@ -87,7 +91,7 @@ public class VkConc {
             IntBuffer queueFamilyCount = stack.ints(0);
             vkGetPhysicalDeviceQueueFamilyProperties(device, queueFamilyCount, null);
 
-            VkQueueFamilyProperties.Buffer queueFamilies = VkQueueFamilyProperties.mallocStack(queueFamilyCount.get(), stack);
+            VkQueueFamilyProperties.Buffer queueFamilies = VkQueueFamilyProperties.mallocStack(queueFamilyCount.get(0), stack);
             vkGetPhysicalDeviceQueueFamilyProperties(device, queueFamilyCount, queueFamilies);
 
             IntBuffer presentSupport = stack.ints(VK_FALSE);
@@ -108,11 +112,8 @@ public class VkConc {
         }
     }
 
-    public static BufferInfo createImage(VulkanDevice device, int width, int height, int format, int tiling, int usage, int memoryProperties) {
+    public static ImageInfo createImage(Memory memory, int width, int height, int format, int tiling, int usage, int memoryProperties, int vmaUsage) {
         try (MemoryStack stack = MemoryStack.stackPush()) {
-            long textureImage;
-            long textureImageMemory;
-
             VkImageCreateInfo imageInfo = VkImageCreateInfo.callocStack(stack)
                     .sType(VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO)
                     .imageType(VK_IMAGE_TYPE_2D)
@@ -126,28 +127,8 @@ public class VkConc {
                     .samples(VK_SAMPLE_COUNT_1_BIT)
                     .sharingMode(VK_SHARING_MODE_EXCLUSIVE);
 
-            {
-                LongBuffer temp = stack.mallocLong(1);
-                ok(vkCreateImage(device.rawDevice, imageInfo, null, temp), "Failed to allocate image memory");
-                textureImage = temp.get();
-            }
-
-            VkMemoryRequirements requirements = VkMemoryRequirements.mallocStack(stack);
-            vkGetImageMemoryRequirements(device.rawDevice, textureImage, requirements);
-
-            VkMemoryAllocateInfo allocateInfo = VkMemoryAllocateInfo.callocStack(stack)
-                    .sType(VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO)
-                    .allocationSize(requirements.size())
-                    .memoryTypeIndex(findMemoryType(device, requirements.memoryTypeBits(), memoryProperties));
-
-            {
-                LongBuffer temp = stack.mallocLong(1);
-                ok(vkAllocateMemory(device.rawDevice, allocateInfo, null, temp));
-                textureImageMemory = temp.get();
-            }
-
-            vkBindImageMemory(device.rawDevice, textureImage, textureImageMemory, 0);
-            return new BufferInfo(textureImage, textureImageMemory);
+            // TODO OPT: figure out how vma pools work
+            return memory.createImageBuffer(imageInfo, memoryProperties, vmaUsage);
         }
     }
 
@@ -218,8 +199,8 @@ public class VkConc {
         }
     }
 
-    public static void createTextureImage(VulkanDevice device, Renderer renderer, int width, int height, int format, TextureImage textureImage) {
-        BufferInfo image = createImage(device, width, height, format, VK_IMAGE_TILING_OPTIMAL, VK_IMAGE_USAGE_TRANSFER_DST_BIT | VK_IMAGE_USAGE_SAMPLED_BIT, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT);
+    public static void createTextureImage(VulkanDevice device, Memory memory, Renderer renderer, int width, int height, int format, TextureImage textureImage) {
+        ImageInfo image = createImage(memory, width, height, format, VK_IMAGE_TILING_OPTIMAL, VK_IMAGE_USAGE_TRANSFER_DST_BIT | VK_IMAGE_USAGE_SAMPLED_BIT, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, Vma.VMA_MEMORY_USAGE_GPU_ONLY);
         textureImage.setTextureImage(image.buffer());
         textureImage.setTextureImageMemory(image.allocation());
 
@@ -255,6 +236,7 @@ public class VkConc {
     }
 
     public static void copyBufferToImage(VulkanDevice device, Renderer renderer, long buffer, long image, int sourceImageWidth, int sourceImageHeight, int sourceXOffset, int sourceYOffset, int sourcePixelSize, int destRegionWidth, int destRegionHeight, int destXOffset, int destYOffset) {
+        // TODO OPT: have image be linear tiling until it is prepared for the first time, then make it optimal
         try (MemoryStack stack = MemoryStack.stackPush()) {
             VkBufferImageCopy.Buffer region = VkBufferImageCopy.callocStack(1, stack)
                     .bufferOffset((((long) sourceYOffset * sourceImageWidth) + sourceXOffset) * sourcePixelSize)

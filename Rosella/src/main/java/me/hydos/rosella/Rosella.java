@@ -67,7 +67,7 @@ public class Rosella {
         // Setup the object manager
         this.objectManager = new SimpleObjectManager(this, common);
         this.renderer = new Renderer(this); //TODO: make swapchain, etc initialization happen outside of the renderer and in here
-        ((SimpleObjectManager) objectManager).textureManager.initializeBlankTexture(renderer);
+        ((SimpleObjectManager) objectManager).textureManager.initializeBlankTexture(renderer, common.memory); // TODO: move this maybe
         this.objectManager.postInit(renderer);
         this.bufferManager = new GlobalBufferManager(this);
 

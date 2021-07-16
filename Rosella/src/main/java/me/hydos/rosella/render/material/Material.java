@@ -49,6 +49,7 @@ public class Material {
             UploadableImage image = new StbiImage(resource, ImageFormat.fromVkFormat(imgFormat));
             textureManager.createTexture(
                     rosella.renderer,
+                    rosella.common.memory,
                     textureId,
                     image.getWidth(),
                     image.getHeight(),

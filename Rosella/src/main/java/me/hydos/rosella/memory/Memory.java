@@ -1,6 +1,5 @@
 package me.hydos.rosella.memory;
 
-import it.unimi.dsi.fastutil.longs.LongArrayList;
 import it.unimi.dsi.fastutil.longs.LongOpenHashSet;
 import it.unimi.dsi.fastutil.longs.LongSet;
 import it.unimi.dsi.fastutil.longs.LongSets;
@@ -20,8 +19,12 @@ import org.lwjgl.vulkan.*;
 
 import java.nio.ByteBuffer;
 import java.nio.LongBuffer;
-import java.util.*;
-import java.util.concurrent.*;
+import java.util.List;
+import java.util.Objects;
+import java.util.Set;
+import java.util.concurrent.LinkedBlockingQueue;
+import java.util.concurrent.ThreadPoolExecutor;
+import java.util.concurrent.TimeUnit;
 import java.util.function.Consumer;
 
 import static me.hydos.rosella.util.VulkanUtils.ok;
@@ -137,15 +140,17 @@ public abstract class Memory {
      * Allocates an image buffer
      *
      * @param pImageCreateInfo Information related to the image which will be contained
-     * @param pAllocationCreateInfo Information related to the allocation itself
+     * @param vmaUsage The memory type provided to VMA
      * @return The bundle of the image and the allocation addresses
      */
-    public BufferInfo createImageBuffer(VkImageCreateInfo pImageCreateInfo, VmaAllocationCreateInfo pAllocationCreateInfo) {
+    public ImageInfo createImageBuffer(VkImageCreateInfo pImageCreateInfo, int memoryProperties, int vmaUsage) {
         try (MemoryStack stack = MemoryStack.stackPush()) {
-            LongBuffer image = stack.mallocLong(1);
+            LongBuffer image = stack.mallocLong(3);
             PointerBuffer allocation = stack.mallocPointer(1);
-            ok(Vma.vmaCreateImage(allocator, pImageCreateInfo, pAllocationCreateInfo, image, allocation, null));
-            return new BufferInfo(image.get(), allocation.get());
+            // TODO OPT: try to make allocation create info more customizable
+            VmaAllocationCreateInfo pAllocationCreateInfo = VmaAllocationCreateInfo.mallocStack(stack).requiredFlags(memoryProperties).usage(vmaUsage);
+            ok(Vma.vmaCreateImage(allocator, pImageCreateInfo, pAllocationCreateInfo, image, allocation, null), "Failed to allocate image memory");
+            return new ImageInfo(image.get(), allocation.get(0));
         }
     }
 
@@ -218,6 +223,13 @@ public abstract class Memory {
      */
     public void freeBuffer(BufferInfo buffer) {
         deallocatorThreadPool.execute(() -> Vma.vmaDestroyBuffer(allocator, buffer.buffer(), buffer.allocation()));
+    }
+
+    /**
+     * Queues an image to be freed
+     */
+    public void freeImage(ImageInfo image) {
+        deallocatorThreadPool.execute(() -> Vma.vmaDestroyImage(allocator, image.buffer(), image.allocation()));
     }
 
     /**
