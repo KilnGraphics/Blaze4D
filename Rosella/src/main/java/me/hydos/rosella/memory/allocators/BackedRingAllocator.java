@@ -91,6 +91,10 @@ public class BackedRingAllocator {
             this.virtualHead = nextWraparound(this.virtualHead);
             this.virtualTail = this.virtualHead;
         }
+
+        if(this.virtualTail > this.virtualHead) {
+            throw new IllegalStateException("Ring allocator corruption, tail is in front of head. THIS IS VERY VERY BAD.");
+        }
     }
 
     private void writeAllocation(final long virtualDataStart, final long dataSize) {
@@ -188,5 +192,10 @@ public class BackedRingAllocator {
 
     private static boolean isPowerOf2(int value) {
         return (value > 0) && ((value & (value-1)) == 0);
+    }
+
+    public void testPrint() {
+        int tailData = memory.getInt((int) getRealOffset(this.virtualTail));
+        System.out.println("Head: " + this.virtualHead + " Tail: " + this.virtualTail + " Data: " + tailData);
     }
 }

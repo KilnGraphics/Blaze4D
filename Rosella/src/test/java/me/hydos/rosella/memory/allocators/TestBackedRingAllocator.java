@@ -1,7 +1,5 @@
 package me.hydos.rosella.memory.allocators;
 
-import me.hydos.rosella.memory.allocators.BackedRingAllocator;
-
 import org.junit.jupiter.api.Test;
 
 import java.nio.ByteBuffer;
@@ -169,5 +167,75 @@ public class TestBackedRingAllocator {
 
         assertFalse(allocator.isEmpty());
         assertTrue(allocator.isFull());
+    }
+
+    @Test
+    void allocateFreeFullRandom() {
+        Random random = new Random(1848934);
+        BackedRingAllocator allocator = create(2048);
+        Deque<Integer> allocations = new LinkedList<>();
+        List<Integer> tmpShuffle = new ArrayList<>();
+
+        // We will never have more than 16 allocations so 100 ensures the allocator is never full and theres always space for a wraparound
+        final int MAX_ALLOC_SIZE = 100 - 1;
+
+        assertTrue(allocator.isEmpty());
+        assertFalse(allocator.isFull());
+
+        // At the end of each of these iterations the allocator should be empty
+        for(int n = 0; n < 8; n++) {
+            // Make 8 initial allocations
+            for(int i = 0; i < 8; i++) {
+                int alloc = allocator.allocate(random.nextInt(MAX_ALLOC_SIZE) + 1);
+                assertNotEquals(Integer.MIN_VALUE, alloc, "Failed to allocate initial " + i + " in iteration " + n);
+                allocations.addFirst(alloc);
+            }
+
+            assertFalse(allocator.isEmpty());
+            assertFalse(allocator.isFull());
+
+            // Run a lot of allocate free cycles
+            for(int k = 0; k < 2048; k++) {
+                for(int i = 0; i < 8; i++) {
+                    int alloc = allocator.allocate(random.nextInt(MAX_ALLOC_SIZE) + 1);
+                    assertNotEquals(Integer.MIN_VALUE, alloc, "Failed to allocate " + i + " in batch " + k + " and iteration " + n);
+                    allocations.addFirst(alloc);
+                }
+
+                // Remove last 8 and randomly shuffle them
+                tmpShuffle.clear();
+                for(int i = 0; i < 8; i++) {
+                    tmpShuffle.add(allocations.pollLast());
+                    Collections.shuffle(tmpShuffle, random);
+                }
+                for(int alloc : tmpShuffle) {
+                    assertTimeoutPreemptively(Duration.ofSeconds(10), () -> allocator.free(alloc), "Failed to free in batch " + k + " and iteration " + n);
+                }
+
+                assertFalse(allocator.isEmpty());
+                assertFalse(allocator.isFull());
+            }
+
+            // Free the remaining 8 allocations again
+            for(int alloc : allocations) {
+                assertTimeoutPreemptively(Duration.ofSeconds(10), () -> allocator.free(alloc), "Failed to free final in iteration " + n);
+            }
+            allocations.clear();
+
+            assertTrue(allocator.isEmpty());
+            assertFalse(allocator.isFull());
+
+            // Make sure the empty allocator can always make a full allocation
+            int endAlloc = allocator.allocate(2044);
+
+            assertNotEquals(Integer.MIN_VALUE, endAlloc);
+            assertFalse(allocator.isEmpty());
+            assertTrue(allocator.isFull());
+
+            allocator.free(endAlloc);
+
+            assertTrue(allocator.isEmpty());
+            assertFalse(allocator.isFull());
+        }
     }
 }

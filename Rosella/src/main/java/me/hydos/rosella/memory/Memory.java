@@ -57,8 +57,7 @@ public abstract class Memory {
                 r -> new Thread(r, "Deallocator Thread " + threadNo++),
                 (r, executor) -> {/* noop */});
 
-        this.testPool = new StagingMemoryPool(this.allocator);
-        this.testPool.randomTests();
+        this.testPool = new StagingMemoryPool();
     }
 
     /**
