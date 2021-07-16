@@ -1,10 +1,8 @@
 package me.hydos.rosella.render.swapchain
 
 import me.hydos.rosella.device.VulkanDevice
-import me.hydos.rosella.render.createImage
-import me.hydos.rosella.render.createImageView
 import me.hydos.rosella.render.renderer.Renderer
-import me.hydos.rosella.render.transitionImageLayout
+import me.hydos.rosella.util.VkConc
 import org.lwjgl.system.MemoryStack
 import org.lwjgl.vulkan.VK10.*
 import org.lwjgl.vulkan.VkFormatProperties
@@ -20,36 +18,30 @@ class DepthBuffer {
     var depthImageView: Long = 0
 
     fun createDepthResources(device: VulkanDevice, swapchain: Swapchain, renderer: Renderer) {
-        MemoryStack.stackPush().use { stack ->
-            val depthFormat: Int = findDepthFormat(device)
-            val pDepthImage = stack.mallocLong(1)
-            val pDepthImageMemory = stack.mallocLong(1)
-            createImage(
-                swapchain.swapChainExtent.width(),
-                swapchain.swapChainExtent.height(),
-                depthFormat,
-                VK_IMAGE_TILING_OPTIMAL,
-                VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT,
-                VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT,
-                pDepthImage,
-                pDepthImageMemory,
-                device
-            )
-            depthImage = pDepthImage[0]
-            depthImageMemory = pDepthImageMemory[0]
-            depthImageView = createImageView(depthImage, depthFormat, VK_IMAGE_ASPECT_DEPTH_BIT, device)
+        val depthFormat: Int = findDepthFormat(device)
+        val c = VkConc.createImage(
+            device,
+            swapchain.swapChainExtent.width(),
+            swapchain.swapChainExtent.height(),
+            depthFormat,
+            VK_IMAGE_TILING_OPTIMAL,
+            VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT,
+            VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT,
+        )
+        depthImage = c.buffer
+        depthImageMemory = c.allocation
+        depthImageView = VkConc.createImageView(device, depthImage, depthFormat, VK_IMAGE_ASPECT_DEPTH_BIT)
 
-            // Explicitly transitioning the depth image
-            transitionImageLayout(
-                renderer,
-                device,
-                renderer.depthBuffer,
-                depthImage,
-                depthFormat,
-                VK_IMAGE_LAYOUT_UNDEFINED,
-                VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL
-            )
-        }
+        // Explicitly transitioning the depth image
+        VkConc.transitionImageLayout(
+            device,
+            renderer,
+            renderer.depthBuffer,
+            depthImage,
+            depthFormat,
+            VK_IMAGE_LAYOUT_UNDEFINED,
+            VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL
+        )
     }
 
     fun findDepthFormat(device: VulkanDevice): Int {

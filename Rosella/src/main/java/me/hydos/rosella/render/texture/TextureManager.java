@@ -3,13 +3,16 @@ package me.hydos.rosella.render.texture;
 import it.unimi.dsi.fastutil.ints.IntArrayPriorityQueue;
 import it.unimi.dsi.fastutil.ints.IntPriorityQueue;
 import it.unimi.dsi.fastutil.ints.IntPriorityQueues;
-
-import java.util.*;
 import me.hydos.rosella.memory.Memory;
-import me.hydos.rosella.render.VkKt;
 import me.hydos.rosella.render.renderer.Renderer;
+import me.hydos.rosella.util.VkConc;
 import me.hydos.rosella.vkobjects.VkCommon;
 import org.lwjgl.vulkan.VK10;
+
+import java.util.HashMap;
+import java.util.HashSet;
+import java.util.Map;
+import java.util.Set;
 
 public class TextureManager {
 
@@ -65,8 +68,13 @@ public class TextureManager {
 
     public void createTexture(Renderer renderer, int textureId, int width, int height, int imgFormat) {
         TextureImage textureImage = new TextureImage(0L, 0L, 0L);
-        VkKt.createTextureImage(renderer, common.device, width, height, imgFormat, textureImage);
-        textureImage.setView(VkKt.createTextureImageView(common.device, imgFormat, textureImage.getTextureImage()));
+        VkConc.createTextureImage(common.device, renderer, width, height, imgFormat, textureImage);
+        textureImage.setView(VkConc.createImageView(
+                common.device,
+                textureImage.getTextureImage(),
+                imgFormat,
+                VK10.VK_IMAGE_ASPECT_COLOR_BIT
+        ));
         textureMap.put(textureId, new Texture(imgFormat, width, height, textureImage, null));
     }
 
@@ -84,9 +92,9 @@ public class TextureManager {
     public void drawToExistingTexture(Renderer renderer, Memory memory, int textureId, UploadableImage image, ImageRegion srcRegion, ImageRegion dstRegion) {
         Texture texture = getTexture(textureId);
         if (preparedTextures.contains(texture)) {
-            VkKt.transitionImageLayout(
-                    renderer,
+            VkConc.transitionImageLayout(
                     common.device,
+                    renderer,
                     renderer.depthBuffer,
                     texture.getTextureImage().getTextureImage(),
                     texture.getImgFormat(),
@@ -96,9 +104,9 @@ public class TextureManager {
             preparedTextures.remove(texture);
         }
 
-        VkKt.copyToTexture(
-                renderer,
+        VkConc.copyToTexture(
                 common.device,
+                renderer,
                 memory,
                 image,
                 srcRegion,
@@ -114,9 +122,9 @@ public class TextureManager {
 
     public void prepareTexture(Renderer renderer, Texture texture) {
         if (!preparedTextures.contains(texture)) {
-            VkKt.transitionImageLayout(
-                    renderer,
+            VkConc.transitionImageLayout(
                     common.device,
+                    renderer,
                     renderer.depthBuffer,
                     texture.getTextureImage().getTextureImage(),
                     texture.getImgFormat(),

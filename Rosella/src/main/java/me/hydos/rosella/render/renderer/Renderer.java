@@ -9,7 +9,6 @@ import me.hydos.rosella.display.Display;
 import me.hydos.rosella.memory.BufferInfo;
 import me.hydos.rosella.memory.Memory;
 import me.hydos.rosella.memory.buffer.GlobalBufferManager;
-import me.hydos.rosella.render.VkKt;
 import me.hydos.rosella.render.info.InstanceInfo;
 import me.hydos.rosella.render.info.RenderInfo;
 import me.hydos.rosella.render.material.Material;
@@ -20,33 +19,13 @@ import me.hydos.rosella.render.swapchain.RenderPass;
 import me.hydos.rosella.render.swapchain.Swapchain;
 import me.hydos.rosella.scene.object.impl.SimpleObjectManager;
 import me.hydos.rosella.util.Color;
+import me.hydos.rosella.util.VkConc;
 import me.hydos.rosella.vkobjects.VkCommon;
 import org.lwjgl.PointerBuffer;
 import org.lwjgl.system.MemoryStack;
 import org.lwjgl.system.MemoryUtil;
 import org.lwjgl.util.vma.VmaAllocationCreateInfo;
-import org.lwjgl.vulkan.KHRSwapchain;
-import org.lwjgl.vulkan.VkClearValue;
-import org.lwjgl.vulkan.VkCommandBuffer;
-import org.lwjgl.vulkan.VkCommandBufferAllocateInfo;
-import org.lwjgl.vulkan.VkCommandBufferBeginInfo;
-import org.lwjgl.vulkan.VkDevice;
-import org.lwjgl.vulkan.VkFenceCreateInfo;
-import org.lwjgl.vulkan.VkFormatProperties;
-import org.lwjgl.vulkan.VkFramebufferCreateInfo;
-import org.lwjgl.vulkan.VkImageBlit;
-import org.lwjgl.vulkan.VkImageCopy;
-import org.lwjgl.vulkan.VkImageCreateInfo;
-import org.lwjgl.vulkan.VkImageMemoryBarrier;
-import org.lwjgl.vulkan.VkImageSubresource;
-import org.lwjgl.vulkan.VkImageSubresourceRange;
-import org.lwjgl.vulkan.VkOffset3D;
-import org.lwjgl.vulkan.VkPresentInfoKHR;
-import org.lwjgl.vulkan.VkRect2D;
-import org.lwjgl.vulkan.VkRenderPassBeginInfo;
-import org.lwjgl.vulkan.VkSemaphoreCreateInfo;
-import org.lwjgl.vulkan.VkSubmitInfo;
-import org.lwjgl.vulkan.VkSubresourceLayout;
+import org.lwjgl.vulkan.*;
 
 import java.nio.IntBuffer;
 import java.nio.LongBuffer;
@@ -97,7 +76,7 @@ public class Renderer {
         this.queues = new VulkanQueues(common);
         this.depthBuffer = new DepthBuffer();
 
-        VkKt.createCmdPool(common.device, this, common.surface);
+        VkConc.createCommandPool(common.device, this, common.surface);
         createSwapChain(common, common.display, ((SimpleObjectManager) rosella.objectManager));
         initialSwapchainCreated = true;
     }
@@ -111,7 +90,7 @@ public class Renderer {
     private void createSwapChain(VkCommon common, Display display, SimpleObjectManager objectManager) {
         this.swapchain = new Swapchain(display, common.device.rawDevice, common.device.physicalDevice, common.surface);
         this.renderPass = new RenderPass(common.device, swapchain, this);
-        VkKt.createImgViews(swapchain, common.device);
+        VkConc.createImageViews(common.device, swapchain);
         depthBuffer.createDepthResources(common.device, swapchain, this);
         createFrameBuffers();
 
@@ -355,7 +334,7 @@ public class Renderer {
 
                 commandBuffers = new ObjectArrayList<>(commandBuffersCount);
 
-                PointerBuffer pCommandBuffers = VkKt.allocateCmdBuffers(
+                PointerBuffer pCommandBuffers = VkConc.allocateCommandBuffers(
                         common.device,
                         commandPool,
                         commandBuffersCount,
@@ -371,10 +350,15 @@ public class Renderer {
                     );
                 }
 
-                VkCommandBufferBeginInfo beginInfo = VkKt.createBeginInfo(stack);
-                VkRenderPassBeginInfo renderPassInfo = VkKt.createRenderPassInfo(stack, renderPass);
-                VkRect2D renderArea = VkKt.createRenderArea(stack, 0, 0, swapchain);
-                VkClearValue.Buffer clearValues = VkKt.createClearValues(clearColor.rAsFloat(), clearColor.gAsFloat(), clearColor.bAsFloat(), clearDepth, clearStencil);
+                VkCommandBufferBeginInfo beginInfo = VkCommandBufferBeginInfo.callocStack(stack)
+                        .sType(VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO);
+                VkRenderPassBeginInfo renderPassInfo = VkRenderPassBeginInfo.callocStack(stack)
+                        .sType(VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO)
+                        .renderPass(renderPass.getRenderPass());
+                VkRect2D renderArea = VkRect2D.callocStack(stack)
+                        .offset(VkOffset2D.callocStack(stack).set(0, 0))
+                        .extent(swapchain.getSwapChainExtent());
+                VkClearValue.Buffer clearValues = VkConc.createClearValues(clearColor, clearDepth, clearStencil);
 
                 renderPassInfo.renderArea(renderArea)
                         .pClearValues(clearValues);
