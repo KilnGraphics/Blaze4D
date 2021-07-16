@@ -423,7 +423,7 @@ public class Renderer {
     public void screenshot(int width, int height) {
         VkDevice device = common.device.rawDevice;
 
-        try (MemoryStack stack = MemoryStack.create()) {
+        try (MemoryStack stack = MemoryStack.stackPush()) {
             // Check blit support for source and destination
             boolean useBlit;
 
