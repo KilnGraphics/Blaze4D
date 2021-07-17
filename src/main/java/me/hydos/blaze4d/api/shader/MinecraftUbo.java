@@ -139,6 +139,10 @@ public class MinecraftUbo extends Ubo {
         putMat4(viewTransformMatrix, buffer);
     }
 
+    public static void addEndPortalLayers(MinecraftUbo minecraftUbo, ByteBuffer buffer) {
+        buffer.putInt(15); // Taken from the end portal json         { "name": "EndPortalLayers", "type": "int", "count": 1, "values": [ 15 ] }
+    }
+
     protected void putVec2i(int i1, int i2, ByteBuffer buffer) {
         putInt(i1, buffer);
         putInt(i2, buffer);

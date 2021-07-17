@@ -6,6 +6,7 @@ import it.unimi.dsi.fastutil.objects.Object2IntOpenHashMap;
 import it.unimi.dsi.fastutil.objects.ObjectIntImmutablePair;
 import it.unimi.dsi.fastutil.objects.ObjectIntPair;
 import me.hydos.blaze4d.api.GlobalRenderSystem;
+
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
@@ -13,7 +14,7 @@ import java.util.Map;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
-public class OpenGLToVulkanShaderProcessor {
+public class VanillaShaderProcessor {
 
     public static ObjectIntPair<List<String>> process(List<String> source, List<Uniform> glUniforms, Object2IntMap<String> currentSamplerBindings, int initialSamplerBinding) {
         List<String> lines = new ArrayList<>(source.stream()
@@ -73,7 +74,14 @@ public class OpenGLToVulkanShaderProcessor {
                 uboImports.forEach(string -> uboInsert.append("\t").append(string).append("\n"));
                 uboInsert.append("} ubo;\n\n");
 
-                lines.set(i, uboInsert + line);
+                lines.set(2, uboInsert + lines.get(2));
+            } else if (line.contains("        0.0,")){ // ugly hack for end portals
+                System.out.println(line);
+                for (Uniform glUniform : glUniforms) {
+                    if(line.contains(glUniform.getName())){
+                        lines.set(i, line.replace(glUniform.getName(), "ubo." + glUniform.getName()));
+                    }
+                }
             }
 
         }
@@ -95,7 +103,7 @@ public class OpenGLToVulkanShaderProcessor {
             case 6 -> "vec3";
             case 7 -> "vec4";
             case 10 -> "mat4";
-            default -> throw new IllegalStateException("Unexpected value: " + dataType);
+            default -> throw new IllegalStateException("Unexpected Data Type: " + dataType);
         };
     }
 
@@ -103,34 +111,67 @@ public class OpenGLToVulkanShaderProcessor {
         String originalShader = """
                 #version 150
 
-                #moj_import <light.glsl>
+                #moj_import <matrix.glsl>
 
-                in vec3 Position;
-                in vec4 Color;
-                in vec2 UV0;
-                in ivec2 UV2;
-                in vec3 Normal;
+                uniform sampler2D Sampler0;
+                uniform sampler2D Sampler1;
 
-                uniform sampler2D Sampler2;
+                uniform float GameTime;
+                uniform int EndPortalLayers;
 
-                uniform mat4 ModelViewMat;
-                uniform mat4 ProjMat;
-                uniform vec3 ChunkOffset;
+                in vec4 texProj0;
 
-                out float vertexDistance;
-                out vec4 vertexColor;
-                out vec2 texCoord0;
-                out vec4 normal;
+                const vec3[] COLORS = vec3[](
+                    vec3(0.022087, 0.098399, 0.110818),
+                    vec3(0.011892, 0.095924, 0.089485),
+                    vec3(0.027636, 0.101689, 0.100326),
+                    vec3(0.046564, 0.109883, 0.114838),
+                    vec3(0.064901, 0.117696, 0.097189),
+                    vec3(0.063761, 0.086895, 0.123646),
+                    vec3(0.084817, 0.111994, 0.166380),
+                    vec3(0.097489, 0.154120, 0.091064),
+                    vec3(0.106152, 0.131144, 0.195191),
+                    vec3(0.097721, 0.110188, 0.187229),
+                    vec3(0.133516, 0.138278, 0.148582),
+                    vec3(0.070006, 0.243332, 0.235792),
+                    vec3(0.196766, 0.142899, 0.214696),
+                    vec3(0.047281, 0.315338, 0.321970),
+                    vec3(0.204675, 0.390010, 0.302066),
+                    vec3(0.080955, 0.314821, 0.661491)
+                );
+
+                const mat4 SCALE_TRANSLATE = mat4(
+                    0.5, 0.0, 0.0, 0.25,
+                    0.0, 0.5, 0.0, 0.25,
+                    0.0, 0.0, 1.0, 0.0,
+                    0.0, 0.0, 0.0, 1.0
+                );
+
+                mat4 end_portal_layer(float layer) {
+                    mat4 translate = mat4(
+                        1.0, 0.0, 0.0, 17.0 / layer,
+                        0.0, 1.0, 0.0, (2.0 + layer / 1.5) * (GameTime * 1.5),
+                        0.0, 0.0, 1.0, 0.0,
+                        0.0, 0.0, 0.0, 1.0
+                    );
+
+                    mat2 rotate = mat2_rotate_z(radians((layer * layer * 4321.0 + layer * 9.0) * 2.0));
+
+                    mat2 scale = mat2((4.5 - layer / 4.0) * 2.0);
+
+                    return mat4(scale * rotate) * translate * SCALE_TRANSLATE;
+                }
+
+                out vec4 fragColor;
 
                 void main() {
-                    gl_Position = ProjMat * ModelViewMat * vec4(Position + ChunkOffset, 1.0);
-
-                    vertexDistance = length((ModelViewMat * vec4(Position + ChunkOffset, 1.0)).xyz);
-                    vertexColor = Color * minecraft_sample_lightmap(Sampler2, UV2);
-                    texCoord0 = UV0;
-                    normal = ProjMat * ModelViewMat * vec4(Normal, 0.0);
+                    vec3 color = textureProj(Sampler0, texProj0).rgb * COLORS[0];
+                    for (int i = 0; i < EndPortalLayers; i++) {
+                        color += textureProj(Sampler1, texProj0 * end_portal_layer(float(i + 1))).rgb * COLORS[i];
+                    }
+                    fragColor = vec4(color, 1.0);
                 }
                 """;
-        System.out.println(String.join("\n", process(List.of(originalShader), Map.of("ModelViewMat", 10, "ProjMat", 10, "ChunkOffset", 6).entrySet().stream().map(entry -> new Uniform(entry.getKey(), entry.getValue(), 0, null)).toList(), new Object2IntOpenHashMap<>(), 1).key()));
+        System.out.println(String.join("\n", process(List.of(originalShader), Map.of("GameTime", 4, "EndPortalLayers", 0).entrySet().stream().map(entry -> new Uniform(entry.getKey(), entry.getValue(), 0, null)).toList(), new Object2IntOpenHashMap<>(), 1).key()));
     }
 }
