@@ -218,7 +218,7 @@ public class VkUtils {
         }
     }
 
-    public static int findMemoryType(int typeFilter, int properties, VulkanDevice device) {
+    public static int findMemoryType(VulkanDevice device, int typeFilter, int properties) {
         VkPhysicalDeviceMemoryProperties memProperties = VkPhysicalDeviceMemoryProperties.mallocStack();
         vkGetPhysicalDeviceMemoryProperties(device.physicalDevice, memProperties);
         for (int i = 0; i < memProperties.memoryTypeCount(); i++) {
@@ -257,7 +257,7 @@ public class VkUtils {
                 VK_IMAGE_TILING_OPTIMAL,
                 VK_IMAGE_USAGE_TRANSFER_DST_BIT | VK_IMAGE_USAGE_SAMPLED_BIT,
                 VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT,
-                Vma.VMA_MEMORY_USAGE_GPU_ONLY // FIXME
+                Vma.VMA_MEMORY_USAGE_UNKNOWN // FIXME
         );
 
         transitionImageLayout(

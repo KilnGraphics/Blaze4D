@@ -121,15 +121,13 @@ public class PipelineManager {
 
             VkPipelineRasterizationStateCreateInfo rasterizer = stateInfo.getRasterizationStateCreateInfo(polygonMode, stack);
 
-            VkPipelineMultisampleStateCreateInfo multisampling =
-                    VkPipelineMultisampleStateCreateInfo.callocStack(stack)
+            VkPipelineMultisampleStateCreateInfo multisampling = VkPipelineMultisampleStateCreateInfo.callocStack(stack)
                             .sType(VK10.VK_STRUCTURE_TYPE_PIPELINE_MULTISAMPLE_STATE_CREATE_INFO)
                             .sampleShadingEnable(false)
-                            .rasterizationSamples(VK10.VK_SAMPLE_COUNT_8_BIT);
+                            .rasterizationSamples(VK10.VK_SAMPLE_COUNT_1_BIT);
 
-            VkPipelineDepthStencilStateCreateInfo depthStencil = stateInfo.getPipelineDepthStencilStateCreateInfo(stack); // TODO: fix stencil settings
+            VkPipelineDepthStencilStateCreateInfo depthStencil = stateInfo.getPipelineDepthStencilStateCreateInfo(stack);
 
-            // TODO: use minecraft's blending info from the shaders
             VkPipelineColorBlendAttachmentState.Buffer colourBlendAttachment = stateInfo.getPipelineColorBlendAttachmentStates(stack);
 
             VkPipelineColorBlendStateCreateInfo colourBlending = stateInfo.getPipelineColorBlendStateCreateInfo(stack, colourBlendAttachment);

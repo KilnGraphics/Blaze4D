@@ -29,7 +29,7 @@ class DepthBuffer: MemoryCloseable {
             VK_IMAGE_TILING_OPTIMAL,
             VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT,
             VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT,
-            Vma.VMA_MEMORY_USAGE_GPU_ONLY // FIXME
+            Vma.VMA_MEMORY_USAGE_UNKNOWN // FIXME
         )
         depthImage.view = VkUtils.createImageView(device, depthImage.pointer(), depthFormat, VK_IMAGE_ASPECT_DEPTH_BIT)
 
