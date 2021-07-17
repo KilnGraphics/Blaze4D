@@ -11,7 +11,7 @@ import me.hydos.rosella.render.shader.ubo.Ubo
 import me.hydos.rosella.render.swapchain.Swapchain
 import me.hydos.rosella.render.texture.Texture
 import me.hydos.rosella.render.texture.TextureManager
-import me.hydos.rosella.util.VulkanUtils.ok
+import me.hydos.rosella.util.VkUtils.ok
 import me.hydos.rosella.scene.`object`.impl.SimpleObjectManager
 import org.lwjgl.system.MemoryStack
 import org.lwjgl.vulkan.*
@@ -73,12 +73,14 @@ open class RawShaderProgram(
                 .flags(VK_DESCRIPTOR_POOL_CREATE_FREE_DESCRIPTOR_SET_BIT)
 
             val pDescriptorPool = stack.mallocLong(1)
-            ok(vkCreateDescriptorPool(
-                device.rawDevice,
-                poolInfo,
-                null,
-                pDescriptorPool
-            ), "Failed to create descriptor pool")
+            ok(
+                vkCreateDescriptorPool(
+                    device.rawDevice,
+                    poolInfo,
+                    null,
+                    pDescriptorPool
+                ), "Failed to create descriptor pool"
+            )
 
             descriptorPool = pDescriptorPool[0]
         }
@@ -101,12 +103,14 @@ open class RawShaderProgram(
             layoutInfo.sType(VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO)
             layoutInfo.pBindings(bindings)
             val pDescriptorSetLayout = it.mallocLong(1)
-            ok(vkCreateDescriptorSetLayout(
-                device.rawDevice,
-                layoutInfo,
-                null,
-                pDescriptorSetLayout
-            ), "Failed to create descriptor set layout")
+            ok(
+                vkCreateDescriptorSetLayout(
+                    device.rawDevice,
+                    layoutInfo,
+                    null,
+                    pDescriptorSetLayout
+                ), "Failed to create descriptor set layout"
+            )
             descriptorSetLayout = pDescriptorSetLayout[0]
         }
     }
@@ -137,7 +141,13 @@ open class RawShaderProgram(
                 .pSetLayouts(layouts)
             val pDescriptorSets = stack.mallocLong(swapchain.swapChainImages.size)
 
-            ok(vkAllocateDescriptorSets(device.rawDevice, allocInfo, pDescriptorSets), "Failed to allocate descriptor sets")
+            ok(
+                vkAllocateDescriptorSets(
+                    device.rawDevice,
+                    allocInfo,
+                    pDescriptorSets
+                ), "Failed to allocate descriptor sets"
+            )
 
             val descriptorSets = DescriptorSets(descriptorPool, pDescriptorSets.capacity())
             val bufferInfo = VkDescriptorBufferInfo.callocStack(1, stack)

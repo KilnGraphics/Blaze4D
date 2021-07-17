@@ -1,11 +1,11 @@
 package me.hydos.rosella.render.swapchain
 
 import me.hydos.rosella.device.VulkanDevice
-import me.hydos.rosella.render.createImage
-import me.hydos.rosella.render.createImageView
+import me.hydos.rosella.memory.Memory
 import me.hydos.rosella.render.renderer.Renderer
-import me.hydos.rosella.render.transitionImageLayout
+import me.hydos.rosella.util.VkUtils
 import org.lwjgl.system.MemoryStack
+import org.lwjgl.util.vma.Vma
 import org.lwjgl.vulkan.VK10.*
 import org.lwjgl.vulkan.VkFormatProperties
 import java.nio.IntBuffer
@@ -19,28 +19,25 @@ class DepthBuffer {
     private var depthImageMemory: Long = 0
     var depthImageView: Long = 0
 
-    fun createDepthResources(device: VulkanDevice, swapchain: Swapchain, renderer: Renderer) {
+    fun createDepthResources(device: VulkanDevice, memory: Memory, swapchain: Swapchain, renderer: Renderer) {
         MemoryStack.stackPush().use { stack ->
-            val depthFormat: Int = findDepthFormat(device)
-            val pDepthImage = stack.mallocLong(1)
-            val pDepthImageMemory = stack.mallocLong(1)
-            createImage(
+            val depthFormat = findDepthFormat(device)
+            val image = VkUtils.createImage(
+                memory,
                 swapchain.swapChainExtent.width(),
                 swapchain.swapChainExtent.height(),
                 depthFormat,
                 VK_IMAGE_TILING_OPTIMAL,
                 VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT,
                 VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT,
-                pDepthImage,
-                pDepthImageMemory,
-                device
+                Vma.VMA_MEMORY_USAGE_GPU_ONLY // FIXME
             )
-            depthImage = pDepthImage[0]
-            depthImageMemory = pDepthImageMemory[0]
-            depthImageView = createImageView(depthImage, depthFormat, VK_IMAGE_ASPECT_DEPTH_BIT, device)
+            depthImage = image.buffer
+            depthImageMemory = image.allocation
+            depthImageView = VkUtils.createImageView(device, depthImage, depthFormat, VK_IMAGE_ASPECT_DEPTH_BIT)
 
             // Explicitly transitioning the depth image
-            transitionImageLayout(
+            VkUtils.transitionImageLayout(
                 renderer,
                 device,
                 renderer.depthBuffer,

@@ -4,22 +4,22 @@ import java.util.Objects;
 
 public class TextureImage {
 
-    private long textureImage;
+    private long pTextureImage;
     private long textureImageMemory;
     private long view;
 
     public TextureImage(long textureImage, long textureImageMemory, long view) {
-        this.textureImage = textureImage;
+        this.pTextureImage = textureImage;
         this.textureImageMemory = textureImageMemory;
         this.view = view;
     }
 
-    public long getTextureImage() {
-        return textureImage;
+    public long pointer() {
+        return pTextureImage;
     }
 
-    public void setTextureImage(long textureImage) {
-        this.textureImage = textureImage;
+    public void setPointer(long pTextureImage) {
+        this.pTextureImage = pTextureImage;
     }
 
     public long getTextureImageMemory() {
@@ -43,18 +43,18 @@ public class TextureImage {
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
         TextureImage that = (TextureImage) o;
-        return textureImage == that.textureImage && textureImageMemory == that.textureImageMemory && view == that.view;
+        return pTextureImage == that.pTextureImage && textureImageMemory == that.textureImageMemory && view == that.view;
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(textureImage, textureImageMemory, view);
+        return Objects.hash(pTextureImage, textureImageMemory, view);
     }
 
     @Override
     public String toString() {
         return "TextureImage{" +
-                "textureImage=" + textureImage +
+                "textureImage=" + pTextureImage +
                 ", textureImageMemory=" + textureImageMemory +
                 ", view=" + view +
                 '}';

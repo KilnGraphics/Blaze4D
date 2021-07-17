@@ -7,7 +7,7 @@ import me.hydos.rosella.render.descriptorsets.DescriptorSets
 import me.hydos.rosella.render.shader.ShaderProgram
 import me.hydos.rosella.render.swapchain.Swapchain
 import me.hydos.rosella.scene.`object`.RenderObject
-import me.hydos.rosella.util.VulkanUtils
+import me.hydos.rosella.memory.MemoryUtils
 import org.joml.Matrix4f
 import org.lwjgl.system.MemoryStack
 import org.lwjgl.util.vma.Vma
@@ -52,15 +52,15 @@ open class RenderObjectUbo(
             val mat4Size = 16 * java.lang.Float.BYTES
             renderObject.modelMatrix[0, buffer]
             renderObject.viewMatrix.get(
-                VulkanUtils.align(
+                MemoryUtils.align(
                     mat4Size,
-                    VulkanUtils.alignment(renderObject.viewMatrix::class.java)
+                    MemoryUtils.alignment(renderObject.viewMatrix::class.java)
                 ), buffer
             )
             renderObject.projectionMatrix.get(
-                VulkanUtils.align(
+                MemoryUtils.align(
                     mat4Size * 2,
-                    VulkanUtils.alignment(renderObject.projectionMatrix::class.java)
+                    MemoryUtils.alignment(renderObject.projectionMatrix::class.java)
                 ), buffer
             )
             memory.unmap(uboFrames[currentImg].allocation())
@@ -74,7 +74,7 @@ open class RenderObjectUbo(
     }
 
     override fun getSize(): Int {
-        return 3 * VulkanUtils.size(Matrix4f::class.java)
+        return 3 * MemoryUtils.size(Matrix4f::class.java)
     }
 
     override fun getUniformBuffers(): List<BufferInfo> {

@@ -27,7 +27,7 @@ import java.util.concurrent.ThreadPoolExecutor;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Consumer;
 
-import static me.hydos.rosella.util.VulkanUtils.ok;
+import static me.hydos.rosella.util.VkUtils.ok;
 import static org.lwjgl.system.MemoryStack.stackPush;
 
 /**

@@ -33,7 +33,7 @@ import org.lwjgl.vulkan.VkPipelineViewportStateCreateInfo;
 import org.lwjgl.vulkan.VkRect2D;
 import org.lwjgl.vulkan.VkViewport;
 
-import static me.hydos.rosella.util.VulkanUtils.ok;
+import static me.hydos.rosella.util.VkUtils.ok;
 
 public class PipelineManager {
     private final VkCommon common;

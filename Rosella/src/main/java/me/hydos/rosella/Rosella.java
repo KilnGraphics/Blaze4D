@@ -26,7 +26,7 @@ import java.util.List;
 import java.util.Set;
 import java.util.stream.Collectors;
 
-import static me.hydos.rosella.util.VulkanUtils.ok;
+import static me.hydos.rosella.util.VkUtils.ok;
 import static org.lwjgl.vulkan.EXTDebugUtils.vkDestroyDebugUtilsMessengerEXT;
 import static org.lwjgl.vulkan.KHRSurface.vkDestroySurfaceKHR;
 import static org.lwjgl.vulkan.VK10.*;
@@ -67,7 +67,7 @@ public class Rosella {
         // Setup the object manager
         this.objectManager = new SimpleObjectManager(this, common);
         this.renderer = new Renderer(this); //TODO: make swapchain, etc initialization happen outside of the renderer and in here
-        ((SimpleObjectManager) objectManager).textureManager.initializeBlankTexture(renderer, common.memory); // TODO: move this maybe
+        ((SimpleObjectManager) objectManager).textureManager.initializeBlankTexture(renderer); // TODO: move this maybe
         this.objectManager.postInit(renderer);
         this.bufferManager = new GlobalBufferManager(this);
 

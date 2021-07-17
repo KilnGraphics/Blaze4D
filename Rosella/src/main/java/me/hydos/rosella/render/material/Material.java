@@ -49,7 +49,6 @@ public class Material {
             UploadableImage image = new StbiImage(resource, ImageFormat.fromVkFormat(imgFormat));
             textureManager.createTexture(
                     rosella.renderer,
-                    rosella.common.memory,
                     textureId,
                     image.getWidth(),
                     image.getHeight(),
@@ -60,7 +59,7 @@ public class Material {
                     0,
                     samplerCreateInfo
             ); // 0 is the default texture no, but it's still gross
-            textureManager.drawToExistingTexture(rosella.renderer, rosella.common.memory, textureId, image);
+            textureManager.drawToExistingTexture(rosella.renderer, textureId, image);
             Texture texture = textureManager.getTexture(textureId);
             textures = new Texture[]{texture}; //FIXME THIS SUCKS
         }

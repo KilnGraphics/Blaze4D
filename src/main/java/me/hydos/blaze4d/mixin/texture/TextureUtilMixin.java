@@ -19,7 +19,6 @@ public class TextureUtilMixin {
         GlobalRenderSystem.boundTextureIds[GlobalRenderSystem.activeTexture] = id;
         ((SimpleObjectManager) Blaze4D.rosella.objectManager).textureManager.createTexture(
                 Blaze4D.rosella.renderer,
-                Blaze4D.rosella.common.memory,
                 id,
                 width,
                 height,
