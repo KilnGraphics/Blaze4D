@@ -101,7 +101,6 @@ public abstract class Memory {
                     .physicalDevice(common.device.physicalDevice)
                     .device(common.device.rawDevice)
                     .pVulkanFunctions(vulkanFunctions)
-                    //.flags(Vma.VMA_ALLOCATOR_CREATE_EXTERNALLY_SYNCHRONIZED_BIT)
                     .instance(common.vkInstance.rawInstance)
                     .vulkanApiVersion(Rosella.VULKAN_VERSION);
 
@@ -146,12 +145,15 @@ public abstract class Memory {
      */
     public TextureImage createImageBuffer(VkImageCreateInfo pImageCreateInfo, int memoryProperties, int vmaUsage) {
         try (MemoryStack stack = MemoryStack.stackPush()) {
-            LongBuffer image = stack.mallocLong(3);
-            PointerBuffer allocation = stack.mallocPointer(1);
+            LongBuffer pImage = stack.mallocLong(3);
+            PointerBuffer pAllocation = stack.mallocPointer(1);
             // TODO OPT: try to make allocation create info more customizable
             VmaAllocationCreateInfo pAllocationCreateInfo = VmaAllocationCreateInfo.mallocStack(stack).requiredFlags(memoryProperties).usage(vmaUsage);
-            ok(Vma.vmaCreateImage(allocator, pImageCreateInfo, pAllocationCreateInfo, image, allocation, null), "Failed to allocate image memory");
-            return new TextureImage(image.get(), allocation.get(0), 0);
+            ok(Vma.vmaCreateImage(allocator, pImageCreateInfo, pAllocationCreateInfo, pImage, pAllocation, null), "Failed to allocate image memory");
+            long image = pImage.get(0);
+            long allocation = pAllocation.get(0);
+//            ok(Vma.vmaBindImageMemory(allocator, allocation, image), "");
+            return new TextureImage(image, allocation, 0);
         }
     }
 
