@@ -63,7 +63,7 @@ public class OpenGLToVulkanShaderProcessor {
                 List<String> uboNames = glUniforms.stream().map(Uniform::getName).toList();
 
                 for (String uboName : uboNames) {
-                    for (int j = 0; j < lines.size(); j++) {
+                    for (int j = i; j < lines.size(); j++) {
                         lines.set(j, lines.get(j).replaceAll(uboName, "ubo." + uboName));
                     }
                 }
