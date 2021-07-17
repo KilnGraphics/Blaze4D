@@ -38,6 +38,7 @@ public class MinecraftShaderProgram extends RawShaderProgram {
                 .put("ChunkOffset", MinecraftUbo::addChunkOffset)
                 .put("Light0_Direction", MinecraftUbo::addLightDirections0)
                 .put("Light1_Direction", MinecraftUbo::addLightDirections1)
+                .put("EndPortalLayers", MinecraftUbo::addEndPortalLayers)
                 .build();
 
         UNIFORM_SIZES = new ImmutableMap.Builder<Integer, Integer>()
@@ -50,6 +51,7 @@ public class MinecraftShaderProgram extends RawShaderProgram {
                 .put(6, 3 * Float.BYTES)
                 .put(7, 4 * Float.BYTES)
                 .put(10, 4 * 4 * Float.BYTES)
+                .put(11, Integer.BYTES)
                 .build();
     }
 

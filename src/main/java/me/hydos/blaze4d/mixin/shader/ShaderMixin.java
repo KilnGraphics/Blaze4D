@@ -5,7 +5,7 @@ import com.mojang.blaze3d.shaders.Program;
 import com.mojang.blaze3d.vertex.VertexFormat;
 import it.unimi.dsi.fastutil.objects.ObjectIntPair;
 import me.hydos.blaze4d.api.GlobalRenderSystem;
-import me.hydos.blaze4d.api.shader.OpenGLToVulkanShaderProcessor;
+import me.hydos.blaze4d.api.shader.VanillaShaderProcessor;
 import net.minecraft.client.renderer.ShaderInstance;
 import net.minecraft.server.packs.resources.ResourceProvider;
 import org.spongepowered.asm.mixin.Mixin;
@@ -30,7 +30,7 @@ public class ShaderMixin {
     @ModifyArg(method = "getOrCreate", at = @At(value = "INVOKE", target = "Lcom/mojang/blaze3d/shaders/Program;compileShader(Lcom/mojang/blaze3d/shaders/Program$Type;Ljava/lang/String;Ljava/io/InputStream;Ljava/lang/String;Lcom/mojang/blaze3d/preprocessor/GlslPreprocessor;)Lcom/mojang/blaze3d/shaders/Program;"), index = 2)
     private static InputStream no(Program.Type type, String name, InputStream stream, String domain, GlslPreprocessor loader) throws IOException {
         String originalSource = new String(stream.readAllBytes());
-        ObjectIntPair<List<String>> conversionData = OpenGLToVulkanShaderProcessor.process(
+        ObjectIntPair<List<String>> conversionData = VanillaShaderProcessor.process(
                 List.of(originalSource),
                 GlobalRenderSystem.blaze4d$capturedShaderProgram.blaze4d$getUniforms(),
                 GlobalRenderSystem.processedSamplers,
