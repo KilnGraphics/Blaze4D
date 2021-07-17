@@ -76,7 +76,7 @@ public class PipelineManager {
     }
 
     public void invalidatePipelines(VkCommon common) {
-        pipelines.forEach((pipelineCreateInfo, pipelineInfo) -> pipelineInfo.free(common.device));
+        pipelines.forEach((pipelineCreateInfo, pipelineInfo) -> pipelineInfo.free(common.device, common.memory));
         pipelines.clear();
     }
 

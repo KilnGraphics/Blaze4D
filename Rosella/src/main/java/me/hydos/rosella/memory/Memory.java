@@ -5,6 +5,7 @@ import it.unimi.dsi.fastutil.longs.LongSet;
 import it.unimi.dsi.fastutil.longs.LongSets;
 import me.hydos.rosella.Rosella;
 import me.hydos.rosella.device.VulkanDevice;
+import me.hydos.rosella.render.material.PipelineInfo;
 import me.hydos.rosella.render.renderer.Renderer;
 import me.hydos.rosella.render.texture.TextureImage;
 import me.hydos.rosella.vkobjects.VkCommon;
@@ -233,10 +234,17 @@ public abstract class Memory {
      */
     public void freeImage(TextureImage image) {
         deallocatorThreadPool.execute(() -> {
-                Vma.vmaDestroyImage(allocator, image.pointer(), image.getTextureImageMemory());
-                if (image.getView() != VK10.VK_NULL_HANDLE) {
-                    VK10.vkDestroyImageView(common.device.rawDevice, image.getView(), null);
-                }
+            Vma.vmaDestroyImage(allocator, image.pointer(), image.getTextureImageMemory());
+            if (image.getView() != VK10.VK_NULL_HANDLE) {
+                VK10.vkDestroyImageView(common.device.rawDevice, image.getView(), null);
+            }
+        });
+    }
+
+    public void freePipeline(PipelineInfo pipeline) {
+        deallocatorThreadPool.execute(() -> {
+            VK10.vkDestroyPipeline(common.device.rawDevice, pipeline.graphicsPipeline(), null);
+            VK10.vkDestroyPipelineLayout(common.device.rawDevice, pipeline.pipelineLayout(), null);
         });
     }
 

@@ -1,12 +1,13 @@
 package me.hydos.rosella.render.material;
 
 import me.hydos.rosella.device.VulkanDevice;
-import org.lwjgl.vulkan.VK10;
+import me.hydos.rosella.memory.Memory;
+import me.hydos.rosella.memory.MemoryCloseable;
 
-public record PipelineInfo(long pipelineLayout, long graphicsPipeline) {
+public record PipelineInfo(long pipelineLayout, long graphicsPipeline) implements MemoryCloseable {
 
-    public void free(VulkanDevice device) {
-        VK10.vkDestroyPipeline(device.rawDevice, graphicsPipeline, null);
-        VK10.vkDestroyPipelineLayout(device.rawDevice, pipelineLayout, null);
+    @Override
+    public void free(VulkanDevice device, Memory memory) {
+        memory.freePipeline(this);
     }
 }
