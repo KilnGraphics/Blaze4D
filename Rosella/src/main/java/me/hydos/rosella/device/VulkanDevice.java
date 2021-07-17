@@ -12,6 +12,7 @@ import java.nio.IntBuffer;
 import java.util.Collections;
 import java.util.List;
 import java.util.Set;
+import java.util.function.Consumer;
 import java.util.stream.Collectors;
 
 import static me.hydos.rosella.memory.Memory.asPtrBuffer;
@@ -29,10 +30,23 @@ public class VulkanDevice {
     public final QueueFamilyIndices indices;
     public VkDevice rawDevice;
     public VkPhysicalDevice physicalDevice;
-    public PhysicalDeviceFeatures physicalDeviceFeatures;
+    public DeviceFeatures deviceFeatures;
     public Properties properties;
 
+    /**
+     * @param common           the vulkan common variables
+     * @param validationLayers the validation layers to use
+     * @deprecated Use the other method to allow for more than just anisotropy
+     */
+    @Deprecated
     public VulkanDevice(VkCommon common, List<String> validationLayers) {
+        this(common, validationLayers, deviceFeatures -> deviceFeatures
+                .samplerAnisotropy(true)
+                .depthClamp(true)
+                .depthBounds(true));
+    }
+
+    public VulkanDevice(VkCommon common, List<String> validationLayers, Consumer<VkPhysicalDeviceFeatures> deviceFeatureCallback) {
         try (MemoryStack stack = MemoryStack.stackPush()) {
             IntBuffer pPhysicalDeviceCount = stack.ints(0);
             ok(vkEnumeratePhysicalDevices(common.vkInstance.rawInstance, pPhysicalDeviceCount, null));
@@ -67,8 +81,9 @@ public class VulkanDevice {
                         .pQueuePriorities(stack.floats(1.0f));
             }
 
-            VkPhysicalDeviceFeatures deviceFeatures = VkPhysicalDeviceFeatures.callocStack(stack)
-                    .samplerAnisotropy(true);
+            VkPhysicalDeviceFeatures deviceFeatures = VkPhysicalDeviceFeatures.callocStack(stack);
+            deviceFeatureCallback.accept(deviceFeatures);
+
             VkDeviceCreateInfo deviceCreateInfo = VkDeviceCreateInfo.callocStack(stack)
                     .sType(VK_STRUCTURE_TYPE_DEVICE_CREATE_INFO)
                     .pQueueCreateInfos(queueCreateInfos)
@@ -118,9 +133,9 @@ public class VulkanDevice {
 
                 SwapchainSupportDetails swapchainSupport = Swapchain.Companion.querySwapchainSupport(device, stack, common.surface); // TODO: unkotlinify the swapchain
                 swapChainAdequate = swapchainSupport.formats.hasRemaining() && swapchainSupport.presentModes.hasRemaining(); // Check if the swapchain has valid formats and present modes available
-                VkPhysicalDeviceFeatures supportedFeatures = VkPhysicalDeviceFeatures.mallocStack(stack);
+                VkPhysicalDeviceFeatures supportedFeatures = VkPhysicalDeviceFeatures.callocStack(stack);
                 vkGetPhysicalDeviceFeatures(device, supportedFeatures);
-                this.physicalDeviceFeatures = getFeatures(supportedFeatures);
+                this.deviceFeatures = getFeatures(supportedFeatures);
                 anisotropySupported = supportedFeatures.samplerAnisotropy();
 
                 return indices.isComplete() && swapChainAdequate && anisotropySupported;
@@ -135,64 +150,63 @@ public class VulkanDevice {
      * @param supportedFeatures the Vulkan struct
      * @return a usable class
      */
-    private PhysicalDeviceFeatures getFeatures(VkPhysicalDeviceFeatures supportedFeatures) {
-        PhysicalDeviceFeatures features = new PhysicalDeviceFeatures();
-        features.robustBufferAccess = supportedFeatures.robustBufferAccess();
-        features.fullDrawIndexUint32 = supportedFeatures.fullDrawIndexUint32();
-        features.imageCubeArray = supportedFeatures.imageCubeArray();
-        features.independentBlend = supportedFeatures.independentBlend();
-        features.geometryShader = supportedFeatures.geometryShader();
-        features.tessellationShader = supportedFeatures.tessellationShader();
-        features.sampleRateShading = supportedFeatures.sampleRateShading();
-        features.dualSrcBlend = supportedFeatures.dualSrcBlend();
-        features.logicOp = supportedFeatures.logicOp();
-        features.multiDrawIndirect = supportedFeatures.multiDrawIndirect();
-        features.drawIndirectFirstInstance = supportedFeatures.drawIndirectFirstInstance();
-        features.depthClamp = supportedFeatures.depthClamp();
-        features.depthBiasClamp = supportedFeatures.depthBiasClamp();
-        features.fillModeNonSolid = supportedFeatures.fillModeNonSolid();
-        features.depthBounds = supportedFeatures.depthBounds();
-        features.wideLines = supportedFeatures.wideLines();
-        features.largePoints = supportedFeatures.largePoints();
-        features.alphaToOne = supportedFeatures.alphaToOne();
-        features.multiViewport = supportedFeatures.multiViewport();
-        features.samplerAnisotropy = supportedFeatures.samplerAnisotropy();
-        features.textureCompressionETC2 = supportedFeatures.textureCompressionETC2();
-        features.textureCompressionASTC_LDR = supportedFeatures.textureCompressionASTC_LDR();
-        features.textureCompressionBC = supportedFeatures.textureCompressionBC();
-        features.occlusionQueryPrecise = supportedFeatures.occlusionQueryPrecise();
-        features.pipelineStatisticsQuery = supportedFeatures.pipelineStatisticsQuery();
-        features.vertexPipelineStoresAndAtomics = supportedFeatures.vertexPipelineStoresAndAtomics();
-        features.fragmentStoresAndAtomics = supportedFeatures.fragmentStoresAndAtomics();
-        features.shaderTessellationAndGeometryPointSize = supportedFeatures.shaderTessellationAndGeometryPointSize();
-        features.shaderImageGatherExtended = supportedFeatures.shaderImageGatherExtended();
-        features.shaderStorageImageExtendedFormats = supportedFeatures.shaderStorageImageExtendedFormats();
-        features.shaderStorageImageMultisample = supportedFeatures.shaderStorageImageMultisample();
-        features.shaderStorageImageReadWithoutFormat = supportedFeatures.shaderStorageImageReadWithoutFormat();
-        features.shaderStorageImageWriteWithoutFormat = supportedFeatures.shaderStorageImageWriteWithoutFormat();
-        features.shaderUniformBufferArrayDynamicIndexing = supportedFeatures.shaderUniformBufferArrayDynamicIndexing();
-        features.shaderSampledImageArrayDynamicIndexing = supportedFeatures.shaderSampledImageArrayDynamicIndexing();
-        features.shaderStorageBufferArrayDynamicIndexing = supportedFeatures.shaderStorageBufferArrayDynamicIndexing();
-        features.shaderStorageImageArrayDynamicIndexing = supportedFeatures.shaderStorageImageArrayDynamicIndexing();
-        features.shaderClipDistance = supportedFeatures.shaderClipDistance();
-        features.shaderCullDistance = supportedFeatures.shaderCullDistance();
-        features.shaderFloat64 = supportedFeatures.shaderFloat64();
-        features.shaderInt64 = supportedFeatures.shaderInt64();
-        features.shaderInt16 = supportedFeatures.shaderInt16();
-        features.shaderResourceResidency = supportedFeatures.shaderResourceResidency();
-        features.shaderResourceMinLod = supportedFeatures.shaderResourceMinLod();
-        features.sparseBinding = supportedFeatures.sparseBinding();
-        features.sparseResidencyBuffer = supportedFeatures.sparseResidencyBuffer();
-        features.sparseResidencyImage2D = supportedFeatures.sparseResidencyImage2D();
-        features.sparseResidencyImage3D = supportedFeatures.sparseResidencyImage3D();
-        features.sparseResidency2Samples = supportedFeatures.sparseResidency2Samples();
-        features.sparseResidency4Samples = supportedFeatures.sparseResidency4Samples();
-        features.sparseResidency8Samples = supportedFeatures.sparseResidency8Samples();
-        features.sparseResidency16Samples = supportedFeatures.sparseResidency16Samples();
-        features.sparseResidencyAliased = supportedFeatures.sparseResidencyAliased();
-        features.variableMultisampleRate = supportedFeatures.variableMultisampleRate();
-        features.inheritedQueries = supportedFeatures.inheritedQueries();
-        return features;
+    private DeviceFeatures getFeatures(VkPhysicalDeviceFeatures supportedFeatures) {
+        return new DeviceFeatures(
+                supportedFeatures.robustBufferAccess(),
+                supportedFeatures.fullDrawIndexUint32(),
+                supportedFeatures.imageCubeArray(),
+                supportedFeatures.independentBlend(),
+                supportedFeatures.geometryShader(),
+                supportedFeatures.tessellationShader(),
+                supportedFeatures.sampleRateShading(),
+                supportedFeatures.dualSrcBlend(),
+                supportedFeatures.logicOp(),
+                supportedFeatures.multiDrawIndirect(),
+                supportedFeatures.drawIndirectFirstInstance(),
+                supportedFeatures.depthClamp(),
+                supportedFeatures.depthBiasClamp(),
+                supportedFeatures.fillModeNonSolid(),
+                supportedFeatures.depthBounds(),
+                supportedFeatures.wideLines(),
+                supportedFeatures.largePoints(),
+                supportedFeatures.alphaToOne(),
+                supportedFeatures.multiViewport(),
+                supportedFeatures.samplerAnisotropy(),
+                supportedFeatures.textureCompressionETC2(),
+                supportedFeatures.textureCompressionASTC_LDR(),
+                supportedFeatures.textureCompressionBC(),
+                supportedFeatures.occlusionQueryPrecise(),
+                supportedFeatures.pipelineStatisticsQuery(),
+                supportedFeatures.vertexPipelineStoresAndAtomics(),
+                supportedFeatures.fragmentStoresAndAtomics(),
+                supportedFeatures.shaderTessellationAndGeometryPointSize(),
+                supportedFeatures.shaderImageGatherExtended(),
+                supportedFeatures.shaderStorageImageExtendedFormats(),
+                supportedFeatures.shaderStorageImageMultisample(),
+                supportedFeatures.shaderStorageImageReadWithoutFormat(),
+                supportedFeatures.shaderStorageImageWriteWithoutFormat(),
+                supportedFeatures.shaderUniformBufferArrayDynamicIndexing(),
+                supportedFeatures.shaderSampledImageArrayDynamicIndexing(),
+                supportedFeatures.shaderStorageBufferArrayDynamicIndexing(),
+                supportedFeatures.shaderStorageImageArrayDynamicIndexing(),
+                supportedFeatures.shaderClipDistance(),
+                supportedFeatures.shaderCullDistance(),
+                supportedFeatures.shaderFloat64(),
+                supportedFeatures.shaderInt64(),
+                supportedFeatures.shaderInt16(),
+                supportedFeatures.shaderResourceResidency(),
+                supportedFeatures.shaderResourceMinLod(),
+                supportedFeatures.sparseBinding(),
+                supportedFeatures.sparseResidencyBuffer(),
+                supportedFeatures.sparseResidencyImage2D(),
+                supportedFeatures.sparseResidencyImage3D(),
+                supportedFeatures.sparseResidency2Samples(),
+                supportedFeatures.sparseResidency4Samples(),
+                supportedFeatures.sparseResidency8Samples(),
+                supportedFeatures.sparseResidency16Samples(),
+                supportedFeatures.sparseResidencyAliased(),
+                supportedFeatures.variableMultisampleRate(),
+                supportedFeatures.inheritedQueries());
     }
 
     /**
@@ -214,62 +228,32 @@ public class VulkanDevice {
         }
     }
 
-    public static class PhysicalDeviceFeatures {
-        public boolean robustBufferAccess;
-        public boolean fullDrawIndexUint32;
-        public boolean imageCubeArray;
-        public boolean independentBlend;
-        public boolean geometryShader;
-        public boolean tessellationShader;
-        public boolean sampleRateShading;
-        public boolean dualSrcBlend;
-        public boolean logicOp;
-        public boolean multiDrawIndirect;
-        public boolean drawIndirectFirstInstance;
-        public boolean depthClamp;
-        public boolean depthBiasClamp;
-        public boolean fillModeNonSolid;
-        public boolean depthBounds;
-        public boolean wideLines;
-        public boolean largePoints;
-        public boolean alphaToOne;
-        public boolean multiViewport;
-        public boolean samplerAnisotropy;
-        public boolean textureCompressionETC2;
-        public boolean textureCompressionASTC_LDR;
-        public boolean textureCompressionBC;
-        public boolean occlusionQueryPrecise;
-        public boolean pipelineStatisticsQuery;
-        public boolean vertexPipelineStoresAndAtomics;
-        public boolean fragmentStoresAndAtomics;
-        public boolean shaderTessellationAndGeometryPointSize;
-        public boolean shaderImageGatherExtended;
-        public boolean shaderStorageImageExtendedFormats;
-        public boolean shaderStorageImageMultisample;
-        public boolean shaderStorageImageReadWithoutFormat;
-        public boolean shaderStorageImageWriteWithoutFormat;
-        public boolean shaderUniformBufferArrayDynamicIndexing;
-        public boolean shaderSampledImageArrayDynamicIndexing;
-        public boolean shaderStorageBufferArrayDynamicIndexing;
-        public boolean shaderStorageImageArrayDynamicIndexing;
-        public boolean shaderClipDistance;
-        public boolean shaderCullDistance;
-        public boolean shaderFloat64;
-        public boolean shaderInt64;
-        public boolean shaderInt16;
-        public boolean shaderResourceResidency;
-        public boolean shaderResourceMinLod;
-        public boolean sparseBinding;
-        public boolean sparseResidencyBuffer;
-        public boolean sparseResidencyImage2D;
-        public boolean sparseResidencyImage3D;
-        public boolean sparseResidency2Samples;
-        public boolean sparseResidency4Samples;
-        public boolean sparseResidency8Samples;
-        public boolean sparseResidency16Samples;
-        public boolean sparseResidencyAliased;
-        public boolean variableMultisampleRate;
-        public boolean inheritedQueries;
+    public record DeviceFeatures(boolean robustBufferAccess, boolean fullDrawIndexUint32, boolean imageCubeArray,
+                                 boolean independentBlend, boolean geometryShader, boolean tessellationShader,
+                                 boolean sampleRateShading, boolean dualSrcBlend, boolean logicOp,
+                                 boolean multiDrawIndirect, boolean drawIndirectFirstInstance, boolean depthClamp,
+                                 boolean depthBiasClamp, boolean fillModeNonSolid, boolean depthBounds,
+                                 boolean wideLines,
+                                 boolean largePoints, boolean alphaToOne, boolean multiViewport,
+                                 boolean samplerAnisotropy,
+                                 boolean textureCompressionETC2, boolean textureCompressionASTC_LDR,
+                                 boolean textureCompressionBC, boolean occlusionQueryPrecise,
+                                 boolean pipelineStatisticsQuery, boolean vertexPipelineStoresAndAtomics,
+                                 boolean fragmentStoresAndAtomics, boolean shaderTessellationAndGeometryPointSize,
+                                 boolean shaderImageGatherExtended, boolean shaderStorageImageExtendedFormats,
+                                 boolean shaderStorageImageMultisample, boolean shaderStorageImageReadWithoutFormat,
+                                 boolean shaderStorageImageWriteWithoutFormat,
+                                 boolean shaderUniformBufferArrayDynamicIndexing,
+                                 boolean shaderSampledImageArrayDynamicIndexing,
+                                 boolean shaderStorageBufferArrayDynamicIndexing,
+                                 boolean shaderStorageImageArrayDynamicIndexing, boolean shaderClipDistance,
+                                 boolean shaderCullDistance, boolean shaderFloat64, boolean shaderInt64,
+                                 boolean shaderInt16, boolean shaderResourceResidency, boolean shaderResourceMinLod,
+                                 boolean sparseBinding, boolean sparseResidencyBuffer, boolean sparseResidencyImage2D,
+                                 boolean sparseResidencyImage3D, boolean sparseResidency2Samples,
+                                 boolean sparseResidency4Samples, boolean sparseResidency8Samples,
+                                 boolean sparseResidency16Samples, boolean sparseResidencyAliased,
+                                 boolean variableMultisampleRate, boolean inheritedQueries) {
     }
 
     public static class Properties {

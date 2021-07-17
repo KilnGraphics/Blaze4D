@@ -106,7 +106,7 @@ public abstract class WindowMixin {
 
         Blaze4D.window = new GlfwWindow(this.width, this.height, title, true);
         Blaze4D.rosella = new Rosella(Blaze4D.window, "Blaze4D", Blaze4D.VALIDATION_ENABLED);
-        Blaze4D.finishAndRender();
+        Blaze4D.finishSetup();
 
         Monitor monitor = monitorTracker.getMonitor(GLFW.glfwGetPrimaryMonitor());
         this.window = Blaze4D.window.pWindow;

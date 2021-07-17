@@ -272,10 +272,10 @@ public abstract class Memory {
      * Frees a LongArrayList of descriptor sets
      */
     public void freeDescriptorSets(long descriptorPool, LongBuffer descriptorSets) {
-        deallocatorThreadPool.execute(() -> {
+//        deallocatorThreadPool.execute(() -> {
             VK10.vkFreeDescriptorSets(common.device.rawDevice, descriptorPool, descriptorSets.flip());
             MemoryUtil.memFree(descriptorSets);
-        });
+//        });
     }
 
     /**

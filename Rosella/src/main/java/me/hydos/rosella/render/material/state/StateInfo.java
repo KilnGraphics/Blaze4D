@@ -280,7 +280,7 @@ public class StateInfo {
                 .depthWriteEnable(isDepthMask())
                 .depthCompareOp(getDepthCompareOp())
                 .depthBoundsTestEnable(true)
-                .minDepthBounds(-1.0f)
+                .minDepthBounds(0f)
                 .maxDepthBounds(1.0f)
                 .stencilTestEnable(isStencilEnabled());
     }
