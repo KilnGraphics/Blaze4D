@@ -18,7 +18,8 @@ public class StagingMemoryPool {
 
     private RingAllocator mainPool;
 
-    public StagingMemoryPool() {
+    public StagingMemoryPool(long vmaInstance) {
+        this.mainPool = new RingAllocator(1024L * 1024L * 128L, vmaInstance);
     }
 
     public void destroy() {
