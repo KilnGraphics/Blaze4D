@@ -3,13 +3,15 @@ package me.hydos.rosella.render.texture;
 import it.unimi.dsi.fastutil.ints.IntArrayPriorityQueue;
 import it.unimi.dsi.fastutil.ints.IntPriorityQueue;
 import it.unimi.dsi.fastutil.ints.IntPriorityQueues;
-
-import java.util.*;
-import me.hydos.rosella.memory.Memory;
 import me.hydos.rosella.render.renderer.Renderer;
 import me.hydos.rosella.util.VkUtils;
 import me.hydos.rosella.vkobjects.VkCommon;
 import org.lwjgl.vulkan.VK10;
+
+import java.util.HashMap;
+import java.util.HashSet;
+import java.util.Map;
+import java.util.Set;
 
 public class TextureManager {
 
@@ -53,8 +55,8 @@ public class TextureManager {
     }
 
     public void deleteTexture(int textureId) {
-        // TODO: actually delete image from gpu
         Texture removedTex = this.textureMap.remove(textureId);
+        removedTex.getTextureImage().free(common.device, common.memory);
         preparedTextures.remove(removedTex);
         reusableTexIds.enqueue(textureId);
     }
