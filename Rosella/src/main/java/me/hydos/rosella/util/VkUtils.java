@@ -4,7 +4,6 @@ import it.unimi.dsi.fastutil.longs.LongArrayList;
 import me.hydos.rosella.device.QueueFamilyIndices;
 import me.hydos.rosella.device.VulkanDevice;
 import me.hydos.rosella.memory.BufferInfo;
-import me.hydos.rosella.memory.ImageInfo;
 import me.hydos.rosella.memory.Memory;
 import me.hydos.rosella.render.renderer.Renderer;
 import me.hydos.rosella.render.swapchain.DepthBuffer;
@@ -230,7 +229,7 @@ public class VkUtils {
         throw new IllegalStateException("Failed to find suitable memory type");
     }
 
-    public static ImageInfo createImage(Memory memory, int width, int height, int format, int tiling, int usage, int memoryProperties, int vmaUsage) {
+    public static TextureImage createImage(Memory memory, int width, int height, int format, int tiling, int usage, int memoryProperties, int vmaUsage) {
         try (MemoryStack stack = MemoryStack.stackPush()) {
             VkImageCreateInfo imageInfo = VkImageCreateInfo.callocStack(stack)
                     .sType(VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO)
@@ -249,32 +248,29 @@ public class VkUtils {
         }
     }
 
-    public static void createTextureImage(Renderer renderer, Memory memory, VulkanDevice device, int width, int height, int imgFormat, TextureImage textureImage) {
-        try (MemoryStack stack = MemoryStack.stackPush()) {
-            ImageInfo image = createImage(
-                    memory,
-                    width,
-                    height,
-                    imgFormat,
-                    VK_IMAGE_TILING_OPTIMAL,
-                    VK_IMAGE_USAGE_TRANSFER_DST_BIT | VK_IMAGE_USAGE_SAMPLED_BIT,
-                    VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT,
-                    Vma.VMA_MEMORY_USAGE_GPU_ONLY // FIXME
-            );
-            textureImage.setPointer(image.buffer());
-            textureImage.setTextureImageMemory(image.allocation());
+    public static TextureImage createTextureImage(Renderer renderer, Memory memory, VulkanDevice device, int width, int height, int imgFormat) {
+        TextureImage image = createImage(
+                memory,
+                width,
+                height,
+                imgFormat,
+                VK_IMAGE_TILING_OPTIMAL,
+                VK_IMAGE_USAGE_TRANSFER_DST_BIT | VK_IMAGE_USAGE_SAMPLED_BIT,
+                VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT,
+                Vma.VMA_MEMORY_USAGE_GPU_ONLY // FIXME
+        );
 
+        transitionImageLayout(
+                renderer,
+                device,
+                renderer.depthBuffer,
+                image.pointer(),
+                imgFormat,
+                VK_IMAGE_LAYOUT_UNDEFINED,
+                VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL
+        );
 
-            transitionImageLayout(
-                    renderer,
-                    device,
-                    renderer.depthBuffer,
-                    textureImage.pointer(),
-                    imgFormat,
-                    VK_IMAGE_LAYOUT_UNDEFINED,
-                    VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL
-            );
-        }
+        return image;
     }
 
     public static void transitionImageLayout(Renderer renderer, VulkanDevice device, DepthBuffer depthBuffer, long image, int format, int oldLayout, int newLayout) {

@@ -1,11 +1,15 @@
 package me.hydos.rosella.render.texture;
 
+import me.hydos.rosella.device.VulkanDevice;
+import me.hydos.rosella.memory.Memory;
+import me.hydos.rosella.memory.MemoryCloseable;
+
 import java.util.Objects;
 
-public class TextureImage {
+public class TextureImage implements MemoryCloseable {
 
-    private long pTextureImage;
-    private long textureImageMemory;
+    private final long pTextureImage;
+    private final long textureImageMemory;
     private long view;
 
     public TextureImage(long textureImage, long textureImageMemory, long view) {
@@ -18,16 +22,8 @@ public class TextureImage {
         return pTextureImage;
     }
 
-    public void setPointer(long pTextureImage) {
-        this.pTextureImage = pTextureImage;
-    }
-
     public long getTextureImageMemory() {
         return textureImageMemory;
-    }
-
-    public void setTextureImageMemory(long textureImageMemory) {
-        this.textureImageMemory = textureImageMemory;
     }
 
     public long getView() {
@@ -54,9 +50,14 @@ public class TextureImage {
     @Override
     public String toString() {
         return "TextureImage{" +
-                "textureImage=" + pTextureImage +
+                "pTextureImage=" + pTextureImage +
                 ", textureImageMemory=" + textureImageMemory +
                 ", view=" + view +
                 '}';
+    }
+
+    @Override
+    public void free(VulkanDevice device, Memory memory) {
+        memory.freeImage(this);
     }
 }

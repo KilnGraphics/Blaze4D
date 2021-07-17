@@ -64,8 +64,7 @@ public class TextureManager {
     }
 
     public void createTexture(Renderer renderer, int textureId, int width, int height, int imgFormat) {
-        TextureImage textureImage = new TextureImage(0L, 0L, 0L);
-        VkUtils.createTextureImage(renderer, common.memory, common.device, width, height, imgFormat, textureImage);
+        TextureImage textureImage = VkUtils.createTextureImage(renderer, common.memory, common.device, width, height, imgFormat);
         textureImage.setView(VkUtils.createTextureImageView(common.device, imgFormat, textureImage.pointer()));
         textureMap.put(textureId, new Texture(imgFormat, width, height, textureImage, null));
     }

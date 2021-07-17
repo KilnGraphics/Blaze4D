@@ -6,6 +6,7 @@ import it.unimi.dsi.fastutil.longs.LongSets;
 import me.hydos.rosella.Rosella;
 import me.hydos.rosella.device.VulkanDevice;
 import me.hydos.rosella.render.renderer.Renderer;
+import me.hydos.rosella.render.texture.TextureImage;
 import me.hydos.rosella.vkobjects.VkCommon;
 import org.lwjgl.PointerBuffer;
 import org.lwjgl.system.MemoryStack;
@@ -143,14 +144,14 @@ public abstract class Memory {
      * @param vmaUsage The memory type provided to VMA
      * @return The bundle of the image and the allocation addresses
      */
-    public ImageInfo createImageBuffer(VkImageCreateInfo pImageCreateInfo, int memoryProperties, int vmaUsage) {
+    public TextureImage createImageBuffer(VkImageCreateInfo pImageCreateInfo, int memoryProperties, int vmaUsage) {
         try (MemoryStack stack = MemoryStack.stackPush()) {
             LongBuffer image = stack.mallocLong(3);
             PointerBuffer allocation = stack.mallocPointer(1);
             // TODO OPT: try to make allocation create info more customizable
             VmaAllocationCreateInfo pAllocationCreateInfo = VmaAllocationCreateInfo.mallocStack(stack).requiredFlags(memoryProperties).usage(vmaUsage);
             ok(Vma.vmaCreateImage(allocator, pImageCreateInfo, pAllocationCreateInfo, image, allocation, null), "Failed to allocate image memory");
-            return new ImageInfo(image.get(), allocation.get(0));
+            return new TextureImage(image.get(), allocation.get(0), 0);
         }
     }
 
@@ -228,16 +229,19 @@ public abstract class Memory {
     /**
      * Queues an image to be freed
      */
-    public void freeImage(ImageInfo image) {
-        deallocatorThreadPool.execute(() -> Vma.vmaDestroyImage(allocator, image.buffer(), image.allocation()));
+    public void freeImage(TextureImage image) {
+        deallocatorThreadPool.execute(() -> {
+                Vma.vmaDestroyImage(allocator, image.pointer(), image.getTextureImageMemory());
+                VK10.vkDestroyImageView(common.device.rawDevice, image.getView(), null);
+        });
     }
 
     /**
      * Frees a LongArrayList of descriptor sets
      */
-    public void freeDescriptorSets(VulkanDevice device, long descriptorPool, LongBuffer descriptorSets) {
+    public void freeDescriptorSets(long descriptorPool, LongBuffer descriptorSets) {
         deallocatorThreadPool.execute(() -> {
-            VK10.vkFreeDescriptorSets(device.rawDevice, descriptorPool, descriptorSets.flip());
+            VK10.vkFreeDescriptorSets(common.device.rawDevice, descriptorPool, descriptorSets.flip());
             MemoryUtil.memFree(descriptorSets);
         });
     }

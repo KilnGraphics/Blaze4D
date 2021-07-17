@@ -225,7 +225,7 @@ public class Renderer {
         clearCommandBuffers(rosella.common.device);
 
         // Free Depth Buffer
-        depthBuffer.free(rosella.common.device);
+        depthBuffer.free(rosella.common.device, rosella.common.memory);
 
         for (long framebuffer : swapchain.getFrameBuffers()) {
             vkDestroyFramebuffer(
@@ -303,7 +303,7 @@ public class Renderer {
         swapchain.setFrameBuffers(new LongArrayList(swapchain.getSwapChainImageViews().size()));
 
         try (MemoryStack stack = MemoryStack.stackPush()) {
-            LongBuffer attachments = stack.longs(VK_NULL_HANDLE, depthBuffer.getDepthImageView());
+            LongBuffer attachments = stack.longs(VK_NULL_HANDLE, depthBuffer.depthImage.getView());
             LongBuffer pFramebuffer = stack.mallocLong(1);
             VkFramebufferCreateInfo framebufferInfo = VkFramebufferCreateInfo.callocStack(stack)
                     .sType(VK_STRUCTURE_TYPE_FRAMEBUFFER_CREATE_INFO)
