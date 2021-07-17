@@ -12,7 +12,7 @@ public class VertexFormatElements {
     public static final int VK_FORMAT_PADDING = -1;
 
     public static final VertexFormatElement POSITION = getElement(VK10.VK_FORMAT_R32G32B32_SFLOAT, VertexFormatElement.DataType.FLOAT.getByteLength() * 3);
-    public static final VertexFormatElement NORMAL = getElement(VK10.VK_FORMAT_R8G8B8_SNORM, VertexFormatElement.DataType.BYTE.getByteLength() * 3);
+    public static final VertexFormatElement NORMAL = getElement(VK10.VK_FORMAT_R8G8B8_SINT, VertexFormatElement.DataType.BYTE.getByteLength() * 3);
     public static final VertexFormatElement COLOR3ub = getElement(VK10.VK_FORMAT_R8G8B8_UNORM, VertexFormatElement.DataType.UBYTE.getByteLength() * 3);
     public static final VertexFormatElement COLOR4ub = getElement(VK10.VK_FORMAT_R8G8B8A8_UNORM, VertexFormatElement.DataType.UBYTE.getByteLength() * 4);
     public static final VertexFormatElement COLOR3f = getElement(VK10.VK_FORMAT_R32G32B32_SFLOAT, VertexFormatElement.DataType.FLOAT.getByteLength() * 3);
