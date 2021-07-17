@@ -30,7 +30,7 @@ public class DescriptorSets implements MemoryCloseable {
                 buffer.put(descriptorSet);
             }
         }
-        memory.freeDescriptorSets(device, descriptorPool, buffer);
+        memory.freeDescriptorSets(descriptorPool, buffer);
     }
 
     /**
