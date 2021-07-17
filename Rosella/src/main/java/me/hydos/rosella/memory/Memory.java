@@ -254,7 +254,9 @@ public abstract class Memory {
      */
     public void freeImage(TextureImage image) {
         deallocatorThreadPool.execute(() -> {
-            Vma.vmaDestroyImage(allocator, image.pointer(), image.getTextureImageMemory());
+            VK10.vkDestroyImage(common.device.rawDevice, image.pointer(), null);
+            VK10.vkFreeMemory(common.device.rawDevice, image.getTextureImageMemory(), null);
+//            Vma.vmaDestroyImage(allocator, image.pointer(), image.getTextureImageMemory());
             if (image.getView() != VK10.VK_NULL_HANDLE) {
                 VK10.vkDestroyImageView(common.device.rawDevice, image.getView(), null);
             }
