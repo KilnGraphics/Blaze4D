@@ -1,5 +1,6 @@
 package me.hydos.rosella.render.renderer;
 
+import it.unimi.dsi.fastutil.Pair;
 import it.unimi.dsi.fastutil.ints.Int2ObjectOpenHashMap;
 import it.unimi.dsi.fastutil.objects.ObjectArrayList;
 import me.hydos.rosella.Rosella;
@@ -8,7 +9,6 @@ import me.hydos.rosella.device.VulkanQueues;
 import me.hydos.rosella.display.Display;
 import me.hydos.rosella.memory.BufferInfo;
 import me.hydos.rosella.memory.Memory;
-import me.hydos.rosella.memory.buffer.GlobalBufferManager;
 import me.hydos.rosella.render.VkKt;
 import me.hydos.rosella.render.info.InstanceInfo;
 import me.hydos.rosella.render.info.RenderInfo;
@@ -32,6 +32,9 @@ import java.nio.LongBuffer;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
+import java.util.concurrent.ExecutionException;
+import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
 
 import static me.hydos.rosella.render.util.VkUtilsKt.ok;
@@ -318,13 +321,12 @@ public class Renderer {
         if (!recreateSwapChain) {
             simpleObjectManager.rebuildCmdBuffers(renderPass, null, null); //TODO: move it into here
 
-            for (List<InstanceInfo> instances : simpleObjectManager.renderObjects.values()) {
-                for (InstanceInfo instance : instances) {
-                    if(requireHardRebuild) {
-                        instance.hardRebuild(rosella);
-                    } else {
-                        instance.rebuild(rosella);
-                    }
+            for (Pair<Future<RenderInfo>, InstanceInfo> renderObject : simpleObjectManager.renderObjects) {
+                InstanceInfo instance = renderObject.value();
+                if (requireHardRebuild) {
+                    instance.hardRebuild(rosella);
+                } else {
+                    instance.rebuild(rosella);
                 }
             }
             requireHardRebuild = false;
@@ -360,62 +362,72 @@ public class Renderer {
                         .pClearValues(clearValues);
 
                 if (rosella.bufferManager != null && !simpleObjectManager.renderObjects.isEmpty()) {
-                    rosella.bufferManager.nextFrame(simpleObjectManager.renderObjects.keySet());
-                }
+                    for (int i = 0; i < commandBuffersCount; i++) {
+                        VkCommandBuffer commandBuffer = commandBuffers.get(i);
+                        ok(vkBeginCommandBuffer(commandBuffer, beginInfo));
+                        renderPassInfo.framebuffer(swapchain.getFrameBuffers().get(i));
+                        vkCmdBeginRenderPass(commandBuffer, renderPassInfo, VK_SUBPASS_CONTENTS_INLINE);
 
-                for (int i = 0; i < commandBuffersCount; i++) {
-                    VkCommandBuffer commandBuffer = commandBuffers.get(i);
-                    ok(vkBeginCommandBuffer(commandBuffer, beginInfo));
-                    renderPassInfo.framebuffer(swapchain.getFrameBuffers().get(i));
+                        RenderInfo previousRenderInfo = null;
+                        for (Pair<Future<RenderInfo>, InstanceInfo> renderObject : simpleObjectManager.renderObjects) {
+                            try {
+                                RenderInfo currentRenderInfo = renderObject.key().get();
 
-                    vkCmdBeginRenderPass(commandBuffer, renderPassInfo, VK_SUBPASS_CONTENTS_INLINE);
+                                if (!Objects.equals(currentRenderInfo, previousRenderInfo)) {
+                                    previousRenderInfo = currentRenderInfo;
+                                    bindRenderInfo(currentRenderInfo, commandBuffer);
+                                }
 
-                    if (rosella.bufferManager != null && !simpleObjectManager.renderObjects.isEmpty()) {
-                        bindBigBuffers(rosella.bufferManager, stack, commandBuffer);
-                        for (RenderInfo renderInfo : simpleObjectManager.renderObjects.keySet()) {
-                            for (InstanceInfo instance : simpleObjectManager.renderObjects.get(renderInfo)) {
-                                bindInstanceInfo(instance, stack, commandBuffer, i); // TODO: check if the instance info from the previous one is the same
+                                bindInstanceInfo(renderObject.value(), commandBuffer, i); // TODO: check if the instance info from the previous one is the same
                                 vkCmdDrawIndexed(
                                         commandBuffer,
-                                        renderInfo.getIndicesSize(),
+                                        currentRenderInfo.indexCount(),
                                         1,
-                                        rosella.bufferManager.indicesOffsetMap.getInt(renderInfo),
-                                        rosella.bufferManager.vertexOffsetMap.getInt(renderInfo),
+                                        0,
+                                        0,
                                         0
                                 );
+                            } catch (InterruptedException | ExecutionException e) {
+                                Rosella.LOGGER.error("Error obtaining render info", e);
                             }
                         }
 
                         vkCmdEndRenderPass(commandBuffer);
                         ok(vkEndCommandBuffer(commandBuffer));
                     }
+
+                    rosella.bufferManager.postDraw();
                 }
             }
         }
     }
 
-    private void bindBigBuffers(GlobalBufferManager bufferManager, MemoryStack stack, VkCommandBuffer commandBuffer) {
-        LongBuffer offsets = stack.longs(0);
-        LongBuffer vertexBuffers = stack.longs(bufferManager.vertexBuffer.buffer());
-        vkCmdBindVertexBuffers(commandBuffer, 0, vertexBuffers, offsets);
-        vkCmdBindIndexBuffer(commandBuffer, bufferManager.indexBuffer.buffer(), 0, VK_INDEX_TYPE_UINT32);
+    private void bindRenderInfo(RenderInfo renderInfo, VkCommandBuffer commandBuffer) {
+        try (MemoryStack stack = MemoryStack.stackPush()) {
+            LongBuffer offsets = stack.longs(0);
+            LongBuffer vertexBuffers = stack.longs(renderInfo.vertexBuffer().buffer());
+            vkCmdBindVertexBuffers(commandBuffer, 0, vertexBuffers, offsets);
+            vkCmdBindIndexBuffer(commandBuffer, renderInfo.indexBuffer().buffer(), 0, VK_INDEX_TYPE_UINT32); // TODO OPT: calculate if this can be smaller type
+        }
     }
 
-    private void bindInstanceInfo(InstanceInfo instanceInfo, MemoryStack stack, VkCommandBuffer commandBuffer, int commandBufferIndex) {
-        vkCmdBindPipeline(
-                commandBuffer,
-                VK_PIPELINE_BIND_POINT_GRAPHICS,
-                instanceInfo.material().pipeline.getGraphicsPipeline()
-        );
+    private void bindInstanceInfo(InstanceInfo instanceInfo, VkCommandBuffer commandBuffer, int commandBufferIndex) {
+        try (MemoryStack stack = MemoryStack.stackPush()) {
+            vkCmdBindPipeline(
+                    commandBuffer,
+                    VK_PIPELINE_BIND_POINT_GRAPHICS,
+                    instanceInfo.material().pipeline.getGraphicsPipeline()
+            );
 
-        vkCmdBindDescriptorSets(
-                commandBuffer,
-                VK_PIPELINE_BIND_POINT_GRAPHICS,
-                instanceInfo.material().pipeline.getPipelineLayout(),
-                0,
-                stack.longs(instanceInfo.ubo().getDescriptors().getRawDescriptorSets().getLong(commandBufferIndex)),
-                null
-        );
+            vkCmdBindDescriptorSets(
+                    commandBuffer,
+                    VK_PIPELINE_BIND_POINT_GRAPHICS,
+                    instanceInfo.material().pipeline.getPipelineLayout(),
+                    0,
+                    stack.longs(instanceInfo.ubo().getDescriptors().getRawDescriptorSets().getLong(commandBufferIndex)),
+                    null
+            );
+        }
     }
 
     // Stolen from https://github.com/SaschaWillems/Vulkan/blob/master/examples/screenshot/screenshot.cpp#L188

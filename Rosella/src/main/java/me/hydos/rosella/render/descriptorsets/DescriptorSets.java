@@ -2,6 +2,7 @@ package me.hydos.rosella.render.descriptorsets;
 
 import it.unimi.dsi.fastutil.longs.LongArrayList;
 import me.hydos.rosella.device.VulkanDevice;
+import me.hydos.rosella.memory.ManagedBuffer;
 import me.hydos.rosella.memory.Memory;
 import me.hydos.rosella.memory.MemoryCloseable;
 import org.lwjgl.system.MemoryUtil;
@@ -30,7 +31,7 @@ public class DescriptorSets implements MemoryCloseable {
                 buffer.put(descriptorSet);
             }
         }
-        memory.freeDescriptorSets(descriptorPool, buffer);
+        memory.freeDescriptorSets(descriptorPool, new ManagedBuffer<>(buffer, true));
     }
 
     /**

@@ -1,6 +1,5 @@
 package me.hydos.rosella.memory;
 
-import it.unimi.dsi.fastutil.longs.LongArrayList;
 import it.unimi.dsi.fastutil.longs.LongOpenHashSet;
 import it.unimi.dsi.fastutil.longs.LongSet;
 import it.unimi.dsi.fastutil.longs.LongSets;
@@ -10,7 +9,6 @@ import me.hydos.rosella.render.renderer.Renderer;
 import me.hydos.rosella.vkobjects.VkCommon;
 import org.lwjgl.PointerBuffer;
 import org.lwjgl.system.MemoryStack;
-import org.lwjgl.system.MemoryUtil;
 import org.lwjgl.system.Pointer;
 import org.lwjgl.util.vma.Vma;
 import org.lwjgl.util.vma.VmaAllocationCreateInfo;
@@ -223,11 +221,11 @@ public abstract class Memory {
     /**
      * Frees a LongArrayList of descriptor sets
      */
-    public void freeDescriptorSets(long descriptorPool, LongBuffer descriptorSets) {
+    public void freeDescriptorSets(long descriptorPool, ManagedBuffer<LongBuffer> descriptorSets) {
         deallocatorThreadPool.execute(() -> {
             // FIXME synchronize
-            VK10.vkFreeDescriptorSets(common.device.rawDevice, descriptorPool, descriptorSets.flip());
-            MemoryUtil.memFree(descriptorSets);
+            VK10.vkFreeDescriptorSets(common.device.rawDevice, descriptorPool, descriptorSets.buffer().flip());
+            descriptorSets.tryFree();
         });
     }
 

@@ -2,16 +2,17 @@ package me.hydos.blaze4d.mixin.vertices;
 
 import com.mojang.blaze3d.vertex.BufferBuilder;
 import com.mojang.blaze3d.vertex.VertexBuffer;
-import com.mojang.blaze3d.vertex.VertexFormat;
 import com.mojang.datafixers.util.Pair;
+import it.unimi.dsi.fastutil.objects.ObjectIntPair;
+import me.hydos.blaze4d.Blaze4D;
 import me.hydos.blaze4d.api.GlobalRenderSystem;
 import me.hydos.blaze4d.api.util.ConversionUtils;
-import me.hydos.blaze4d.api.vertex.ConsumerCreationInfo;
-import me.hydos.rosella.render.vertex.StoredBufferProvider;
+import me.hydos.rosella.memory.BufferInfo;
+import me.hydos.rosella.memory.ManagedBuffer;
+import me.hydos.rosella.render.info.RenderInfo;
 import net.minecraft.client.renderer.ShaderInstance;
 import org.joml.Matrix4f;
 import org.joml.Vector3f;
-import org.lwjgl.system.MemoryUtil;
 import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.Overwrite;
 import org.spongepowered.asm.mixin.Unique;
@@ -29,7 +30,7 @@ import java.nio.ByteBuffer;
 public class VertexBufferMixin {
 
     @Unique
-    private ByteBuffer buffer;
+    private RenderInfo currentRenderInfo;
     @Unique
     private BufferBuilder.DrawState drawState;
 
@@ -46,13 +47,13 @@ public class VertexBufferMixin {
 
         if (!drawState.indexOnly()) {
             originalBuffer.limit(drawState.vertexBufferSize());
+            BufferInfo vertexBuffer = Blaze4D.rosella.bufferManager.createVertexBuffer(new ManagedBuffer<>(originalBuffer, false));
 
-            ByteBuffer copiedBuffer = MemoryUtil.memAlloc(originalBuffer.limit());
-            MemoryUtil.memCopy(originalBuffer, copiedBuffer);
-            if (this.buffer != null) {
-                MemoryUtil.memFree(this.buffer);
-            }
-            this.buffer = copiedBuffer;
+            ObjectIntPair<ManagedBuffer<ByteBuffer>> indexBufferSourcePair = GlobalRenderSystem.createIndices(drawState.mode(), drawState.vertexCount());
+            int indexCount = indexBufferSourcePair.valueInt();
+            BufferInfo indexBuffer = Blaze4D.rosella.bufferManager.createIndexBuffer(indexBufferSourcePair.key());
+
+            currentRenderInfo = new RenderInfo(vertexBuffer, indexBuffer, indexCount);
         }
 
         originalBuffer.limit(drawState.bufferSize());
@@ -94,18 +95,27 @@ public class VertexBufferMixin {
         int vertexCount = drawState.vertexCount();
 
         if (vertexCount > 0) {
-            VertexFormat format = drawState.format();
-
-            ConsumerCreationInfo consumerCreationInfo = new ConsumerCreationInfo(drawState.mode(), format, GlobalRenderSystem.activeShader, GlobalRenderSystem.createTextureArray(), GlobalRenderSystem.currentStateInfo.snapshot(), projMatrix, modelViewMatrix, chunkOffset, shaderLightDirections0, shaderLightDirections1);
-            StoredBufferProvider storedBufferProvider = GlobalRenderSystem.getOrCreateBufferProvider(consumerCreationInfo);
-
-            storedBufferProvider.addBuffer(this.buffer, 0, vertexCount, false);
+            GlobalRenderSystem.uploadPreCreatedObject(
+                    currentRenderInfo,
+                    ConversionUtils.FORMAT_CONVERSION_MAP.get(drawState.format().getElements()),
+                    GlobalRenderSystem.activeShader,
+                    GlobalRenderSystem.createTextureArray(),
+                    GlobalRenderSystem.currentStateInfo.snapshot(),
+                    projMatrix,
+                    modelViewMatrix,
+                    chunkOffset,
+                    shaderLightDirections0,
+                    shaderLightDirections1,
+                    drawState.format(),
+                    drawState.mode(),
+                    Blaze4D.rosella
+            );
         }
     }
 
     @Inject(method = "close", at = @At("HEAD"), cancellable = true)
     private void close(CallbackInfo ci) {
-        MemoryUtil.memFree(buffer);
+        currentRenderInfo.free(Blaze4D.rosella.common.device, Blaze4D.rosella.common.memory);
         ci.cancel();
     }
 }

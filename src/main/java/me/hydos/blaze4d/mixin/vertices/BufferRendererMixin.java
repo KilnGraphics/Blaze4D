@@ -2,11 +2,12 @@ package me.hydos.blaze4d.mixin.vertices;
 
 import com.mojang.blaze3d.vertex.BufferBuilder;
 import com.mojang.blaze3d.vertex.BufferUploader;
-import com.mojang.blaze3d.vertex.VertexFormat;
 import com.mojang.datafixers.util.Pair;
+import it.unimi.dsi.fastutil.objects.ObjectIntPair;
+import me.hydos.blaze4d.Blaze4D;
 import me.hydos.blaze4d.api.GlobalRenderSystem;
-import me.hydos.blaze4d.api.vertex.ConsumerCreationInfo;
-import me.hydos.rosella.render.vertex.StoredBufferProvider;
+import me.hydos.blaze4d.api.util.ConversionUtils;
+import me.hydos.rosella.memory.ManagedBuffer;
 import org.joml.Matrix4f;
 import org.joml.Vector3f;
 import org.lwjgl.system.MemoryUtil;
@@ -39,16 +40,28 @@ public class BufferRendererMixin {
         int vertexCount = drawState.vertexCount();
 
         if (vertexCount > 0) {
-            VertexFormat format = drawState.format();
+            ByteBuffer copiedBuffer = MemoryUtil.memAlloc(drawState.vertexBufferSize());
+            copiedBuffer.put(0, originalBuffer, 0, drawState.vertexBufferSize());
 
-            ConsumerCreationInfo consumerCreationInfo = new ConsumerCreationInfo(drawState.mode(), format, GlobalRenderSystem.activeShader, GlobalRenderSystem.createTextureArray(), GlobalRenderSystem.currentStateInfo.snapshot(), projMatrix, modelViewMatrix, chunkOffset, shaderLightDirections0, shaderLightDirections1);
-            StoredBufferProvider storedBufferProvider = GlobalRenderSystem.getOrCreateBufferProvider(consumerCreationInfo);
+            ObjectIntPair<ManagedBuffer<ByteBuffer>> indexBufferPair = GlobalRenderSystem.createIndices(drawState.mode(), drawState.vertexCount());
 
-            // TODO: figure out a way to accumulate these buffers to a staging buffer throughout the frame.
-            // this would get rid of the need to copy the buffer here as well as the need to free the copy.
-            ByteBuffer copiedBuffer = MemoryUtil.memAlloc(originalBuffer.limit());
-            MemoryUtil.memCopy(originalBuffer, copiedBuffer);
-            storedBufferProvider.addBuffer(copiedBuffer, 0, vertexCount, true);
+            GlobalRenderSystem.uploadAsyncCreatableObject(
+                    new ManagedBuffer<>(copiedBuffer, true),
+                    indexBufferPair.key(),
+                    indexBufferPair.valueInt(),
+                    ConversionUtils.FORMAT_CONVERSION_MAP.get(drawState.format().getElements()),
+                    GlobalRenderSystem.activeShader,
+                    GlobalRenderSystem.createTextureArray(),
+                    GlobalRenderSystem.currentStateInfo.snapshot(),
+                    projMatrix,
+                    modelViewMatrix,
+                    chunkOffset,
+                    shaderLightDirections0,
+                    shaderLightDirections1,
+                    drawState.format(),
+                    drawState.mode(),
+                    Blaze4D.rosella
+            );
         }
     }
 

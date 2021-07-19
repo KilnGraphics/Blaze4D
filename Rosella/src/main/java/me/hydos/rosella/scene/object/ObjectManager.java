@@ -25,7 +25,7 @@ public interface ObjectManager {
      *
      * @param renderable the material to add to the scene
      */
-    Renderable addObject(Renderable renderable);
+    void addObject(Renderable renderable);
 
     /**
      * registers a {@link Material} into the engine.
