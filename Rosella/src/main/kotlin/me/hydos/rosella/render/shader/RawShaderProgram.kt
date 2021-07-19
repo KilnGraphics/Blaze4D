@@ -191,8 +191,14 @@ open class RawShaderProgram(
     }
 
     fun free() {
-        vkDestroyDescriptorSetLayout(device.rawDevice, descriptorSetLayout, null)
-        vkDestroyDescriptorPool(device.rawDevice, descriptorPool, null)
+        if (descriptorSetLayout != 0L) {
+            vkDestroyDescriptorSetLayout(device.rawDevice, descriptorSetLayout, null)
+            descriptorSetLayout = 0
+        }
+        if (descriptorPool != 0L) {
+            vkDestroyDescriptorPool(device.rawDevice, descriptorPool, null)
+            descriptorPool = 0
+        }
     }
 
     interface PoolObjectInfo {

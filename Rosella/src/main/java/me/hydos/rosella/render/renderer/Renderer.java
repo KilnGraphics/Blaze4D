@@ -212,8 +212,11 @@ public class Renderer {
 
     public void freeSwapChain() {
         for (RawShaderProgram shader : ((SimpleObjectManager) rosella.objectManager).shaderManager.getCachedShaders().keySet()) {
-            vkDestroyDescriptorPool(rosella.common.device.rawDevice, shader.getDescriptorPool(), null);
-            shader.setDescriptorPool(0);
+            if (shader.getDescriptorPool() != 0) {
+                // TODO: make descriptor pool a class
+                vkDestroyDescriptorPool(rosella.common.device.rawDevice, shader.getDescriptorPool(), null);
+                shader.setDescriptorPool(0);
+            }
         }
 
         clearCommandBuffers(rosella.common.device);

@@ -9,6 +9,7 @@ import me.hydos.rosella.render.renderer.Renderer;
 import me.hydos.rosella.vkobjects.VkCommon;
 import org.lwjgl.PointerBuffer;
 import org.lwjgl.system.MemoryStack;
+import org.lwjgl.system.MemoryUtil;
 import org.lwjgl.system.Pointer;
 import org.lwjgl.util.vma.Vma;
 import org.lwjgl.util.vma.VmaAllocationCreateInfo;
@@ -16,6 +17,7 @@ import org.lwjgl.util.vma.VmaAllocatorCreateInfo;
 import org.lwjgl.util.vma.VmaVulkanFunctions;
 import org.lwjgl.vulkan.*;
 
+import java.nio.Buffer;
 import java.nio.ByteBuffer;
 import java.nio.LongBuffer;
 import java.util.*;
@@ -150,17 +152,19 @@ public abstract class Memory {
     /**
      * Used for creating the buffer written to before copied to the GPU
      */
-    public BufferInfo createStagingBuf(int size, LongBuffer pBuffer, MemoryStack stack, Consumer<PointerBuffer> callback) {
-        BufferInfo stagingBuffer = createBuffer(
-                size,
-                VK10.VK_BUFFER_USAGE_TRANSFER_SRC_BIT,
-                Vma.VMA_MEMORY_USAGE_CPU_ONLY,
-                pBuffer
-        );
-        PointerBuffer data = stack.mallocPointer(1);
-        map(stagingBuffer.allocation(), true, data);
-        callback.accept(data);
-        return stagingBuffer;
+    public BufferInfo createStagingBuf(int size, LongBuffer pBuffer, Consumer<PointerBuffer> callback) {
+        try (MemoryStack stack = MemoryStack.stackPush()) {
+            BufferInfo stagingBuffer = createBuffer(
+                    size,
+                    VK10.VK_BUFFER_USAGE_TRANSFER_SRC_BIT,
+                    Vma.VMA_MEMORY_USAGE_CPU_ONLY,
+                    pBuffer
+            );
+            PointerBuffer data = stack.mallocPointer(1);
+            map(stagingBuffer.allocation(), true, data);
+            callback.accept(data);
+            return stagingBuffer;
+        }
     }
 
     /**
@@ -222,11 +226,18 @@ public abstract class Memory {
      * Frees a LongArrayList of descriptor sets
      */
     public void freeDescriptorSets(long descriptorPool, ManagedBuffer<LongBuffer> descriptorSets) {
-        deallocatorThreadPool.execute(() -> {
+//        deallocatorThreadPool.execute(() -> {
             // FIXME synchronize
             VK10.vkFreeDescriptorSets(common.device.rawDevice, descriptorPool, descriptorSets.buffer().flip());
-            descriptorSets.tryFree();
-        });
+            descriptorSets.free(common.device, this);
+//        });
+    }
+
+    /**
+     * Frees a ManagedBuffer in a deallocator thread
+     */
+    public void freeDirectBufferAsync(Buffer buffer) {
+        deallocatorThreadPool.execute(() -> MemoryUtil.memFree(buffer));
     }
 
     /**

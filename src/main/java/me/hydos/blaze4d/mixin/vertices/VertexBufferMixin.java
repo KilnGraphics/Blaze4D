@@ -24,7 +24,6 @@ import java.nio.ByteBuffer;
 
 /**
  * Turns out, Minecraft uses this class for world rendering. when a part of the world is to be rendered, the buffer will be cleared and replaced with just the sky. this will then be uploaded to a {@link VertexBuffer} and then cleared again for the rest of the game to render.
- * TODO OPT: redo this whole class and allow for custom vertex buffers outside of the main giant one in rosella.
  */
 @Mixin(VertexBuffer.class)
 public class VertexBufferMixin {
@@ -115,7 +114,7 @@ public class VertexBufferMixin {
 
     @Inject(method = "close", at = @At("HEAD"), cancellable = true)
     private void close(CallbackInfo ci) {
-        currentRenderInfo.free(Blaze4D.rosella.common.device, Blaze4D.rosella.common.memory);
+        if (currentRenderInfo != null) currentRenderInfo.free(Blaze4D.rosella.common.device, Blaze4D.rosella.common.memory);
         ci.cancel();
     }
 }

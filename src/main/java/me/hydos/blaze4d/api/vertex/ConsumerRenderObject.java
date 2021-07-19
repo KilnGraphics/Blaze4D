@@ -93,11 +93,7 @@ public class ConsumerRenderObject implements Renderable {
     @Override
     public void free(VulkanDevice device, Memory memory) {
         instanceInfo.free(device, memory);
-        try {
-            renderInfo.get().free(device, memory);
-        } catch (InterruptedException | ExecutionException e) {
-            Rosella.LOGGER.error("Error freeing render info", e);
-        }
+        // we don't want to free the RenderInfo here because they can exist across frames
     }
 
     @Override

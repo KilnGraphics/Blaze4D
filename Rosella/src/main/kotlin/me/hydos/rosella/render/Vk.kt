@@ -360,7 +360,6 @@ fun copyToTexture(
         val stagingBuf = memory.createStagingBuf(
             image.getSize(),
             pBuffer,
-            stack
         ) { data ->
             val pixels = image.getPixels()!!
             val newData = data.getByteBuffer(0, pixels.limit())

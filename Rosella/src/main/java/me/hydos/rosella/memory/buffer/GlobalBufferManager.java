@@ -50,8 +50,6 @@ public class GlobalBufferManager {
     private final Int2ObjectMap<BufferInfo> indexHashToBufferMap = new Int2ObjectOpenCustomHashMap<>(PREHASHED_STRATEGY);
     private final Int2ObjectMap<AtomicInteger> indexHashToInvocationsFrameMap = new Int2ObjectOpenCustomHashMap<>(PREHASHED_STRATEGY);
 
-    //private final
-
     public GlobalBufferManager(Rosella rosella) {
         this.memory = rosella.common.memory;
         this.common = rosella.common;
@@ -91,8 +89,9 @@ public class GlobalBufferManager {
         BufferInfo buffer = indexHashToBufferMap.get(hash);
         if (buffer == null) {
             buffer = createIndexBuffer(indexBytes);
+        } else {
+            indexBytes.free(common.device, memory);
         }
-        indexBytes.tryFree();
         return buffer;
     }
 
@@ -113,8 +112,9 @@ public class GlobalBufferManager {
         BufferInfo buffer = vertexHashToBufferMap.get(hash);
         if (buffer == null) {
             buffer = createVertexBuffer(vertexBytes);
+        } else {
+            vertexBytes.free(common.device, memory);
         }
-        vertexBytes.tryFree();
         return buffer;
     }
 
@@ -133,11 +133,12 @@ public class GlobalBufferManager {
         try (MemoryStack stack = stackPush()) {
             LongBuffer pBuffer = stack.mallocLong(1);
 
-            BufferInfo stagingBuffer = memory.createStagingBuf(size, pBuffer, stack, data -> {
+            BufferInfo stagingBuffer = memory.createStagingBuf(size, pBuffer, data -> {
                 ByteBuffer dst = data.getByteBuffer(0, size);
                 // TODO OPT: do optional batching again
                 dst.put(0, src, src.position(), size);
             });
+            indexBytes.free(common.device, memory);
 
             BufferInfo indexBuffer = memory.createBuffer(
                     size,
@@ -173,12 +174,12 @@ public class GlobalBufferManager {
         try (MemoryStack stack = stackPush()) {
             LongBuffer pBuffer = stack.mallocLong(1);
 
-            BufferInfo stagingBuffer = memory.createStagingBuf(size, pBuffer, stack, data -> {
+            BufferInfo stagingBuffer = memory.createStagingBuf(size, pBuffer, data -> {
                 ByteBuffer dst = data.getByteBuffer(0, size);
                 // TODO OPT: do optional batching again
                 dst.put(0, src, src.position(), size);
             });
-            vertexBytes.tryFree();
+            vertexBytes.free(common.device, memory);
 
             BufferInfo vertexBuffer = memory.createBuffer(
                     size,
