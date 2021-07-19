@@ -145,7 +145,7 @@ public class GlobalBufferManager {
             BufferInfo indexBuffer = memory.createBuffer(
                     size,
                     VK_BUFFER_USAGE_TRANSFER_DST_BIT | VK_BUFFER_USAGE_INDEX_BUFFER_BIT,
-                    VMA_MEMORY_USAGE_CPU_TO_GPU,
+                    VMA_MEMORY_USAGE_GPU_ONLY,
                     pBuffer
             );
 
