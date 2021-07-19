@@ -160,6 +160,7 @@ public class PipelineManager {
             ok(VK10.vkCreateGraphicsPipelines(device.rawDevice, VK10.VK_NULL_HANDLE, pipelineInfo, null, pGraphicsPipeline));
             graphicsPipeline = pGraphicsPipeline.get(0);
 
+            // TODO: do this in memory off thread
             VK10.vkDestroyShaderModule(device.rawDevice, vertShaderModule, null);
             VK10.vkDestroyShaderModule(device.rawDevice, fragShaderModule, null);
 

@@ -11,6 +11,8 @@ import org.lwjgl.vulkan.VkPipelineDepthStencilStateCreateInfo;
 import org.lwjgl.vulkan.VkPipelineRasterizationStateCreateInfo;
 import org.lwjgl.vulkan.VkRect2D;
 
+import java.util.Objects;
+
 public class StateInfo {
     private int colorMask;
     private boolean depthMask;
@@ -252,6 +254,19 @@ public class StateInfo {
         return lineWidth;
     }
 
+    @Override
+    public boolean equals(Object o) {
+        if (this == o) return true;
+        if (o == null || getClass() != o.getClass()) return false;
+        StateInfo stateInfo = (StateInfo) o;
+        return colorMask == stateInfo.colorMask && depthMask == stateInfo.depthMask && scissorEnabled == stateInfo.scissorEnabled && scissorX == stateInfo.scissorX && scissorY == stateInfo.scissorY && scissorWidth == stateInfo.scissorWidth && scissorHeight == stateInfo.scissorHeight && stencilEnabled == stateInfo.stencilEnabled && blendEnabled == stateInfo.blendEnabled && srcColorBlendFactor == stateInfo.srcColorBlendFactor && dstColorBlendFactor == stateInfo.dstColorBlendFactor && srcAlphaBlendFactor == stateInfo.srcAlphaBlendFactor && dstAlphaBlendFactor == stateInfo.dstAlphaBlendFactor && blendOp == stateInfo.blendOp && cullEnabled == stateInfo.cullEnabled && depthTestEnabled == stateInfo.depthTestEnabled && depthCompareOp == stateInfo.depthCompareOp && colorLogicOpEnabled == stateInfo.colorLogicOpEnabled && colorLogicOp == stateInfo.colorLogicOp && Float.compare(stateInfo.lineWidth, lineWidth) == 0;
+    }
+
+    @Override
+    public int hashCode() {
+        return Objects.hash(colorMask, depthMask, scissorEnabled, scissorX, scissorY, scissorWidth, scissorHeight, stencilEnabled, blendEnabled, srcColorBlendFactor, dstColorBlendFactor, srcAlphaBlendFactor, dstAlphaBlendFactor, blendOp, cullEnabled, depthTestEnabled, depthCompareOp, colorLogicOpEnabled, colorLogicOp, lineWidth);
+    }
+
     @NotNull
     public VkRect2D.Buffer getExtent(MemoryStack stack) {
         return VkRect2D.callocStack(1, stack)
@@ -307,4 +322,6 @@ public class StateInfo {
                 .pAttachments(colourBlendAttachment)
                 .blendConstants(stack.floats(0.0f, 0.0f, 0.0f, 0.0f));
     }
+
+
 }

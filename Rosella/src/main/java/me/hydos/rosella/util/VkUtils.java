@@ -344,7 +344,6 @@ public class VkUtils {
             BufferInfo stagingBuf = memory.createStagingBuf(
                     image.getSize(),
                     pBuffer,
-                    stack,
                     data -> {
                         ByteBuffer pixels = image.getPixels();
                         ByteBuffer newData = data.getByteBuffer(0, pixels.limit());
