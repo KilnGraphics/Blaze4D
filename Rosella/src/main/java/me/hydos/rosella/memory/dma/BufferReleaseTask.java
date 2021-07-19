@@ -1,13 +1,14 @@
 package me.hydos.rosella.memory.dma;
 
 import it.unimi.dsi.fastutil.longs.LongArraySet;
+import me.hydos.rosella.Rosella;
 import org.jetbrains.annotations.Nullable;
 import org.lwjgl.vulkan.VK10;
 import org.lwjgl.vulkan.VkBufferMemoryBarrier;
 
 import java.util.Set;
 
-public class BufferReleaseTask extends Task {
+public class BufferReleaseTask extends Task implements BufferBarrierTask {
 
     private final Runnable completeCb;
     private final Set<Long> signalSemaphores;
@@ -31,8 +32,13 @@ public class BufferReleaseTask extends Task {
     }
 
     @Override
-    public boolean canRecord(DMARecorder recorder) {
-        return false;
+    public boolean scan(DMARecorder recorder) {
+        if(recorder.hasReleasedBuffer(this.buffer)) {
+            return false;
+        }
+
+        recorder.addReleaseTask(this, this.srcQueue != this.dstQueue);
+        return true;
     }
 
     @Override
@@ -57,11 +63,8 @@ public class BufferReleaseTask extends Task {
         return buffer;
     }
 
-    public boolean isBarrierRequired() {
-        return this.srcQueue != this.dstQueue;
-    }
-
-    public void fillMemoryBarrier(VkBufferMemoryBarrier barrier) {
+    @Override
+    public void fillBarrier(VkBufferMemoryBarrier barrier) {
         barrier.sType(VK10.VK_STRUCTURE_TYPE_BUFFER_MEMORY_BARRIER);
         barrier.pNext(0);
         barrier.srcAccessMask(VK10.VK_ACCESS_TRANSFER_READ_BIT | VK10.VK_ACCESS_TRANSFER_WRITE_BIT);

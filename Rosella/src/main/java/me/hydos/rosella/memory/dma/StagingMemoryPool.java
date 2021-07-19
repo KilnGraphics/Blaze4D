@@ -1,5 +1,6 @@
 package me.hydos.rosella.memory.dma;
 
+import me.hydos.rosella.Rosella;
 import me.hydos.rosella.memory.allocators.BackedRingAllocator;
 import me.hydos.rosella.memory.allocators.HostMappedAllocation;
 import org.lwjgl.PointerBuffer;
@@ -8,18 +9,20 @@ import org.lwjgl.system.MemoryUtil;
 import org.lwjgl.util.vma.Vma;
 import org.lwjgl.util.vma.VmaAllocationCreateInfo;
 import org.lwjgl.util.vma.VmaAllocationInfo;
-import org.lwjgl.vulkan.VK10;
-import org.lwjgl.vulkan.VkBufferCreateInfo;
+import org.lwjgl.vulkan.*;
 
 import java.nio.ByteBuffer;
+import java.nio.IntBuffer;
 import java.nio.LongBuffer;
 
 public class StagingMemoryPool {
 
+    private final long vmaAllocator;
     private RingAllocator mainPool;
 
-    public StagingMemoryPool(long vmaInstance) {
-        this.mainPool = new RingAllocator(1024L * 1024L * 128L, vmaInstance);
+    public StagingMemoryPool(long vmaAllocator) {
+        this.vmaAllocator = vmaAllocator;
+        this.mainPool = new RingAllocator(1024L * 1024L * 128L);
     }
 
     public void destroy() {
@@ -27,7 +30,7 @@ public class StagingMemoryPool {
         this.mainPool = null;
     }
 
-    public HostMappedAllocation allocate(long size) {
+    public StagingMemoryAllocation allocate(long size) {
         return this.mainPool.allocate(size);
     }
 
@@ -37,11 +40,10 @@ public class StagingMemoryPool {
 
         private BackedRingAllocator allocator;
         private ByteBuffer memory;
-        private final long vmaInstance;
         private long vmaAllocation = VK10.VK_NULL_HANDLE;
         private long vkBuffer = VK10.VK_NULL_HANDLE;
 
-        public RingAllocator(final long size, final long vmaInstance) {
+        public RingAllocator(final long size) {
             if(!isPowerOf2(size)) {
                 throw new IllegalArgumentException("Size must be power of 2 but was " + size);
             }
@@ -52,13 +54,11 @@ public class StagingMemoryPool {
                 throw new IllegalArgumentException("Size must be smaller than " + MAX_BUFFER_SIZE + " but was " + size);
             }
 
-            this.vmaInstance = vmaInstance;
-
             try(MemoryStack stack = MemoryStack.stackPush()) {
                 VkBufferCreateInfo bufferInfo = VkBufferCreateInfo.callocStack(stack);
                 bufferInfo.sType(VK10.VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO);
                 bufferInfo.size(size);
-                bufferInfo.flags(VK10.VK_BUFFER_USAGE_TRANSFER_SRC_BIT | VK10.VK_BUFFER_USAGE_TRANSFER_DST_BIT);
+                bufferInfo.usage(VK10.VK_BUFFER_USAGE_TRANSFER_SRC_BIT | VK10.VK_BUFFER_USAGE_TRANSFER_DST_BIT);
                 bufferInfo.sharingMode(VK10.VK_SHARING_MODE_EXCLUSIVE);
 
                 VmaAllocationCreateInfo allocCreateInfo = VmaAllocationCreateInfo.callocStack(stack);
@@ -71,7 +71,7 @@ public class StagingMemoryPool {
                 LongBuffer pBuffer = stack.longs(0);
                 PointerBuffer pAlloc = stack.pointers(0);
 
-                int result = Vma.vmaCreateBuffer(this.vmaInstance, bufferInfo, allocCreateInfo, pBuffer, pAlloc, allocInfo);
+                int result = Vma.vmaCreateBuffer(vmaAllocator, bufferInfo, allocCreateInfo, pBuffer, pAlloc, allocInfo);
                 if(result != VK10.VK_SUCCESS) {
                     throw new RuntimeException("Failed to allocate staging memory " + result);
                 }
@@ -88,7 +88,7 @@ public class StagingMemoryPool {
             this.allocator = null;
             this.memory = null;
             if(this.vkBuffer != VK10.VK_NULL_HANDLE) {
-                Vma.vmaDestroyBuffer(this.vmaInstance, this.vkBuffer, this.vmaAllocation);
+                Vma.vmaDestroyBuffer(vmaAllocator, this.vkBuffer, this.vmaAllocation);
                 this.vkBuffer = VK10.VK_NULL_HANDLE;
                 this.vmaAllocation = VK10.VK_NULL_HANDLE;
             } else {
@@ -102,12 +102,12 @@ public class StagingMemoryPool {
             }
 
             int address = this.allocator.allocate((int) size);
-            if(address != Integer.MIN_VALUE) {
+            if(address == Integer.MIN_VALUE) {
                 return null;
             }
 
             ByteBuffer data = this.memory.slice(address, (int) size);
-            return new StagingMemoryAllocation(this, address, data);
+            return new StagingMemoryAllocation(this, address, data, this.vkBuffer);
         }
 
         public void free(long address) {
@@ -119,18 +119,20 @@ public class StagingMemoryPool {
         }
     }
 
-    private class StagingMemoryAllocation implements HostMappedAllocation {
+    public class StagingMemoryAllocation implements HostMappedAllocation {
 
         private RingAllocator allocator;
         private ByteBuffer hostBuffer;
         private final long id;
         private final long byteSize;
+        private final long vkBuffer;
 
-        public StagingMemoryAllocation(RingAllocator allocator, long id, ByteBuffer hostBuffer) {
+        public StagingMemoryAllocation(RingAllocator allocator, long id, ByteBuffer hostBuffer, long vkBuffer) {
             this.allocator = allocator;
             this.hostBuffer = hostBuffer;
             this.id = id;
             this.byteSize = hostBuffer.limit();
+            this.vkBuffer = vkBuffer;
         }
 
         @Override
@@ -150,6 +152,14 @@ public class StagingMemoryPool {
         @Override
         public ByteBuffer getHostBuffer() {
             return this.hostBuffer;
+        }
+
+        public long getBufferOffset() {
+            return this.id;
+        }
+
+        public long getVulkanBuffer() {
+            return this.vkBuffer;
         }
     }
 }

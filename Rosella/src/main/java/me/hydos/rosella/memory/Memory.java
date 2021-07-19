@@ -5,11 +5,13 @@ import it.unimi.dsi.fastutil.longs.LongSet;
 import it.unimi.dsi.fastutil.longs.LongSets;
 import me.hydos.rosella.Rosella;
 import me.hydos.rosella.device.VulkanDevice;
+import me.hydos.rosella.memory.dma.DMARecorder;
 import me.hydos.rosella.memory.dma.StagingMemoryPool;
 import me.hydos.rosella.render.renderer.Renderer;
 import me.hydos.rosella.vkobjects.VkCommon;
 import org.lwjgl.PointerBuffer;
 import org.lwjgl.system.MemoryStack;
+import org.lwjgl.system.MemoryUtil;
 import org.lwjgl.system.Pointer;
 import org.lwjgl.util.vma.Vma;
 import org.lwjgl.util.vma.VmaAllocationCreateInfo;
@@ -24,6 +26,7 @@ import java.util.concurrent.*;
 import java.util.function.Consumer;
 
 import static me.hydos.rosella.render.util.VkUtilsKt.ok;
+import static org.lwjgl.system.MemoryStack.create;
 import static org.lwjgl.system.MemoryStack.stackPush;
 
 /**
@@ -40,7 +43,7 @@ public abstract class Memory {
     private final ThreadPoolExecutor deallocatorThreadPool;
     private int threadNo;
 
-    private final StagingMemoryPool testPool;
+    private final DMATransfer testDMA;
 
     private boolean running = true;
 
@@ -57,7 +60,36 @@ public abstract class Memory {
                 r -> new Thread(r, "Deallocator Thread " + threadNo++),
                 (r, executor) -> {/* noop */});
 
-        this.testPool = new StagingMemoryPool(allocator);
+        this.testDMA = new DMATransfer(this.common.queues.graphicsQueue, allocator);
+        testDMA();
+    }
+
+    private void testDMA() {
+        try (MemoryStack stack = MemoryStack.stackPush()) {
+            BufferInfo tmpbuffer = createBuffer(1024, VK10.VK_BUFFER_USAGE_TRANSFER_SRC_BIT | VK10.VK_BUFFER_USAGE_TRANSFER_DST_BIT, Vma.VMA_MEMORY_USAGE_GPU_ONLY, stack.longs(0));
+
+            ByteBuffer srcData = stack.malloc(512);
+            for(int i = 0; i < 512 / 4; i++) {
+                srcData.putInt(i, i);
+            }
+
+            ByteBuffer dst = MemoryUtil.memAlloc(1024);
+
+            int oldQueue = testDMA.getTransferQueueFamily();
+            testDMA.acquireBuffer(tmpbuffer.buffer(), oldQueue, null, null);
+            testDMA.transferBufferFromHost(srcData, tmpbuffer.buffer(), 0);
+            testDMA.transferBufferToHost(tmpbuffer.buffer(), 0, dst, () -> {
+                Rosella.LOGGER.warn("DMA TEST RUNNING");
+                for(int i = 0; i < 512 / 4; i++) {
+                    int n;
+                    if((n = dst.getInt(i)) != i) {
+                        Rosella.LOGGER.error("DMA ERROR: Mismatch at " + i + " was " + n);
+                    }
+                }
+                MemoryUtil.memFree(dst);
+            });
+            testDMA.releaseBuffer(tmpbuffer.buffer(), oldQueue, null, null);
+        }
     }
 
     /**

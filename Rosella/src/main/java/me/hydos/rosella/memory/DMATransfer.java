@@ -1,18 +1,25 @@
 package me.hydos.rosella.memory;
 
 import it.unimi.dsi.fastutil.longs.Long2ObjectOpenHashMap;
-import it.unimi.dsi.fastutil.longs.LongArraySet;
 import it.unimi.dsi.fastutil.longs.LongOpenHashSet;
 import kotlin.NotImplementedError;
+import me.hydos.rosella.Rosella;
 import me.hydos.rosella.device.VulkanQueue;
-import me.hydos.rosella.memory.dma.BufferAcquireTask;
-import me.hydos.rosella.memory.dma.BufferReleaseTask;
-import me.hydos.rosella.memory.dma.DMARecorder;
-import me.hydos.rosella.memory.dma.Task;
+import me.hydos.rosella.memory.allocators.HostMappedAllocation;
+import me.hydos.rosella.memory.dma.*;
+import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
-import org.lwjgl.vulkan.VkCommandBuffer;
+import org.lwjgl.PointerBuffer;
+import org.lwjgl.system.MemoryStack;
+import org.lwjgl.system.MemoryUtil;
+import org.lwjgl.vulkan.*;
 
+import javax.sql.rowset.RowSetWarning;
 import java.nio.ByteBuffer;
+import java.nio.IntBuffer;
+import java.nio.LongBuffer;
+import java.util.Deque;
+import java.util.LinkedList;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -22,27 +29,29 @@ import java.util.concurrent.locks.ReentrantLock;
 
 public class DMATransfer {
 
-    private enum ResourceState {
-        ACQUIRE_QUEUED,
-        ACQUIRED,
-        RELEASE_QUEUED,
-    }
-
     private final VulkanQueue transferQueue;
 
-    private final Map<Long, ResourceState> ownedBuffers = new Long2ObjectOpenHashMap<>();
-    private final Map<Long, ResourceState> ownedImages = new Long2ObjectOpenHashMap<>();
+    // These 2 keep the state after all queued transfers have completed. i.e. the state that is relevant for queueing up more instructions
+    private final Set<Long> ownedBuffers = new LongOpenHashSet();
+    private final Set<Long> ownedImages = new LongOpenHashSet();
 
     private Task nextTask = null;
     private Task lastTask = null;
+
+    private final StagingMemoryPool stagingMemory;
 
     private final Lock lock = new ReentrantLock();
     private final Condition taskAvailable = lock.newCondition();
 
     private final AtomicBoolean shouldTerminate = new AtomicBoolean(false);
 
-    public DMATransfer(VulkanQueue transferQueue) {
+    private Thread worker;
+
+    public DMATransfer(VulkanQueue transferQueue, long vmaAllocator) {
         this.transferQueue = transferQueue;
+        this.worker = new Thread(new DMAWorker(this.transferQueue));
+        this.worker.start();
+        this.stagingMemory = new StagingMemoryPool(vmaAllocator);
     }
 
     /**
@@ -71,13 +80,12 @@ public class DMATransfer {
             lock.lock();
             validateAcquireBuffer(buffer);
 
+            this.ownedBuffers.add(buffer);
             if(srcQueue != this.transferQueue.getQueueFamily() || waitSemaphores != null) {
                 this.recordTask(new BufferAcquireTask(buffer, srcQueue, this.transferQueue.getQueueFamily(), waitSemaphores, completedCb));
-                this.ownedBuffers.put(buffer, ResourceState.ACQUIRE_QUEUED);
 
             } else {
                 // No acquire operation is required
-                this.ownedBuffers.put(buffer, ResourceState.ACQUIRED);
                 runCompleted = completedCb != null;
             }
 
@@ -118,13 +126,12 @@ public class DMATransfer {
             lock.lock();
             validateAcquireBuffer(buffer);
 
+            this.ownedBuffers.add(buffer);
             if(waitSemaphores != null) {
                 this.recordTask(new BufferAcquireTask(buffer, 0, 0, waitSemaphores, completedCb));
-                this.ownedBuffers.put(buffer, ResourceState.ACQUIRE_QUEUED);
 
             } else {
                 // No acquire operation is required
-                this.ownedBuffers.put(buffer, ResourceState.ACQUIRED);
                 runCompleted = completedCb != null;
             }
 
@@ -160,27 +167,21 @@ public class DMATransfer {
      * @param completedCb A function that is called once the release operation has completed
      */
     public void releaseBuffer(long buffer, int dstQueue, @Nullable Set<Long> signalSemaphores, @Nullable Runnable completedCb) {
-        boolean runCompleted = false;
         try {
             lock.lock();
             validateReleaseBuffer(buffer);
 
             if(dstQueue != this.transferQueue.getQueueFamily() || signalSemaphores != null) {
                 this.recordTask(new BufferReleaseTask(buffer, this.transferQueue.getQueueFamily(), dstQueue, signalSemaphores, completedCb));
-                this.ownedBuffers.put(buffer, ResourceState.RELEASE_QUEUED);
 
             } else {
                 // No release operation is required
-                this.ownedBuffers.remove(buffer);
-                runCompleted = completedCb != null;
+                this.recordTask(new CallbackTask(completedCb));
             }
+            this.ownedBuffers.remove(buffer);
 
         } finally {
             lock.unlock();
-        }
-
-        if(runCompleted) {
-            completedCb.run();
         }
     }
 
@@ -207,26 +208,20 @@ public class DMATransfer {
      * @param completedCb A function that is called once the release operation has completed
      */
     public void releaseSharedBuffer(long buffer, @Nullable Set<Long> signalSemaphores, @Nullable Runnable completedCb) {
-        boolean runCompleted = false;
         try {
             lock.lock();
 
             if(signalSemaphores != null) {
                 this.recordTask(new BufferReleaseTask(buffer, 0, 0, signalSemaphores, completedCb));
-                this.ownedBuffers.put(buffer, ResourceState.RELEASE_QUEUED);
 
             } else {
                 // No release operation is required
-                this.ownedBuffers.remove(buffer);
-                runCompleted = completedCb != null;
+                this.recordTask(new CallbackTask(completedCb));
             }
+            this.ownedBuffers.remove(buffer);
 
         } finally {
             lock.unlock();
-        }
-
-        if(runCompleted) {
-            completedCb.run();
         }
     }
 
@@ -253,7 +248,20 @@ public class DMATransfer {
      * @param dstOffset The offset in the destination buffer to where the data should be copied to
      */
     public void transferBufferFromHost(ByteBuffer srcBuffer, long dstBuffer, long dstOffset) {
-        throw new NotImplementedError("Big F");
+        try {
+            lock.lock();
+            if(!ownedBuffers.contains(dstBuffer)) {
+                throw new RuntimeException("Cannot transfer to buffer that is not owned by the DMA engine!");
+            }
+
+            StagingMemoryPool.StagingMemoryAllocation staging = stagingMemory.allocate(srcBuffer.limit());
+            MemoryUtil.memCopy(srcBuffer, staging.getHostBuffer());
+
+            recordTask(new BufferTransferTask(staging.getVulkanBuffer(), dstBuffer, staging.getBufferOffset(), dstOffset, srcBuffer.limit()));
+            recordTask(new CallbackTask(staging::free));
+        } finally {
+            lock.unlock();
+        }
     }
 
     /**
@@ -269,7 +277,25 @@ public class DMATransfer {
      * @param completedCb A function that is called once the transfer has completed
      */
     public void transferBufferToHost(long srcBuffer, long srcOffset, ByteBuffer dstBuffer, @Nullable Runnable completedCb) {
-        throw new NotImplementedError("Big F");
+        try {
+            lock.lock();
+            if(!ownedBuffers.contains(srcBuffer)) {
+                throw new RuntimeException("Cannot transfer from buffer that is now owned by the DMA engine!");
+            }
+
+            StagingMemoryPool.StagingMemoryAllocation staging = stagingMemory.allocate(dstBuffer.limit());
+
+            recordTask(new BufferTransferTask(srcBuffer, staging.getVulkanBuffer(), srcOffset, staging.getBufferOffset(), dstBuffer.limit()));
+            recordTask(new CallbackTask(() -> {
+                MemoryUtil.memCopy(staging.getHostBuffer(), dstBuffer);
+                staging.free();
+                if(completedCb != null) {
+                    completedCb.run();
+                }
+            }));
+        } finally {
+            lock.unlock();
+        }
     }
 
 
@@ -293,21 +319,31 @@ public class DMATransfer {
      * @param size The amount of data to copy
      */
     public void transferBuffer(long srcBuffer, long srcOffset, long dstBuffer, long dstOffset, long size) {
-        throw new NotImplementedError("Big F");
+        try {
+            lock.lock();
+            if (!ownedBuffers.contains(srcBuffer)) {
+                throw new RuntimeException("Cannot transfer from a buffer that is not owned by the DMA engine!");
+            }
+            if (!ownedBuffers.contains(dstBuffer)) {
+                throw new RuntimeException("Cannot transfer to a buffer that is not owned by the DMA engine!");
+            }
+
+            recordTask(new BufferTransferTask(srcBuffer, dstBuffer, srcOffset, dstOffset, size));
+
+        } finally {
+            lock.unlock();
+        }
     }
 
     private void validateAcquireBuffer(long buffer) {
-        if(this.ownedBuffers.containsKey(buffer)) {
-            ResourceState currentState = this.ownedBuffers.get(buffer);
-            if(currentState != ResourceState.RELEASE_QUEUED) {
-                throw new RuntimeException("Buffer is already owned by the DMA engine and no release operation is queued!");
-            }
+        if(this.ownedBuffers.contains(buffer)) {
+            throw new RuntimeException("Cannot acquire buffer that is already owned by the DMA engine");
         }
     }
 
     private void validateReleaseBuffer(long buffer) {
-        if(this.ownedBuffers.getOrDefault(buffer, ResourceState.RELEASE_QUEUED) == ResourceState.RELEASE_QUEUED) {
-            throw new RuntimeException("Buffer already has a release operation queued or is not owned by the DMA engine!");
+        if(!this.ownedBuffers.contains(buffer)) {
+            throw new RuntimeException("Cannot release buffer that is not owned by the DMA engine");
         }
     }
 
@@ -326,7 +362,59 @@ public class DMATransfer {
 
     private class DMAWorker implements Runnable {
 
-        DMARecorder recorder = new DMARecorder();
+        private final int MAX_TASKS_PER_SUBMISSION = 40;
+
+        private final VulkanQueue queue;
+
+        private final long commandPool;
+        private final VkCommandBuffer commandBuffer;
+        private final long waitFence;
+
+        private final DMARecorder recorder = new DMARecorder();
+        private final Deque<Task> currentTasks = new LinkedList<>();
+
+        public DMAWorker(@NotNull VulkanQueue queue) {
+            this.queue = queue;
+
+            try (MemoryStack stack = MemoryStack.stackPush()) {
+                VkCommandPoolCreateInfo createInfo = VkCommandPoolCreateInfo.callocStack(stack);
+                createInfo.sType(VK10.VK_STRUCTURE_TYPE_COMMAND_POOL_CREATE_INFO);
+                createInfo.flags(VK10.VK_COMMAND_POOL_CREATE_TRANSIENT_BIT | VK10.VK_COMMAND_POOL_CREATE_RESET_COMMAND_BUFFER_BIT);
+                createInfo.queueFamilyIndex(queue.getQueueFamily());
+
+                LongBuffer pPool = stack.longs(0);
+
+                int result = VK10.vkCreateCommandPool(queue.getDevice(), createInfo, null, pPool);
+                if(result != VK10.VK_SUCCESS) {
+                    throw new RuntimeException("Failed to create command pool for DMAWorker " + result);
+                }
+
+                this.commandPool = pPool.get();
+
+                VkCommandBufferAllocateInfo allocInfo = VkCommandBufferAllocateInfo.callocStack(stack);
+                allocInfo.sType(VK10.VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO);
+                allocInfo.commandPool(this.commandPool);
+                allocInfo.level(VK10.VK_COMMAND_BUFFER_LEVEL_PRIMARY);
+                allocInfo.commandBufferCount(1);
+
+                PointerBuffer pBuffers = stack.pointers(0);
+                result = VK10.vkAllocateCommandBuffers(queue.getDevice(), allocInfo, pBuffers);
+                if(result != VK10.VK_SUCCESS) {
+                    throw new RuntimeException("Failed to allocate command buffers for DMAWorker " + result);
+                }
+
+                this.commandBuffer = new VkCommandBuffer(pBuffers.get(), queue.getDevice());
+
+                VkFenceCreateInfo fenceInfo = VkFenceCreateInfo.callocStack(stack);
+                fenceInfo.sType(VK10.VK_STRUCTURE_TYPE_FENCE_CREATE_INFO);
+
+                result = VK10.vkCreateFence(queue.getDevice(), fenceInfo, null, pPool.rewind());
+                if(result != VK10.VK_SUCCESS) {
+                    throw new RuntimeException("Failed to create wait fence " + result);
+                }
+                this.waitFence = pPool.get();
+            }
+        }
 
         @Override
         public void run() {
@@ -334,7 +422,7 @@ public class DMATransfer {
                 if(!tryRunTask()) {
                     try {
                         lock.lock();
-                        taskAvailable.awaitNanos(1000);
+                        taskAvailable.awaitNanos(1000000L);
                     } catch (InterruptedException ignored) {
                         // TODO: ???
                     } finally {
@@ -356,33 +444,107 @@ public class DMATransfer {
                 lock.unlock();
             }
 
-            recorder.reset();
-            recorder.begin();
-            for(int taskIndex = 0; (taskIndex < 20) && (currentTask != null); taskIndex++) { // TODO: Max tasks constant
-                if(!currentTask.canRecord(recorder)) {
-                    try {
-                        lock.lock();
-                        nextTask = currentTask;
-                    } finally {
-                        lock.unlock();
-                    }
+            Rosella.LOGGER.error("Found runnable Task");
+
+            this.recorder.reset();
+            this.currentTasks.clear();
+
+            // Build list of tasks that should be executed in this pass
+            for(int taskIndex = 0; taskIndex < MAX_TASKS_PER_SUBMISSION; taskIndex++) {
+                if(!currentTask.scan(this.recorder)) {
                     break;
                 }
 
-                currentTask.record(recorder);
+                this.currentTasks.addLast(currentTask);
 
                 try {
                     lock.lock();
-                    currentTask = currentTask.getNext();
-                    if(currentTask == null) {
-                        nextTask = null;
+                    nextTask = currentTask.getNext();
+                    if(nextTask == null) {
                         lastTask = null;
+                        break;
                     }
+                    currentTask = nextTask;
                 } finally {
                     lock.unlock();
                 }
             }
-            recorder.end();
+
+            if(currentTasks.isEmpty()) {
+                return false;
+            }
+
+            Rosella.LOGGER.error("Task has been built");
+
+            // Record command buffers
+            this.recorder.beginRecord(this.commandBuffer);
+            while(!currentTasks.isEmpty()) {
+                currentTasks.pollFirst().record(this.recorder);
+            }
+            this.recorder.endRecord();
+
+            Rosella.LOGGER.error("Task recording completed");
+
+            // Submit commands
+            try (MemoryStack stack = MemoryStack.stackPush()) {
+                Set<Long> waitSemaphores = this.recorder.getWaitSemaphores();
+                Set<Long> signalSemaphores = this.recorder.getSignalSemaphores();
+
+                LongBuffer pWaitSem = null;
+                IntBuffer pWaitSemStage = null;
+                if(waitSemaphores.size() != 0) {
+                    pWaitSem = stack.mallocLong(waitSemaphores.size());
+                    pWaitSemStage = stack.mallocInt(waitSemaphores.size());
+                    for(long semaphore : waitSemaphores) {
+                        pWaitSem.put(semaphore);
+                        pWaitSemStage.put(VK10.VK_PIPELINE_STAGE_TRANSFER_BIT);
+                    }
+                    pWaitSem.rewind();
+                }
+
+                LongBuffer pSignalSem = null;
+                if(signalSemaphores.size() != 0) {
+                    pSignalSem = stack.mallocLong(signalSemaphores.size());
+                    for(long semaphore : signalSemaphores) {
+                        pSignalSem.put(semaphore);
+                    }
+                    pSignalSem.rewind();
+                }
+
+                PointerBuffer pCmdBuffer = stack.pointers(this.commandBuffer);
+
+                VkSubmitInfo submitInfo = VkSubmitInfo.callocStack(stack);
+                submitInfo.sType(VK10.VK_STRUCTURE_TYPE_SUBMIT_INFO);
+                submitInfo.pWaitSemaphores(pWaitSem);
+                submitInfo.pWaitDstStageMask(pWaitSemStage);
+                submitInfo.pCommandBuffers(pCmdBuffer);
+                submitInfo.pSignalSemaphores(pSignalSem);
+
+                Rosella.LOGGER.error("Submitting task");
+
+                int result = this.queue.vkQueueSubmit(submitInfo, this.waitFence);
+                if(result != VK10.VK_SUCCESS) {
+                    throw new RuntimeException("Failed to submit transfer " + result);
+                }
+
+                Rosella.LOGGER.error("Waiting for completion");
+
+                result = VK10.vkWaitForFences(this.queue.getDevice(), this.waitFence, true, 1000 * 1000 * 10);
+                if(result == VK10.VK_TIMEOUT) {
+                    throw new RuntimeException("Transfer wait timed out");
+                }
+                if(result != VK10.VK_SUCCESS) {
+                    throw new RuntimeException("Failed to wait for fence");
+                }
+
+                Rosella.LOGGER.error("Signaling callbacks");
+
+                for(Task task : this.recorder.getSignalTasks()) {
+                    task.onCompleted();
+                }
+
+                Rosella.LOGGER.error("Task completed");
+            }
 
             return true;
         }

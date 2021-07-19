@@ -17,7 +17,7 @@ public abstract class Task {
         return this.next;
     }
 
-    public abstract boolean canRecord(DMARecorder recorder);
+    public abstract boolean scan(DMARecorder recorder);
     public abstract void record(DMARecorder recorder);
 
     public abstract boolean shouldSignal();

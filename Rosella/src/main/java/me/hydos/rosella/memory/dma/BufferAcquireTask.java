@@ -1,6 +1,7 @@
 package me.hydos.rosella.memory.dma;
 
 import it.unimi.dsi.fastutil.longs.LongArraySet;
+import me.hydos.rosella.Rosella;
 import org.jetbrains.annotations.Nullable;
 import org.lwjgl.vulkan.VK10;
 import org.lwjgl.vulkan.VkBufferMemoryBarrier;
@@ -8,7 +9,7 @@ import org.lwjgl.vulkan.VkBufferMemoryBarrier;
 import java.util.Collection;
 import java.util.Set;
 
-public class BufferAcquireTask extends Task {
+public class BufferAcquireTask extends Task implements BufferBarrierTask {
 
     private final Runnable completeCb;
     private final Set<Long> waitSemaphores;
@@ -32,8 +33,13 @@ public class BufferAcquireTask extends Task {
     }
 
     @Override
-    public boolean canRecord(DMARecorder recorder) {
-        return false;
+    public boolean scan(DMARecorder recorder) {
+        if(recorder.hasReleasedBuffer(this.buffer) || recorder.hasAcquiredBuffer(this.buffer)) {
+            return false;
+        }
+
+        recorder.addAcquireTask(this, this.srcQueue != this.dstQueue);
+        return true;
     }
 
     @Override
@@ -57,15 +63,8 @@ public class BufferAcquireTask extends Task {
         return buffer;
     }
 
-    public boolean isBarrierRequired() {
-        return this.srcQueue == this.dstQueue;
-    }
-
-    public Set<Long> getWaitSemaphores() {
-        return waitSemaphores;
-    }
-
-    public void fillBufferBarrier(VkBufferMemoryBarrier barrier) {
+    @Override
+    public void fillBarrier(VkBufferMemoryBarrier barrier) {
         barrier.sType(VK10.VK_STRUCTURE_TYPE_BUFFER_MEMORY_BARRIER);
         barrier.pNext(0);
         barrier.srcAccessMask(VK10.VK_ACCESS_MEMORY_READ_BIT | VK10.VK_ACCESS_MEMORY_WRITE_BIT);
