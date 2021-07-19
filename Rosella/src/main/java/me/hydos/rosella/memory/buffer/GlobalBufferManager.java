@@ -12,9 +12,11 @@ import me.hydos.rosella.memory.Memory;
 import me.hydos.rosella.render.renderer.Renderer;
 import me.hydos.rosella.vkobjects.VkCommon;
 import org.lwjgl.system.MemoryStack;
+import org.lwjgl.vulkan.VK10;
 
 import java.nio.ByteBuffer;
 import java.nio.LongBuffer;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 
 import static org.lwjgl.system.MemoryStack.stackPush;
@@ -172,15 +174,11 @@ public class GlobalBufferManager {
     public BufferInfo createVertexBuffer(ManagedBuffer<ByteBuffer> vertexBytes) {
         ByteBuffer src = vertexBytes.buffer();
         int size = src.limit() - src.position();
+        ByteBuffer slice = src.slice();
+        assert(slice.limit() == size);
 
         try (MemoryStack stack = stackPush()) {
             LongBuffer pBuffer = stack.mallocLong(1);
-
-            BufferInfo stagingBuffer = memory.createStagingBuf(size, pBuffer, data -> {
-                ByteBuffer dst = data.getByteBuffer(0, size);
-                // TODO OPT: do optional batching again
-                dst.put(0, src, src.position(), size);
-            });
             vertexBytes.free(common.device, memory);
 
             BufferInfo vertexBuffer = memory.createBuffer(
@@ -191,12 +189,13 @@ public class GlobalBufferManager {
             );
 
             long pVertexBuffer = pBuffer.get(0);
-            memory.copyBuffer(stagingBuffer.buffer(),
-                    pVertexBuffer,
-                    size,
-                    renderer,
-                    common.device);
-            stagingBuffer.free(common.device, memory);
+
+            AtomicBoolean wait = new AtomicBoolean(false);
+            memory.testDMA.acquireBuffer(pVertexBuffer, memory.testDMA.getTransferQueueFamily(), null, null);
+            memory.testDMA.transferBufferFromHost(slice, vertexBuffer.buffer(), 0);
+            memory.testDMA.releaseBuffer(pVertexBuffer, -1, null, () -> wait.set(true));
+            while(!wait.get()) {
+            }
 
             return vertexBuffer;
         }

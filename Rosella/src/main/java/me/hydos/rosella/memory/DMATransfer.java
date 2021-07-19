@@ -155,7 +155,7 @@ public class DMATransfer {
      * If the <code>dstQueue</code> is equals to the transfer queue <b>no memory barrier will be inserted</b> by the transfer engine.
      *
      * @param buffer The buffer to release
-     * @param dstQueue The queue that will next take ownership of the buffer
+     * @param dstQueue The queue that will next take ownership of the buffer.
      * @param signalSemaphores A list of semaphores to signal when the operation is complete
      * @param completedCb A function that is called once the release operation has completed
      */
@@ -165,6 +165,9 @@ public class DMATransfer {
             validateReleaseBuffer(buffer);
 
             if(dstQueue != this.transferQueue.getQueueFamily()) {
+                if(dstQueue == -1) {
+                    dstQueue = this.transferQueue.getQueueFamily(); // TODO remove temporary code
+                }
                 recordTask(new PipelineBarrierTask(VK10.VK_PIPELINE_STAGE_TRANSFER_BIT, 0)
                         .addBufferMemoryBarrier(
                                 VK10.VK_ACCESS_TRANSFER_WRITE_BIT | VK10.VK_ACCESS_TRANSFER_READ_BIT,
@@ -544,13 +547,9 @@ public class DMATransfer {
                     throw new RuntimeException("Failed to wait for fence");
                 }
 
-                Rosella.LOGGER.error("Signaling callbacks");
-
                 for(Runnable task : this.recorder.getSignalCallbacks()) {
                     task.run();
                 }
-
-                Rosella.LOGGER.error("Task completed");
             }
 
             return true;

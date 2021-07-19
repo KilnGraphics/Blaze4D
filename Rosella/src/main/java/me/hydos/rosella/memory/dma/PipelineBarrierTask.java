@@ -65,8 +65,6 @@ public class PipelineBarrierTask extends Task {
 
     @Override
     public void record(DMARecorder recorder) {
-        Rosella.LOGGER.warn("Recording barrier task");
-
         try (MemoryStack stack = MemoryStack.stackPush()) {
             VkMemoryBarrier.Buffer memoryBarrierBuffer = null;
             if(this.memoryBarriers.size() != 0) {

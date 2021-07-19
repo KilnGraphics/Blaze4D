@@ -31,8 +31,6 @@ public class BufferTransferTask extends Task {
             return;
         }
 
-        Rosella.LOGGER.warn("Recording transfer task");
-
         try(MemoryStack stack = MemoryStack.stackPush()) {
             VkBufferCopy.Buffer regionBuffer = VkBufferCopy.mallocStack(regions.size(), stack);
             for(BufferRegion region : regions) {

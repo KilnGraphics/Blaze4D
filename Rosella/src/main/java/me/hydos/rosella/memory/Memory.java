@@ -51,7 +51,7 @@ public abstract class Memory {
     private final ThreadPoolExecutor deallocatorThreadPool;
     private int threadNo;
 
-    private final DMATransfer testDMA;
+    public final DMATransfer testDMA;
 
     private boolean running = true;
 
@@ -69,7 +69,7 @@ public abstract class Memory {
                 (r, executor) -> {/* noop */});
 
         this.testDMA = new DMATransfer(this.common.queues.graphicsQueue, allocator);
-        testDMA();
+        // testDMA();
     }
 
     private void testDMA() {
