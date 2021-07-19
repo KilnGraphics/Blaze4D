@@ -173,7 +173,7 @@ public class GlobalBufferManager {
      */
     public BufferInfo createVertexBuffer(ManagedBuffer<ByteBuffer> vertexBytes) {
         ByteBuffer src = vertexBytes.buffer();
-        int size = src.limit() - src.position();
+        int size = src.remaining();
         ByteBuffer slice = src.slice();
         assert(slice.limit() == size);
 

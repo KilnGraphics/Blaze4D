@@ -3,6 +3,7 @@ package me.hydos.rosella.memory.dma;
 import me.hydos.rosella.Rosella;
 import me.hydos.rosella.memory.allocators.BackedRingAllocator;
 import me.hydos.rosella.memory.allocators.HostMappedAllocation;
+import me.hydos.rosella.memory.allocators.UnbackedRingAllocator;
 import org.lwjgl.PointerBuffer;
 import org.lwjgl.system.MemoryStack;
 import org.lwjgl.system.MemoryUtil;
@@ -38,7 +39,7 @@ public class StagingMemoryPool {
         public static final long MAX_BUFFER_SIZE = BackedRingAllocator.MAX_BUFFER_SIZE;
         public static final long MIN_BUFFER_SIZE = BackedRingAllocator.MIN_BUFFER_SIZE;
 
-        private BackedRingAllocator allocator;
+        private UnbackedRingAllocator allocator;
         private ByteBuffer memory;
         private long vmaAllocation = VK10.VK_NULL_HANDLE;
         private long vkBuffer = VK10.VK_NULL_HANDLE;
@@ -80,7 +81,7 @@ public class StagingMemoryPool {
                 this.vkBuffer = pBuffer.get();
 
                 this.memory = MemoryUtil.memByteBuffer(allocInfo.pMappedData(), (int) size);
-                this.allocator = new BackedRingAllocator(memory);
+                this.allocator = new UnbackedRingAllocator(memory.remaining());
             }
         }
 
@@ -101,7 +102,7 @@ public class StagingMemoryPool {
                 return null;
             }
 
-            int address = this.allocator.allocate((int) size);
+            int address = (int) this.allocator.allocate(size);
             if(address == Integer.MIN_VALUE) {
                 return null;
             }
@@ -111,7 +112,7 @@ public class StagingMemoryPool {
         }
 
         public void free(long address) {
-            this.allocator.free((int) address);
+            this.allocator.free(address);
         }
 
         private static boolean isPowerOf2(long value) {

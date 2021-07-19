@@ -168,7 +168,7 @@ public class DMATransfer {
                 if(dstQueue == -1) {
                     dstQueue = this.transferQueue.getQueueFamily(); // TODO remove temporary code
                 }
-                recordTask(new PipelineBarrierTask(VK10.VK_PIPELINE_STAGE_TRANSFER_BIT, 0)
+                recordTask(new PipelineBarrierTask(VK10.VK_PIPELINE_STAGE_TRANSFER_BIT, VK10.VK_PIPELINE_STAGE_ALL_COMMANDS_BIT)
                         .addBufferMemoryBarrier(
                                 VK10.VK_ACCESS_TRANSFER_WRITE_BIT | VK10.VK_ACCESS_TRANSFER_READ_BIT,
                                 VK10.VK_ACCESS_MEMORY_WRITE_BIT | VK10.VK_ACCESS_MEMORY_READ_BIT,
@@ -251,7 +251,7 @@ public class DMATransfer {
      * @param dstOffset The offset in the destination buffer to where the data should be copied to
      */
     public void transferBufferFromHost(ByteBuffer srcBufferData, long dstBuffer, long dstOffset) {
-        final long size = srcBufferData.limit();
+        final long size = srcBufferData.remaining();
         try {
             lock.lock();
             if(!ownedBuffers.contains(dstBuffer)) {
@@ -450,17 +450,21 @@ public class DMATransfer {
 
         @Override
         public void run() {
-            while(!shouldTerminate.get()) {
-                if(!tryRunTask()) {
-                    try {
-                        lock.lock();
-                        taskAvailable.awaitNanos(1000000L);
-                    } catch (InterruptedException ignored) {
-                        // TODO: ???
-                    } finally {
-                        lock.unlock();
+            try {
+                while (!shouldTerminate.get()) {
+                    if (!tryRunTask()) {
+                        try {
+                            lock.lock();
+                            taskAvailable.awaitNanos(1000000L);
+                        } catch (InterruptedException ignored) {
+                            // TODO: ???
+                        } finally {
+                            lock.unlock();
+                        }
                     }
                 }
+            } catch (Exception ex) {
+                Rosella.LOGGER.fatal(ex);
             }
         }
 
@@ -480,6 +484,8 @@ public class DMATransfer {
             if(!currentTask.canRecord(this.recorder)) {
                 return false;
             }
+
+            // Rosella.LOGGER.warn("Starting task build");
 
             // Record command buffers
             this.recorder.beginRecord(this.commandBuffer);
