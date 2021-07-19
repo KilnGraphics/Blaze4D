@@ -3,13 +3,16 @@ package me.hydos.rosella.scene.object;
 import me.hydos.rosella.Rosella;
 import me.hydos.rosella.device.VulkanDevice;
 import me.hydos.rosella.memory.Memory;
+import me.hydos.rosella.memory.MemoryCloseable;
 import me.hydos.rosella.render.info.InstanceInfo;
 import me.hydos.rosella.render.info.RenderInfo;
+
+import java.util.concurrent.Future;
 
 /**
  * Contains data for what you want to render
  */
-public interface Renderable {
+public interface Renderable extends MemoryCloseable {
 
     /**
      * Called when the Application asked {@link Rosella} to add this to the scene.
@@ -17,14 +20,6 @@ public interface Renderable {
      * @param rosella the common fields used by {@link Rosella}
      */
     void onAddedToScene(Rosella rosella);
-
-    /**
-     * Called when an object's memory can be freed' safely
-     *
-     * @param memory the rosella Memory Manager
-     * @param device the Device rosella is rendering on
-     */
-    void free(Memory memory, VulkanDevice device);
 
     /**
      * Called when the swapchain needs to be resized
@@ -35,5 +30,5 @@ public interface Renderable {
 
     InstanceInfo getInstanceInfo();
 
-    RenderInfo getRenderInfo();
+    Future<RenderInfo> getRenderInfo();
 }

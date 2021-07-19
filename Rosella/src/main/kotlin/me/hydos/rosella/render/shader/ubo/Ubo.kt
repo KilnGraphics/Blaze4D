@@ -4,7 +4,7 @@ import me.hydos.rosella.device.VulkanDevice
 import me.hydos.rosella.memory.BufferInfo
 import me.hydos.rosella.memory.Memory
 import me.hydos.rosella.memory.MemoryCloseable
-import me.hydos.rosella.render.descriptorsets.DescriptorSet
+import me.hydos.rosella.render.descriptorsets.DescriptorSets
 import me.hydos.rosella.render.swapchain.Swapchain
 
 /**
@@ -40,7 +40,7 @@ abstract class Ubo : MemoryCloseable {
     /**
      * Gets the descriptor sets used with this ubo
      */
-    abstract fun getDescriptors(): DescriptorSet
+    abstract fun getDescriptors(): DescriptorSets
 
     /**
      * Called when the program is closing and free's memory
@@ -49,5 +49,5 @@ abstract class Ubo : MemoryCloseable {
         free()
     }
 
-    abstract fun setDescriptors(descriptorSets: DescriptorSet)
+    abstract fun setDescriptors(descriptorSets: DescriptorSets)
 }

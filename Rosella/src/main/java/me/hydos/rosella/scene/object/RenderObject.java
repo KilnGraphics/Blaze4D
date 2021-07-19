@@ -10,7 +10,6 @@ import me.hydos.rosella.render.material.Material;
 import me.hydos.rosella.render.model.ModelLoader;
 import me.hydos.rosella.render.resource.Resource;
 import me.hydos.rosella.render.shader.ubo.RenderObjectUbo;
-import me.hydos.rosella.render.vertex.BufferVertexConsumer;
 import me.hydos.rosella.render.vertex.VertexFormats;
 import org.joml.Matrix4f;
 import org.joml.Vector2fc;
@@ -18,11 +17,14 @@ import org.joml.Vector3f;
 import org.joml.Vector3fc;
 import org.lwjgl.assimp.Assimp;
 
+import java.util.concurrent.ExecutionException;
+import java.util.concurrent.Future;
+
 public class RenderObject implements Renderable {
 
     private final Material material;
     private final Resource modelId;
-    public final RenderInfo renderInfo = new RenderInfo(new BufferVertexConsumer(VertexFormats.POSITION_COLOR3_UV0));
+    public final Future<RenderInfo> renderInfo = null;//new RenderInfo(new BufferVertexConsumer(VertexFormats.POSITION_COLOR3_UV0));
     public InstanceInfo instanceInfo;
 
     public final Matrix4f modelMatrix = new Matrix4f();
@@ -38,26 +40,27 @@ public class RenderObject implements Renderable {
     }
 
     public void loadModelInfo() {
-        ModelLoader.SimpleModel model = ModelLoader.loadModel(modelId, Assimp.aiProcess_FlipUVs | Assimp.aiProcess_DropNormals);
-        int vertexCount = model.getPositions().size();
-
-        BufferVertexConsumer vertexConsumer = (BufferVertexConsumer) renderInfo.bufferProvider;
-
-        vertexConsumer.clear();
-        Vector3f color = new Vector3f(1.0f, 1.0f, 1.0f);
-        for (int i = 0; i < vertexCount; i++) {
-            Vector3fc pos = model.getPositions().get(i);
-            Vector2fc uvs = model.getTexCoords().get(i);
-            // TODO: is this conversion doing what it should be? should convert int representing unsigned byte to signed byte through wrapping
-            vertexConsumer
-                    .pos(pos.x(), pos.y(), pos.z())
-                    .color((byte) (int) color.x(), (byte) (int) color.y(), (byte) (int) color.z())
-                    .uv(uvs.x(), uvs.y())
-                    .nextVertex();
-        }
-
-        renderInfo.indices = new IntArrayList(model.getIndices().size());
-        renderInfo.indices.addAll(model.getIndices());
+        // FIXME redo after fixing BufferVertexConsumer
+//        ModelLoader.SimpleModel model = ModelLoader.loadModel(modelId, Assimp.aiProcess_FlipUVs | Assimp.aiProcess_DropNormals);
+//        int vertexCount = model.getPositions().size();
+//
+//        BufferVertexConsumer vertexConsumer = (BufferVertexConsumer) renderInfo.bufferProvider;
+//
+//        vertexConsumer.clear();
+//        Vector3f color = new Vector3f(1.0f, 1.0f, 1.0f);
+//        for (int i = 0; i < vertexCount; i++) {
+//            Vector3fc pos = model.getPositions().get(i);
+//            Vector2fc uvs = model.getTexCoords().get(i);
+//            // TODO: is this conversion doing what it should be? should convert int representing unsigned byte to signed byte through wrapping
+//            vertexConsumer
+//                    .pos(pos.x(), pos.y(), pos.z())
+//                    .color((byte) (int) color.x(), (byte) (int) color.y(), (byte) (int) color.z())
+//                    .uv(uvs.x(), uvs.y())
+//                    .nextVertex();
+//        }
+//
+//        renderInfo.indices = new IntArrayList(model.getIndices().size());
+//        renderInfo.indices.addAll(model.getIndices());
     }
 
     @Override
@@ -68,9 +71,13 @@ public class RenderObject implements Renderable {
     }
 
     @Override
-    public void free(Memory memory, VulkanDevice device) {
+    public void free(VulkanDevice device, Memory memory) {
         instanceInfo.free(device, memory);
-        renderInfo.free(device, memory);
+        try {
+            renderInfo.get().free(device, memory);
+        } catch (InterruptedException | ExecutionException e) {
+            Rosella.LOGGER.error("Error freeing render info", e);
+        }
     }
 
     @Override
@@ -84,7 +91,7 @@ public class RenderObject implements Renderable {
     }
 
     @Override
-    public RenderInfo getRenderInfo() {
+    public Future<RenderInfo> getRenderInfo() {
         return renderInfo;
     }
 }

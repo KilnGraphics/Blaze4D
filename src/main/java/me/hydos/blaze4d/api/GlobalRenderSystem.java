@@ -1,34 +1,33 @@
 package me.hydos.blaze4d.api;
 
-import it.unimi.dsi.fastutil.Pair;
+import com.mojang.blaze3d.vertex.VertexFormat;
 import it.unimi.dsi.fastutil.ints.Int2ObjectOpenHashMap;
-import it.unimi.dsi.fastutil.ints.IntArrayList;
-import it.unimi.dsi.fastutil.ints.IntList;
-import it.unimi.dsi.fastutil.ints.IntLists;
-import it.unimi.dsi.fastutil.objects.Object2ObjectLinkedOpenHashMap;
-import it.unimi.dsi.fastutil.objects.ObjectArrayList;
+import it.unimi.dsi.fastutil.objects.*;
 import me.hydos.blaze4d.Blaze4D;
 import me.hydos.blaze4d.api.shader.ShaderContext;
-import me.hydos.blaze4d.api.vertex.ConsumerCreationInfo;
 import me.hydos.blaze4d.api.vertex.ConsumerRenderObject;
-import me.hydos.blaze4d.api.vertex.ObjectInfo;
 import me.hydos.blaze4d.mixin.shader.ShaderAccessor;
 import me.hydos.rosella.Rosella;
+import me.hydos.rosella.memory.ManagedBuffer;
+import me.hydos.rosella.render.info.RenderInfo;
 import me.hydos.rosella.render.material.state.StateInfo;
 import me.hydos.rosella.render.resource.Identifier;
 import me.hydos.rosella.render.shader.RawShaderProgram;
 import me.hydos.rosella.render.shader.ShaderProgram;
 import me.hydos.rosella.render.texture.Texture;
 import me.hydos.rosella.render.texture.TextureManager;
-import me.hydos.rosella.render.vertex.StoredBufferProvider;
 import me.hydos.rosella.scene.object.impl.SimpleObjectManager;
-import net.minecraft.client.render.VertexFormat;
-import net.minecraft.util.math.Vec3f;
 import org.joml.Matrix4f;
 import org.joml.Vector3f;
+import org.lwjgl.system.MemoryUtil;
 import org.lwjgl.vulkan.VK10;
 
-import java.util.*;
+import java.nio.ByteBuffer;
+import java.nio.IntBuffer;
+import java.util.Collections;
+import java.util.Map;
+import java.util.Set;
+import java.util.concurrent.CompletableFuture;
 
 /**
  * Used to make bits of the code easier to manage.
@@ -44,7 +43,7 @@ public class GlobalRenderSystem {
     public static int nextShaderProgramId = 1; // Same reason as above
 
     // Frame/Drawing Fields
-    public static Set<ConsumerRenderObject> currentFrameObjects = Collections.newSetFromMap(new Object2ObjectLinkedOpenHashMap<>()); // should be sorted
+    public static Set<ConsumerRenderObject> currentFrameObjects = Collections.newSetFromMap(new Object2ObjectLinkedOpenHashMap<>()); // this is sorted
 
     // Active Fields
     public static final int maxTextures = 12;
@@ -76,11 +75,22 @@ public class GlobalRenderSystem {
     public static Matrix4f projectionMatrix = new Matrix4f();
     public static Matrix4f modelViewMatrix = new Matrix4f();
     public static Vector3f chunkOffset = new Vector3f();
-    public static Vec3f shaderLightDirections0 = new Vec3f();
-    public static Vec3f shaderLightDirections1 = new Vec3f();
+    public static com.mojang.math.Vector3f shaderLightDirections0 = new com.mojang.math.Vector3f();
+    public static com.mojang.math.Vector3f shaderLightDirections1 = new com.mojang.math.Vector3f();
+
+    // FIXME: dont rely on these
+    public static Matrix4f tmpProjectionMatrix = new Matrix4f();
+    public static Matrix4f tmpModelViewMatrix = new Matrix4f();
 
     // Captured Shader for more dynamic uniforms and samplers
-    public static ShaderAccessor blaze4d$capturedShader = null;
+    public static ShaderAccessor blaze4d$capturedShaderProgram = null;
+    public static final int SAMPLER_NOT_BOUND = -1;
+    public static Object2IntMap<String> processedSamplers = new Object2IntOpenHashMap<>();
+    public static int currentSamplerBinding = 1; // we start at 1 because 0 is reserved for the main UBO
+
+    static {
+        processedSamplers.defaultReturnValue(SAMPLER_NOT_BOUND);
+    }
 
     //=================
     // Shader Methods
@@ -104,8 +114,6 @@ public class GlobalRenderSystem {
     public static void render() {
         Blaze4D.rosella.common.device.waitForIdle();
 
-        GlobalRenderSystem.renderConsumers(); //TODO: move this probably
-
         ((SimpleObjectManager) Blaze4D.rosella.objectManager).renderObjects.clear();
         for (ConsumerRenderObject renderObject : currentFrameObjects) {
             Blaze4D.rosella.objectManager.addObject(renderObject);
@@ -117,34 +125,77 @@ public class GlobalRenderSystem {
         Blaze4D.rosella.renderer.render();
 
         for (ConsumerRenderObject consumerRenderObject : currentFrameObjects) {
-            consumerRenderObject.free(Blaze4D.rosella.common.memory, Blaze4D.rosella.common.device);
+            consumerRenderObject.free(Blaze4D.rosella.common.device, Blaze4D.rosella.common.memory);
         }
         currentFrameObjects.clear();
     }
 
     public static Texture[] createTextureArray() {
         Texture[] textures = new Texture[maxTextures];
-        for(int i = 0; i < maxTextures; i++) {
+        for (int i = 0; i < maxTextures; i++) {
             int texId = boundTextureIds[i];
             textures[i] = texId == TextureManager.BLANK_TEXTURE_ID ? null : ((SimpleObjectManager) Blaze4D.rosella.objectManager).textureManager.getTexture(texId);
         }
         return textures;
     }
 
-    public static void uploadObject(ObjectInfo objectInfo, Rosella rosella) {
-        ConsumerRenderObject renderObject = new ConsumerRenderObject(objectInfo, rosella);
+    public static void uploadAsyncCreatableObject(ManagedBuffer<ByteBuffer> vertexBufferSource, ManagedBuffer<ByteBuffer> indexBufferSource,
+                                    int indexCount, me.hydos.rosella.render.vertex.VertexFormat format, ShaderProgram shader,
+                                    Texture[] textures, StateInfo stateInfo, Matrix4f projMatrix, Matrix4f viewMatrix, Vector3f chunkOffset,
+                                    com.mojang.math.Vector3f shaderLightDirections0, com.mojang.math.Vector3f shaderLightDirections1,
+                                    VertexFormat mcFormat, VertexFormat.Mode mcDrawMode, Rosella rosella) {
+
+        if (shader == null) return; // TODO: designate thread pool for this maybe
+        ConsumerRenderObject renderObject = new ConsumerRenderObject(
+                CompletableFuture.completedFuture(new RenderInfo(rosella.bufferManager.getOrCreateVertexBuffer(vertexBufferSource), rosella.bufferManager.getOrCreateIndexBuffer(indexBufferSource), indexCount)),
+                format,
+                shader,
+                textures,
+                stateInfo,
+                projMatrix,
+                viewMatrix,
+                chunkOffset,
+                shaderLightDirections0,
+                shaderLightDirections1,
+                mcFormat,
+                mcDrawMode,
+                rosella
+        );
         currentFrameObjects.add(renderObject);
     }
 
-    public static final List<Pair<ConsumerCreationInfo, StoredBufferProvider>> GLOBAL_BUFFER_PROVIDERS = new ObjectArrayList<>();
+    public static void uploadPreCreatedObject(RenderInfo renderInfo, me.hydos.rosella.render.vertex.VertexFormat format,
+                                    ShaderProgram shader, Texture[] textures, StateInfo stateInfo, Matrix4f projMatrix,
+                                    Matrix4f viewMatrix, Vector3f chunkOffset, com.mojang.math.Vector3f shaderLightDirections0,
+                                    com.mojang.math.Vector3f shaderLightDirections1, VertexFormat mcFormat, VertexFormat.Mode mcDrawMode,
+                                    Rosella rosella) {
 
-    public static void renderConsumers() {
-        for (Pair<ConsumerCreationInfo, StoredBufferProvider> entry : GLOBAL_BUFFER_PROVIDERS) {
-            StoredBufferProvider bufferProvider = entry.value();
-            IntList indices = new IntArrayList();
-            ConsumerCreationInfo creationInfo = entry.key();
+        if (shader == null) return;
+        ConsumerRenderObject renderObject = new ConsumerRenderObject(
+                CompletableFuture.completedFuture(renderInfo),
+                format,
+                shader,
+                textures,
+                stateInfo,
+                projMatrix,
+                viewMatrix,
+                chunkOffset,
+                shaderLightDirections0,
+                shaderLightDirections1,
+                mcFormat,
+                mcDrawMode,
+                rosella
+        );
+        currentFrameObjects.add(renderObject);
+    }
 
-            if (creationInfo.drawMode() == VertexFormat.DrawMode.QUADS) {
+    public static ObjectIntPair<ManagedBuffer<ByteBuffer>> createIndices(VertexFormat.Mode drawMode, int vertexCount) {
+        IntBuffer indices;
+        int indexCount;
+
+        // TODO: try getting index buffer from minecraft (VertexBuffer and BufferBuilder)
+        switch (drawMode) {
+            case QUADS -> {
                 // Convert Quads to Triangle Strips
                 //  0, 1, 2
                 //  0, 2, 3
@@ -154,41 +205,40 @@ public class GlobalRenderSystem {
                 //       /         \       /
                 //      /             \   /
                 //    v2-----------------v3
-
-                for (int i = 0; i < bufferProvider.getVertexCount(); i += 4) {
-                    indices.add(i);
-                    indices.add(1 + i);
-                    indices.add(2 + i);
-
-                    indices.add(2 + i);
-                    indices.add(3 + i);
-                    indices.add(i);
-                }
-            } else {
-                for (int i = 0; i < bufferProvider.getVertexCount(); i++) {
-                    indices.add(i);
+                indexCount = (int) (vertexCount * 1.5);
+                indices = MemoryUtil.memAllocInt(indexCount);
+                for (int i = 0; i < vertexCount; i += 4) {
+                    indices.put(i);
+                    indices.put(i + 1);
+                    indices.put(i + 2);
+                    indices.put(i + 2);
+                    indices.put(i + 3);
+                    indices.put(i);
                 }
             }
-
-            if (bufferProvider.getVertexCount() != 0) {
-                ObjectInfo objectInfo = new ObjectInfo(
-                        bufferProvider,
-                        creationInfo.drawMode(),
-                        creationInfo.format(),
-                        creationInfo.shader(),
-                        creationInfo.textures(),
-                        creationInfo.projMatrix(),
-                        creationInfo.viewMatrix(),
-                        creationInfo.chunkOffset(),
-                        creationInfo.shaderLightDirections0(),
-                        creationInfo.shaderLightDirections1(),
-                        IntLists.unmodifiable(indices)
-                );
-                if (creationInfo.shader() != null) {
-                    GlobalRenderSystem.uploadObject(objectInfo, Blaze4D.rosella);
+            case LINES -> {
+                indexCount = (int) (vertexCount * 1.5);
+                indices = MemoryUtil.memAllocInt(indexCount);
+                for (int i = 0; i < vertexCount; i += 4) {
+                    indices.put(i);
+                    indices.put(i + 1);
+                    indices.put(i + 2);
+                    indices.put(i + 3);
+                    indices.put(i + 2);
+                    indices.put(i + 1);
+                }
+            }
+            default -> {
+                indexCount = vertexCount;
+                indices = MemoryUtil.memAllocInt(indexCount);
+                for (int i = 0; i < vertexCount; i++) {
+                    indices.put(i);
                 }
             }
         }
-        GLOBAL_BUFFER_PROVIDERS.clear();
+
+        indices.rewind();
+        return new ObjectIntImmutablePair<>(new ManagedBuffer<>(MemoryUtil.memByteBuffer(indices), true), indexCount);
     }
+
 }

@@ -4,7 +4,6 @@ import it.unimi.dsi.fastutil.ints.IntArrayList
 import me.hydos.rosella.Rosella
 import me.hydos.rosella.render.material.Material
 import me.hydos.rosella.render.resource.Resource
-import me.hydos.rosella.render.vertex.BufferVertexConsumer
 import me.hydos.rosella.scene.`object`.RenderObject
 import org.joml.Matrix4f
 import org.joml.Vector3f
@@ -15,7 +14,7 @@ open class GuiRenderObject(
     private var colour: Vector3f = Vector3f(0f, 0f, 0f),
     viewMatrix: Matrix4f,
     projectionMatrix: Matrix4f
-) : RenderObject(Resource.Empty, material, viewMatrix, projectionMatrix) {
+) : RenderObject(Resource.Empty as Resource?, material, viewMatrix, projectionMatrix) {
 
     constructor(
         material: Material,
@@ -45,44 +44,45 @@ open class GuiRenderObject(
 
     override fun loadModelInfo() {
         // FIXME FIXME FIXME FIXME this is bad, don't force cast here
-        val vertexConsumer: BufferVertexConsumer = renderInfo.bufferProvider as BufferVertexConsumer
-
-        vertexConsumer.clear()
-        renderInfo.indices = IntArrayList()
-
-        colour = Vector3f(0f, 0f, 0f)
-
-        // TODO: is this conversion doing what it should be? should convert int representing unsigned byte to signed byte through wrapping
-        vertexConsumer
-            .pos(-0.5f, -0.5f, 0f)
-            .color(colour.x().toInt().toByte(), colour.y().toInt().toByte(), colour.z().toInt().toByte())
-            .uv(0f, 0f)
-            .nextVertex()
-
-        vertexConsumer
-            .pos(0.5f, -0.5f, 0f)
-            .color(colour.x().toInt().toByte(), colour.y().toInt().toByte(), colour.z().toInt().toByte())
-            .uv(1f, 0f)
-            .nextVertex()
-
-        vertexConsumer
-            .pos(0.5f, 0.5f, 0f)
-            .color(colour.x().toInt().toByte(), colour.y().toInt().toByte(), colour.z().toInt().toByte())
-            .uv(1f, 1f)
-            .nextVertex()
-
-        vertexConsumer
-            .pos(-0.5f, 0.5f, 0f)
-            .color(colour.x().toInt().toByte(), colour.y().toInt().toByte(), colour.z().toInt().toByte())
-            .uv(0f, 1f)
-            .nextVertex()
-
-        renderInfo.indices.add(0)
-        renderInfo.indices.add(1)
-        renderInfo.indices.add(2)
-        renderInfo.indices.add(2)
-        renderInfo.indices.add(3)
-        renderInfo.indices.add(0)
+        // FIXME redo this after redoing BufferVertexConsumer
+//        val vertexConsumer: BufferVertexConsumer = renderInfo.bufferProvider as BufferVertexConsumer
+//
+//        vertexConsumer.clear()
+//        renderInfo.indices = IntArrayList()
+//
+//        colour = Vector3f(0f, 0f, 0f)
+//
+//        // TODO: is this conversion doing what it should be? should convert int representing unsigned byte to signed byte through wrapping
+//        vertexConsumer
+//            .pos(-0.5f, -0.5f, 0f)
+//            .color(colour.x().toInt().toByte(), colour.y().toInt().toByte(), colour.z().toInt().toByte())
+//            .uv(0f, 0f)
+//            .nextVertex()
+//
+//        vertexConsumer
+//            .pos(0.5f, -0.5f, 0f)
+//            .color(colour.x().toInt().toByte(), colour.y().toInt().toByte(), colour.z().toInt().toByte())
+//            .uv(1f, 0f)
+//            .nextVertex()
+//
+//        vertexConsumer
+//            .pos(0.5f, 0.5f, 0f)
+//            .color(colour.x().toInt().toByte(), colour.y().toInt().toByte(), colour.z().toInt().toByte())
+//            .uv(1f, 1f)
+//            .nextVertex()
+//
+//        vertexConsumer
+//            .pos(-0.5f, 0.5f, 0f)
+//            .color(colour.x().toInt().toByte(), colour.y().toInt().toByte(), colour.z().toInt().toByte())
+//            .uv(0f, 1f)
+//            .nextVertex()
+//
+//        renderInfo.indices.add(0)
+//        renderInfo.indices.add(1)
+//        renderInfo.indices.add(2)
+//        renderInfo.indices.add(2)
+//        renderInfo.indices.add(3)
+//        renderInfo.indices.add(0)
     }
 
     override fun onAddedToScene(rosella: Rosella) {

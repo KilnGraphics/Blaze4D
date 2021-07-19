@@ -1,20 +1,22 @@
 package me.hydos.blaze4d.api.shader;
 
 import com.google.common.collect.ImmutableMap;
+import com.mojang.blaze3d.shaders.Uniform;
+import it.unimi.dsi.fastutil.objects.Object2IntMap;
+import it.unimi.dsi.fastutil.objects.Object2IntOpenHashMap;
 import me.hydos.rosella.device.VulkanDevice;
 import me.hydos.rosella.memory.Memory;
 import me.hydos.rosella.render.material.Material;
 import me.hydos.rosella.render.resource.Resource;
 import me.hydos.rosella.render.shader.RawShaderProgram;
-import net.minecraft.client.gl.GlUniform;
-import net.minecraft.util.math.MathHelper;
+import me.hydos.rosella.render.shader.ShaderType;
+import net.minecraft.util.Mth;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
-import java.util.stream.Collectors;
 
 public class MinecraftShaderProgram extends RawShaderProgram {
 
@@ -36,6 +38,7 @@ public class MinecraftShaderProgram extends RawShaderProgram {
                 .put("ChunkOffset", MinecraftUbo::addChunkOffset)
                 .put("Light0_Direction", MinecraftUbo::addLightDirections0)
                 .put("Light1_Direction", MinecraftUbo::addLightDirections1)
+                .put("EndPortalLayers", MinecraftUbo::addEndPortalLayers)
                 .build();
 
         UNIFORM_SIZES = new ImmutableMap.Builder<Integer, Integer>()
@@ -48,27 +51,30 @@ public class MinecraftShaderProgram extends RawShaderProgram {
                 .put(6, 3 * Float.BYTES)
                 .put(7, 4 * Float.BYTES)
                 .put(10, 4 * 4 * Float.BYTES)
+                .put(11, Integer.BYTES)
                 .build();
     }
 
-    private final List<GlUniform> uniforms;
-    private final List<String> samplerNames;
+    private final List<Uniform> uniforms;
+    private final Object2IntMap<String> samplers;
 
-    public MinecraftShaderProgram(@Nullable Resource vertexShader, @Nullable Resource fragmentShader, @NotNull VulkanDevice device, @NotNull Memory memory, int maxObjCount, List<GlUniform> uniforms, List<String> samplerNames) {
-        super(vertexShader, fragmentShader, device, memory, maxObjCount, createPoolTypes(samplerNames));
+    public MinecraftShaderProgram(@Nullable Resource vertexShader, @Nullable Resource fragmentShader, @NotNull VulkanDevice device, @NotNull Memory memory, int maxObjCount, List<Uniform> uniforms, Object2IntMap<String> samplers) {
+        super(vertexShader, fragmentShader, device, memory, maxObjCount, createPoolTypes(samplers));
         this.uniforms = uniforms;
-        this.samplerNames = samplerNames;
+        this.samplers = samplers;
     }
 
-    private static PoolObjectInfo[] createPoolTypes(List<String> samplerNames) {
+    private static PoolObjectInfo[] createPoolTypes(Object2IntMap<String> samplers) {
         List<PoolObjectInfo> types = new ArrayList<>();
         types.add(PoolUboInfo.INSTANCE);
 
-        for (String name : samplerNames) {
+        for (Object2IntMap.Entry<String> sampler : samplers.object2IntEntrySet()) {
+            String name = sampler.getKey();
+            int bindingLocation = sampler.getIntValue();
             if (name.equals("DiffuseSampler")) {
-                types.add(new PoolSamplerInfo(-1)); // TODO: set to framebuffer
+                types.add(new PoolSamplerInfo(bindingLocation, -1)); // TODO: set to framebuffer
             } else {
-                types.add(new PoolSamplerInfo(Integer.parseInt(name.substring(7))));
+                types.add(new PoolSamplerInfo(bindingLocation, Integer.parseInt(name.substring(7))));
             }
         }
 
@@ -79,17 +85,17 @@ public class MinecraftShaderProgram extends RawShaderProgram {
         List<MinecraftUbo.AddUboMemoryStep> steps = new ArrayList<>();
         int size = 0;
 
-        for (GlUniform uniform : uniforms) {
+        for (Uniform uniform : uniforms) {
             MinecraftUbo.AddUboMemoryStep step = UBO_MEMORY_STEP_MAP.get(uniform.getName());
 
             if (step == null) {
                 throw new RuntimeException("something bad happened: uniforms are " + uniforms);
             }
 
-            size += UNIFORM_SIZES.get(uniform.getDataType());
+            size += UNIFORM_SIZES.get(uniform.getType());
             steps.add(step);
         }
 
-        return new MinecraftUbo(memory, material, steps, MathHelper.roundUpToMultiple(size, 16));
+        return new MinecraftUbo(memory, material, steps, Mth.roundToward(size, 16));
     }
 }

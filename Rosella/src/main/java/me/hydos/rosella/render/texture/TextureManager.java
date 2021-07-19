@@ -3,13 +3,15 @@ package me.hydos.rosella.render.texture;
 import it.unimi.dsi.fastutil.ints.IntArrayPriorityQueue;
 import it.unimi.dsi.fastutil.ints.IntPriorityQueue;
 import it.unimi.dsi.fastutil.ints.IntPriorityQueues;
-
-import java.util.*;
-import me.hydos.rosella.memory.Memory;
-import me.hydos.rosella.render.VkKt;
 import me.hydos.rosella.render.renderer.Renderer;
+import me.hydos.rosella.util.VkUtils;
 import me.hydos.rosella.vkobjects.VkCommon;
 import org.lwjgl.vulkan.VK10;
+
+import java.util.HashMap;
+import java.util.HashSet;
+import java.util.Map;
+import java.util.Set;
 
 public class TextureManager {
 
@@ -53,8 +55,8 @@ public class TextureManager {
     }
 
     public void deleteTexture(int textureId) {
-        // TODO: actually delete image from gpu
         Texture removedTex = this.textureMap.remove(textureId);
+        removedTex.getTextureImage().free(common.device, common.memory);
         preparedTextures.remove(removedTex);
         reusableTexIds.enqueue(textureId);
     }
@@ -64,9 +66,8 @@ public class TextureManager {
     }
 
     public void createTexture(Renderer renderer, int textureId, int width, int height, int imgFormat) {
-        TextureImage textureImage = new TextureImage(0L, 0L, 0L);
-        VkKt.createTextureImage(renderer, common.device, width, height, imgFormat, textureImage);
-        textureImage.setView(VkKt.createTextureImageView(common.device, imgFormat, textureImage.getTextureImage()));
+        TextureImage textureImage = VkUtils.createTextureImage(renderer, common.memory, common.device, width, height, imgFormat);
+        textureImage.setView(VkUtils.createTextureImageView(common.device, imgFormat, textureImage.pointer()));
         textureMap.put(textureId, new Texture(imgFormat, width, height, textureImage, null));
     }
 
@@ -81,25 +82,25 @@ public class TextureManager {
         textureMap.get(textureId).setTextureSampler(textureSampler.getPointer());
     }
 
-    public void drawToExistingTexture(Renderer renderer, Memory memory, int textureId, UploadableImage image, ImageRegion srcRegion, ImageRegion dstRegion) {
+    public void drawToExistingTexture(Renderer renderer, int textureId, UploadableImage image, ImageRegion srcRegion, ImageRegion dstRegion) {
         Texture texture = getTexture(textureId);
         if (preparedTextures.contains(texture)) {
-            VkKt.transitionImageLayout(
+            VkUtils.transitionImageLayout(
                     renderer,
                     common.device,
                     renderer.depthBuffer,
-                    texture.getTextureImage().getTextureImage(),
-                    texture.getImgFormat(),
+                    texture.getTextureImage().pointer(),
+                    texture.getImageFormat(),
                     VK10.VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL,
                     VK10.VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL
             );
             preparedTextures.remove(texture);
         }
 
-        VkKt.copyToTexture(
+        VkUtils.copyToTexture(
                 renderer,
                 common.device,
-                memory,
+                common.memory,
                 image,
                 srcRegion,
                 dstRegion,
@@ -107,19 +108,19 @@ public class TextureManager {
         );
     }
 
-    public void drawToExistingTexture(Renderer renderer, Memory memory, int textureId, UploadableImage image) {
+    public void drawToExistingTexture(Renderer renderer, int textureId, UploadableImage image) {
         ImageRegion region = new ImageRegion(image.getWidth(), image.getHeight(), 0, 0);
-        drawToExistingTexture(renderer, memory, textureId, image, region, region);
+        drawToExistingTexture(renderer, textureId, image, region, region);
     }
 
     public void prepareTexture(Renderer renderer, Texture texture) {
         if (!preparedTextures.contains(texture)) {
-            VkKt.transitionImageLayout(
+            VkUtils.transitionImageLayout(
                     renderer,
                     common.device,
                     renderer.depthBuffer,
-                    texture.getTextureImage().getTextureImage(),
-                    texture.getImgFormat(),
+                    texture.getTextureImage().pointer(),
+                    texture.getImageFormat(),
                     VK10.VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
                     VK10.VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL
             );

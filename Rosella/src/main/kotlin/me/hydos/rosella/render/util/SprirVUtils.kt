@@ -1,6 +1,7 @@
 package me.hydos.rosella.render.util
 
 import me.hydos.rosella.render.resource.Resource
+import me.hydos.rosella.render.shader.ShaderType
 import org.lwjgl.system.MemoryUtil.NULL
 import org.lwjgl.system.NativeResource
 import org.lwjgl.util.shaderc.Shaderc.*
@@ -17,7 +18,7 @@ fun compileShader(filename: String, source: String, shaderType: ShaderType): Spi
         throw RuntimeException("Failed to create shader compiler")
     }
 
-    val result: Long = shaderc_compile_into_spv(compiler, source, shaderType.kind, filename, "main", NULL)
+    val result: Long = shaderc_compile_into_spv(compiler, source, shaderType.shaderCType, filename, "main", NULL)
     if (result == NULL) {
         throw RuntimeException("Failed to compile shader $filename into SPIR-V")
     }

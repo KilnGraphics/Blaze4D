@@ -1,16 +1,16 @@
 package me.hydos.blaze4d.api.shader;
 
+import com.mojang.blaze3d.platform.Window;
 import com.mojang.blaze3d.systems.RenderSystem;
 import me.hydos.blaze4d.Blaze4D;
+import me.hydos.blaze4d.api.util.ConversionUtils;
 import me.hydos.rosella.memory.BufferInfo;
 import me.hydos.rosella.memory.Memory;
-import me.hydos.rosella.render.descriptorsets.DescriptorSet;
+import me.hydos.rosella.render.descriptorsets.DescriptorSets;
 import me.hydos.rosella.render.material.Material;
 import me.hydos.rosella.render.shader.ubo.Ubo;
 import me.hydos.rosella.render.swapchain.Swapchain;
-import net.minecraft.client.MinecraftClient;
-import net.minecraft.client.util.Window;
-import net.minecraft.util.math.Vec3f;
+import net.minecraft.client.Minecraft;
 import org.jetbrains.annotations.NotNull;
 import org.joml.Matrix4f;
 import org.joml.Vector3f;
@@ -29,46 +29,20 @@ public class MinecraftUbo extends Ubo {
     private final Memory memory;
     private final int totalSize;
     private final List<AddUboMemoryStep> steps;
-    public DescriptorSet descSets;
+    public DescriptorSets descSets;
     public List<BufferInfo> uboFrames = new ArrayList<>();
     public Matrix4f projectionMatrix;
     public Matrix4f viewTransformMatrix;
     public Vector3f chunkOffset;
-    public Vec3f shaderLightDirections0;
-    public Vec3f shaderLightDirections1;
+    public com.mojang.math.Vector3f shaderLightDirections0;
+    public com.mojang.math.Vector3f shaderLightDirections1;
     private int size;
 
     public MinecraftUbo(@NotNull Memory memory, Material material, List<AddUboMemoryStep> steps, int size) {
         this.memory = memory;
-        this.descSets = new DescriptorSet(material.getShader().getRaw().getDescriptorPool());
+        this.descSets = new DescriptorSets(material.getShader().getRaw().getDescriptorPool());
         this.totalSize = size;
         this.steps = steps;
-    }
-
-    public static Matrix4f toJoml(net.minecraft.util.math.Matrix4f mcMatrix) {
-        Matrix4f jomlMatrix = new Matrix4f();
-
-        jomlMatrix.m00(mcMatrix.a00);
-        jomlMatrix.m01(mcMatrix.a10);
-        jomlMatrix.m02(mcMatrix.a20);
-        jomlMatrix.m03(mcMatrix.a30);
-
-        jomlMatrix.m10(mcMatrix.a01);
-        jomlMatrix.m11(mcMatrix.a11);
-        jomlMatrix.m12(mcMatrix.a21);
-        jomlMatrix.m13(mcMatrix.a31);
-
-        jomlMatrix.m20(mcMatrix.a02);
-        jomlMatrix.m21(mcMatrix.a12);
-        jomlMatrix.m22(mcMatrix.a22);
-        jomlMatrix.m23(mcMatrix.a32);
-
-        jomlMatrix.m30(mcMatrix.a03);
-        jomlMatrix.m31(mcMatrix.a13);
-        jomlMatrix.m32(mcMatrix.a23);
-        jomlMatrix.m33(mcMatrix.a33);
-
-        return jomlMatrix;
     }
 
     @Override
@@ -129,8 +103,8 @@ public class MinecraftUbo extends Ubo {
     }
 
     public void addScreenSize(ByteBuffer buffer) {
-        Window window = MinecraftClient.getInstance().getWindow();
-        putVec2i(window.getFramebufferWidth(), window.getFramebufferHeight(), buffer);
+        Window window = Minecraft.getInstance().getWindow();
+        putVec2i(window.getWidth(), window.getHeight(), buffer);
     }
 
     public void addGameTime(ByteBuffer buffer) {
@@ -138,7 +112,7 @@ public class MinecraftUbo extends Ubo {
     }
 
     public void addTextureMatrix(ByteBuffer buffer) {
-        putMat4(toJoml(RenderSystem.getTextureMatrix()), buffer);
+        putMat4(ConversionUtils.mcToJomlMatrix(RenderSystem.getTextureMatrix()), buffer);
     }
 
     public void addFogColor(ByteBuffer buffer) {
@@ -163,6 +137,10 @@ public class MinecraftUbo extends Ubo {
 
     public void addViewTransformMatrix(ByteBuffer buffer) {
         putMat4(viewTransformMatrix, buffer);
+    }
+
+    public static void addEndPortalLayers(MinecraftUbo minecraftUbo, ByteBuffer buffer) {
+        buffer.putInt(15); // Taken from the end portal json         { "name": "EndPortalLayers", "type": "int", "count": 1, "values": [ 15 ] }
     }
 
     protected void putVec2i(int i1, int i2, ByteBuffer buffer) {
@@ -210,17 +188,17 @@ public class MinecraftUbo extends Ubo {
         putFloat(vec3.z, buffer);
     }
 
-    protected void putVec3f(Vec3f vec3, ByteBuffer buffer) {
-        putFloat(vec3.getX(), buffer);
-        putFloat(vec3.getY(), buffer);
-        putFloat(vec3.getZ(), buffer);
+    protected void putVec3f(com.mojang.math.Vector3f vec3, ByteBuffer buffer) {
+        putFloat(vec3.x(), buffer);
+        putFloat(vec3.y(), buffer);
+        putFloat(vec3.z(), buffer);
     }
 
     private void beginUboWrite() {
         size = 0;
     }
 
-    public void setUniforms(Matrix4f projectionMatrix, Matrix4f viewTransformMatrix, Vector3f chunkOffset, Vec3f shaderLightDirections0, Vec3f shaderLightDirections1) {
+    public void setUniforms(Matrix4f projectionMatrix, Matrix4f viewTransformMatrix, Vector3f chunkOffset, com.mojang.math.Vector3f shaderLightDirections0, com.mojang.math.Vector3f shaderLightDirections1) {
         this.projectionMatrix = projectionMatrix;
         this.viewTransformMatrix = viewTransformMatrix;
         this.chunkOffset = chunkOffset;
@@ -244,12 +222,12 @@ public class MinecraftUbo extends Ubo {
 
     @NotNull
     @Override
-    public DescriptorSet getDescriptors() {
+    public DescriptorSets getDescriptors() {
         return descSets;
     }
 
     @Override
-    public void setDescriptors(@NotNull DescriptorSet descriptorSets) {
+    public void setDescriptors(@NotNull DescriptorSets descriptorSets) {
         this.descSets = descriptorSets;
     }
 

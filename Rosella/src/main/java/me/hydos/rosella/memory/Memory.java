@@ -5,9 +5,12 @@ import it.unimi.dsi.fastutil.longs.LongSet;
 import it.unimi.dsi.fastutil.longs.LongSets;
 import me.hydos.rosella.Rosella;
 import me.hydos.rosella.device.VulkanDevice;
+import me.hydos.rosella.render.material.PipelineInfo;
 import me.hydos.rosella.memory.dma.DMARecorder;
 import me.hydos.rosella.memory.dma.StagingMemoryPool;
 import me.hydos.rosella.render.renderer.Renderer;
+import me.hydos.rosella.render.texture.TextureImage;
+import me.hydos.rosella.util.VkUtils;
 import me.hydos.rosella.vkobjects.VkCommon;
 import org.lwjgl.PointerBuffer;
 import org.lwjgl.system.MemoryStack;
@@ -19,13 +22,18 @@ import org.lwjgl.util.vma.VmaAllocatorCreateInfo;
 import org.lwjgl.util.vma.VmaVulkanFunctions;
 import org.lwjgl.vulkan.*;
 
+import java.nio.Buffer;
 import java.nio.ByteBuffer;
 import java.nio.LongBuffer;
-import java.util.*;
-import java.util.concurrent.*;
+import java.util.List;
+import java.util.Objects;
+import java.util.Set;
+import java.util.concurrent.LinkedBlockingQueue;
+import java.util.concurrent.ThreadPoolExecutor;
+import java.util.concurrent.TimeUnit;
 import java.util.function.Consumer;
 
-import static me.hydos.rosella.render.util.VkUtilsKt.ok;
+import static me.hydos.rosella.util.VkUtils.ok;
 import static org.lwjgl.system.MemoryStack.create;
 import static org.lwjgl.system.MemoryStack.stackPush;
 
@@ -132,14 +140,11 @@ public abstract class Memory {
                     .physicalDevice(common.device.physicalDevice)
                     .device(common.device.rawDevice)
                     .pVulkanFunctions(vulkanFunctions)
-                    //.flags(Vma.VMA_ALLOCATOR_CREATE_EXTERNALLY_SYNCHRONIZED_BIT)
                     .instance(common.vkInstance.rawInstance)
                     .vulkanApiVersion(Rosella.VULKAN_VERSION);
 
             PointerBuffer pAllocator = stack.mallocPointer(1);
             Vma.vmaCreateAllocator(createInfo, pAllocator);
-
-            Rosella.LOGGER.info("Allocator created: 0x%x", pAllocator.get(0));
 
             return pAllocator.get(0);
         }
@@ -147,7 +152,6 @@ public abstract class Memory {
 
     private void destroyAllocator(long allocator) {
         Vma.vmaDestroyAllocator(allocator);
-        Rosella.LOGGER.info("Allocator destroyed: 0x%x", allocator);
     }
 
     /**
@@ -175,32 +179,58 @@ public abstract class Memory {
      * Allocates an image buffer
      *
      * @param pImageCreateInfo Information related to the image which will be contained
-     * @param pAllocationCreateInfo Information related to the allocation itself
+     * @param vmaUsage The memory type provided to VMA
      * @return The bundle of the image and the allocation addresses
      */
-    public BufferInfo createImageBuffer(VkImageCreateInfo pImageCreateInfo, VmaAllocationCreateInfo pAllocationCreateInfo) {
-        try (MemoryStack stack = MemoryStack.create()) {
-            LongBuffer image = stack.mallocLong(1);
-            PointerBuffer allocation = stack.mallocPointer(1);
-            ok(Vma.vmaCreateImage(allocator, pImageCreateInfo, pAllocationCreateInfo, image, allocation, null));
-            return new BufferInfo(image.get(), allocation.get());
+    public TextureImage createImageBuffer(VkImageCreateInfo pImageCreateInfo, int memoryProperties, int vmaUsage) {
+        try (MemoryStack stack = MemoryStack.stackPush()) {
+
+            LongBuffer pTextureImage = stack.mallocLong(1);
+            ok(VK10.vkCreateImage(common.device.rawDevice, pImageCreateInfo, null, pTextureImage), "Failed to allocate image memory");
+            long textureImage = pTextureImage.get(0);
+
+            VkMemoryRequirements requirements = VkMemoryRequirements.mallocStack(stack);
+            VK10.vkGetImageMemoryRequirements(common.device.rawDevice, textureImage, requirements);
+            VkMemoryAllocateInfo allocateInfo = VkMemoryAllocateInfo.callocStack(stack)
+                    .sType(VK10.VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO)
+                    .allocationSize(requirements.size())
+                    .memoryTypeIndex(VkUtils.findMemoryType(common.device, requirements.memoryTypeBits(), memoryProperties));
+
+            LongBuffer pTextureImageMemory = stack.mallocLong(1);
+            ok(VK10.vkAllocateMemory(common.device.rawDevice, allocateInfo, null, pTextureImageMemory));
+            long textureImageMemory = pTextureImageMemory.get(0);
+
+//            LongBuffer pImage = stack.mallocLong(1);
+//            PointerBuffer pAllocation = stack.mallocPointer(1);
+//            // TODO OPT: try to make allocation create info more customizable
+//            VmaAllocationCreateInfo pAllocationCreateInfo = VmaAllocationCreateInfo.mallocStack(stack)
+//                    //.preferredFlags(memoryProperties)
+//                    .usage(vmaUsage);
+//            ok(Vma.vmaCreateImage(allocator, pImageCreateInfo, pAllocationCreateInfo, pImage, pAllocation, null), "Failed to allocate image memory");
+//            long image = pImage.get(0);
+//            long allocation = pAllocation.get(0);
+//            ok(Vma.vmaBindImageMemory(allocator, textureImageMemory, textureImage), "Failed to bind image to memory");
+            ok(VK10.vkBindImageMemory(common.device.rawDevice, textureImage, textureImageMemory, 0), "Failed to bind image to memory");
+            return new TextureImage(textureImage, textureImageMemory, 0);
         }
     }
 
     /**
      * Used for creating the buffer written to before copied to the GPU
      */
-    public BufferInfo createStagingBuf(int size, LongBuffer pBuffer, MemoryStack stack, Consumer<PointerBuffer> callback) {
-        BufferInfo stagingBuffer = createBuffer(
-                size,
-                VK10.VK_BUFFER_USAGE_TRANSFER_SRC_BIT,
-                Vma.VMA_MEMORY_USAGE_CPU_ONLY,
-                pBuffer
-        );
-        PointerBuffer data = stack.mallocPointer(1);
-        map(stagingBuffer.allocation(), true, data);
-        callback.accept(data);
-        return stagingBuffer;
+    public BufferInfo createStagingBuf(int size, LongBuffer pBuffer, Consumer<PointerBuffer> callback) {
+        try (MemoryStack stack = MemoryStack.stackPush()) {
+            BufferInfo stagingBuffer = createBuffer(
+                    size,
+                    VK10.VK_BUFFER_USAGE_TRANSFER_SRC_BIT,
+                    Vma.VMA_MEMORY_USAGE_CPU_ONLY,
+                    pBuffer
+            );
+            PointerBuffer data = stack.mallocPointer(1);
+            map(stagingBuffer.allocation(), true, data);
+            callback.accept(data);
+            return stagingBuffer;
+        }
     }
 
     /**
@@ -252,14 +282,53 @@ public abstract class Memory {
     }
 
     /**
-     * Forces a buffer to be freed
+     * Queues a buffer to be freed
      */
     public void freeBuffer(BufferInfo buffer) {
         deallocatorThreadPool.execute(() -> Vma.vmaDestroyBuffer(allocator, buffer.buffer(), buffer.allocation()));
     }
 
     /**
-     * Free's all created buffers and mapped memory
+     * Queues an image to be freed
+     */
+    public void freeImage(TextureImage image) {
+        deallocatorThreadPool.execute(() -> {
+            VK10.vkDestroyImage(common.device.rawDevice, image.pointer(), null);
+            VK10.vkFreeMemory(common.device.rawDevice, image.getTextureImageMemory(), null);
+//            Vma.vmaDestroyImage(allocator, image.pointer(), image.getTextureImageMemory());
+            if (image.getView() != VK10.VK_NULL_HANDLE) {
+                VK10.vkDestroyImageView(common.device.rawDevice, image.getView(), null);
+            }
+        });
+    }
+
+    public void freePipeline(PipelineInfo pipeline) {
+//        deallocatorThreadPool.execute(() -> {
+            VK10.vkDestroyPipeline(common.device.rawDevice, pipeline.graphicsPipeline(), null);
+            VK10.vkDestroyPipelineLayout(common.device.rawDevice, pipeline.pipelineLayout(), null);
+//        });
+    }
+
+    /**
+     * Frees a LongArrayList of descriptor sets
+     */
+    public void freeDescriptorSets(long descriptorPool, ManagedBuffer<LongBuffer> descriptorSets) {
+//        deallocatorThreadPool.execute(() -> {
+            // FIXME synchronize
+            VK10.vkFreeDescriptorSets(common.device.rawDevice, descriptorPool, descriptorSets.buffer().flip());
+            descriptorSets.free(common.device, this);
+//        });
+    }
+
+    /**
+     * Frees a ManagedBuffer in a deallocator thread
+     */
+    public void freeDirectBufferAsync(Buffer buffer) {
+        deallocatorThreadPool.execute(() -> MemoryUtil.memFree(buffer));
+    }
+
+    /**
+     * Frees all created buffers and mapped memory
      */
     public void free() {
         for (long memory : mappedMemory) {

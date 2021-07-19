@@ -9,14 +9,12 @@ import me.hydos.rosella.render.material.state.StateInfo;
 import me.hydos.rosella.render.shader.ShaderProgram;
 import me.hydos.rosella.render.texture.Texture;
 import me.hydos.rosella.render.vertex.VertexFormat;
-
 import java.util.Map;
 
 /**
  * Holds all {@link me.hydos.rosella.Rosella} {@link Material}'s used in Blaze4D and Minecraft
  */
 public class Materials {
-
     public static final MaterialBuilder TRIANGLES = register(
             "triangles",
             Topology.TRIANGLES
@@ -33,6 +31,10 @@ public class Materials {
             "lines",
             Topology.LINE_LIST
     );
+    public static final MaterialBuilder LINE_STRIP = register(
+            "line_strip",
+            Topology.LINE_STRIP
+    );
 
     private static final Map<MaterialInfo, Material> MATERIAL_CACHE = new Object2ObjectLinkedOpenHashMap<>();
 
@@ -41,8 +43,8 @@ public class Materials {
     }
 
     public static record MaterialBuilder(String originalPath, Topology topology) {
-        public Material build(ShaderProgram shader, Texture[] textures, VertexFormat format) {
-            return MATERIAL_CACHE.computeIfAbsent(new MaterialInfo(this, shader, textures, format, GlobalRenderSystem.currentStateInfo.snapshot()), info -> {
+        public Material build(ShaderProgram shader, Texture[] textures, VertexFormat format, StateInfo stateInfo) {
+            return MATERIAL_CACHE.computeIfAbsent(new MaterialInfo(this, shader, textures, format, stateInfo), info -> {
                 Blaze4dMaterial material = new Blaze4dMaterial(
                         shader,
                         topology,

@@ -2,9 +2,8 @@ package me.hydos.rosella.render.shader
 
 import me.hydos.rosella.Rosella
 import me.hydos.rosella.device.VulkanDevice
-import me.hydos.rosella.render.util.ShaderType
 import me.hydos.rosella.render.util.compileShaderFile
-import me.hydos.rosella.render.util.ok
+import me.hydos.rosella.util.VkUtils.ok
 import me.hydos.rosella.ubo.DescriptorManager
 import org.lwjgl.system.MemoryStack
 import org.lwjgl.vulkan.VK10
@@ -23,7 +22,7 @@ class ShaderProgram(val raw: RawShaderProgram, val rosella: Rosella, maxObjects:
             vertexShaderCompiled = true
         }
     }
-    val descriptorManager = DescriptorManager(maxObjects, this, rosella.renderer.swapchain, rosella.common.device)
+    val descriptorManager = DescriptorManager(maxObjects, this, rosella.renderer.swapchain, rosella.common.device, rosella.common.memory)
 
     private var fragmentShaderCompiled: Boolean = false
     private var vertexShaderCompiled: Boolean = false
@@ -37,7 +36,14 @@ class ShaderProgram(val raw: RawShaderProgram, val rosella: Rosella, maxObjects:
                 .sType(VK10.VK_STRUCTURE_TYPE_SHADER_MODULE_CREATE_INFO)
                 .pCode(spirvCode)
             val pShaderModule = stack.mallocLong(1)
-            VK10.vkCreateShaderModule(device.rawDevice, createInfo, null, pShaderModule).ok()
+            ok(
+                VK10.vkCreateShaderModule(
+                    device.rawDevice,
+                    createInfo,
+                    null,
+                    pShaderModule
+                )
+            )
             return pShaderModule[0]
         }
     }

@@ -1,7 +1,8 @@
 package me.hydos.rosella.ubo;
 
 import me.hydos.rosella.device.VulkanDevice;
-import me.hydos.rosella.render.descriptorsets.DescriptorSet;
+import me.hydos.rosella.memory.Memory;
+import me.hydos.rosella.render.descriptorsets.DescriptorSets;
 import me.hydos.rosella.render.shader.ShaderProgram;
 import me.hydos.rosella.render.shader.ubo.Ubo;
 import me.hydos.rosella.render.swapchain.Swapchain;
@@ -18,6 +19,7 @@ public class DescriptorManager {
     private final ShaderProgram program;
     private final Swapchain swapchain;
     private final VulkanDevice device;
+    private final Memory memory;
     private final int maxObjects;
     private int activeDescriptorCount;
 
@@ -27,18 +29,19 @@ public class DescriptorManager {
      * @param maxObjects the max amount of DescriptorSet's
      * @param program    the {@link ShaderProgram} to base it off
      */
-    public DescriptorManager(int maxObjects, ShaderProgram program, Swapchain swapchain, VulkanDevice device) {
+    public DescriptorManager(int maxObjects, ShaderProgram program, Swapchain swapchain, VulkanDevice device, Memory memory) {
         this.maxObjects = maxObjects;
         this.program = program;
         this.swapchain = swapchain;
         this.device = device;
+        this.memory = memory;
     }
 
     /**
-     * Allocates a new {@link DescriptorSet}. This should only be called when no free {@link DescriptorSet}'s are available
+     * Allocates a new {@link DescriptorSets}. This should only be called when no free {@link DescriptorSets}'s are available
      *
-     * @param textures the {@link Texture[]} array to use with the {@link DescriptorSet}
-     * @param ubo      the {@link Ubo} to use with the {@link DescriptorSet}
+     * @param textures the {@link Texture[]} array to use with the {@link DescriptorSets}
+     * @param ubo      the {@link Ubo} to use with the {@link DescriptorSets}
      */
     public void createNewDescriptor(Texture[] textures, Ubo ubo) {
         activeDescriptorCount++;
@@ -48,8 +51,13 @@ public class DescriptorManager {
         program.getRaw().createDescriptorSets(swapchain, LOGGER, textures, ubo);
     }
 
-    public void freeDescriptorSet(DescriptorSet set) {
-        set.free(device);
+    public void freeDescriptorSets(DescriptorSets set) {
+        set.free(device, memory);
+        activeDescriptorCount--;
+    }
+
+    public void clearDescriptorSets(DescriptorSets set) {
+        set.clear();
         activeDescriptorCount--;
     }
 }

@@ -15,6 +15,7 @@ public abstract class Display {
     public int width;
     public int height;
     public int fps;
+    public boolean doVsync;
 
     // Scheduling related stuff
     //TODO: this
@@ -23,6 +24,13 @@ public abstract class Display {
     public Display(int width, int height) {
         this.width = width;
         this.height = height;
+        this.doVsync = false;
+    }
+
+    public Display(int width, int height, boolean doVsync) {
+        this.width = width;
+        this.height = height;
+        this.doVsync = doVsync;
     }
 
     /**

@@ -1,17 +1,19 @@
 package me.hydos.blaze4d.mixin.integration;
 
+import com.mojang.blaze3d.platform.DisplayData;
+import com.mojang.blaze3d.platform.Monitor;
+import com.mojang.blaze3d.platform.ScreenManager;
+import com.mojang.blaze3d.platform.VideoMode;
+import com.mojang.blaze3d.platform.WindowEventHandler;
 import com.oroarmor.aftermath.Aftermath;
 import me.hydos.blaze4d.AftermathHandler;
 import me.hydos.blaze4d.Blaze4D;
 import me.hydos.rosella.Rosella;
 import me.hydos.rosella.display.GlfwWindow;
-import net.minecraft.client.WindowEventHandler;
-import net.minecraft.client.WindowSettings;
-import net.minecraft.client.util.Monitor;
-import net.minecraft.client.util.MonitorTracker;
-import net.minecraft.client.util.VideoMode;
 import org.apache.logging.log4j.Logger;
+import org.lwjgl.glfw.Callbacks;
 import org.lwjgl.glfw.GLFW;
+import org.lwjgl.glfw.GLFWErrorCallback;
 import org.lwjgl.glfw.GLFWImage;
 import org.lwjgl.system.MemoryStack;
 import org.lwjgl.system.MemoryUtil;
@@ -31,7 +33,7 @@ import java.util.Optional;
 
 import net.fabricmc.loader.api.FabricLoader;
 
-@Mixin(net.minecraft.client.util.Window.class)
+@Mixin(com.mojang.blaze3d.platform.Window.class)
 public abstract class WindowMixin {
 
     @Shadow
@@ -39,7 +41,7 @@ public abstract class WindowMixin {
     private static Logger LOGGER;
 
     @Shadow
-    private Optional<VideoMode> videoMode;
+    private Optional<VideoMode> preferredFullscreenVideoMode;
 
     @Shadow
     private int windowedX;
@@ -56,7 +58,7 @@ public abstract class WindowMixin {
     @Mutable
     @Shadow
     @Final
-    private long handle;
+    private long window;
 
     @Shadow
     private int width;
@@ -74,42 +76,48 @@ public abstract class WindowMixin {
     private int framebufferHeight;
 
     @Shadow
-    protected abstract void updateWindowRegion();
+    protected abstract void setMode();
 
     @Shadow
-    protected abstract void onWindowPosChanged(long window, int x, int y);
+    protected abstract void onMove(long window, int x, int y);
 
     @Shadow
-    protected abstract void onWindowFocusChanged(long window, boolean focused);
+    protected abstract void onFocus(long window, boolean focused);
 
     @Shadow
-    protected abstract void onCursorEnterChanged(long window, boolean entered);
+    protected abstract void onEnter(long window, boolean entered);
 
-    @Inject(method = "throwGlError", at = @At("HEAD"), cancellable = true)
+    @Shadow protected abstract void onResize(long window, int width, int height);
+
+    @Shadow protected abstract void onFramebufferResize(long window, int width, int height);
+
+    @Shadow @Final private GLFWErrorCallback defaultErrorCallback;
+
+    @Inject(method = "bootCrash", at = @At("HEAD"), cancellable = true)
     private static void silenceGl(int error, long description, CallbackInfo ci) {
         String message = "suppressed GLFW/OpenGL error " + error + ": " + MemoryUtil.memUTF8(description);
         LOGGER.warn(message);
     }
 
     @Inject(method = "<init>", at = @At("TAIL"))
-    private void initializeRosellaWindow(WindowEventHandler eventHandler, MonitorTracker monitorTracker, WindowSettings settings, String videoMode, String title, CallbackInfo ci) {
+    private void initializeRosellaWindow(WindowEventHandler eventHandler, ScreenManager monitorTracker, DisplayData settings, String videoMode, String title, CallbackInfo ci) {
         // Destroy The OpenGL Window before Minecraft Gets Too Attached
-        GLFW.glfwDestroyWindow(this.handle);
+        GLFW.glfwDestroyWindow(this.window);
 
         Blaze4D.window = new GlfwWindow(this.width, this.height, title, true);
         Blaze4D.rosella = new Rosella(Blaze4D.window, "Blaze4D", Blaze4D.VALIDATION_ENABLED);
-        Blaze4D.finishAndRender();
+        Blaze4D.finishSetup();
 
         Monitor monitor = monitorTracker.getMonitor(GLFW.glfwGetPrimaryMonitor());
-        this.handle = Blaze4D.window.pWindow;
+        this.window = Blaze4D.window.pWindow;
         if (monitor != null) {
-            VideoMode videoMode2 = monitor.findClosestVideoMode(this.fullscreen ? this.videoMode : Optional.empty());
-            this.windowedX = this.x = monitor.getViewportX() + videoMode2.getWidth() / 2 - this.width / 2;
-            this.windowedY = this.y = monitor.getViewportY() + videoMode2.getHeight() / 2 - this.height / 2;
+            VideoMode videoMode2 = monitor.getPreferredVidMode(this.fullscreen ? this.preferredFullscreenVideoMode : Optional.empty());
+            this.windowedX = this.x = monitor.getX() + videoMode2.getWidth() / 2 - this.width / 2;
+            this.windowedY = this.y = monitor.getY() + videoMode2.getHeight() / 2 - this.height / 2;
         } else {
             int[] is = new int[1];
             int[] js = new int[1];
-            GLFW.glfwGetWindowPos(this.handle, is, js);
+            GLFW.glfwGetWindowPos(this.window, is, js);
             this.windowedX = this.x = is[0];
             this.windowedY = this.y = js[0];
         }
@@ -117,10 +125,12 @@ public abstract class WindowMixin {
         this.framebufferWidth = this.width;
         this.framebufferHeight = this.height;
 
-        this.updateWindowRegion();
-        GLFW.glfwSetWindowPosCallback(this.handle, this::onWindowPosChanged);
-        GLFW.glfwSetWindowFocusCallback(this.handle, this::onWindowFocusChanged);
-        GLFW.glfwSetCursorEnterCallback(this.handle, this::onCursorEnterChanged);
+        this.setMode();
+        GLFW.glfwSetFramebufferSizeCallback(this.window, this::onFramebufferResize);
+        GLFW.glfwSetWindowPosCallback(this.window, this::onMove);
+        GLFW.glfwSetWindowSizeCallback(this.window, this::onResize);
+        GLFW.glfwSetWindowFocusCallback(this.window, this::onFocus);
+        GLFW.glfwSetCursorEnterCallback(this.window, this::onEnter);
 
         try {
             AftermathHandler.initialize();
@@ -132,17 +142,36 @@ public abstract class WindowMixin {
         }
     }
 
-    @Inject(method = "setIcon", at = @At(value = "INVOKE", target = "Lorg/lwjgl/glfw/GLFW;glfwSetWindowIcon(JLorg/lwjgl/glfw/GLFWImage$Buffer;)V"), locals = LocalCapture.CAPTURE_FAILSOFT)
+    @Inject(method = "onFramebufferResize", at = @At(value = "INVOKE", target = "Lcom/mojang/blaze3d/platform/WindowEventHandler;resizeDisplay()V"))
+    private void noticeRenderer(long window, int width, int height, CallbackInfo ci) {
+        Blaze4D.rosella.renderer.queueRecreateSwapchain();
+    }
+
+    @Inject(method = "updateVsync", at = @At(value = "INVOKE", target = "Lorg/lwjgl/glfw/GLFW;glfwSwapInterval(I)V", remap = false), cancellable = true)
+    private void setVsync(boolean vsync, CallbackInfo ci) {
+        boolean previousVsync = Blaze4D.window.doVsync;
+        if (previousVsync != vsync) {
+            Blaze4D.window.doVsync = vsync;
+            Blaze4D.rosella.renderer.queueRecreateSwapchain(); // TODO: move this probably
+        }
+        ci.cancel();
+    }
+
+    @Inject(method = "setIcon", at = @At(value = "INVOKE", target = "Lorg/lwjgl/glfw/GLFW;glfwSetWindowIcon(JLorg/lwjgl/glfw/GLFWImage$Buffer;)V", remap = false), locals = LocalCapture.CAPTURE_FAILSOFT)
     private void setIcon(InputStream icon16, InputStream icon32, CallbackInfo ci, MemoryStack memoryStack, IntBuffer intBuffer, IntBuffer intBuffer2, IntBuffer intBuffer3, GLFWImage.Buffer buffer, ByteBuffer byteBuffer, ByteBuffer byteBuffer2) {
         GLFW.glfwSetWindowIcon(Blaze4D.window.pWindow, buffer);
     }
 
-    @Inject(method = "close", at = @At("HEAD"))
+    @Inject(method = "close", at = @At("HEAD"), cancellable = true)
     private void freeRosella(CallbackInfo ci) {
+        Callbacks.glfwFreeCallbacks(this.window);
+        this.defaultErrorCallback.close();
+
         if (Blaze4D.rosella != null) {
             Blaze4D.rosella.free();
             Blaze4D.rosella = null;
         }
         Aftermath.disableGPUCrashDumps();
+        ci.cancel();
     }
 }

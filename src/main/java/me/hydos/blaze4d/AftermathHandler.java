@@ -12,14 +12,12 @@ import java.util.Arrays;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.stream.Collectors;
-
+import net.minecraft.client.Minecraft;
 import com.oroarmor.aftermath.Aftermath;
 import com.oroarmor.aftermath.AftermathCallbackCreationHelper;
 import com.oroarmor.aftermath.struct.GFSDK_Aftermath_GpuCrashDump_BaseInfo;
 import org.lwjgl.system.MemoryStack;
 import org.lwjgl.system.MemoryUtil;
-
-import net.minecraft.client.MinecraftClient;
 
 public class AftermathHandler {
     private final Map<long[], String> SHADER_DEBUG_INFO = new HashMap<>();
@@ -60,7 +58,7 @@ public class AftermathHandler {
                 Aftermath.GPU_CRASH_DUMP_DESCRIPTION_KEY_APPLICATION_VERSION, "v1.0",
                 Aftermath.GPU_CRASH_DUMP_DESCRIPTION_KEY_USER_DEFINED, "Gpu Crash Dump Blaze4D Info",
                 Aftermath.GPU_CRASH_DUMP_DESCRIPTION_KEY_USER_DEFINED + 1, "Engine State: Rendering.",
-                Aftermath.GPU_CRASH_DUMP_DESCRIPTION_KEY_USER_DEFINED + 2, "Current Screen: " + MinecraftClient.getInstance().currentScreen
+                Aftermath.GPU_CRASH_DUMP_DESCRIPTION_KEY_USER_DEFINED + 2, "Current Screen: " + Minecraft.getInstance().screen
         );
         info.forEach(AftermathCallbackCreationHelper.createAddGpuCrashDumpDescription(addValueCallback));
     }

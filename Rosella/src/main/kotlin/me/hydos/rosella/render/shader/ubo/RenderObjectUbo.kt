@@ -3,13 +3,11 @@ package me.hydos.rosella.render.shader.ubo
 import me.hydos.rosella.device.VulkanDevice
 import me.hydos.rosella.memory.BufferInfo
 import me.hydos.rosella.memory.Memory
-import me.hydos.rosella.render.descriptorsets.DescriptorSet
+import me.hydos.rosella.render.descriptorsets.DescriptorSets
 import me.hydos.rosella.render.shader.ShaderProgram
 import me.hydos.rosella.render.swapchain.Swapchain
-import me.hydos.rosella.render.util.alignas
-import me.hydos.rosella.render.util.alignof
-import me.hydos.rosella.render.util.sizeof
 import me.hydos.rosella.scene.`object`.RenderObject
+import me.hydos.rosella.memory.MemoryUtils
 import org.joml.Matrix4f
 import org.lwjgl.system.MemoryStack
 import org.lwjgl.util.vma.Vma
@@ -23,7 +21,7 @@ open class RenderObjectUbo(
 ) : Ubo() {
 
     private var uboFrames: MutableList<BufferInfo> = ArrayList()
-    private var descSets: DescriptorSet = DescriptorSet(shaderProgram.raw.descriptorPool)
+    private var descSets: DescriptorSets = DescriptorSets(shaderProgram.raw.descriptorPool)
 
     override fun create(swapchain: Swapchain) {
         MemoryStack.stackPush().use { stack ->
@@ -53,8 +51,18 @@ open class RenderObjectUbo(
             val buffer = data.getByteBuffer(0, getSize())
             val mat4Size = 16 * java.lang.Float.BYTES
             renderObject.modelMatrix[0, buffer]
-            renderObject.viewMatrix.get(alignas(mat4Size, alignof(renderObject.viewMatrix)), buffer)
-            renderObject.projectionMatrix.get(alignas(mat4Size * 2, alignof(renderObject.projectionMatrix)), buffer)
+            renderObject.viewMatrix.get(
+                MemoryUtils.align(
+                    mat4Size,
+                    MemoryUtils.alignment(renderObject.viewMatrix::class.java)
+                ), buffer
+            )
+            renderObject.projectionMatrix.get(
+                MemoryUtils.align(
+                    mat4Size * 2,
+                    MemoryUtils.alignment(renderObject.projectionMatrix::class.java)
+                ), buffer
+            )
             memory.unmap(uboFrames[currentImg].allocation())
         }
     }
@@ -66,18 +74,18 @@ open class RenderObjectUbo(
     }
 
     override fun getSize(): Int {
-        return 3 * sizeof(Matrix4f::class)
+        return 3 * MemoryUtils.size(Matrix4f::class.java)
     }
 
     override fun getUniformBuffers(): List<BufferInfo> {
         return uboFrames
     }
 
-    override fun getDescriptors(): DescriptorSet {
+    override fun getDescriptors(): DescriptorSets {
         return descSets
     }
 
-    override fun setDescriptors(descriptorSets: DescriptorSet) {
+    override fun setDescriptors(descriptorSets: DescriptorSets) {
         this.descSets = descriptorSets
     }
 }
