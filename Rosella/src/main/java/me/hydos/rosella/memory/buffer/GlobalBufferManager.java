@@ -1,6 +1,5 @@
 package me.hydos.rosella.memory.buffer;
 
-import it.unimi.dsi.fastutil.ints.IntHash;
 import it.unimi.dsi.fastutil.longs.Long2ObjectMap;
 import it.unimi.dsi.fastutil.longs.Long2ObjectOpenCustomHashMap;
 import it.unimi.dsi.fastutil.longs.LongHash;
