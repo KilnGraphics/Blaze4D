@@ -372,16 +372,24 @@ public class Renderer {
                         vkCmdBeginRenderPass(commandBuffer, renderPassInfo, VK_SUBPASS_CONTENTS_INLINE);
 
                         RenderInfo previousRenderInfo = null;
+                        long previousGraphicsPipeline = VK_NULL_HANDLE;
                         for (Pair<Future<RenderInfo>, InstanceInfo> renderObject : simpleObjectManager.renderObjects) {
                             try {
                                 RenderInfo currentRenderInfo = renderObject.key().get();
+                                InstanceInfo currentInstanceInfo = renderObject.value();
+                                long currentGraphicsPipeline = currentInstanceInfo.material().pipeline.getGraphicsPipeline();
 
                                 if (!Objects.equals(currentRenderInfo, previousRenderInfo)) {
                                     previousRenderInfo = currentRenderInfo;
                                     bindRenderInfo(currentRenderInfo, commandBuffer);
                                 }
 
-                                bindInstanceInfo(renderObject.value(), commandBuffer, i); // TODO: check if the instance info from the previous one is the same
+                                if (previousGraphicsPipeline != currentGraphicsPipeline) {
+                                    previousGraphicsPipeline = currentGraphicsPipeline;
+                                    bindPipeline(currentGraphicsPipeline, commandBuffer);
+                                }
+
+                                bindInstanceDescriptorSets(renderObject.value(), commandBuffer, i);
                                 vkCmdDrawIndexed(
                                         commandBuffer,
                                         currentRenderInfo.indexCount(),
@@ -414,14 +422,8 @@ public class Renderer {
         }
     }
 
-    private void bindInstanceInfo(InstanceInfo instanceInfo, VkCommandBuffer commandBuffer, int commandBufferIndex) {
+    private void bindInstanceDescriptorSets(InstanceInfo instanceInfo, VkCommandBuffer commandBuffer, int commandBufferIndex) {
         try (MemoryStack stack = MemoryStack.stackPush()) {
-            vkCmdBindPipeline(
-                    commandBuffer,
-                    VK_PIPELINE_BIND_POINT_GRAPHICS,
-                    instanceInfo.material().pipeline.getGraphicsPipeline()
-            );
-
             vkCmdBindDescriptorSets(
                     commandBuffer,
                     VK_PIPELINE_BIND_POINT_GRAPHICS,
@@ -431,6 +433,14 @@ public class Renderer {
                     null
             );
         }
+    }
+
+    private void bindPipeline(long graphicsPipeline, VkCommandBuffer commandBuffer) {
+        vkCmdBindPipeline(
+                commandBuffer,
+                VK_PIPELINE_BIND_POINT_GRAPHICS,
+                graphicsPipeline
+        );
     }
 
     // Stolen from https://github.com/SaschaWillems/Vulkan/blob/master/examples/screenshot/screenshot.cpp#L188
