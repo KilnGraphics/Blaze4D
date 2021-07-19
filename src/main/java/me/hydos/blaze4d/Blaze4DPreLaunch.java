@@ -19,9 +19,5 @@ public class Blaze4DPreLaunch implements PreLaunchEntrypoint {
                 (JEmalloc.JEMALLOC_VERSION_MINOR >= 0 && JEmalloc.JEMALLOC_VERSION_MINOR < 2) || (JEmalloc.JEMALLOC_VERSION_MINOR == 2 && JEmalloc.JEMALLOC_VERSION_BUGFIX < 1)) {
             Configuration.MEMORY_ALLOCATOR.set("system");
         }
-
-        Runtime.getRuntime().addShutdownHook(new Thread(() ->
-                System.out.println("how")
-        ));
     }
 }
