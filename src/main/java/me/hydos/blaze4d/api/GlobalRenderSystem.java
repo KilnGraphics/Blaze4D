@@ -8,7 +8,6 @@ import me.hydos.blaze4d.api.shader.ShaderContext;
 import me.hydos.blaze4d.api.vertex.ConsumerRenderObject;
 import me.hydos.blaze4d.mixin.shader.ShaderAccessor;
 import me.hydos.rosella.Rosella;
-import me.hydos.rosella.memory.BufferInfo;
 import me.hydos.rosella.memory.ManagedBuffer;
 import me.hydos.rosella.render.info.RenderInfo;
 import me.hydos.rosella.render.material.state.StateInfo;

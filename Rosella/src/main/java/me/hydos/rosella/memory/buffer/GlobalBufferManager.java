@@ -66,7 +66,7 @@ public class GlobalBufferManager {
 
         for (Int2ObjectMap.Entry<AtomicInteger> entry : indexHashToInvocationsFrameMap.int2ObjectEntrySet()) {
             if (entry.getValue().getAcquire() < 1) {
-                indexHashToBufferMap.remove(entry.getIntKey()).free(common.device, memory);;
+                indexHashToBufferMap.remove(entry.getIntKey()).free(common.device, memory);
             }
         }
         indexHashToInvocationsFrameMap.clear();
