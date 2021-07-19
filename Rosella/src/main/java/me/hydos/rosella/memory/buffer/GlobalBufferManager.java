@@ -27,6 +27,9 @@ import static org.lwjgl.vulkan.VK10.*;
  */
 public class GlobalBufferManager {
 
+    /**
+     * xxHash64 is faster than xxHash32, so even if it may be overkill it makes more sense to use it anyway.
+     */
     private static final XXHash64 BUFFER_HASH_FUNCTION = XXHashFactory.fastestInstance().hash64();
     private static final long HASH_SEED = System.currentTimeMillis();
     private static final LongHash.Strategy PREHASHED_STRATEGY = new LongHash.Strategy() {
