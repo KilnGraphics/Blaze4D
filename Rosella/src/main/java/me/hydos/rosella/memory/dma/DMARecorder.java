@@ -62,19 +62,6 @@ public class DMARecorder {
         return this.commandBuffer;
     }
 
-    public void recordBufferCopy(long srcBuffer, long dstBuffer, long srcOffset, long dstOffset, long size) {
-        Rosella.LOGGER.error("Recording buffer copy " + srcBuffer + "[" + srcOffset + "] -> " + dstBuffer + "[" + dstOffset + "] " + size);
-        try (MemoryStack stack = MemoryStack.stackPush()) {
-            VkBufferCopy.Buffer regions = VkBufferCopy.callocStack(1, stack);
-            regions.get(0)
-                .srcOffset(srcOffset)
-                .dstOffset(dstOffset)
-                .size(size);
-
-            VK10.vkCmdCopyBuffer(this.commandBuffer, srcBuffer, dstBuffer, regions);
-        }
-    }
-
     public Set<Long> getWaitSemaphores() {
         return this.waitSemaphores;
     }
@@ -88,8 +75,9 @@ public class DMARecorder {
     }
 
     public void reset() {
-        waitSemaphores.clear();
-        signalSemaphores.clear();
+        this.waitSemaphores.clear();
+        this.signalSemaphores.clear();
+        this.signalCallbacks.clear();
 
         commandBuffer = null;
     }

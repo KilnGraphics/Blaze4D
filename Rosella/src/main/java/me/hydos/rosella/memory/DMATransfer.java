@@ -31,7 +31,7 @@ public class DMATransfer {
     private final VulkanQueue transferQueue;
 
     // These 2 keep the state after all queued transfers have completed. i.e. the state that is relevant for queueing up more instructions
-    private final Map<Long, BufferMeta> ownedBuffers = new Long2ObjectOpenHashMap<>();
+    private final Set<Long> ownedBuffers = new LongOpenHashSet();
     private final Set<Long> ownedImages = new LongOpenHashSet();
 
     private Task nextTask = null;
@@ -78,7 +78,7 @@ public class DMATransfer {
             lock.lock();
             validateAcquireBuffer(buffer);
 
-            this.ownedBuffers.put(buffer, new BufferMeta());
+            this.ownedBuffers.add(buffer);
             if(waitSemaphores != null && !waitSemaphores.isEmpty()) {
                 this.recordTask(new WaitSemaphoreTask(waitSemaphores));
             }
@@ -124,7 +124,7 @@ public class DMATransfer {
             lock.lock();
             validateAcquireBuffer(buffer);
 
-            this.ownedBuffers.put(buffer, new BufferMeta());
+            this.ownedBuffers.add(buffer);
             if(waitSemaphores != null && !waitSemaphores.isEmpty()) {
                 this.recordTask(new WaitSemaphoreTask(waitSemaphores));
             }
@@ -251,7 +251,7 @@ public class DMATransfer {
         final long size = srcBufferData.limit();
         try {
             lock.lock();
-            if(!ownedBuffers.containsKey(dstBuffer)) {
+            if(!ownedBuffers.contains(dstBuffer)) {
                 throw new RuntimeException("Cannot transfer to buffer that is not owned by the DMA engine!");
             }
 
@@ -261,12 +261,9 @@ public class DMATransfer {
             final long srcBuffer = staging.getVulkanBuffer();
             final long srcOffset = staging.getBufferOffset();
 
-            final BufferMeta dstBufferMeta = ownedBuffers.get(dstBuffer);
-            boolean dstSync = dstBufferMeta.requiresSync(dstOffset, size);
-            dstBufferMeta.markDirty(dstOffset, size);
 
             PipelineBarrierTask barrier = new PipelineBarrierTask(
-                    VK10.VK_PIPELINE_STAGE_HOST_BIT | (dstSync ? VK10.VK_PIPELINE_STAGE_TRANSFER_BIT : 0),
+                    VK10.VK_PIPELINE_STAGE_HOST_BIT | VK10.VK_PIPELINE_STAGE_TRANSFER_BIT,
                     VK10.VK_PIPELINE_STAGE_TRANSFER_BIT
             );
 
@@ -274,11 +271,9 @@ public class DMATransfer {
                     0, 0,
                     srcBuffer, srcOffset, size);
 
-            if(dstSync) {
-                barrier.addBufferMemoryBarrier(VK10.VK_ACCESS_TRANSFER_READ_BIT | VK10.VK_ACCESS_TRANSFER_WRITE_BIT, VK10.VK_ACCESS_TRANSFER_WRITE_BIT,
-                        0, 0,
-                        dstBuffer, dstOffset, size);
-            }
+            barrier.addBufferMemoryBarrier(VK10.VK_ACCESS_TRANSFER_READ_BIT | VK10.VK_ACCESS_TRANSFER_WRITE_BIT, VK10.VK_ACCESS_TRANSFER_WRITE_BIT,
+                    0, 0,
+                    dstBuffer, dstOffset, size);
 
             recordTask(barrier);
             recordTask(new BufferTransferTask(staging.getVulkanBuffer(), dstBuffer).addRegion(srcOffset, dstOffset, size));
@@ -304,7 +299,7 @@ public class DMATransfer {
         final long size = dstBufferData.limit();
         try {
             lock.lock();
-            if(!ownedBuffers.containsKey(srcBuffer)) {
+            if(!ownedBuffers.contains(srcBuffer)) {
                 throw new RuntimeException("Cannot transfer from buffer that is now owned by the DMA engine!");
             }
 
@@ -313,15 +308,11 @@ public class DMATransfer {
             final long dstBuffer = staging.getVulkanBuffer();
             final long dstOffset = staging.getBufferOffset();
 
-            BufferMeta srcBufferMeta = ownedBuffers.get(srcBuffer);
-            if(srcBufferMeta.requiresSync(srcOffset, size)) {
-                recordTask(new PipelineBarrierTask(VK10.VK_PIPELINE_STAGE_TRANSFER_BIT, VK10.VK_PIPELINE_STAGE_TRANSFER_BIT)
-                        .addBufferMemoryBarrier(
-                                VK10.VK_ACCESS_TRANSFER_WRITE_BIT, VK10.VK_ACCESS_TRANSFER_READ_BIT,
-                                0, 0,
-                                srcBuffer, srcOffset, size));
-            }
-            srcBufferMeta.markDirty(srcOffset, size);
+            recordTask(new PipelineBarrierTask(VK10.VK_PIPELINE_STAGE_TRANSFER_BIT, VK10.VK_PIPELINE_STAGE_TRANSFER_BIT)
+                    .addBufferMemoryBarrier(
+                            VK10.VK_ACCESS_TRANSFER_WRITE_BIT, VK10.VK_ACCESS_TRANSFER_READ_BIT,
+                            0, 0,
+                            srcBuffer, srcOffset, size));
 
             recordTask(new BufferTransferTask(srcBuffer, staging.getVulkanBuffer()).addRegion(srcOffset, dstOffset, size));
             recordTask(new PipelineBarrierTask(VK10.VK_PIPELINE_STAGE_TRANSFER_BIT, VK10.VK_PIPELINE_STAGE_HOST_BIT)
@@ -354,13 +345,22 @@ public class DMATransfer {
     public void transferBuffer(long srcBuffer, long srcOffset, long dstBuffer, long dstOffset, long size) {
         try {
             lock.lock();
-            if (!ownedBuffers.containsKey(srcBuffer)) {
+            if (!ownedBuffers.contains(srcBuffer)) {
                 throw new RuntimeException("Cannot transfer from a buffer that is not owned by the DMA engine!");
             }
-            if (!ownedBuffers.containsKey(dstBuffer)) {
+            if (!ownedBuffers.contains(dstBuffer)) {
                 throw new RuntimeException("Cannot transfer to a buffer that is not owned by the DMA engine!");
             }
 
+            recordTask(new PipelineBarrierTask(VK10.VK_PIPELINE_STAGE_TRANSFER_BIT, VK10.VK_PIPELINE_STAGE_TRANSFER_BIT)
+                    .addBufferMemoryBarrier(
+                            VK10.VK_ACCESS_TRANSFER_WRITE_BIT, VK10.VK_ACCESS_TRANSFER_READ_BIT,
+                            0, 0,
+                            srcBuffer, srcOffset, size)
+                    .addBufferMemoryBarrier(
+                            VK10.VK_ACCESS_TRANSFER_WRITE_BIT | VK10.VK_ACCESS_TRANSFER_READ_BIT, VK10.VK_ACCESS_TRANSFER_WRITE_BIT,
+                            0, 0,
+                            dstBuffer, dstOffset, size));
             recordTask(new BufferTransferTask(srcBuffer, dstBuffer).addRegion(srcOffset, dstOffset, size));
 
         } finally {
@@ -369,13 +369,13 @@ public class DMATransfer {
     }
 
     private void validateAcquireBuffer(long buffer) {
-        if(this.ownedBuffers.containsKey(buffer)) {
+        if(this.ownedBuffers.contains(buffer)) {
             throw new RuntimeException("Cannot acquire buffer that is already owned by the DMA engine");
         }
     }
 
     private void validateReleaseBuffer(long buffer) {
-        if(!this.ownedBuffers.containsKey(buffer)) {
+        if(!this.ownedBuffers.contains(buffer)) {
             throw new RuntimeException("Cannot release buffer that is not owned by the DMA engine");
         }
     }
@@ -388,40 +388,6 @@ public class DMATransfer {
         }
         lastTask = task;
         taskAvailable.signal();
-    }
-
-    private class BufferMeta {
-
-        private long syncOffset;
-        private long syncSize;
-
-        public BufferMeta() {
-        }
-
-        public boolean requiresSync(long offset, long size) {
-            return true;
-
-//            final long otherStart = offset;
-//            final long otherEnd = offset + size;
-//            final long thisStart = this.syncOffset;
-//            final long thisEnd = this.syncOffset + this.syncSize;
-//
-//            if(otherStart >= thisStart && otherStart < thisEnd) {
-//                return true;
-//            }
-//            if(otherStart < thisStart && otherEnd > thisStart) {
-//                return true;
-//            }
-//            return false;
-        }
-
-        public void markDirty(long offset, long size) {
-            final long newOffset = Math.min(this.syncOffset, offset);
-            final long newEnd = Math.max(this.syncOffset + this.syncSize, offset + size);
-
-            this.syncOffset = newOffset;
-            this.syncSize = newEnd - newOffset;
-        }
     }
 
     private class DMAWorker implements Runnable {
