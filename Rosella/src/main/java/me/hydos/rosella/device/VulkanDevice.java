@@ -2,6 +2,7 @@ package me.hydos.rosella.device;
 
 import me.hydos.rosella.render.swapchain.Swapchain;
 import me.hydos.rosella.render.swapchain.SwapchainSupportDetails;
+import me.hydos.rosella.util.VkUtils;
 import me.hydos.rosella.vkobjects.VkCommon;
 import org.lwjgl.PointerBuffer;
 import org.lwjgl.system.MemoryStack;
@@ -15,8 +16,7 @@ import java.util.function.Consumer;
 import java.util.stream.Collectors;
 
 import static me.hydos.rosella.memory.Memory.asPtrBuffer;
-import static me.hydos.rosella.render.VkKt.findQueueFamilies;
-import static me.hydos.rosella.render.util.VkUtilsKt.ok;
+import static me.hydos.rosella.util.VkUtils.ok;
 import static org.lwjgl.vulkan.KHRSwapchain.VK_KHR_SWAPCHAIN_EXTENSION_NAME;
 import static org.lwjgl.vulkan.VK10.*;
 
@@ -70,7 +70,7 @@ public class VulkanDevice {
             }
 
             // Create a VkLogicalDevice
-            this.indices = findQueueFamilies(physicalDevice, common.surface);
+            this.indices = VkUtils.findQueueFamilies(physicalDevice, common.surface);
             int[] uniqueQueueFamilies = indices.unique();
             VkDeviceQueueCreateInfo.Buffer queueCreateInfos = VkDeviceQueueCreateInfo.callocStack(uniqueQueueFamilies.length, stack);
 
@@ -124,7 +124,7 @@ public class VulkanDevice {
      * @return if the physical device can be used
      */
     private boolean deviceSuitable(VkPhysicalDevice device, VkCommon common) {
-        QueueFamilyIndices indices = findQueueFamilies(device, common.surface);
+        QueueFamilyIndices indices = VkUtils.findQueueFamilies(device, common.surface);
 
         if (deviceSupportsExtensions(device)) {
             try (MemoryStack stack = MemoryStack.stackPush()) {

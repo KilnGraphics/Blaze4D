@@ -1,9 +1,11 @@
 package me.hydos.rosella.render.swapchain
 
+import it.unimi.dsi.fastutil.longs.LongArrayList
+import it.unimi.dsi.fastutil.longs.LongList
 import me.hydos.rosella.device.QueueFamilyIndices
 import me.hydos.rosella.display.Display
-import me.hydos.rosella.render.findQueueFamilies
-import me.hydos.rosella.render.util.ok
+import me.hydos.rosella.util.VkUtils
+import me.hydos.rosella.util.VkUtils.ok
 import org.lwjgl.system.MemoryStack
 import org.lwjgl.vulkan.*
 import org.lwjgl.vulkan.KHRSurface.*
@@ -20,9 +22,9 @@ class Swapchain(
 ) {
     private var maxImages: IntBuffer
     var swapChain: Long = 0
-    var swapChainImageViews: MutableList<Long> = ArrayList()
-    var frameBuffers: MutableList<Long> = ArrayList()
-    var swapChainImages: MutableList<Long> = ArrayList()
+    var swapChainImageViews: LongList = LongArrayList()
+    var frameBuffers: LongList = LongArrayList()
+    var swapChainImages: LongList = LongArrayList()
     var swapChainImageFormat = 0
     var swapChainExtent: VkExtent2D
 
@@ -51,7 +53,7 @@ class Swapchain(
                 .imageArrayLayers(1)
                 .imageUsage(VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT)
 
-            val indices: QueueFamilyIndices = findQueueFamilies(device, surface)
+            val indices: QueueFamilyIndices = VkUtils.findQueueFamilies(device, surface)
 
             if (indices.graphicsFamily != indices.presentFamily) {
                 createInfo.imageSharingMode(VK_SHARING_MODE_CONCURRENT)
@@ -67,13 +69,34 @@ class Swapchain(
                 .oldSwapchain(VK_NULL_HANDLE)
 
             val pSwapChain: LongBuffer = it.longs(VK_NULL_HANDLE)
-            vkCreateSwapchainKHR(device, createInfo, null, pSwapChain).ok()
+            ok(
+                vkCreateSwapchainKHR(
+                    device,
+                    createInfo,
+                    null,
+                    pSwapChain
+                )
+            )
             swapChain = pSwapChain[0]
-            vkGetSwapchainImagesKHR(device, swapChain, imageCount, null).ok()
+            ok(
+                vkGetSwapchainImagesKHR(
+                    device,
+                    swapChain,
+                    imageCount,
+                    null
+                )
+            )
             val pSwapchainImages: LongBuffer = it.mallocLong(imageCount[0])
-            vkGetSwapchainImagesKHR(device, swapChain, imageCount, pSwapchainImages).ok()
+            ok(
+                vkGetSwapchainImagesKHR(
+                    device,
+                    swapChain,
+                    imageCount,
+                    pSwapchainImages
+                )
+            )
 
-            swapChainImages = ArrayList(imageCount[0])
+            swapChainImages = LongArrayList(imageCount[0])
 
             for (i in 0 until pSwapchainImages.capacity()) {
                 swapChainImages.add(pSwapchainImages[i])
@@ -124,8 +147,18 @@ class Swapchain(
 
     companion object {
         private const val UINT32_MAX = -0x1
-        private val VSYNC_PREFERRED_PRESENT_TABLE: Array<Int> = arrayOf(VK_PRESENT_MODE_MAILBOX_KHR, VK_PRESENT_MODE_FIFO_KHR, VK_PRESENT_MODE_FIFO_RELAXED_KHR, VK_PRESENT_MODE_IMMEDIATE_KHR)
-        private val NO_VSYNC_PREFERRED_PRESENT_TABLE: Array<Int> = arrayOf(VK_PRESENT_MODE_IMMEDIATE_KHR, VK_PRESENT_MODE_FIFO_RELAXED_KHR, VK_PRESENT_MODE_MAILBOX_KHR, VK_PRESENT_MODE_FIFO_KHR)
+        private val VSYNC_PREFERRED_PRESENT_TABLE: Array<Int> = arrayOf(
+            VK_PRESENT_MODE_MAILBOX_KHR,
+            VK_PRESENT_MODE_FIFO_KHR,
+            VK_PRESENT_MODE_FIFO_RELAXED_KHR,
+            VK_PRESENT_MODE_IMMEDIATE_KHR
+        )
+        private val NO_VSYNC_PREFERRED_PRESENT_TABLE: Array<Int> = arrayOf(
+            VK_PRESENT_MODE_IMMEDIATE_KHR,
+            VK_PRESENT_MODE_FIFO_RELAXED_KHR,
+            VK_PRESENT_MODE_MAILBOX_KHR,
+            VK_PRESENT_MODE_FIFO_KHR
+        )
 
         fun querySwapchainSupport(
             device: VkPhysicalDevice,
@@ -134,17 +167,51 @@ class Swapchain(
         ): SwapchainSupportDetails {
             val details = SwapchainSupportDetails()
             details.capabilities = VkSurfaceCapabilitiesKHR.mallocStack(stack)
-            vkGetPhysicalDeviceSurfaceCapabilitiesKHR(device, surface, details.capabilities).ok()
+            ok(
+                vkGetPhysicalDeviceSurfaceCapabilitiesKHR(
+                    device,
+                    surface,
+                    details.capabilities
+                )
+            )
             val count = stack.ints(0)
-            vkGetPhysicalDeviceSurfaceFormatsKHR(device, surface, count, null).ok()
+            ok(
+                vkGetPhysicalDeviceSurfaceFormatsKHR(
+                    device,
+                    surface,
+                    count,
+                    null
+                )
+            )
             if (count[0] != 0) {
                 details.formats = VkSurfaceFormatKHR.mallocStack(count[0], stack)
-                vkGetPhysicalDeviceSurfaceFormatsKHR(device, surface, count, details.formats).ok()
+                ok(
+                    vkGetPhysicalDeviceSurfaceFormatsKHR(
+                        device,
+                        surface,
+                        count,
+                        details.formats
+                    )
+                )
             }
-            vkGetPhysicalDeviceSurfacePresentModesKHR(device, surface, count, null).ok()
+            ok(
+                vkGetPhysicalDeviceSurfacePresentModesKHR(
+                    device,
+                    surface,
+                    count,
+                    null
+                )
+            )
             if (count[0] != 0) {
                 details.presentModes = stack.mallocInt(count[0])
-                vkGetPhysicalDeviceSurfacePresentModesKHR(device, surface, count, details.presentModes).ok()
+                ok(
+                    vkGetPhysicalDeviceSurfacePresentModesKHR(
+                        device,
+                        surface,
+                        count,
+                        details.presentModes
+                    )
+                )
             }
             return details
         }

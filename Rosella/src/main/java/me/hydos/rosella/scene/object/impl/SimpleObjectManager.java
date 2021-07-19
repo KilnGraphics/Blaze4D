@@ -76,7 +76,7 @@ public class SimpleObjectManager implements ObjectManager {
             if (material.getShader().getRaw().getDescriptorSetLayout() == 0L) {
                 material.getShader().getRaw().createDescriptorSetLayout();
             }
-            material.pipeline = pipelineManager.getPipeline(material, renderer);
+            material.setPipeline(pipelineManager.getPipeline(material, renderer));
             materials.add(material);
         }
         unprocessedMaterials.clear();

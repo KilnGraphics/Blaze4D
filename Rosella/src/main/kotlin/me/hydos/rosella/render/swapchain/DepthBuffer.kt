@@ -1,11 +1,13 @@
 package me.hydos.rosella.render.swapchain
 
 import me.hydos.rosella.device.VulkanDevice
-import me.hydos.rosella.render.createImage
-import me.hydos.rosella.render.createImageView
+import me.hydos.rosella.memory.Memory
+import me.hydos.rosella.memory.MemoryCloseable
 import me.hydos.rosella.render.renderer.Renderer
-import me.hydos.rosella.render.transitionImageLayout
+import me.hydos.rosella.render.texture.TextureImage
+import me.hydos.rosella.util.VkUtils
 import org.lwjgl.system.MemoryStack
+import org.lwjgl.util.vma.Vma
 import org.lwjgl.vulkan.VK10.*
 import org.lwjgl.vulkan.VkFormatProperties
 import java.nio.IntBuffer
@@ -13,43 +15,34 @@ import java.nio.IntBuffer
 /**
  * Since vulkan gives us so much control, we must make our own depth buffer instead of relying on the driver to create one for us.
  */
-class DepthBuffer {
+class DepthBuffer: MemoryCloseable {
 
-    private var depthImage: Long = 0
-    private var depthImageMemory: Long = 0
-    var depthImageView: Long = 0
+    lateinit var depthImage: TextureImage
 
-    fun createDepthResources(device: VulkanDevice, swapchain: Swapchain, renderer: Renderer) {
-        MemoryStack.stackPush().use { stack ->
-            val depthFormat: Int = findDepthFormat(device)
-            val pDepthImage = stack.mallocLong(1)
-            val pDepthImageMemory = stack.mallocLong(1)
-            createImage(
-                swapchain.swapChainExtent.width(),
-                swapchain.swapChainExtent.height(),
-                depthFormat,
-                VK_IMAGE_TILING_OPTIMAL,
-                VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT,
-                VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT,
-                pDepthImage,
-                pDepthImageMemory,
-                device
-            )
-            depthImage = pDepthImage[0]
-            depthImageMemory = pDepthImageMemory[0]
-            depthImageView = createImageView(depthImage, depthFormat, VK_IMAGE_ASPECT_DEPTH_BIT, device)
+    fun createDepthResources(device: VulkanDevice, memory: Memory, swapchain: Swapchain, renderer: Renderer) {
+        val depthFormat = findDepthFormat(device)
+        depthImage = VkUtils.createImage(
+            memory,
+            swapchain.swapChainExtent.width(),
+            swapchain.swapChainExtent.height(),
+            depthFormat,
+            VK_IMAGE_TILING_OPTIMAL,
+            VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT,
+            VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT,
+            Vma.VMA_MEMORY_USAGE_UNKNOWN // FIXME
+        )
+        depthImage.view = VkUtils.createImageView(device, depthImage.pointer(), depthFormat, VK_IMAGE_ASPECT_DEPTH_BIT)
 
-            // Explicitly transitioning the depth image
-            transitionImageLayout(
-                renderer,
-                device,
-                renderer.depthBuffer,
-                depthImage,
-                depthFormat,
-                VK_IMAGE_LAYOUT_UNDEFINED,
-                VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL
-            )
-        }
+        // Explicitly transitioning the depth image
+        VkUtils.transitionImageLayout(
+            renderer,
+            device,
+            renderer.depthBuffer,
+            depthImage.pointer(),
+            depthFormat,
+            VK_IMAGE_LAYOUT_UNDEFINED,
+            VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL
+        )
     }
 
     fun findDepthFormat(device: VulkanDevice): Int {
@@ -87,9 +80,7 @@ class DepthBuffer {
         error("Failed to find supported format")
     }
 
-    fun free(device: VulkanDevice) {
-        vkDestroyImageView(device.rawDevice, depthImageView, null)
-        vkDestroyImage(device.rawDevice, depthImage, null)
-        vkFreeMemory(device.rawDevice, depthImageMemory, null)
+    override fun free(device: VulkanDevice, memory: Memory) {
+        depthImage.free(device, memory)
     }
 }

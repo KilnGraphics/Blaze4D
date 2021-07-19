@@ -5,7 +5,10 @@ import it.unimi.dsi.fastutil.longs.LongSet;
 import it.unimi.dsi.fastutil.longs.LongSets;
 import me.hydos.rosella.Rosella;
 import me.hydos.rosella.device.VulkanDevice;
+import me.hydos.rosella.render.material.PipelineInfo;
 import me.hydos.rosella.render.renderer.Renderer;
+import me.hydos.rosella.render.texture.TextureImage;
+import me.hydos.rosella.util.VkUtils;
 import me.hydos.rosella.vkobjects.VkCommon;
 import org.lwjgl.PointerBuffer;
 import org.lwjgl.system.MemoryStack;
@@ -20,11 +23,15 @@ import org.lwjgl.vulkan.*;
 import java.nio.Buffer;
 import java.nio.ByteBuffer;
 import java.nio.LongBuffer;
-import java.util.*;
-import java.util.concurrent.*;
+import java.util.List;
+import java.util.Objects;
+import java.util.Set;
+import java.util.concurrent.LinkedBlockingQueue;
+import java.util.concurrent.ThreadPoolExecutor;
+import java.util.concurrent.TimeUnit;
 import java.util.function.Consumer;
 
-import static me.hydos.rosella.render.util.VkUtilsKt.ok;
+import static me.hydos.rosella.util.VkUtils.ok;
 import static org.lwjgl.system.MemoryStack.stackPush;
 
 /**
@@ -97,7 +104,6 @@ public abstract class Memory {
                     .physicalDevice(common.device.physicalDevice)
                     .device(common.device.rawDevice)
                     .pVulkanFunctions(vulkanFunctions)
-                    //.flags(Vma.VMA_ALLOCATOR_CREATE_EXTERNALLY_SYNCHRONIZED_BIT)
                     .instance(common.vkInstance.rawInstance)
                     .vulkanApiVersion(Rosella.VULKAN_VERSION);
 
@@ -137,15 +143,39 @@ public abstract class Memory {
      * Allocates an image buffer
      *
      * @param pImageCreateInfo Information related to the image which will be contained
-     * @param pAllocationCreateInfo Information related to the allocation itself
+     * @param vmaUsage The memory type provided to VMA
      * @return The bundle of the image and the allocation addresses
      */
-    public BufferInfo createImageBuffer(VkImageCreateInfo pImageCreateInfo, VmaAllocationCreateInfo pAllocationCreateInfo) {
+    public TextureImage createImageBuffer(VkImageCreateInfo pImageCreateInfo, int memoryProperties, int vmaUsage) {
         try (MemoryStack stack = MemoryStack.stackPush()) {
-            LongBuffer image = stack.mallocLong(1);
-            PointerBuffer allocation = stack.mallocPointer(1);
-            ok(Vma.vmaCreateImage(allocator, pImageCreateInfo, pAllocationCreateInfo, image, allocation, null));
-            return new BufferInfo(image.get(), allocation.get());
+
+            LongBuffer pTextureImage = stack.mallocLong(1);
+            ok(VK10.vkCreateImage(common.device.rawDevice, pImageCreateInfo, null, pTextureImage), "Failed to allocate image memory");
+            long textureImage = pTextureImage.get(0);
+
+            VkMemoryRequirements requirements = VkMemoryRequirements.mallocStack(stack);
+            VK10.vkGetImageMemoryRequirements(common.device.rawDevice, textureImage, requirements);
+            VkMemoryAllocateInfo allocateInfo = VkMemoryAllocateInfo.callocStack(stack)
+                    .sType(VK10.VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO)
+                    .allocationSize(requirements.size())
+                    .memoryTypeIndex(VkUtils.findMemoryType(common.device, requirements.memoryTypeBits(), memoryProperties));
+
+            LongBuffer pTextureImageMemory = stack.mallocLong(1);
+            ok(VK10.vkAllocateMemory(common.device.rawDevice, allocateInfo, null, pTextureImageMemory));
+            long textureImageMemory = pTextureImageMemory.get(0);
+
+//            LongBuffer pImage = stack.mallocLong(1);
+//            PointerBuffer pAllocation = stack.mallocPointer(1);
+//            // TODO OPT: try to make allocation create info more customizable
+//            VmaAllocationCreateInfo pAllocationCreateInfo = VmaAllocationCreateInfo.mallocStack(stack)
+//                    //.preferredFlags(memoryProperties)
+//                    .usage(vmaUsage);
+//            ok(Vma.vmaCreateImage(allocator, pImageCreateInfo, pAllocationCreateInfo, pImage, pAllocation, null), "Failed to allocate image memory");
+//            long image = pImage.get(0);
+//            long allocation = pAllocation.get(0);
+//            ok(Vma.vmaBindImageMemory(allocator, textureImageMemory, textureImage), "Failed to bind image to memory");
+            ok(VK10.vkBindImageMemory(common.device.rawDevice, textureImage, textureImageMemory, 0), "Failed to bind image to memory");
+            return new TextureImage(textureImage, textureImageMemory, 0);
         }
     }
 
@@ -220,6 +250,27 @@ public abstract class Memory {
      */
     public void freeBuffer(BufferInfo buffer) {
         deallocatorThreadPool.execute(() -> Vma.vmaDestroyBuffer(allocator, buffer.buffer(), buffer.allocation()));
+    }
+
+    /**
+     * Queues an image to be freed
+     */
+    public void freeImage(TextureImage image) {
+        deallocatorThreadPool.execute(() -> {
+            VK10.vkDestroyImage(common.device.rawDevice, image.pointer(), null);
+            VK10.vkFreeMemory(common.device.rawDevice, image.getTextureImageMemory(), null);
+//            Vma.vmaDestroyImage(allocator, image.pointer(), image.getTextureImageMemory());
+            if (image.getView() != VK10.VK_NULL_HANDLE) {
+                VK10.vkDestroyImageView(common.device.rawDevice, image.getView(), null);
+            }
+        });
+    }
+
+    public void freePipeline(PipelineInfo pipeline) {
+//        deallocatorThreadPool.execute(() -> {
+            VK10.vkDestroyPipeline(common.device.rawDevice, pipeline.graphicsPipeline(), null);
+            VK10.vkDestroyPipelineLayout(common.device.rawDevice, pipeline.pipelineLayout(), null);
+//        });
     }
 
     /**
