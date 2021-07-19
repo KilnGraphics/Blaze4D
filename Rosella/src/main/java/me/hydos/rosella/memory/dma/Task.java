@@ -17,11 +17,15 @@ public abstract class Task {
         return this.next;
     }
 
-    public abstract boolean scan(DMARecorder recorder);
-    public abstract void record(DMARecorder recorder);
-
-    public abstract boolean shouldSignal();
-
-    public void onCompleted() {
+    public boolean canReorderBehind(Task other) {
+        return false;
     }
+    public Task tryMergeWith(Task other) {
+        return null;
+    }
+
+    public boolean canRecord(DMARecorder recorder) {
+        return true;
+    }
+    public abstract void record(DMARecorder recorder);
 }

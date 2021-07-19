@@ -80,7 +80,7 @@ public abstract class Memory {
             testDMA.transferBufferFromHost(srcData, tmpbuffer.buffer(), 0);
             testDMA.transferBufferToHost(tmpbuffer.buffer(), 0, dst, () -> {
                 Rosella.LOGGER.warn("DMA TEST RUNNING");
-                for(int i = 0; i < 512 / 4; i++) {
+                for(int i = 0; i < 1024 / 4; i++) {
                     int n;
                     if((n = dst.getInt(i)) != i) {
                         Rosella.LOGGER.error("DMA ERROR: Mismatch at " + i + " was " + n);

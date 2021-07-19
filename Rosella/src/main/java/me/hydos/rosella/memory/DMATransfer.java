@@ -2,6 +2,7 @@ package me.hydos.rosella.memory;
 
 import it.unimi.dsi.fastutil.longs.Long2ObjectOpenHashMap;
 import it.unimi.dsi.fastutil.longs.LongOpenHashSet;
+import it.unimi.dsi.fastutil.objects.ObjectOpenHashSet;
 import kotlin.NotImplementedError;
 import me.hydos.rosella.Rosella;
 import me.hydos.rosella.device.VulkanQueue;
@@ -15,13 +16,11 @@ import org.lwjgl.system.MemoryUtil;
 import org.lwjgl.vulkan.*;
 
 import javax.sql.rowset.RowSetWarning;
+import java.nio.Buffer;
 import java.nio.ByteBuffer;
 import java.nio.IntBuffer;
 import java.nio.LongBuffer;
-import java.util.Deque;
-import java.util.LinkedList;
-import java.util.Map;
-import java.util.Set;
+import java.util.*;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.locks.Condition;
 import java.util.concurrent.locks.Lock;
@@ -32,7 +31,7 @@ public class DMATransfer {
     private final VulkanQueue transferQueue;
 
     // These 2 keep the state after all queued transfers have completed. i.e. the state that is relevant for queueing up more instructions
-    private final Set<Long> ownedBuffers = new LongOpenHashSet();
+    private final Map<Long, BufferMeta> ownedBuffers = new Long2ObjectOpenHashMap<>();
     private final Set<Long> ownedImages = new LongOpenHashSet();
 
     private Task nextTask = null;
@@ -75,26 +74,26 @@ public class DMATransfer {
      * @param completedCb A function that is called once the passed semaphores are safe to reuse
      */
     public void acquireBuffer(long buffer, int srcQueue, @Nullable Set<Long> waitSemaphores, @Nullable Runnable completedCb) {
-        boolean runCompleted = false;
         try {
             lock.lock();
             validateAcquireBuffer(buffer);
 
-            this.ownedBuffers.add(buffer);
-            if(srcQueue != this.transferQueue.getQueueFamily() || waitSemaphores != null) {
-                this.recordTask(new BufferAcquireTask(buffer, srcQueue, this.transferQueue.getQueueFamily(), waitSemaphores, completedCb));
-
-            } else {
-                // No acquire operation is required
-                runCompleted = completedCb != null;
+            this.ownedBuffers.put(buffer, new BufferMeta());
+            if(waitSemaphores != null && !waitSemaphores.isEmpty()) {
+                this.recordTask(new WaitSemaphoreTask(waitSemaphores));
             }
-
+            if(srcQueue != this.transferQueue.getQueueFamily()) {
+                this.recordTask(new PipelineBarrierTask(0, VK10.VK_PIPELINE_STAGE_TRANSFER_BIT)
+                        .addBufferMemoryBarrier(
+                                VK10.VK_ACCESS_MEMORY_WRITE_BIT | VK10.VK_ACCESS_MEMORY_READ_BIT,
+                                VK10.VK_ACCESS_TRANSFER_WRITE_BIT | VK10.VK_ACCESS_TRANSFER_READ_BIT,
+                                srcQueue, this.transferQueue.getQueueFamily(), buffer, 0, VK10.VK_WHOLE_SIZE));
+            }
+            if(completedCb != null) {
+                this.recordTask(new CallbackTask(completedCb));
+            }
         } finally {
             lock.unlock();
-        }
-
-        if(runCompleted) {
-            completedCb.run();
         }
     }
 
@@ -121,26 +120,20 @@ public class DMATransfer {
      * @param completedCb A function that is called once the passed semaphores are safe to reuse
      */
     public void acquireSharedBuffer(long buffer, @Nullable Set<Long> waitSemaphores, @Nullable Runnable completedCb) {
-        boolean runCompleted = false;
         try {
             lock.lock();
             validateAcquireBuffer(buffer);
 
-            this.ownedBuffers.add(buffer);
-            if(waitSemaphores != null) {
-                this.recordTask(new BufferAcquireTask(buffer, 0, 0, waitSemaphores, completedCb));
-
-            } else {
-                // No acquire operation is required
-                runCompleted = completedCb != null;
+            this.ownedBuffers.put(buffer, new BufferMeta());
+            if(waitSemaphores != null && !waitSemaphores.isEmpty()) {
+                this.recordTask(new WaitSemaphoreTask(waitSemaphores));
+            }
+            if(completedCb != null) {
+                this.recordTask(new CallbackTask(completedCb));
             }
 
         } finally {
             lock.unlock();
-        }
-
-        if(runCompleted) {
-            completedCb.run();
         }
     }
 
@@ -171,13 +164,20 @@ public class DMATransfer {
             lock.lock();
             validateReleaseBuffer(buffer);
 
-            if(dstQueue != this.transferQueue.getQueueFamily() || signalSemaphores != null) {
-                this.recordTask(new BufferReleaseTask(buffer, this.transferQueue.getQueueFamily(), dstQueue, signalSemaphores, completedCb));
-
-            } else {
-                // No release operation is required
-                this.recordTask(new CallbackTask(completedCb));
+            if(dstQueue != this.transferQueue.getQueueFamily()) {
+                recordTask(new PipelineBarrierTask(VK10.VK_PIPELINE_STAGE_TRANSFER_BIT, 0)
+                        .addBufferMemoryBarrier(
+                                VK10.VK_ACCESS_TRANSFER_WRITE_BIT | VK10.VK_ACCESS_TRANSFER_READ_BIT,
+                                VK10.VK_ACCESS_MEMORY_WRITE_BIT | VK10.VK_ACCESS_MEMORY_READ_BIT,
+                                this.transferQueue.getQueueFamily(), dstQueue, buffer, 0, VK10.VK_WHOLE_SIZE));
             }
+            if(signalSemaphores != null && !signalSemaphores.isEmpty()) {
+                recordTask(new SignalSemaphoreTask(signalSemaphores));
+            }
+            if(completedCb != null) {
+                recordTask(new CallbackTask(completedCb));
+            }
+
             this.ownedBuffers.remove(buffer);
 
         } finally {
@@ -212,12 +212,12 @@ public class DMATransfer {
             lock.lock();
 
             if(signalSemaphores != null) {
-                this.recordTask(new BufferReleaseTask(buffer, 0, 0, signalSemaphores, completedCb));
-
-            } else {
-                // No release operation is required
+                this.recordTask(new SignalSemaphoreTask(signalSemaphores));
+            }
+            if(completedCb != null) {
                 this.recordTask(new CallbackTask(completedCb));
             }
+
             this.ownedBuffers.remove(buffer);
 
         } finally {
@@ -243,21 +243,45 @@ public class DMATransfer {
      * The destination buffer must first be made available to the transfer engine by calling any of the acquire functions.
      * The source buffer will be copied and can safely be overwritten after this function returns.
      *
-     * @param srcBuffer The data to write into the destination buffer
+     * @param srcBufferData The data to write into the destination buffer
      * @param dstBuffer The destination buffer
      * @param dstOffset The offset in the destination buffer to where the data should be copied to
      */
-    public void transferBufferFromHost(ByteBuffer srcBuffer, long dstBuffer, long dstOffset) {
+    public void transferBufferFromHost(ByteBuffer srcBufferData, long dstBuffer, long dstOffset) {
+        final long size = srcBufferData.limit();
         try {
             lock.lock();
-            if(!ownedBuffers.contains(dstBuffer)) {
+            if(!ownedBuffers.containsKey(dstBuffer)) {
                 throw new RuntimeException("Cannot transfer to buffer that is not owned by the DMA engine!");
             }
 
-            StagingMemoryPool.StagingMemoryAllocation staging = stagingMemory.allocate(srcBuffer.limit());
-            MemoryUtil.memCopy(srcBuffer, staging.getHostBuffer());
+            StagingMemoryPool.StagingMemoryAllocation staging = stagingMemory.allocate(size);
+            MemoryUtil.memCopy(srcBufferData, staging.getHostBuffer());
 
-            recordTask(new BufferTransferTask(staging.getVulkanBuffer(), dstBuffer, staging.getBufferOffset(), dstOffset, srcBuffer.limit()));
+            final long srcBuffer = staging.getVulkanBuffer();
+            final long srcOffset = staging.getBufferOffset();
+
+            final BufferMeta dstBufferMeta = ownedBuffers.get(dstBuffer);
+            boolean dstSync = dstBufferMeta.requiresSync(dstOffset, size);
+            dstBufferMeta.markDirty(dstOffset, size);
+
+            PipelineBarrierTask barrier = new PipelineBarrierTask(
+                    VK10.VK_PIPELINE_STAGE_HOST_BIT | (dstSync ? VK10.VK_PIPELINE_STAGE_TRANSFER_BIT : 0),
+                    VK10.VK_PIPELINE_STAGE_TRANSFER_BIT
+            );
+
+            barrier.addBufferMemoryBarrier(VK10.VK_ACCESS_HOST_WRITE_BIT, VK10.VK_ACCESS_TRANSFER_READ_BIT,
+                    0, 0,
+                    srcBuffer, srcOffset, size);
+
+            if(dstSync) {
+                barrier.addBufferMemoryBarrier(VK10.VK_ACCESS_TRANSFER_READ_BIT | VK10.VK_ACCESS_TRANSFER_WRITE_BIT, VK10.VK_ACCESS_TRANSFER_WRITE_BIT,
+                        0, 0,
+                        dstBuffer, dstOffset, size);
+            }
+
+            recordTask(barrier);
+            recordTask(new BufferTransferTask(staging.getVulkanBuffer(), dstBuffer).addRegion(srcOffset, dstOffset, size));
             recordTask(new CallbackTask(staging::free));
         } finally {
             lock.unlock();
@@ -273,21 +297,40 @@ public class DMATransfer {
      *
      * @param srcBuffer The source buffer
      * @param srcOffset The offset in the source buffer from where the data should be copied from
-     * @param dstBuffer The destination buffer
+     * @param dstBufferData The destination buffer
      * @param completedCb A function that is called once the transfer has completed
      */
-    public void transferBufferToHost(long srcBuffer, long srcOffset, ByteBuffer dstBuffer, @Nullable Runnable completedCb) {
+    public void transferBufferToHost(long srcBuffer, long srcOffset, ByteBuffer dstBufferData, @Nullable Runnable completedCb) {
+        final long size = dstBufferData.limit();
         try {
             lock.lock();
-            if(!ownedBuffers.contains(srcBuffer)) {
+            if(!ownedBuffers.containsKey(srcBuffer)) {
                 throw new RuntimeException("Cannot transfer from buffer that is now owned by the DMA engine!");
             }
 
-            StagingMemoryPool.StagingMemoryAllocation staging = stagingMemory.allocate(dstBuffer.limit());
+            StagingMemoryPool.StagingMemoryAllocation staging = stagingMemory.allocate(size);
 
-            recordTask(new BufferTransferTask(srcBuffer, staging.getVulkanBuffer(), srcOffset, staging.getBufferOffset(), dstBuffer.limit()));
+            final long dstBuffer = staging.getVulkanBuffer();
+            final long dstOffset = staging.getBufferOffset();
+
+            BufferMeta srcBufferMeta = ownedBuffers.get(srcBuffer);
+            if(srcBufferMeta.requiresSync(srcOffset, size)) {
+                recordTask(new PipelineBarrierTask(VK10.VK_PIPELINE_STAGE_TRANSFER_BIT, VK10.VK_PIPELINE_STAGE_TRANSFER_BIT)
+                        .addBufferMemoryBarrier(
+                                VK10.VK_ACCESS_TRANSFER_WRITE_BIT, VK10.VK_ACCESS_TRANSFER_READ_BIT,
+                                0, 0,
+                                srcBuffer, srcOffset, size));
+            }
+            srcBufferMeta.markDirty(srcOffset, size);
+
+            recordTask(new BufferTransferTask(srcBuffer, staging.getVulkanBuffer()).addRegion(srcOffset, dstOffset, size));
+            recordTask(new PipelineBarrierTask(VK10.VK_PIPELINE_STAGE_TRANSFER_BIT, VK10.VK_PIPELINE_STAGE_HOST_BIT)
+                    .addBufferMemoryBarrier(
+                            VK10.VK_ACCESS_TRANSFER_WRITE_BIT, VK10.VK_ACCESS_HOST_READ_BIT,
+                            0, 0,
+                            dstBuffer, dstOffset, size));
             recordTask(new CallbackTask(() -> {
-                MemoryUtil.memCopy(staging.getHostBuffer(), dstBuffer);
+                MemoryUtil.memCopy(staging.getHostBuffer(), dstBufferData);
                 staging.free();
                 if(completedCb != null) {
                     completedCb.run();
@@ -296,16 +339,6 @@ public class DMATransfer {
         } finally {
             lock.unlock();
         }
-    }
-
-
-    // TODO: Images are pain
-    public void transferImageFromHost(ByteBuffer srcBuffer, long dstImage, int dstImageLayout, BufferImageCopy copy) {
-        throw new NotImplementedError("Big F");
-    }
-
-    public void transferImageToHost(long srcImage, int srcImageLayout, ByteBuffer dstBuffer, BufferImageCopy copy) {
-        throw new NotImplementedError("Big F");
     }
 
     /**
@@ -321,14 +354,14 @@ public class DMATransfer {
     public void transferBuffer(long srcBuffer, long srcOffset, long dstBuffer, long dstOffset, long size) {
         try {
             lock.lock();
-            if (!ownedBuffers.contains(srcBuffer)) {
+            if (!ownedBuffers.containsKey(srcBuffer)) {
                 throw new RuntimeException("Cannot transfer from a buffer that is not owned by the DMA engine!");
             }
-            if (!ownedBuffers.contains(dstBuffer)) {
+            if (!ownedBuffers.containsKey(dstBuffer)) {
                 throw new RuntimeException("Cannot transfer to a buffer that is not owned by the DMA engine!");
             }
 
-            recordTask(new BufferTransferTask(srcBuffer, dstBuffer, srcOffset, dstOffset, size));
+            recordTask(new BufferTransferTask(srcBuffer, dstBuffer).addRegion(srcOffset, dstOffset, size));
 
         } finally {
             lock.unlock();
@@ -336,13 +369,13 @@ public class DMATransfer {
     }
 
     private void validateAcquireBuffer(long buffer) {
-        if(this.ownedBuffers.contains(buffer)) {
+        if(this.ownedBuffers.containsKey(buffer)) {
             throw new RuntimeException("Cannot acquire buffer that is already owned by the DMA engine");
         }
     }
 
     private void validateReleaseBuffer(long buffer) {
-        if(!this.ownedBuffers.contains(buffer)) {
+        if(!this.ownedBuffers.containsKey(buffer)) {
             throw new RuntimeException("Cannot release buffer that is not owned by the DMA engine");
         }
     }
@@ -357,7 +390,38 @@ public class DMATransfer {
         taskAvailable.signal();
     }
 
-    public record BufferImageCopy(long bufferOffset, int bufferRowLength, int bufferImageHeight) { // TODO: pain
+    private class BufferMeta {
+
+        private long syncOffset;
+        private long syncSize;
+
+        public BufferMeta() {
+        }
+
+        public boolean requiresSync(long offset, long size) {
+            return true;
+
+//            final long otherStart = offset;
+//            final long otherEnd = offset + size;
+//            final long thisStart = this.syncOffset;
+//            final long thisEnd = this.syncOffset + this.syncSize;
+//
+//            if(otherStart >= thisStart && otherStart < thisEnd) {
+//                return true;
+//            }
+//            if(otherStart < thisStart && otherEnd > thisStart) {
+//                return true;
+//            }
+//            return false;
+        }
+
+        public void markDirty(long offset, long size) {
+            final long newOffset = Math.min(this.syncOffset, offset);
+            final long newEnd = Math.max(this.syncOffset + this.syncSize, offset + size);
+
+            this.syncOffset = newOffset;
+            this.syncSize = newEnd - newOffset;
+        }
     }
 
     private class DMAWorker implements Runnable {
@@ -371,7 +435,6 @@ public class DMATransfer {
         private final long waitFence;
 
         private final DMARecorder recorder = new DMARecorder();
-        private final Deque<Task> currentTasks = new LinkedList<>();
 
         public DMAWorker(@NotNull VulkanQueue queue) {
             this.queue = queue;
@@ -444,46 +507,27 @@ public class DMATransfer {
                 lock.unlock();
             }
 
-            Rosella.LOGGER.error("Found runnable Task");
-
             this.recorder.reset();
-            this.currentTasks.clear();
+            if(!currentTask.canRecord(this.recorder)) {
+                return false;
+            }
 
-            // Build list of tasks that should be executed in this pass
-            for(int taskIndex = 0; taskIndex < MAX_TASKS_PER_SUBMISSION; taskIndex++) {
-                if(!currentTask.scan(this.recorder)) {
-                    break;
-                }
-
-                this.currentTasks.addLast(currentTask);
-
+            // Record command buffers
+            this.recorder.beginRecord(this.commandBuffer);
+            while(currentTask != null && currentTask.canRecord(this.recorder)) {
+                currentTask.record(this.recorder);
                 try {
                     lock.lock();
                     nextTask = currentTask.getNext();
                     if(nextTask == null) {
                         lastTask = null;
-                        break;
                     }
                     currentTask = nextTask;
                 } finally {
                     lock.unlock();
                 }
             }
-
-            if(currentTasks.isEmpty()) {
-                return false;
-            }
-
-            Rosella.LOGGER.error("Task has been built");
-
-            // Record command buffers
-            this.recorder.beginRecord(this.commandBuffer);
-            while(!currentTasks.isEmpty()) {
-                currentTasks.pollFirst().record(this.recorder);
-            }
             this.recorder.endRecord();
-
-            Rosella.LOGGER.error("Task recording completed");
 
             // Submit commands
             try (MemoryStack stack = MemoryStack.stackPush()) {
@@ -520,14 +564,11 @@ public class DMATransfer {
                 submitInfo.pCommandBuffers(pCmdBuffer);
                 submitInfo.pSignalSemaphores(pSignalSem);
 
-                Rosella.LOGGER.error("Submitting task");
 
                 int result = this.queue.vkQueueSubmit(submitInfo, this.waitFence);
                 if(result != VK10.VK_SUCCESS) {
                     throw new RuntimeException("Failed to submit transfer " + result);
                 }
-
-                Rosella.LOGGER.error("Waiting for completion");
 
                 result = VK10.vkWaitForFences(this.queue.getDevice(), this.waitFence, true, 1000 * 1000 * 10);
                 if(result == VK10.VK_TIMEOUT) {
@@ -539,8 +580,8 @@ public class DMATransfer {
 
                 Rosella.LOGGER.error("Signaling callbacks");
 
-                for(Task task : this.recorder.getSignalTasks()) {
-                    task.onCompleted();
+                for(Runnable task : this.recorder.getSignalCallbacks()) {
+                    task.run();
                 }
 
                 Rosella.LOGGER.error("Task completed");
