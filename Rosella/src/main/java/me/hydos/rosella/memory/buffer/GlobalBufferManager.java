@@ -27,7 +27,7 @@ import static org.lwjgl.vulkan.VK10.*;
  */
 public class GlobalBufferManager {
 
-    private static final HashFunction BUFFER_HASH_FUNCTION = Hashing.goodFastHash(32);
+    private static final HashFunction BUFFER_HASH_FUNCTION = Hashing.murmur3_32();
     private static final IntHash.Strategy PREHASHED_STRATEGY = new IntHash.Strategy() {
         @Override
         public int hashCode(int e) {
@@ -89,6 +89,7 @@ public class GlobalBufferManager {
         BufferInfo buffer = indexHashToBufferMap.get(hash);
         if (buffer == null) {
             buffer = createIndexBuffer(indexBytes);
+            indexHashToBufferMap.put(hash, buffer);
         } else {
             indexBytes.free(common.device, memory);
         }
@@ -112,6 +113,7 @@ public class GlobalBufferManager {
         BufferInfo buffer = vertexHashToBufferMap.get(hash);
         if (buffer == null) {
             buffer = createVertexBuffer(vertexBytes);
+            vertexHashToBufferMap.put(hash, buffer);
         } else {
             vertexBytes.free(common.device, memory);
         }

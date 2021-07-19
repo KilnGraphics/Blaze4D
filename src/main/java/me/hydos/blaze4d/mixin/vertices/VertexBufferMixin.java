@@ -41,22 +41,25 @@ public class VertexBufferMixin {
     private void upload_(BufferBuilder bufferBuilder) {
         Pair<BufferBuilder.DrawState, ByteBuffer> drawData = bufferBuilder.popNextBuffer();
         // We have to manipulate some stuff with the ByteBuffer before we store it
-        this.drawState = drawData.getFirst();
-        ByteBuffer originalBuffer = drawData.getSecond();
+        BufferBuilder.DrawState providedDrawState = drawData.getFirst();
+        ByteBuffer providedBuffer = drawData.getSecond();
 
-        if (!drawState.indexOnly()) {
-            originalBuffer.limit(drawState.vertexBufferSize());
-            BufferInfo vertexBuffer = Blaze4D.rosella.bufferManager.createVertexBuffer(new ManagedBuffer<>(originalBuffer, false));
+        if (providedDrawState.vertexCount() > 0) {
+            if (!providedDrawState.indexOnly()) {
+                providedBuffer.limit(providedDrawState.vertexBufferSize());
+                BufferInfo vertexBuffer = Blaze4D.rosella.bufferManager.createVertexBuffer(new ManagedBuffer<>(providedBuffer, false));
 
-            ObjectIntPair<ManagedBuffer<ByteBuffer>> indexBufferSourcePair = GlobalRenderSystem.createIndices(drawState.mode(), drawState.vertexCount());
-            int indexCount = indexBufferSourcePair.valueInt();
-            BufferInfo indexBuffer = Blaze4D.rosella.bufferManager.createIndexBuffer(indexBufferSourcePair.key());
+                ObjectIntPair<ManagedBuffer<ByteBuffer>> indexBufferSourcePair = GlobalRenderSystem.createIndices(providedDrawState.mode(), providedDrawState.vertexCount());
+                int indexCount = indexBufferSourcePair.valueInt();
+                BufferInfo indexBuffer = Blaze4D.rosella.bufferManager.createIndexBuffer(indexBufferSourcePair.key());
 
-            currentRenderInfo = new RenderInfo(vertexBuffer, indexBuffer, indexCount);
+                drawState = providedDrawState;
+                currentRenderInfo = new RenderInfo(vertexBuffer, indexBuffer, indexCount);
+            }
         }
 
-        originalBuffer.limit(drawState.bufferSize());
-        originalBuffer.position(0);
+        providedBuffer.limit(providedDrawState.bufferSize());
+        providedBuffer.position(0);
     }
 
     /**
@@ -91,9 +94,7 @@ public class VertexBufferMixin {
 
     @Unique
     private void addBufferToRosella(Matrix4f projMatrix, Matrix4f modelViewMatrix, Vector3f chunkOffset, com.mojang.math.Vector3f shaderLightDirections0, com.mojang.math.Vector3f shaderLightDirections1) {
-        int vertexCount = drawState.vertexCount();
-
-        if (vertexCount > 0) {
+        if (currentRenderInfo != null && drawState != null) {
             GlobalRenderSystem.uploadPreCreatedObject(
                     currentRenderInfo,
                     ConversionUtils.FORMAT_CONVERSION_MAP.get(drawState.format().getElements()),
