@@ -13,6 +13,7 @@ import me.hydos.rosella.render.info.RenderInfo;
 import net.minecraft.client.renderer.ShaderInstance;
 import org.joml.Matrix4f;
 import org.joml.Vector3f;
+import org.lwjgl.vulkan.VK10;
 import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.Overwrite;
 import org.spongepowered.asm.mixin.Unique;
@@ -47,11 +48,11 @@ public class VertexBufferMixin {
         if (providedDrawState.vertexCount() > 0) {
             if (!providedDrawState.indexOnly()) {
                 providedBuffer.limit(providedDrawState.vertexBufferSize());
-                BufferInfo vertexBuffer = Blaze4D.rosella.bufferManager.createVertexBuffer(new ManagedBuffer<>(providedBuffer, false));
+                BufferInfo vertexBuffer = Blaze4D.rosella.bufferManager.createBuffer(new ManagedBuffer<>(providedBuffer, false), VK10.VK_BUFFER_USAGE_VERTEX_BUFFER_BIT);
 
                 ObjectIntPair<ManagedBuffer<ByteBuffer>> indexBufferSourcePair = GlobalRenderSystem.createIndices(providedDrawState.mode(), providedDrawState.vertexCount());
                 int indexCount = indexBufferSourcePair.valueInt();
-                BufferInfo indexBuffer = Blaze4D.rosella.bufferManager.createIndexBuffer(indexBufferSourcePair.key());
+                BufferInfo indexBuffer = Blaze4D.rosella.bufferManager.createBuffer(indexBufferSourcePair.key(), VK10.VK_BUFFER_USAGE_INDEX_BUFFER_BIT);
 
                 drawState = providedDrawState;
                 currentRenderInfo = new RenderInfo(vertexBuffer, indexBuffer, indexCount);

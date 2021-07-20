@@ -93,7 +93,7 @@ public class GlobalBufferManager {
         indexHashToInvocationsFrameMap.computeIfAbsent(hash, i -> new AtomicInteger()).incrementAndGet();
         BufferInfo buffer = indexHashToBufferMap.get(hash);
         if (buffer == null) {
-            buffer = createIndexBuffer(indexBytes);
+            buffer = createBuffer(indexBytes, VK_BUFFER_USAGE_INDEX_BUFFER_BIT);
             indexHashToBufferMap.put(hash, buffer);
         } else {
             indexBytes.free(common.device, memory);
@@ -117,7 +117,7 @@ public class GlobalBufferManager {
         vertexHashToInvocationsFrameMap.computeIfAbsent(hash, i -> new AtomicInteger()).incrementAndGet();
         BufferInfo buffer = vertexHashToBufferMap.get(hash);
         if (buffer == null) {
-            buffer = createVertexBuffer(vertexBytes);
+            buffer = createBuffer(vertexBytes, VK_BUFFER_USAGE_VERTEX_BUFFER_BIT);
             vertexHashToBufferMap.put(hash, buffer);
         } else {
             vertexBytes.free(common.device, memory);
@@ -126,80 +126,35 @@ public class GlobalBufferManager {
     }
 
     /**
-     * Creates a index buffer
+     * Creates a gpu only buffer
      *
-     * @param indexBytes The bytes representing the indices.
-     *                   This buffer must have the position set to the start of where you
-     *                   want to read and the limit set to the end of where you want to read
-     * @return An index buffer
+     * @param data The bytes representing the data.
+     *             This buffer must have the position set to the start of where you
+     *             want to read and the limit set to the end of where you want to read
+     * @return An buffer
      */
-    public BufferInfo createIndexBuffer(ManagedBuffer<ByteBuffer> indexBytes) {
-        ByteBuffer src = indexBytes.buffer();
-        int size = src.limit() - src.position();
-
-        try (MemoryStack stack = stackPush()) {
-            LongBuffer pBuffer = stack.mallocLong(1);
-
-            BufferInfo stagingBuffer = memory.createStagingBuf(size, pBuffer, data -> {
-                ByteBuffer dst = data.getByteBuffer(0, size);
-                // TODO OPT: do optional batching again
-                dst.put(0, src, src.position(), size);
-            });
-            indexBytes.free(common.device, memory);
-
-            BufferInfo indexBuffer = memory.createBuffer(
-                    size,
-                    VK_BUFFER_USAGE_TRANSFER_DST_BIT | VK_BUFFER_USAGE_INDEX_BUFFER_BIT,
-                    VMA_MEMORY_USAGE_GPU_ONLY,
-                    pBuffer
-            );
-
-            long pIndexBuffer = pBuffer.get(0);
-            memory.copyBuffer(stagingBuffer.buffer(),
-                    pIndexBuffer,
-                    size,
-                    renderer,
-                    common.device);
-            stagingBuffer.free(common.device, memory);
-
-            return indexBuffer;
-        }
-    }
-
-    /**
-     * Creates a vertex buffer.
-     *
-     * @param vertexBytes The bytes representing the vertices.
-     *                    This buffer must have the position set to the start of where you
-     *                    want to read and the limit set to the end of where you want to read
-     * @return A vertex buffer
-     */
-    public BufferInfo createVertexBuffer(ManagedBuffer<ByteBuffer> vertexBytes) {
-        ByteBuffer src = vertexBytes.buffer();
+    public BufferInfo createBuffer(ManagedBuffer<ByteBuffer> data, int usage) {
+        ByteBuffer src = data.buffer();
         int size = src.remaining();
 
         try (MemoryStack stack = stackPush()) {
-            LongBuffer pBuffer = stack.mallocLong(1);
-
-            BufferInfo vertexBuffer = memory.createBuffer(
+            BufferInfo indexBuffer = memory.createBuffer(
                     size,
-                    VK_BUFFER_USAGE_TRANSFER_DST_BIT | VK_BUFFER_USAGE_TRANSFER_SRC_BIT | VK_BUFFER_USAGE_VERTEX_BUFFER_BIT,
+                    VK_BUFFER_USAGE_TRANSFER_DST_BIT | usage,
                     VMA_MEMORY_USAGE_GPU_ONLY,
-                    pBuffer
+                    stack.mallocLong(1)
             );
 
-            long pVertexBuffer = pBuffer.get(0);
-
             AtomicBoolean waitFor = new AtomicBoolean(false);
-            memory.testDMA.acquireBuffer(pVertexBuffer, memory.testDMA.getTransferQueueFamily(), null, null);
-            memory.testDMA.transferBufferFromHost(src, pVertexBuffer, 0);
-            memory.testDMA.releaseBuffer(pVertexBuffer, memory.testDMA.getTransferQueueFamily(), null, () -> waitFor.set(true));
+            memory.testDMA.acquireBuffer(indexBuffer.buffer(), VK_QUEUE_FAMILY_IGNORED, null, null);
+            memory.testDMA.transferBufferFromHost(src, indexBuffer.buffer(), 0);
+            memory.testDMA.releaseBuffer(indexBuffer.buffer(), memory.testDMA.getTransferQueueFamily(), null, () -> waitFor.set(true));
+
+            data.free(common.device, memory);
             while(!waitFor.get()) {
             }
 
-            vertexBytes.free(common.device, memory);
-
-            return vertexBuffer;
+            return indexBuffer;
         }
     }
 }

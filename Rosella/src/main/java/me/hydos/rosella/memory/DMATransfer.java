@@ -1,12 +1,9 @@
 package me.hydos.rosella.memory;
 
-import it.unimi.dsi.fastutil.longs.Long2ObjectOpenHashMap;
 import it.unimi.dsi.fastutil.longs.LongOpenHashSet;
-import it.unimi.dsi.fastutil.objects.ObjectOpenHashSet;
 import kotlin.NotImplementedError;
 import me.hydos.rosella.Rosella;
 import me.hydos.rosella.device.VulkanQueue;
-import me.hydos.rosella.memory.allocators.HostMappedAllocation;
 import me.hydos.rosella.memory.dma.*;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
@@ -15,8 +12,6 @@ import org.lwjgl.system.MemoryStack;
 import org.lwjgl.system.MemoryUtil;
 import org.lwjgl.vulkan.*;
 
-import javax.sql.rowset.RowSetWarning;
-import java.nio.Buffer;
 import java.nio.ByteBuffer;
 import java.nio.IntBuffer;
 import java.nio.LongBuffer;
@@ -66,10 +61,10 @@ public class DMATransfer {
     /**
      * Performs a buffer acquire operation in the transfer queue making the buffer available to transfer operations.
      * The release operation from the source queue and any memory barriers <b>must</b> first be performed by the callee.
-     * If the <code>srcQueue</code> is equals to the transfer queue <b>no memory barrier will be inserted</b> by the transfer engine.
+     * If the <code>srcQueue</code> is equals to the transfer queue or VK_QUEUE_FAMILY_IGNORED <b>no memory barrier will be inserted</b> by the transfer engine.
      *
      * @param buffer The buffer to acquire
-     * @param srcQueue The queue that previously had ownership of the buffer
+     * @param srcQueue The queue that previously had ownership of the buffer or VK_QUEUE_FAMILY_IGNORED if no queue had ownership
      * @param waitSemaphores A list of semaphores to wait on before executing the acquire operation
      * @param completedCb A function that is called once the passed semaphores are safe to reuse
      */
@@ -82,7 +77,7 @@ public class DMATransfer {
             if(waitSemaphores != null && !waitSemaphores.isEmpty()) {
                 this.recordTask(new WaitSemaphoreTask(waitSemaphores));
             }
-            if(srcQueue != this.transferQueue.getQueueFamily()) {
+            if(srcQueue != this.transferQueue.getQueueFamily() && srcQueue != VK10.VK_QUEUE_FAMILY_IGNORED) {
                 this.recordTask(new PipelineBarrierTask(0, VK10.VK_PIPELINE_STAGE_TRANSFER_BIT)
                         .addBufferMemoryBarrier(
                                 0, VK10.VK_ACCESS_TRANSFER_WRITE_BIT | VK10.VK_ACCESS_TRANSFER_READ_BIT,
