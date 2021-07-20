@@ -69,35 +69,6 @@ public abstract class Memory {
                 (r, executor) -> {/* noop */});
 
         this.testDMA = new DMATransfer(this.common.queues.graphicsQueue, allocator);
-        // testDMA();
-    }
-
-    private void testDMA() {
-        try (MemoryStack stack = MemoryStack.stackPush()) {
-            BufferInfo tmpbuffer = createBuffer(1024, VK10.VK_BUFFER_USAGE_TRANSFER_SRC_BIT | VK10.VK_BUFFER_USAGE_TRANSFER_DST_BIT, Vma.VMA_MEMORY_USAGE_GPU_ONLY, stack.longs(0));
-
-            ByteBuffer srcData = stack.malloc(512);
-            for(int i = 0; i < 512 / 4; i++) {
-                srcData.putInt(i * 4, i);
-            }
-
-            ByteBuffer dst = MemoryUtil.memAlloc(1024);
-
-            int oldQueue = testDMA.getTransferQueueFamily();
-            testDMA.acquireBuffer(tmpbuffer.buffer(), oldQueue, null, null);
-            testDMA.transferBufferFromHost(srcData, tmpbuffer.buffer(), 0);
-            testDMA.transferBufferToHost(tmpbuffer.buffer(), 0, dst, () -> {
-                Rosella.LOGGER.warn("DMA TEST RUNNING");
-                for(int i = 0; i < 512 / 4; i++) {
-                    int n;
-                    if((n = dst.getInt(i * 4)) != i) {
-                        Rosella.LOGGER.error("DMA ERROR: Mismatch at " + i + " was " + n);
-                    }
-                }
-                MemoryUtil.memFree(dst);
-            });
-            testDMA.releaseBuffer(tmpbuffer.buffer(), oldQueue, null, null);
-        }
     }
 
     /**

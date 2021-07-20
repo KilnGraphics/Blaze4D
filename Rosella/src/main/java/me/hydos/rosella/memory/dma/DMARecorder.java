@@ -8,16 +8,13 @@ import org.jetbrains.annotations.NotNull;
 import org.lwjgl.system.MemoryStack;
 import org.lwjgl.vulkan.*;
 
-import java.util.ArrayList;
-import java.util.Collection;
-import java.util.List;
-import java.util.Set;
+import java.util.*;
 
 public class DMARecorder {
 
     private VkCommandBuffer commandBuffer;
 
-    private final Set<Runnable> signalCallbacks = new ObjectOpenHashSet<>();
+    private final Deque<Runnable> signalCallbacks = new ArrayDeque<>();
 
     private final Set<Long> waitSemaphores = new LongArraySet();
     private final Set<Long> signalSemaphores = new LongArraySet();
@@ -55,7 +52,7 @@ public class DMARecorder {
     }
 
     public void addCallback(Runnable callback) {
-        this.signalCallbacks.add(callback);
+        this.signalCallbacks.addLast(callback);
     }
 
     public VkCommandBuffer getCommandBuffer() {
@@ -70,7 +67,7 @@ public class DMARecorder {
         return this.signalSemaphores;
     }
 
-    public Set<Runnable> getSignalCallbacks() {
+    public Deque<Runnable> getSignalCallbacks() {
         return this.signalCallbacks;
     }
 

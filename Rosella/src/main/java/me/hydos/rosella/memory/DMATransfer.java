@@ -85,8 +85,7 @@ public class DMATransfer {
             if(srcQueue != this.transferQueue.getQueueFamily()) {
                 this.recordTask(new PipelineBarrierTask(0, VK10.VK_PIPELINE_STAGE_TRANSFER_BIT)
                         .addBufferMemoryBarrier(
-                                VK10.VK_ACCESS_MEMORY_WRITE_BIT | VK10.VK_ACCESS_MEMORY_READ_BIT,
-                                VK10.VK_ACCESS_TRANSFER_WRITE_BIT | VK10.VK_ACCESS_TRANSFER_READ_BIT,
+                                0, VK10.VK_ACCESS_TRANSFER_WRITE_BIT | VK10.VK_ACCESS_TRANSFER_READ_BIT,
                                 srcQueue, this.transferQueue.getQueueFamily(), buffer, 0, VK10.VK_WHOLE_SIZE));
             }
             if(completedCb != null) {
@@ -165,13 +164,9 @@ public class DMATransfer {
             validateReleaseBuffer(buffer);
 
             if(dstQueue != this.transferQueue.getQueueFamily()) {
-                if(dstQueue == -1) {
-                    dstQueue = this.transferQueue.getQueueFamily(); // TODO remove temporary code
-                }
-                recordTask(new PipelineBarrierTask(VK10.VK_PIPELINE_STAGE_TRANSFER_BIT, VK10.VK_PIPELINE_STAGE_ALL_COMMANDS_BIT)
+                recordTask(new PipelineBarrierTask(VK10.VK_PIPELINE_STAGE_TRANSFER_BIT, 0)
                         .addBufferMemoryBarrier(
-                                VK10.VK_ACCESS_TRANSFER_WRITE_BIT | VK10.VK_ACCESS_TRANSFER_READ_BIT,
-                                VK10.VK_ACCESS_MEMORY_WRITE_BIT | VK10.VK_ACCESS_MEMORY_READ_BIT,
+                                VK10.VK_ACCESS_TRANSFER_WRITE_BIT | VK10.VK_ACCESS_TRANSFER_READ_BIT, 0,
                                 this.transferQueue.getQueueFamily(), dstQueue, buffer, 0, VK10.VK_WHOLE_SIZE));
             }
             if(signalSemaphores != null && !signalSemaphores.isEmpty()) {
@@ -264,7 +259,6 @@ public class DMATransfer {
             final long srcBuffer = staging.getVulkanBuffer();
             final long srcOffset = staging.getBufferOffset();
 
-
             PipelineBarrierTask barrier = new PipelineBarrierTask(
                     VK10.VK_PIPELINE_STAGE_HOST_BIT | VK10.VK_PIPELINE_STAGE_TRANSFER_BIT,
                     VK10.VK_PIPELINE_STAGE_TRANSFER_BIT
@@ -299,7 +293,7 @@ public class DMATransfer {
      * @param completedCb A function that is called once the transfer has completed
      */
     public void transferBufferToHost(long srcBuffer, long srcOffset, ByteBuffer dstBufferData, @Nullable Runnable completedCb) {
-        final long size = dstBufferData.limit();
+        final long size = dstBufferData.remaining();
         try {
             lock.lock();
             if(!ownedBuffers.contains(srcBuffer)) {
@@ -381,6 +375,10 @@ public class DMATransfer {
         if(!this.ownedBuffers.contains(buffer)) {
             throw new RuntimeException("Cannot release buffer that is not owned by the DMA engine");
         }
+    }
+
+    private void recordChadBarrierTask() {
+        recordTask(new PipelineBarrierTask(VK10.VK_PIPELINE_STAGE_ALL_COMMANDS_BIT, VK10.VK_PIPELINE_STAGE_ALL_COMMANDS_BIT).addMemoryBarrier(VK10.VK_ACCESS_MEMORY_WRITE_BIT | VK10.VK_ACCESS_MEMORY_READ_BIT, VK10.VK_ACCESS_MEMORY_WRITE_BIT | VK10.VK_ACCESS_MEMORY_READ_BIT));
     }
 
     private void recordTask(Task task) {
@@ -465,6 +463,7 @@ public class DMATransfer {
                 }
             } catch (Exception ex) {
                 Rosella.LOGGER.fatal(ex);
+                ex.printStackTrace();
             }
         }
 
@@ -506,6 +505,11 @@ public class DMATransfer {
 
             // Submit commands
             try (MemoryStack stack = MemoryStack.stackPush()) {
+                int result = VK10.vkResetFences(this.queue.getDevice(), this.waitFence);
+                if(result != VK10.VK_SUCCESS) {
+                    throw new RuntimeException("Failed to reset fence");
+                }
+
                 Set<Long> waitSemaphores = this.recorder.getWaitSemaphores();
                 Set<Long> signalSemaphores = this.recorder.getSignalSemaphores();
 
@@ -540,7 +544,7 @@ public class DMATransfer {
                 submitInfo.pSignalSemaphores(pSignalSem);
 
 
-                int result = this.queue.vkQueueSubmit(submitInfo, this.waitFence);
+                result = this.queue.vkQueueSubmit(submitInfo, this.waitFence);
                 if(result != VK10.VK_SUCCESS) {
                     throw new RuntimeException("Failed to submit transfer " + result);
                 }
@@ -551,6 +555,11 @@ public class DMATransfer {
                 }
                 if(result != VK10.VK_SUCCESS) {
                     throw new RuntimeException("Failed to wait for fence");
+                }
+
+                result = VK10.vkResetCommandBuffer(this.commandBuffer, 0);
+                if(result != VK10.VK_SUCCESS) {
+                    throw new RuntimeException("Failed to reset command buffer");
                 }
 
                 for(Runnable task : this.recorder.getSignalCallbacks()) {

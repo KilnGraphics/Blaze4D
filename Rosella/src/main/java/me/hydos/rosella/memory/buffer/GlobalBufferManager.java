@@ -174,28 +174,27 @@ public class GlobalBufferManager {
     public BufferInfo createVertexBuffer(ManagedBuffer<ByteBuffer> vertexBytes) {
         ByteBuffer src = vertexBytes.buffer();
         int size = src.remaining();
-        ByteBuffer slice = src.slice();
-        assert(slice.limit() == size);
 
         try (MemoryStack stack = stackPush()) {
             LongBuffer pBuffer = stack.mallocLong(1);
-            vertexBytes.free(common.device, memory);
 
             BufferInfo vertexBuffer = memory.createBuffer(
                     size,
-                    VK_BUFFER_USAGE_TRANSFER_DST_BIT | VK_BUFFER_USAGE_VERTEX_BUFFER_BIT,
+                    VK_BUFFER_USAGE_TRANSFER_DST_BIT | VK_BUFFER_USAGE_TRANSFER_SRC_BIT | VK_BUFFER_USAGE_VERTEX_BUFFER_BIT,
                     VMA_MEMORY_USAGE_GPU_ONLY,
                     pBuffer
             );
 
             long pVertexBuffer = pBuffer.get(0);
 
-            AtomicBoolean wait = new AtomicBoolean(false);
+            AtomicBoolean waitFor = new AtomicBoolean(false);
             memory.testDMA.acquireBuffer(pVertexBuffer, memory.testDMA.getTransferQueueFamily(), null, null);
-            memory.testDMA.transferBufferFromHost(slice, vertexBuffer.buffer(), 0);
-            memory.testDMA.releaseBuffer(pVertexBuffer, -1, null, () -> wait.set(true));
-            while(!wait.get()) {
+            memory.testDMA.transferBufferFromHost(src, pVertexBuffer, 0);
+            memory.testDMA.releaseBuffer(pVertexBuffer, memory.testDMA.getTransferQueueFamily(), null, () -> waitFor.set(true));
+            while(!waitFor.get()) {
             }
+
+            vertexBytes.free(common.device, memory);
 
             return vertexBuffer;
         }

@@ -10,7 +10,7 @@ public class UnbackedRingAllocator {
     private long virtualHead = 0;
     private long virtualTail = 0;
 
-    private Map<Long, AllocationInfo> allocations = new Long2ObjectLinkedOpenHashMap<>();
+    private final Map<Long, AllocationInfo> allocations = new Long2ObjectLinkedOpenHashMap<>();
     AllocationInfo lastAllocation = null;
 
     public UnbackedRingAllocator(long size) {

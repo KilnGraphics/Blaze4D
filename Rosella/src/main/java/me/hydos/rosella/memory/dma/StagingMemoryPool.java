@@ -1,6 +1,5 @@
 package me.hydos.rosella.memory.dma;
 
-import me.hydos.rosella.Rosella;
 import me.hydos.rosella.memory.allocators.BackedRingAllocator;
 import me.hydos.rosella.memory.allocators.HostMappedAllocation;
 import me.hydos.rosella.memory.allocators.UnbackedRingAllocator;
@@ -13,8 +12,9 @@ import org.lwjgl.util.vma.VmaAllocationInfo;
 import org.lwjgl.vulkan.*;
 
 import java.nio.ByteBuffer;
-import java.nio.IntBuffer;
 import java.nio.LongBuffer;
+import java.util.concurrent.locks.Lock;
+import java.util.concurrent.locks.ReentrantLock;
 
 public class StagingMemoryPool {
 
@@ -43,6 +43,8 @@ public class StagingMemoryPool {
         private ByteBuffer memory;
         private long vmaAllocation = VK10.VK_NULL_HANDLE;
         private long vkBuffer = VK10.VK_NULL_HANDLE;
+
+        private final Lock lock = new ReentrantLock();
 
         public RingAllocator(final long size) {
             if(!isPowerOf2(size)) {
@@ -98,21 +100,31 @@ public class StagingMemoryPool {
         }
 
         public StagingMemoryAllocation allocate(long size) {
-            if(size > Integer.MAX_VALUE) {
+            if (size > Integer.MAX_VALUE) {
                 return null;
             }
 
-            int address = (int) this.allocator.allocate(size);
-            if(address == Integer.MIN_VALUE) {
-                return null;
-            }
+            try {
+                lock.lock();
+                int address = (int) this.allocator.allocate(size);
+                if (address == -1) {
+                    return null;
+                }
 
-            ByteBuffer data = this.memory.slice(address, (int) size);
-            return new StagingMemoryAllocation(this, address, data, this.vkBuffer);
+                ByteBuffer data = this.memory.slice(address, (int) size);
+                return new StagingMemoryAllocation(this, address, data, this.vkBuffer);
+            } finally {
+                lock.unlock();
+            }
         }
 
         public void free(long address) {
-            this.allocator.free(address);
+            try {
+                lock.lock();
+                this.allocator.free(address);
+            } finally {
+                lock.unlock();
+            }
         }
 
         private static boolean isPowerOf2(long value) {
