@@ -19,7 +19,7 @@ public class WaitSemaphoreTask extends Task {
 
     @Override
     public boolean canRecord(DMARecorder recorder) {
-        return recorder.getSignalSemaphores().isEmpty();
+        return !recorder.containsSignalSemaphores();
     }
 
     @Override

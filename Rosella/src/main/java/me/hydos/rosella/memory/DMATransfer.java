@@ -390,17 +390,12 @@ public class DMATransfer {
 
         private final int MAX_TASKS_PER_SUBMISSION = 40;
 
-        private final VulkanQueue queue;
-
         private final long commandPool;
-        private final VkCommandBuffer commandBuffer;
-        private final long waitFence;
 
-        private final DMARecorder recorder = new DMARecorder();
+        private final List<DMARecorder> recorders = new ArrayList<>();
+        private int nextRecorder = 0;
 
         public DMAWorker(@NotNull VulkanQueue queue) {
-            this.queue = queue;
-
             try (MemoryStack stack = MemoryStack.stackPush()) {
                 VkCommandPoolCreateInfo createInfo = VkCommandPoolCreateInfo.callocStack(stack);
                 createInfo.sType(VK10.VK_STRUCTURE_TYPE_COMMAND_POOL_CREATE_INFO);
@@ -420,24 +415,17 @@ public class DMATransfer {
                 allocInfo.sType(VK10.VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO);
                 allocInfo.commandPool(this.commandPool);
                 allocInfo.level(VK10.VK_COMMAND_BUFFER_LEVEL_PRIMARY);
-                allocInfo.commandBufferCount(1);
+                allocInfo.commandBufferCount(4);
 
-                PointerBuffer pBuffers = stack.pointers(0);
+                PointerBuffer pBuffers = stack.mallocPointer(4);
                 result = VK10.vkAllocateCommandBuffers(queue.getDevice(), allocInfo, pBuffers);
                 if(result != VK10.VK_SUCCESS) {
                     throw new RuntimeException("Failed to allocate command buffers for DMAWorker " + result);
                 }
 
-                this.commandBuffer = new VkCommandBuffer(pBuffers.get(), queue.getDevice());
-
-                VkFenceCreateInfo fenceInfo = VkFenceCreateInfo.callocStack(stack);
-                fenceInfo.sType(VK10.VK_STRUCTURE_TYPE_FENCE_CREATE_INFO);
-
-                result = VK10.vkCreateFence(queue.getDevice(), fenceInfo, null, pPool.rewind());
-                if(result != VK10.VK_SUCCESS) {
-                    throw new RuntimeException("Failed to create wait fence " + result);
+                for(int i = 0; i < 4; i++) {
+                    recorders.add(new DMARecorder(new VkCommandBuffer(pBuffers.get(), queue.getDevice()), queue));
                 }
-                this.waitFence = pPool.get();
             }
         }
 
@@ -463,6 +451,12 @@ public class DMATransfer {
         }
 
         private boolean tryRunTask() {
+            DMARecorder recorder = recorders.get(nextRecorder);
+            if(!recorder.isReady()) {
+                return false;
+            }
+            nextRecorder = (nextRecorder + 1) % recorders.size();
+
             Task currentTask;
             try {
                 lock.lock();
@@ -474,17 +468,13 @@ public class DMATransfer {
                 lock.unlock();
             }
 
-            this.recorder.reset();
-            if(!currentTask.canRecord(this.recorder)) {
+            if(!currentTask.canRecord(recorder)) {
                 return false;
             }
 
-            // Rosella.LOGGER.warn("Starting task build");
-
-            // Record command buffers
-            this.recorder.beginRecord(this.commandBuffer);
-            while(currentTask != null && currentTask.canRecord(this.recorder)) {
-                currentTask.record(this.recorder);
+            recorder.beginRecord();
+            while(currentTask != null && currentTask.canRecord(recorder)) {
+                currentTask.record(recorder);
                 try {
                     lock.lock();
                     nextTask = currentTask.getNext();
@@ -496,71 +486,8 @@ public class DMATransfer {
                     lock.unlock();
                 }
             }
-            this.recorder.endRecord();
-
-            // Submit commands
-            try (MemoryStack stack = MemoryStack.stackPush()) {
-                int result = VK10.vkResetFences(this.queue.getDevice(), this.waitFence);
-                if(result != VK10.VK_SUCCESS) {
-                    throw new RuntimeException("Failed to reset fence");
-                }
-
-                Set<Long> waitSemaphores = this.recorder.getWaitSemaphores();
-                Set<Long> signalSemaphores = this.recorder.getSignalSemaphores();
-
-                LongBuffer pWaitSem = null;
-                IntBuffer pWaitSemStage = null;
-                if(waitSemaphores.size() != 0) {
-                    pWaitSem = stack.mallocLong(waitSemaphores.size());
-                    pWaitSemStage = stack.mallocInt(waitSemaphores.size());
-                    for(long semaphore : waitSemaphores) {
-                        pWaitSem.put(semaphore);
-                        pWaitSemStage.put(VK10.VK_PIPELINE_STAGE_TRANSFER_BIT);
-                    }
-                    pWaitSem.rewind();
-                }
-
-                LongBuffer pSignalSem = null;
-                if(signalSemaphores.size() != 0) {
-                    pSignalSem = stack.mallocLong(signalSemaphores.size());
-                    for(long semaphore : signalSemaphores) {
-                        pSignalSem.put(semaphore);
-                    }
-                    pSignalSem.rewind();
-                }
-
-                PointerBuffer pCmdBuffer = stack.pointers(this.commandBuffer);
-
-                VkSubmitInfo submitInfo = VkSubmitInfo.callocStack(stack);
-                submitInfo.sType(VK10.VK_STRUCTURE_TYPE_SUBMIT_INFO);
-                submitInfo.pWaitSemaphores(pWaitSem);
-                submitInfo.pWaitDstStageMask(pWaitSemStage);
-                submitInfo.pCommandBuffers(pCmdBuffer);
-                submitInfo.pSignalSemaphores(pSignalSem);
-
-
-                result = this.queue.vkQueueSubmit(submitInfo, this.waitFence);
-                if(result != VK10.VK_SUCCESS) {
-                    throw new RuntimeException("Failed to submit transfer " + result);
-                }
-
-                result = VK10.vkWaitForFences(this.queue.getDevice(), this.waitFence, true, 1000 * 1000 * 10);
-                if(result == VK10.VK_TIMEOUT) {
-                    throw new RuntimeException("Transfer wait timed out");
-                }
-                if(result != VK10.VK_SUCCESS) {
-                    throw new RuntimeException("Failed to wait for fence");
-                }
-
-                result = VK10.vkResetCommandBuffer(this.commandBuffer, 0);
-                if(result != VK10.VK_SUCCESS) {
-                    throw new RuntimeException("Failed to reset command buffer");
-                }
-
-                for(Runnable task : this.recorder.getSignalCallbacks()) {
-                    task.run();
-                }
-            }
+            recorder.endRecord();
+            recorder.submit();
 
             return true;
         }
