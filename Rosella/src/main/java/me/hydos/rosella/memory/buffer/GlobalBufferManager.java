@@ -1,16 +1,16 @@
 package me.hydos.rosella.memory.buffer;
 
-import com.google.common.hash.HashFunction;
-import com.google.common.hash.Hashing;
-import it.unimi.dsi.fastutil.ints.Int2ObjectMap;
-import it.unimi.dsi.fastutil.ints.Int2ObjectOpenCustomHashMap;
-import it.unimi.dsi.fastutil.ints.IntHash;
+import it.unimi.dsi.fastutil.longs.Long2ObjectMap;
+import it.unimi.dsi.fastutil.longs.Long2ObjectOpenCustomHashMap;
+import it.unimi.dsi.fastutil.longs.LongHash;
 import me.hydos.rosella.Rosella;
 import me.hydos.rosella.memory.BufferInfo;
 import me.hydos.rosella.memory.ManagedBuffer;
 import me.hydos.rosella.memory.Memory;
 import me.hydos.rosella.render.renderer.Renderer;
 import me.hydos.rosella.vkobjects.VkCommon;
+import net.jpountz.xxhash.XXHash64;
+import net.jpountz.xxhash.XXHashFactory;
 import org.lwjgl.system.MemoryStack;
 import org.lwjgl.vulkan.VK10;
 
@@ -20,7 +20,6 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 
 import static org.lwjgl.system.MemoryStack.stackPush;
-import static org.lwjgl.util.vma.Vma.VMA_MEMORY_USAGE_CPU_TO_GPU;
 import static org.lwjgl.util.vma.Vma.VMA_MEMORY_USAGE_GPU_ONLY;
 import static org.lwjgl.vulkan.VK10.*;
 
@@ -29,16 +28,20 @@ import static org.lwjgl.vulkan.VK10.*;
  */
 public class GlobalBufferManager {
 
-    private static final HashFunction BUFFER_HASH_FUNCTION = Hashing.murmur3_32();
-    private static final IntHash.Strategy PREHASHED_STRATEGY = new IntHash.Strategy() {
+    /**
+     * xxHash64 is faster than xxHash32, so even if it may be overkill it makes more sense to use it anyway.
+     */
+    private static final XXHash64 BUFFER_HASH_FUNCTION = XXHashFactory.fastestInstance().hash64();
+    private static final long HASH_SEED = System.currentTimeMillis();
+    private static final LongHash.Strategy PREHASHED_STRATEGY = new LongHash.Strategy() {
         @Override
-        public int hashCode(int e) {
-            return e;
+        public int hashCode(long e) {
+            return (int) e;
         }
 
         @Override
-        public boolean equals(int a, int b) {
-            return a == b;
+        public boolean equals(long a, long b) {
+            return (int) a == (int) b;
         }
     };
 
@@ -46,11 +49,11 @@ public class GlobalBufferManager {
     private final VkCommon common;
     private final Renderer renderer;
 
-    private final Int2ObjectMap<BufferInfo> vertexHashToBufferMap = new Int2ObjectOpenCustomHashMap<>(PREHASHED_STRATEGY);
-    private final Int2ObjectMap<AtomicInteger> vertexHashToInvocationsFrameMap = new Int2ObjectOpenCustomHashMap<>(PREHASHED_STRATEGY);
+    private final Long2ObjectMap<BufferInfo> vertexHashToBufferMap = new Long2ObjectOpenCustomHashMap<>(PREHASHED_STRATEGY);
+    private final Long2ObjectMap<AtomicInteger> vertexHashToInvocationsFrameMap = new Long2ObjectOpenCustomHashMap<>(PREHASHED_STRATEGY);
 
-    private final Int2ObjectMap<BufferInfo> indexHashToBufferMap = new Int2ObjectOpenCustomHashMap<>(PREHASHED_STRATEGY);
-    private final Int2ObjectMap<AtomicInteger> indexHashToInvocationsFrameMap = new Int2ObjectOpenCustomHashMap<>(PREHASHED_STRATEGY);
+    private final Long2ObjectMap<BufferInfo> indexHashToBufferMap = new Long2ObjectOpenCustomHashMap<>(PREHASHED_STRATEGY);
+    private final Long2ObjectMap<AtomicInteger> indexHashToInvocationsFrameMap = new Long2ObjectOpenCustomHashMap<>(PREHASHED_STRATEGY);
 
     public GlobalBufferManager(Rosella rosella) {
         this.memory = rosella.common.memory;
@@ -59,16 +62,16 @@ public class GlobalBufferManager {
     }
 
     public void postDraw() {
-        for (Int2ObjectMap.Entry<AtomicInteger> entry : vertexHashToInvocationsFrameMap.int2ObjectEntrySet()) {
+        for (Long2ObjectMap.Entry<AtomicInteger> entry : vertexHashToInvocationsFrameMap.long2ObjectEntrySet()) {
             if (entry.getValue().getAcquire() < 1) {
-                vertexHashToBufferMap.remove(entry.getIntKey()).free(common.device, memory);
+                vertexHashToBufferMap.remove(entry.getLongKey()).free(common.device, memory);
             }
         }
         vertexHashToInvocationsFrameMap.clear();
 
-        for (Int2ObjectMap.Entry<AtomicInteger> entry : indexHashToInvocationsFrameMap.int2ObjectEntrySet()) {
+        for (Long2ObjectMap.Entry<AtomicInteger> entry : indexHashToInvocationsFrameMap.long2ObjectEntrySet()) {
             if (entry.getValue().getAcquire() < 1) {
-                indexHashToBufferMap.remove(entry.getIntKey()).free(common.device, memory);
+                indexHashToBufferMap.remove(entry.getLongKey()).free(common.device, memory);
             }
         }
         indexHashToInvocationsFrameMap.clear();
@@ -85,7 +88,7 @@ public class GlobalBufferManager {
     public BufferInfo getOrCreateIndexBuffer(ManagedBuffer<ByteBuffer> indexBytes) {
         ByteBuffer bytes = indexBytes.buffer();
         int previousPosition = bytes.position();
-        int hash = BUFFER_HASH_FUNCTION.hashBytes(bytes).asInt();
+        long hash = BUFFER_HASH_FUNCTION.hash(bytes, HASH_SEED);
         bytes.position(previousPosition);
         indexHashToInvocationsFrameMap.computeIfAbsent(hash, i -> new AtomicInteger()).incrementAndGet();
         BufferInfo buffer = indexHashToBufferMap.get(hash);
@@ -109,7 +112,7 @@ public class GlobalBufferManager {
     public BufferInfo getOrCreateVertexBuffer(ManagedBuffer<ByteBuffer> vertexBytes) {
         ByteBuffer bytes = vertexBytes.buffer();
         int previousPosition = bytes.position();
-        int hash = BUFFER_HASH_FUNCTION.hashBytes(bytes).asInt();
+        long hash = BUFFER_HASH_FUNCTION.hash(bytes, HASH_SEED);
         bytes.position(previousPosition);
         vertexHashToInvocationsFrameMap.computeIfAbsent(hash, i -> new AtomicInteger()).incrementAndGet();
         BufferInfo buffer = vertexHashToBufferMap.get(hash);

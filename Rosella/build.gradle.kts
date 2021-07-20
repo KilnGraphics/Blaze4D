@@ -36,7 +36,7 @@ dependencies {
     api("com.google.code.gson", "gson", "2.8.7")
     api("org.apache.logging.log4j", "log4j-core", "2.14.1")
 
-    implementation("com.google.guava", "guava", "30.1.1-jre")
+    implementation("org.lz4", "lz4-java", "1.8.0")
 
     runtimeOnly("org.lwjgl", "lwjgl", classifier = lwjglNatives)
     runtimeOnly("org.lwjgl", "lwjgl-assimp", classifier = lwjglNatives)
