@@ -1,6 +1,5 @@
 package me.hydos.rosella.render.vertex;
 
-import org.jetbrains.annotations.NotNull;
 import org.lwjgl.system.MemoryStack;
 import org.lwjgl.vulkan.VK10;
 import org.lwjgl.vulkan.VkPipelineVertexInputStateCreateInfo;
@@ -64,7 +63,8 @@ public class VertexFormat {
         return elements;
     }
 
-    public VkPipelineVertexInputStateCreateInfo getPipelineVertexInputStateCreateInfo(MemoryStack stack) {
+    public VkPipelineVertexInputStateCreateInfo getPipelineVertexInputStateCreateInfo() {
+        MemoryStack stack = MemoryStack.stackGet();
         return VkPipelineVertexInputStateCreateInfo.callocStack(stack)
                 .sType(VK10.VK_STRUCTURE_TYPE_PIPELINE_VERTEX_INPUT_STATE_CREATE_INFO)
                 .pVertexBindingDescriptions(getVkBindings())

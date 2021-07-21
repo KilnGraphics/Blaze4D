@@ -1,6 +1,7 @@
 package me.hydos.rosella.vkobjects;
 
 import me.hydos.rosella.logging.DebugLogger;
+import me.hydos.rosella.memory.Memory;
 import org.lwjgl.PointerBuffer;
 import org.lwjgl.system.MemoryStack;
 import org.lwjgl.vulkan.*;
@@ -33,7 +34,7 @@ public class VulkanInstance {
         try (MemoryStack stack = MemoryStack.stackPush()) {
             VkApplicationInfo applicationInfo = VkApplicationInfo.callocStack(stack)
                     .sType(VK_STRUCTURE_TYPE_APPLICATION_INFO)
-                    .apiVersion(VK_API_VERSION_1_2)
+                    .apiVersion(VK_API_VERSION_1_2) // TODO: check the device's vulkan version
                     .pEngineName(stack.UTF8Safe("Rosella"))
                     .engineVersion(VK_MAKE_VERSION(2, 0, 0))
 
@@ -43,7 +44,7 @@ public class VulkanInstance {
             VkInstanceCreateInfo createInfo = VkInstanceCreateInfo.callocStack(stack)
                     .sType(VK_STRUCTURE_TYPE_INSTANCE_CREATE_INFO)
                     .pApplicationInfo(applicationInfo)
-                    .ppEnabledExtensionNames(getRequiredExtensions(requestedValidationLayers.size() != 0, requestedExtensions, stack));
+                    .ppEnabledExtensionNames(getRequiredExtensions(requestedValidationLayers.size() != 0, requestedExtensions));
 
             VkDebugUtilsMessengerCreateInfoEXT debugMessengerCreateInfo;
 
@@ -71,7 +72,7 @@ public class VulkanInstance {
             if (validationLayers) {
                 // This is only while the instance is being created
                 createInfo
-                        .ppEnabledLayerNames(asPtrBuffer(requestedValidationLayers, stack))
+                        .ppEnabledLayerNames(asPtrBuffer(requestedValidationLayers))
                         .pNext(debugMessengerCreateInfo.address());
             }
 
@@ -91,29 +92,14 @@ public class VulkanInstance {
     }
 
     /**
-     * Converts a {@link List} into a {@link PointerBuffer}
-     *
-     * @param list  the list to put into a {@link PointerBuffer}
-     * @param stack the current {@link MemoryStack}
-     * @return a valid {@link PointerBuffer}
-     */
-    public static PointerBuffer asPointerBuffer(List<String> list, MemoryStack stack) {
-        PointerBuffer pBuffer = stack.mallocPointer(list.size());
-        for (String object : list) {
-            pBuffer.put(stack.UTF8Safe(object));
-        }
-        return pBuffer.rewind();
-    }
-
-    /**
      * Gets the required Extensions needed depending on what is being used
      *
      * @param useValidation       if true, an extra validation lay
      * @param requestedExtensions extensions requested by {@link me.hydos.rosella.Rosella} based on user choice and necessity
-     * @param stack               the in use {@link MemoryStack}
      * @return a {@link PointerBuffer} created from the {@link List}
      */
-    private PointerBuffer getRequiredExtensions(boolean useValidation, List<String> requestedExtensions, MemoryStack stack) {
+    private PointerBuffer getRequiredExtensions(boolean useValidation, List<String> requestedExtensions) {
+        MemoryStack stack = MemoryStack.stackGet();
         PointerBuffer extensions = stack.mallocPointer(requestedExtensions.size() + (useValidation ? 1 : 0));
         for (String requestedExtension : requestedExtensions) {
             extensions.put(stack.UTF8Safe(requestedExtension));

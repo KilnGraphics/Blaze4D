@@ -268,15 +268,15 @@ public class StateInfo {
     }
 
     @NotNull
-    public VkRect2D.Buffer getExtent(MemoryStack stack) {
-        return VkRect2D.callocStack(1, stack)
-                .offset(VkOffset2D.callocStack(stack).set(getScissorX(), getScissorY()))
-                .extent(VkExtent2D.callocStack(stack).set(getScissorWidth(), getScissorHeight()));
+    public VkRect2D.Buffer getExtent() {
+        return VkRect2D.callocStack(1)
+                .offset(VkOffset2D.callocStack().set(getScissorX(), getScissorY()))
+                .extent(VkExtent2D.callocStack().set(getScissorWidth(), getScissorHeight()));
     }
 
     @NotNull
-    public VkPipelineRasterizationStateCreateInfo getRasterizationStateCreateInfo(int polygonMode, MemoryStack stack) {
-        return VkPipelineRasterizationStateCreateInfo.callocStack(stack)
+    public VkPipelineRasterizationStateCreateInfo getRasterizationStateCreateInfo(int polygonMode) {
+        return VkPipelineRasterizationStateCreateInfo.callocStack()
                 .sType(VK10.VK_STRUCTURE_TYPE_PIPELINE_RASTERIZATION_STATE_CREATE_INFO)
                 .depthClampEnable(true)
                 .rasterizerDiscardEnable(false)
@@ -288,8 +288,8 @@ public class StateInfo {
     }
 
     @NotNull
-    public VkPipelineDepthStencilStateCreateInfo getPipelineDepthStencilStateCreateInfo(MemoryStack stack) {
-        return VkPipelineDepthStencilStateCreateInfo.callocStack(stack)
+    public VkPipelineDepthStencilStateCreateInfo getPipelineDepthStencilStateCreateInfo() {
+        return VkPipelineDepthStencilStateCreateInfo.callocStack()
                 .sType(VK10.VK_STRUCTURE_TYPE_PIPELINE_DEPTH_STENCIL_STATE_CREATE_INFO)
                 .depthTestEnable(isDepthTestEnabled())
                 .depthWriteEnable(isDepthMask())
@@ -301,8 +301,8 @@ public class StateInfo {
     }
 
     @NotNull
-    public VkPipelineColorBlendAttachmentState.Buffer getPipelineColorBlendAttachmentStates(MemoryStack stack) {
-        return VkPipelineColorBlendAttachmentState.callocStack(1, stack)
+    public VkPipelineColorBlendAttachmentState.Buffer getPipelineColorBlendAttachmentStates() {
+        return VkPipelineColorBlendAttachmentState.callocStack(1)
                 .colorWriteMask(getColorMask())
                 .blendEnable(isBlendEnabled())
                 .srcColorBlendFactor(getSrcColorBlendFactor())
@@ -314,13 +314,13 @@ public class StateInfo {
     }
 
     @NotNull
-    public VkPipelineColorBlendStateCreateInfo getPipelineColorBlendStateCreateInfo(MemoryStack stack, VkPipelineColorBlendAttachmentState.Buffer colourBlendAttachment) {
-        return VkPipelineColorBlendStateCreateInfo.callocStack(stack)
+    public VkPipelineColorBlendStateCreateInfo getPipelineColorBlendStateCreateInfo(VkPipelineColorBlendAttachmentState.Buffer colourBlendAttachment) {
+        return VkPipelineColorBlendStateCreateInfo.callocStack()
                 .sType(VK10.VK_STRUCTURE_TYPE_PIPELINE_COLOR_BLEND_STATE_CREATE_INFO)
                 .logicOpEnable(isColorLogicOpEnabled())
                 .logicOp(getColorLogicOp())
                 .pAttachments(colourBlendAttachment)
-                .blendConstants(stack.floats(0.0f, 0.0f, 0.0f, 0.0f));
+                .blendConstants(MemoryStack.stackGet().floats(0.0f, 0.0f, 0.0f, 0.0f));
     }
 
 

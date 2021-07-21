@@ -106,19 +106,21 @@ public class Renderer {
         createSyncObjects();
     }
 
-    public VkCommandBuffer beginCmdBuffer(MemoryStack stack, PointerBuffer pCommandBuffer, VulkanDevice device) {
-        VkCommandBufferAllocateInfo allocInfo = VkCommandBufferAllocateInfo.callocStack(stack)
-                .sType(VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO)
-                .level(VK_COMMAND_BUFFER_LEVEL_PRIMARY)
-                .commandPool(commandPool)
-                .commandBufferCount(1);
-        ok(vkAllocateCommandBuffers(device.rawDevice, allocInfo, pCommandBuffer));
-        VkCommandBuffer commandBuffer = new VkCommandBuffer(pCommandBuffer.get(0), device.rawDevice);
-        VkCommandBufferBeginInfo beginInfo = VkCommandBufferBeginInfo.callocStack(stack)
-                .sType(VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO)
-                .flags(VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT);
-        ok(vkBeginCommandBuffer(commandBuffer, beginInfo));
-        return commandBuffer;
+    public VkCommandBuffer beginCmdBuffer(PointerBuffer pCommandBuffer, VulkanDevice device) {
+        try (MemoryStack stack = MemoryStack.stackPush()) {
+            VkCommandBufferAllocateInfo allocInfo = VkCommandBufferAllocateInfo.callocStack(stack)
+                    .sType(VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO)
+                    .level(VK_COMMAND_BUFFER_LEVEL_PRIMARY)
+                    .commandPool(commandPool)
+                    .commandBufferCount(1);
+            ok(vkAllocateCommandBuffers(device.rawDevice, allocInfo, pCommandBuffer));
+            VkCommandBuffer commandBuffer = new VkCommandBuffer(pCommandBuffer.get(0), device.rawDevice);
+            VkCommandBufferBeginInfo beginInfo = VkCommandBufferBeginInfo.callocStack(stack)
+                    .sType(VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO)
+                    .flags(VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT);
+            ok(vkBeginCommandBuffer(commandBuffer, beginInfo));
+            return commandBuffer;
+        }
     }
 
     public void render() {

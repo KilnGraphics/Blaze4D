@@ -23,6 +23,7 @@ import org.lwjgl.vulkan.*;
 import java.nio.Buffer;
 import java.nio.ByteBuffer;
 import java.nio.LongBuffer;
+import java.util.Collection;
 import java.util.List;
 import java.util.Objects;
 import java.util.Set;
@@ -67,32 +68,16 @@ public abstract class Memory {
     /**
      * Converts a {@link List} into a {@link PointerBuffer}
      *
-     * @param list  the list to put into a {@link PointerBuffer}
-     * @param stack the current {@link MemoryStack}
+     * @param collection  the collection to put into a {@link PointerBuffer}
      * @return a valid {@link PointerBuffer}
      */
-    public static PointerBuffer asPtrBuffer(List<String> list, MemoryStack stack) {
-        PointerBuffer pBuffer = stack.mallocPointer(list.size());
-        for (String object : list) {
+    public static PointerBuffer asPtrBuffer(Collection<String> collection) {
+        MemoryStack stack = MemoryStack.stackGet();
+        PointerBuffer pBuffer = stack.mallocPointer(collection.size());
+        for (String object : collection) {
             pBuffer.put(Objects.requireNonNull(stack.UTF8Safe(object)));
         }
         return pBuffer.rewind();
-    }
-
-    /**
-     * Converts a {@link Set} into a {@link PointerBuffer}
-     *
-     * @param set   the list to put into a {@link PointerBuffer}
-     * @param stack the current {@link MemoryStack}
-     * @return a valid {@link PointerBuffer}
-     */
-    public static PointerBuffer asPtrBuffer(Set<String> set, MemoryStack stack) {
-        PointerBuffer buffer = stack.mallocPointer(set.size());
-        for (String object : set) {
-            buffer.put(stack.UTF8(object));
-        }
-
-        return buffer.rewind();
     }
 
     private long createAllocator(VkCommon common) {
@@ -229,7 +214,7 @@ public abstract class Memory {
     public void copyBuffer(long srcBuffer, long dstBuffer, int size, Renderer renderer, VulkanDevice device) {
         try (MemoryStack stack = stackPush()) {
             PointerBuffer pCommandBuffer = stack.mallocPointer(1);
-            VkCommandBuffer commandBuffer = renderer.beginCmdBuffer(stack, pCommandBuffer, device);
+            VkCommandBuffer commandBuffer = renderer.beginCmdBuffer(pCommandBuffer, device);
 
             VkBufferCopy.Buffer copyRegion = VkBufferCopy.callocStack(1, stack);
             copyRegion.size(size);

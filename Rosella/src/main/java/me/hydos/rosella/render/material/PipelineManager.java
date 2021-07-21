@@ -106,31 +106,31 @@ public class PipelineManager {
                     .module(fragShaderModule)
                     .pName(entryPoint);
 
-            VkPipelineVertexInputStateCreateInfo vertexInputInfo = vertexFormat.getPipelineVertexInputStateCreateInfo(stack);
+            VkPipelineVertexInputStateCreateInfo vertexInputInfo = vertexFormat.getPipelineVertexInputStateCreateInfo();
 
-            VkPipelineInputAssemblyStateCreateInfo inputAssembly = getPipelineInputAssemblyStateCreateInfo(topology, stack);
+            VkPipelineInputAssemblyStateCreateInfo inputAssembly = getPipelineInputAssemblyStateCreateInfo(topology);
 
-            VkViewport.Buffer viewport = getViewport(swapchain, stack);
+            VkViewport.Buffer viewport = getViewport(swapchain);
 
-            VkRect2D.Buffer scissor = stateInfo.isScissorEnabled() ? stateInfo.getExtent(stack) : getDefaultScissor(swapchain, stack);
+            VkRect2D.Buffer scissor = stateInfo.isScissorEnabled() ? stateInfo.getExtent() : getDefaultScissor(swapchain);
 
             VkPipelineViewportStateCreateInfo viewportState = VkPipelineViewportStateCreateInfo.callocStack(stack)
                     .sType(VK10.VK_STRUCTURE_TYPE_PIPELINE_VIEWPORT_STATE_CREATE_INFO)
                     .pViewports(viewport)
                     .pScissors(scissor);
 
-            VkPipelineRasterizationStateCreateInfo rasterizer = stateInfo.getRasterizationStateCreateInfo(polygonMode, stack);
+            VkPipelineRasterizationStateCreateInfo rasterizer = stateInfo.getRasterizationStateCreateInfo(polygonMode);
 
-            VkPipelineMultisampleStateCreateInfo multisampling = VkPipelineMultisampleStateCreateInfo.callocStack(stack)
+            VkPipelineMultisampleStateCreateInfo multisampling = VkPipelineMultisampleStateCreateInfo.callocStack()
                             .sType(VK10.VK_STRUCTURE_TYPE_PIPELINE_MULTISAMPLE_STATE_CREATE_INFO)
                             .sampleShadingEnable(false)
                             .rasterizationSamples(VK10.VK_SAMPLE_COUNT_1_BIT);
 
-            VkPipelineDepthStencilStateCreateInfo depthStencil = stateInfo.getPipelineDepthStencilStateCreateInfo(stack);
+            VkPipelineDepthStencilStateCreateInfo depthStencil = stateInfo.getPipelineDepthStencilStateCreateInfo();
 
-            VkPipelineColorBlendAttachmentState.Buffer colourBlendAttachment = stateInfo.getPipelineColorBlendAttachmentStates(stack);
+            VkPipelineColorBlendAttachmentState.Buffer colourBlendAttachment = stateInfo.getPipelineColorBlendAttachmentStates();
 
-            VkPipelineColorBlendStateCreateInfo colourBlending = stateInfo.getPipelineColorBlendStateCreateInfo(stack, colourBlendAttachment);
+            VkPipelineColorBlendStateCreateInfo colourBlending = stateInfo.getPipelineColorBlendStateCreateInfo(colourBlendAttachment);
 
             VkPipelineLayoutCreateInfo pipelineLayoutInfo = VkPipelineLayoutCreateInfo.callocStack(stack)
                     .sType(VK10.VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO)
@@ -169,7 +169,8 @@ public class PipelineManager {
     }
 
     // TODO: Fix once Topology is rewritten in java
-    private VkPipelineInputAssemblyStateCreateInfo getPipelineInputAssemblyStateCreateInfo(Topology topology, MemoryStack stack) {
+    private VkPipelineInputAssemblyStateCreateInfo getPipelineInputAssemblyStateCreateInfo(Topology topology) {
+        MemoryStack stack = MemoryStack.stackGet();
         return VkPipelineInputAssemblyStateCreateInfo.callocStack(stack)
                 .sType(VK10.VK_STRUCTURE_TYPE_PIPELINE_INPUT_ASSEMBLY_STATE_CREATE_INFO)
                 .topology(topology.vkType)
@@ -178,7 +179,8 @@ public class PipelineManager {
 
     // TODO: Fix once Swapchain is rewritten in java
     @NotNull
-    private VkRect2D.Buffer getDefaultScissor(Swapchain swapchain, MemoryStack stack) {
+    private VkRect2D.Buffer getDefaultScissor(Swapchain swapchain) {
+        MemoryStack stack = MemoryStack.stackGet();
         return VkRect2D.callocStack(1, stack)
                 .offset(VkOffset2D.callocStack(stack).set(0, 0))
                 .extent(swapchain.getSwapChainExtent());
@@ -186,7 +188,8 @@ public class PipelineManager {
 
     // TODO: Fix once Swapchain is rewritten in java
     @NotNull
-    private VkViewport.Buffer getViewport(Swapchain swapchain, MemoryStack stack) {
+    private VkViewport.Buffer getViewport(Swapchain swapchain) {
+        MemoryStack stack = MemoryStack.stackGet();
         return VkViewport.callocStack(1, stack)
                 .x(0.0f)
                 .y(0.0f)

@@ -88,10 +88,10 @@ public class VulkanDevice {
                     .sType(VK_STRUCTURE_TYPE_DEVICE_CREATE_INFO)
                     .pQueueCreateInfos(queueCreateInfos)
                     .pEnabledFeatures(deviceFeatures)
-                    .ppEnabledExtensionNames(asPtrBuffer(REQUIRED_EXTENSIONS, stack));
+                    .ppEnabledExtensionNames(asPtrBuffer(REQUIRED_EXTENSIONS));
 
             if (validationLayers.size() != 0) {
-                deviceCreateInfo.ppEnabledLayerNames(asPtrBuffer(validationLayers, stack));
+                deviceCreateInfo.ppEnabledLayerNames(asPtrBuffer(validationLayers));
             }
 
             PointerBuffer pDevice = stack.pointers(VK_NULL_HANDLE);

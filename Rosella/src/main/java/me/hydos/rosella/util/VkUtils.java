@@ -203,7 +203,7 @@ public class VkUtils {
     public static VkCommandBuffer beginSingleTimeCommands(Renderer renderer, VulkanDevice device) {
         MemoryStack stack = stackGet();
         PointerBuffer pCommandBuffer = stack.mallocPointer(1);
-        return renderer.beginCmdBuffer(stack, pCommandBuffer, device);
+        return renderer.beginCmdBuffer(pCommandBuffer, device);
     }
 
     public static void endSingleTimeCommands(VkCommandBuffer commandBuffer, VulkanDevice device, Renderer renderer) {
