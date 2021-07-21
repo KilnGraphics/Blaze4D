@@ -61,6 +61,7 @@ public class MinecraftUbo extends Ubo {
                 );
             }
         }
+
     }
 
     @Override
@@ -78,11 +79,10 @@ public class MinecraftUbo extends Ubo {
             PointerBuffer data = stack.mallocPointer(1);
             memory.map(uboFrames.get(currentImg).allocation(), false, data);
             ByteBuffer buffer = data.getByteBuffer(0, getSize());
-
             beginUboWrite();
             steps.forEach(addUboMemoryStep -> addUboMemoryStep.addUboMemoryStep(this, buffer));
 
-            memory.unmap(uboFrames.get(currentImg).allocation());
+//            memory.unmap(uboFrames.get(currentImg).allocation());
         }
     }
 

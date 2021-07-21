@@ -11,8 +11,8 @@ import me.hydos.rosella.render.shader.ubo.Ubo
 import me.hydos.rosella.render.swapchain.Swapchain
 import me.hydos.rosella.render.texture.Texture
 import me.hydos.rosella.render.texture.TextureManager
-import me.hydos.rosella.util.VkUtils.ok
 import me.hydos.rosella.scene.`object`.impl.SimpleObjectManager
+import me.hydos.rosella.util.VkUtils.ok
 import org.lwjgl.system.MemoryStack
 import org.lwjgl.vulkan.*
 import org.lwjgl.vulkan.VK10.*
