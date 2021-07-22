@@ -4,14 +4,14 @@
   "package": "me.hydos.blaze4d.mixin",
   "compatibilityLevel": "JAVA_16",
   "mixins": [
-    "integration.GameRendererMixin"
   ],
   "client": [
     "blaze3d.RenderSystemMixin",
     "buffers.GlStateManagerMixin",
     "debug.Sprite$AnimationMixin",
     "integration.FramebufferMixin",
-    "integration.GlDebugInfoMixin",
+    "integration.GameRendererMixin",
+    "integration.GLXMixin",
     "integration.GlDebugMixin",
     "integration.GlStateManagerMixin",
     "integration.MinecraftClientMixin",
@@ -31,7 +31,7 @@
     "texture.TextureManagerMixin",
     "texture.TextureUtilMixin",
     "vertices.BufferRendererMixin",
-    "vertices.VertexBufferMixin"
+    "vertices.VertexBufferMixin",
   ],
   "injectors": {
     "defaultRequire": 1

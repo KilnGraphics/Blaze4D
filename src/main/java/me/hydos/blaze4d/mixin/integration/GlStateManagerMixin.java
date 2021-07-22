@@ -14,6 +14,7 @@ import org.lwjgl.opengl.GL20;
 import org.lwjgl.vulkan.VK10;
 import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.Overwrite;
+import org.spongepowered.asm.mixin.Unique;
 import org.spongepowered.asm.mixin.injection.At;
 import org.spongepowered.asm.mixin.injection.Inject;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
@@ -223,11 +224,26 @@ public class GlStateManagerMixin {
     private static void getString(int glStringId, CallbackInfoReturnable<String> ci) {
         ci.setReturnValue(
                 switch (glStringId) {
-                    case GL.GL_VENDOR, GL.GL_EXTENSIONS, GL.GL_RENDERER -> "Vulkan";
-                    case GL.GL_VERSION -> "Vulkan " + Rosella.VULKAN_VERSION;
+                    case GL.GL_VENDOR -> tryParseVendorId(Blaze4D.rosella.common.device.properties.vendorId);
+                    case GL.GL_EXTENSIONS -> Blaze4D.rosella.common.device.combinedExtensionsString;
+                    case GL.GL_RENDERER -> Blaze4D.rosella.common.device.properties.deviceName;
+                    case GL.GL_VERSION -> "Vulkan API " + Blaze4D.rosella.common.device.properties.apiVersion;
                     default -> throw new IllegalStateException("Unexpected value: " + glStringId);
                 }
         );
+    }
+
+    @Unique
+    private static String tryParseVendorId(int vendorId) {
+        return switch (vendorId) {
+            case 0x10DE -> "NVIDIA Corporation";
+            case 0x1002 -> "AMD";
+            case 0x8086 -> "INTEL";
+            case 0x13B5 -> "ARM";
+            case 0x1010 -> "ImgTec";
+            case 0x5143 -> "Qualcomm";
+            default -> "Vendor unknown. Vendor ID: " + vendorId;
+        };
     }
 
     /**
