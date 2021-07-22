@@ -7,7 +7,7 @@ import org.lwjgl.system.jemalloc.JEmalloc;
 
 public class Blaze4DPreLaunch implements PreLaunchEntrypoint {
     public static final boolean DEBUG_MEMORY_ENABLED = false;
-    public static final int LWJGL_STACK_SIZE = 256; // 4mb instead of default 64kb. TODO: don't rely on a larger stack size
+    public static final int LWJGL_STACK_SIZE = 256; // 256kb instead of default 64kb. TODO: don't rely on a larger stack size
 
     @Override
     public void onPreLaunch() {
