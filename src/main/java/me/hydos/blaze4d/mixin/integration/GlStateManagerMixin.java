@@ -2,12 +2,15 @@ package me.hydos.blaze4d.mixin.integration;
 
 import com.mojang.blaze3d.platform.GlStateManager;
 import com.mojang.blaze3d.systems.RenderSystem;
+import com.sun.jna.platform.win32.GL;
 import me.hydos.blaze4d.Blaze4D;
 import me.hydos.blaze4d.api.GlobalRenderSystem;
 import me.hydos.blaze4d.api.util.ConversionUtils;
+import me.hydos.rosella.Rosella;
 import me.hydos.rosella.scene.object.impl.SimpleObjectManager;
 import me.hydos.rosella.util.Color;
 import org.lwjgl.opengl.GL13;
+import org.lwjgl.opengl.GL20;
 import org.lwjgl.vulkan.VK10;
 import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.Overwrite;
@@ -28,7 +31,8 @@ public class GlStateManagerMixin {
             "_polygonOffset",
             "_polygonMode",
             "_enablePolygonOffset",
-            "_disablePolygonOffset"
+            "_disablePolygonOffset",
+            "_viewport"
     }, at = @At("HEAD"), cancellable = true)
     private static void unimplementedGlCalls(CallbackInfo ci) {
         //TODO: IMPL
@@ -215,6 +219,17 @@ public class GlStateManagerMixin {
         ci.cancel();
     }
 
+    @Inject(method = "_getString", at = @At("HEAD"), cancellable = true)
+    private static void getString(int glStringId, CallbackInfoReturnable<String> ci) {
+        ci.setReturnValue(
+                switch (glStringId) {
+                    case GL.GL_VENDOR, GL.GL_EXTENSIONS, GL.GL_RENDERER -> "Vulkan";
+                    case GL.GL_VERSION -> "Vulkan " + Rosella.VULKAN_VERSION;
+                    default -> throw new IllegalStateException("Unexpected value: " + glStringId);
+                }
+        );
+    }
+
     /**
      * @author Blaze4D
      * @reason Clear Color Integration
@@ -225,5 +240,18 @@ public class GlStateManagerMixin {
     public static void _clearColor(float red, float green, float blue, float alpha) {
         RenderSystem.assertThread(RenderSystem::isOnRenderThreadOrInit);
         Blaze4D.rosella.renderer.lazilyClearColor(new Color(red, green, blue, alpha));
+    }
+
+    @Overwrite
+    public static int _glGenVertexArrays() {
+        return 0;
+    }
+
+    @Overwrite
+    public static void _glBindVertexArray(int i) {
+    }
+
+    @Overwrite
+    public static void _disableVertexAttribArray(int index) {
     }
 }

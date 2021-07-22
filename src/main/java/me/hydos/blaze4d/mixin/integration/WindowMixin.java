@@ -15,6 +15,8 @@ import org.lwjgl.glfw.Callbacks;
 import org.lwjgl.glfw.GLFW;
 import org.lwjgl.glfw.GLFWErrorCallback;
 import org.lwjgl.glfw.GLFWImage;
+import org.lwjgl.opengl.GL;
+import org.lwjgl.opengl.GLCapabilities;
 import org.lwjgl.system.MemoryStack;
 import org.lwjgl.system.MemoryUtil;
 import org.spongepowered.asm.mixin.Final;
@@ -23,6 +25,8 @@ import org.spongepowered.asm.mixin.Mutable;
 import org.spongepowered.asm.mixin.Shadow;
 import org.spongepowered.asm.mixin.injection.At;
 import org.spongepowered.asm.mixin.injection.Inject;
+import org.spongepowered.asm.mixin.injection.ModifyArg;
+import org.spongepowered.asm.mixin.injection.Redirect;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 import org.spongepowered.asm.mixin.injection.callback.LocalCapture;
 
@@ -97,40 +101,24 @@ public abstract class WindowMixin {
     private static void silenceGl(int error, long description, CallbackInfo ci) {
         String message = "suppressed GLFW/OpenGL error " + error + ": " + MemoryUtil.memUTF8(description);
         LOGGER.warn(message);
+        ci.cancel();
     }
 
-    @Inject(method = "<init>", at = @At("TAIL"))
-    private void initializeRosellaWindow(WindowEventHandler eventHandler, ScreenManager monitorTracker, DisplayData settings, String videoMode, String title, CallbackInfo ci) {
-        // Destroy The OpenGL Window before Minecraft Gets Too Attached
-        GLFW.glfwDestroyWindow(this.window);
+    @ModifyArg(method = "<init>", at = @At(value = "INVOKE", target = "Lorg/lwjgl/glfw/GLFW;glfwWindowHint(II)V", ordinal = 0, remap = false), index = 1)
+    private int setNoApi(int initialApi) {
+        return GLFW.GLFW_NO_API;
+    }
 
-        Blaze4D.window = new GlfwWindow(this.width, this.height, title, true);
+    @Redirect(method = "<init>", at = @At(value = "INVOKE", target = "Lorg/lwjgl/opengl/GL;createCapabilities()Lorg/lwjgl/opengl/GLCapabilities;", remap = false))
+    private GLCapabilities cancelCreateCapabilities() {
+        return null;
+    }
+
+    @Inject(method = "<init>", at = @At(value = "TAIL"))
+    private void initializeRosellaWindow(WindowEventHandler eventHandler, ScreenManager monitorTracker, DisplayData settings, String videoMode, String title, CallbackInfo ci) {
+        Blaze4D.window = new GlfwWindow.SuppliedGlfwWindow(window);
         Blaze4D.rosella = new Rosella(Blaze4D.window, "Blaze4D", Blaze4D.VALIDATION_ENABLED);
         Blaze4D.finishSetup();
-
-        Monitor monitor = monitorTracker.getMonitor(GLFW.glfwGetPrimaryMonitor());
-        this.window = Blaze4D.window.pWindow;
-        if (monitor != null) {
-            VideoMode videoMode2 = monitor.getPreferredVidMode(this.fullscreen ? this.preferredFullscreenVideoMode : Optional.empty());
-            this.windowedX = this.x = monitor.getX() + videoMode2.getWidth() / 2 - this.width / 2;
-            this.windowedY = this.y = monitor.getY() + videoMode2.getHeight() / 2 - this.height / 2;
-        } else {
-            int[] is = new int[1];
-            int[] js = new int[1];
-            GLFW.glfwGetWindowPos(this.window, is, js);
-            this.windowedX = this.x = is[0];
-            this.windowedY = this.y = js[0];
-        }
-
-        this.framebufferWidth = this.width;
-        this.framebufferHeight = this.height;
-
-        this.setMode();
-        GLFW.glfwSetFramebufferSizeCallback(this.window, this::onFramebufferResize);
-        GLFW.glfwSetWindowPosCallback(this.window, this::onMove);
-        GLFW.glfwSetWindowSizeCallback(this.window, this::onResize);
-        GLFW.glfwSetWindowFocusCallback(this.window, this::onFocus);
-        GLFW.glfwSetCursorEnterCallback(this.window, this::onEnter);
 
         try {
             AftermathHandler.initialize();
@@ -159,7 +147,7 @@ public abstract class WindowMixin {
 
     @Inject(method = "setIcon", at = @At(value = "INVOKE", target = "Lorg/lwjgl/glfw/GLFW;glfwSetWindowIcon(JLorg/lwjgl/glfw/GLFWImage$Buffer;)V", remap = false), locals = LocalCapture.CAPTURE_FAILSOFT)
     private void setIcon(InputStream icon16, InputStream icon32, CallbackInfo ci, MemoryStack memoryStack, IntBuffer intBuffer, IntBuffer intBuffer2, IntBuffer intBuffer3, GLFWImage.Buffer buffer, ByteBuffer byteBuffer, ByteBuffer byteBuffer2) {
-        GLFW.glfwSetWindowIcon(Blaze4D.window.pWindow, buffer);
+        GLFW.glfwSetWindowIcon(window, buffer);
     }
 
     @Inject(method = "close", at = @At("HEAD"), cancellable = true)

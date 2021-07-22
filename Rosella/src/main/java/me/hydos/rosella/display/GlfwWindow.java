@@ -22,11 +22,15 @@ import static org.lwjgl.vulkan.VK10.VK_NULL_HANDLE;
  */
 public class GlfwWindow extends Display {
 
-    public final long pWindow;
+    public long pWindow;
 
     // Fps Stuff
     public double previousTime = glfwGetTime();
     public int frameCount;
+
+    private GlfwWindow(){
+        super(0, 0);
+    }
 
     public GlfwWindow(int width, int height, String title, boolean canResize) {
         super(width, height);
@@ -87,8 +91,10 @@ public class GlfwWindow extends Display {
     public List<String> getRequiredExtensions() {
         PointerBuffer requiredExtensions = GLFWVulkan.glfwGetRequiredInstanceExtensions();
         ArrayList<String> extensions = new ArrayList<>();
-        for (int i = 0; i < requiredExtensions.limit(); i++) {
-            extensions.add(requiredExtensions.getStringUTF8());
+        if (requiredExtensions != null) {
+            for (int i = 0; i < requiredExtensions.limit(); i++) {
+                extensions.add(requiredExtensions.getStringUTF8());
+            }
         }
         return extensions;
     }
@@ -133,6 +139,17 @@ public class GlfwWindow extends Display {
                 glfwWaitEvents();
                 waitForNonZeroSize();
             }
+        }
+    }
+
+    public static class SuppliedGlfwWindow extends GlfwWindow {
+        public SuppliedGlfwWindow(long pWindow) {
+            this.pWindow = pWindow;
+            int[] pWidth = new int[1];
+            int[] pHeight = new int[1];
+            glfwGetWindowSize(pWindow, pWidth, pHeight);
+            this.width = pWidth[0];
+            this.height = pHeight[0];
         }
     }
 }

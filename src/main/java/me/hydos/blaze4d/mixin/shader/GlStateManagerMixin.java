@@ -1,5 +1,10 @@
 package me.hydos.blaze4d.mixin.shader;
 
+import java.nio.FloatBuffer;
+import java.nio.IntBuffer;
+import java.nio.charset.StandardCharsets;
+import java.util.List;
+
 import com.mojang.blaze3d.platform.GlStateManager;
 import com.mojang.blaze3d.systems.RenderSystem;
 import me.hydos.blaze4d.Blaze4D;
@@ -15,9 +20,6 @@ import me.hydos.rosella.scene.object.impl.SimpleObjectManager;
 import org.lwjgl.opengl.GL20;
 import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.Overwrite;
-
-import java.nio.charset.StandardCharsets;
-import java.util.List;
 
 /**
  * This Mixin handles the interactions between Minecraft shaders and GL programs and passes it onto rosella
@@ -204,5 +206,79 @@ public class GlStateManagerMixin {
     private static Resource shaderSrcToResource(List<String> shaderSrc) {
         byte[] shaderBytes = String.join("\n", shaderSrc).getBytes(StandardCharsets.UTF_8);
         return new ByteArrayResource(shaderBytes);
+    }
+
+    @Overwrite
+    public static void glCompileShader(int shader) {
+    }
+
+    @Overwrite
+    public static int _glGetUniformLocation(int program, CharSequence name) {
+        return 0;
+    }
+
+    @Overwrite
+    public static void glDeleteShader(int shader) {
+    }
+
+    @Overwrite
+    public static void glDeleteProgram(int program) {
+    }
+
+    @Overwrite
+    public static void _glUniform1(int location, IntBuffer value) {
+    }
+
+    @Overwrite
+    public static void _glUniform1i(int location, int value) {
+    }
+
+    @Overwrite
+    public static void _glUniform1(int location, FloatBuffer value) {
+    }
+
+    @Overwrite
+    public static void _glUniform2(int location, IntBuffer value) {
+    }
+
+    @Overwrite
+    public static void _glUniform2(int location, FloatBuffer value) {
+    }
+
+    @Overwrite
+    public static void _glUniform3(int location, IntBuffer value) {
+    }
+
+    @Overwrite
+    public static void _glUniform3(int location, FloatBuffer value) {
+    }
+
+    @Overwrite
+    public static void _glUniform4(int location, IntBuffer value) {
+    }
+
+    @Overwrite
+    public static void _glUniform4(int location, FloatBuffer value) {
+    }
+
+    @Overwrite
+    public static void _glUniformMatrix2(int location, boolean transpose, FloatBuffer value) {
+    }
+
+    @Overwrite
+    public static void _glUniformMatrix3(int location, boolean transpose, FloatBuffer value) {
+    }
+
+    @Overwrite
+    public static void _glUniformMatrix4(int location, boolean transpose, FloatBuffer value) {
+    }
+
+    @Overwrite
+    public static int _glGetAttribLocation(int program, CharSequence name) {
+        return 0;
+    }
+
+    @Overwrite
+    public static void _glUseProgram(int program) {
     }
 }
