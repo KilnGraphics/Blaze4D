@@ -1,8 +1,7 @@
 package me.hydos.rosella.render.texture;
 
-import it.unimi.dsi.fastutil.ints.IntArrayPriorityQueue;
-import it.unimi.dsi.fastutil.ints.IntPriorityQueue;
-import it.unimi.dsi.fastutil.ints.IntPriorityQueues;
+import it.unimi.dsi.fastutil.ints.*;
+import me.hydos.rosella.Rosella;
 import me.hydos.rosella.render.renderer.Renderer;
 import me.hydos.rosella.util.VkUtils;
 import me.hydos.rosella.vkobjects.VkCommon;
@@ -20,7 +19,7 @@ public class TextureManager {
 
     private final VkCommon common;
 
-    private final Map<Integer, Texture> textureMap = new HashMap<>();
+    private final Int2ObjectMap<Texture> textureMap = new Int2ObjectOpenHashMap<>();
     private final Map<SamplerCreateInfo, Map<Integer, TextureSampler>> samplerCache = new HashMap<>();
     private final Set<Texture> preparedTextures = new HashSet<>();
     private final IntPriorityQueue reusableTexIds = IntPriorityQueues.synchronize(new IntArrayPriorityQueue());
@@ -66,9 +65,18 @@ public class TextureManager {
     }
 
     public void createTexture(Renderer renderer, int textureId, int width, int height, int imgFormat) {
+        Texture currentTexture = textureMap.get(textureId);
+        if (currentTexture != null) {
+            if (currentTexture.getImageFormat() != imgFormat || currentTexture.getWidth() != width || currentTexture.getHeight() != height) {
+                currentTexture.getTextureImage().free(common.device, common.memory);
+            } else {
+                // we can use the old texture if it satisfies the requirements
+                return;
+            }
+        }
         TextureImage textureImage = VkUtils.createTextureImage(renderer, common.memory, common.device, width, height, imgFormat);
         textureImage.setView(VkUtils.createTextureImageView(common.device, imgFormat, textureImage.pointer()));
-        textureMap.put(textureId, new Texture(imgFormat, width, height, textureImage, null));
+        textureMap.put(textureId, new Texture(imgFormat, width, height, textureImage, 0));
     }
 
     public void setTextureSampler(int textureId, int textureNo, SamplerCreateInfo samplerCreateInfo) {
