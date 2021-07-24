@@ -14,33 +14,15 @@ import net.minecraft.util.Mth;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
+import java.nio.ByteBuffer;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 
 public class MinecraftShaderProgram extends RawShaderProgram {
-
-    public static final Map<String, MinecraftUbo.AddUboMemoryStep> UBO_MEMORY_STEP_MAP;
     public static final Map<Integer, Integer> UNIFORM_SIZES;
 
     static {
-        UBO_MEMORY_STEP_MAP = new ImmutableMap.Builder<String, MinecraftUbo.AddUboMemoryStep>()
-                .put("ModelViewMat", MinecraftUbo::addViewTransformMatrix)
-                .put("ProjMat", MinecraftUbo::addProjectionMatrix)
-                .put("ColorModulator", MinecraftUbo::addShaderColor)
-                .put("FogStart", MinecraftUbo::addFogStart)
-                .put("FogEnd", MinecraftUbo::addFogEnd)
-                .put("FogColor", MinecraftUbo::addFogColor)
-                .put("TextureMat", MinecraftUbo::addTextureMatrix)
-                .put("GameTime", MinecraftUbo::addGameTime)
-                .put("ScreenSize", MinecraftUbo::addScreenSize)
-                .put("LineWidth", MinecraftUbo::addLineWidth)
-                .put("ChunkOffset", MinecraftUbo::addChunkOffset)
-                .put("Light0_Direction", MinecraftUbo::addLightDirections0)
-                .put("Light1_Direction", MinecraftUbo::addLightDirections1)
-                .put("EndPortalLayers", MinecraftUbo::addEndPortalLayers)
-                .build();
-
         UNIFORM_SIZES = new ImmutableMap.Builder<Integer, Integer>()
                 .put(0, Integer.BYTES)
                 .put(1, 2 * Integer.BYTES)
@@ -51,7 +33,7 @@ public class MinecraftShaderProgram extends RawShaderProgram {
                 .put(6, 3 * Float.BYTES)
                 .put(7, 4 * Float.BYTES)
                 .put(10, 4 * 4 * Float.BYTES)
-                .put(11, Integer.BYTES)
+//                .put(11, Integer.BYTES)
                 .build();
     }
 
@@ -81,21 +63,7 @@ public class MinecraftShaderProgram extends RawShaderProgram {
         return types.toArray(PoolObjectInfo[]::new);
     }
 
-    public MinecraftUbo createMinecraftUbo(@NotNull Memory memory, Material material) {
-        List<MinecraftUbo.AddUboMemoryStep> steps = new ArrayList<>();
-        int size = 0;
-
-        for (Uniform uniform : uniforms) {
-            MinecraftUbo.AddUboMemoryStep step = UBO_MEMORY_STEP_MAP.get(uniform.getName());
-
-            if (step == null) {
-                throw new RuntimeException("something bad happened: uniforms are " + uniforms);
-            }
-
-            size += UNIFORM_SIZES.get(uniform.getType());
-            steps.add(step);
-        }
-
-        return new MinecraftUbo(memory, material, steps, Mth.roundToward(size, 16));
+    public MinecraftUbo createMinecraftUbo(@NotNull Memory memory, Material material, ByteBuffer shaderUbo) {
+        return new MinecraftUbo(memory, material, shaderUbo);
     }
 }

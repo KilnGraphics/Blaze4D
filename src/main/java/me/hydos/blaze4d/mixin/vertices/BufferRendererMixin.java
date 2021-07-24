@@ -25,12 +25,6 @@ public class BufferRendererMixin {
      */
     @Overwrite
     public static void end(BufferBuilder bufferBuilder) {
-        Matrix4f projMatrix = new Matrix4f(GlobalRenderSystem.projectionMatrix);
-        Matrix4f modelViewMatrix = new Matrix4f(GlobalRenderSystem.modelViewMatrix);
-        Vector3f chunkOffset = new Vector3f(GlobalRenderSystem.chunkOffset);
-        com.mojang.math.Vector3f shaderLightDirections0 = GlobalRenderSystem.shaderLightDirections0.copy();
-        com.mojang.math.Vector3f shaderLightDirections1 = GlobalRenderSystem.shaderLightDirections1.copy();
-
         Pair<BufferBuilder.DrawState, ByteBuffer> drawData = bufferBuilder.popNextBuffer();
         BufferBuilder.DrawState drawState = drawData.getFirst();
         ByteBuffer originalBuffer = drawData.getSecond();
@@ -53,15 +47,11 @@ public class BufferRendererMixin {
                     GlobalRenderSystem.activeShader,
                     GlobalRenderSystem.createTextureArray(),
                     GlobalRenderSystem.currentStateInfo.snapshot(),
-                    projMatrix,
-                    modelViewMatrix,
-                    chunkOffset,
-                    shaderLightDirections0,
-                    shaderLightDirections1,
                     drawState.format(),
                     drawState.mode(),
                     Blaze4D.rosella
             );
+            GlobalRenderSystem.updateUniforms();
         }
     }
 

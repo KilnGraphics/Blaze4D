@@ -28,13 +28,6 @@ public abstract class RenderSystemMixin {
     @Nullable
     private static ShaderInstance shader;
 
-    @Shadow
-    private static PoseStack modelViewStack;
-
-    @Shadow
-    @Final
-    private static Vector3f[] shaderLightDirections;
-
     /**
      * @author Blaze4D
      * @reason To Integrate Shader Programs
@@ -48,16 +41,5 @@ public abstract class RenderSystemMixin {
         RenderSystemMixin.shader = result;
         RawShaderProgram rawProgram = GlobalRenderSystem.SHADER_PROGRAM_MAP.get(RenderSystemMixin.shader.getId());
         GlobalRenderSystem.activeShader = ((SimpleObjectManager) Blaze4D.rosella.objectManager).shaderManager.getOrCreateShader(rawProgram);
-    }
-
-    @Inject(method = "applyModelViewMatrix", at = @At("HEAD"))
-    private static void setOurModelViewMatrix(CallbackInfo ci) {
-        GlobalRenderSystem.modelViewMatrix = ConversionUtils.mcToJomlMatrix(modelViewStack.last().pose());
-    }
-
-    @Inject(method = "setupShaderLights", at = @At("TAIL"))
-    private static void setShaderLights(ShaderInstance shader, CallbackInfo ci) {
-        GlobalRenderSystem.shaderLightDirections0 = shaderLightDirections[0];
-        GlobalRenderSystem.shaderLightDirections1 = shaderLightDirections[1];
     }
 }

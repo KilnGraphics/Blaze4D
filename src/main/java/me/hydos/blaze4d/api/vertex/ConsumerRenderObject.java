@@ -1,5 +1,6 @@
 package me.hydos.blaze4d.api.vertex;
 
+import me.hydos.blaze4d.api.GlobalRenderSystem;
 import me.hydos.blaze4d.api.Materials;
 import me.hydos.blaze4d.api.shader.MinecraftShaderProgram;
 import me.hydos.blaze4d.api.shader.MinecraftUbo;
@@ -36,11 +37,6 @@ public class ConsumerRenderObject implements Renderable {
             ShaderProgram shader,
             Texture[] textures,
             StateInfo stateInfo,
-            Matrix4f projMatrix,
-            Matrix4f viewMatrix,
-            Vector3f chunkOffset,
-            com.mojang.math.Vector3f shaderLightDirections0,
-            com.mojang.math.Vector3f shaderLightDirections1,
             com.mojang.blaze3d.vertex.VertexFormat mcFormat,
             com.mojang.blaze3d.vertex.VertexFormat.Mode mcDrawMode,
             Rosella rosella) {
@@ -51,8 +47,7 @@ public class ConsumerRenderObject implements Renderable {
         this.textures = textures;
         this.stateInfo = stateInfo;
         Material material = getMaterial(mcFormat, mcDrawMode);
-        instanceInfo = new InstanceInfo(((MinecraftShaderProgram) shader.getRaw()).createMinecraftUbo(rosella.common.memory, material), material);
-        ((MinecraftUbo) instanceInfo.ubo()).setUniforms(projMatrix, viewMatrix, chunkOffset, shaderLightDirections0, shaderLightDirections1);
+        instanceInfo = new InstanceInfo(((MinecraftShaderProgram) shader.getRaw()).createMinecraftUbo(rosella.common.memory, material, GlobalRenderSystem.getShaderUbo()), material);
     }
 
     private Material getMaterial(com.mojang.blaze3d.vertex.VertexFormat mcFormat, com.mojang.blaze3d.vertex.VertexFormat.Mode mcDrawMode) {

@@ -27,7 +27,6 @@ import java.nio.ByteBuffer;
  */
 @Mixin(VertexBuffer.class)
 public class VertexBufferMixin {
-
     @Unique
     private RenderInfo currentRenderInfo;
     @Unique
@@ -68,13 +67,8 @@ public class VertexBufferMixin {
      */
     @Overwrite
     public void _drawWithShader(com.mojang.math.Matrix4f mcModelViewMatrix, com.mojang.math.Matrix4f mcProjectionMatrix, ShaderInstance shader) {
-        Matrix4f projMatrix = ConversionUtils.mcToJomlProjectionMatrix(mcProjectionMatrix);
-        Matrix4f modelViewMatrix = ConversionUtils.mcToJomlMatrix(mcModelViewMatrix);
-        Vector3f chunkOffset = new Vector3f(GlobalRenderSystem.chunkOffset);
-        com.mojang.math.Vector3f shaderLightDirections0 = GlobalRenderSystem.shaderLightDirections0.copy();
-        com.mojang.math.Vector3f shaderLightDirections1 = GlobalRenderSystem.shaderLightDirections1.copy();
-
-        addBufferToRosella(projMatrix, modelViewMatrix, chunkOffset, shaderLightDirections0, shaderLightDirections1);
+        GlobalRenderSystem.updateUniforms();
+        addBufferToRosella();
     }
 
     /**
@@ -83,17 +77,11 @@ public class VertexBufferMixin {
      */
     @Overwrite
     public void drawChunkLayer() {
-        Matrix4f projMatrix = new Matrix4f(GlobalRenderSystem.tmpProjectionMatrix);
-        Matrix4f modelViewMatrix = new Matrix4f(GlobalRenderSystem.tmpModelViewMatrix);
-        Vector3f chunkOffset = new Vector3f(GlobalRenderSystem.chunkOffset);
-        com.mojang.math.Vector3f shaderLightDirections0 = GlobalRenderSystem.shaderLightDirections0.copy();
-        com.mojang.math.Vector3f shaderLightDirections1 = GlobalRenderSystem.shaderLightDirections1.copy();
-
-        addBufferToRosella(projMatrix, modelViewMatrix, chunkOffset, shaderLightDirections0, shaderLightDirections1);
+        addBufferToRosella();
     }
 
     @Unique
-    private void addBufferToRosella(Matrix4f projMatrix, Matrix4f modelViewMatrix, Vector3f chunkOffset, com.mojang.math.Vector3f shaderLightDirections0, com.mojang.math.Vector3f shaderLightDirections1) {
+    private void addBufferToRosella() {
         if (currentRenderInfo != null && drawState != null) {
             GlobalRenderSystem.uploadPreCreatedObject(
                     currentRenderInfo,
@@ -101,11 +89,6 @@ public class VertexBufferMixin {
                     GlobalRenderSystem.activeShader,
                     GlobalRenderSystem.createTextureArray(),
                     GlobalRenderSystem.currentStateInfo.snapshot(),
-                    projMatrix,
-                    modelViewMatrix,
-                    chunkOffset,
-                    shaderLightDirections0,
-                    shaderLightDirections1,
                     drawState.format(),
                     drawState.mode(),
                     Blaze4D.rosella

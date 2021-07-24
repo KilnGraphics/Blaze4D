@@ -1,48 +1,79 @@
 package me.hydos.blaze4d.mixin.shader;
 
-import org.spongepowered.asm.mixin.Mixin;
-import org.spongepowered.asm.mixin.injection.At;
-import org.spongepowered.asm.mixin.injection.Inject;
-import org.spongepowered.asm.mixin.injection.Redirect;
-import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
-import com.mojang.blaze3d.shaders.Uniform;
+import java.nio.ByteBuffer;
 import java.nio.FloatBuffer;
 import java.nio.IntBuffer;
 
-@Mixin(Uniform.class)
-public abstract class GlUniformMixin {
+import com.mojang.blaze3d.shaders.AbstractUniform;
+import com.mojang.blaze3d.shaders.Uniform;
+import com.mojang.math.Matrix4f;
+import me.hydos.blaze4d.api.shader.VulkanUniformBuffer;
+import me.hydos.blaze4d.api.util.ConversionUtils;
+import org.lwjgl.system.MemoryUtil;
+import org.spongepowered.asm.mixin.Mixin;
+import org.spongepowered.asm.mixin.Shadow;
+import org.spongepowered.asm.mixin.Unique;
+import org.spongepowered.asm.mixin.injection.At;
+import org.spongepowered.asm.mixin.injection.Inject;
+import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 
-//    @Redirect(method = "<init>", at = @At(value = "INVOKE", target = "Lorg/lwjgl/system/MemoryUtil;memAllocInt(I)Ljava/nio/IntBuffer;"))
-//    private IntBuffer redirectIntAllocation(int size) {
-//        return null;
-//    }
-//
-//    @Redirect(method = "<init>", at = @At(value = "INVOKE", target = "Lorg/lwjgl/system/MemoryUtil;memAllocFloat(I)Ljava/nio/FloatBuffer;"))
-//    private FloatBuffer redirectFloatAllocation(int size) {
-//        return null;
-//    }
-//
-//    @Inject(method = "close", at = @At("HEAD"), cancellable = true)
-//    private void noopClose(CallbackInfo ci) {
-//        ci.cancel();
-//    }
-//
-//    @Inject(method = {
-//            "set(F)V",
-//            "set([F)V",
-//            "set(FF)V",
-//            "set(FFF)V",
-//            "set(FFFF)V",
-//            "set(FFFFFF)V",
-//            "set(FFFFFFFF)V",
-//            "set(FFFFFFFFFFFF)V",
-//            "set(FFFFFFFFFFFFFFFF)V",
-//            "method_35653",
-//            "setForDataType(FFFF)V",
-//            "set(Lnet/minecraft/util/math/Vec3f;)V",
-//            "set(Lnet/minecraft/util/math/Vector4f;)V"
-//    }, at = @At(value = "INVOKE", target = "Ljava/nio/FloatBuffer;put(IF)Ljava/nio/FloatBuffer;"), cancellable = true)
-//    private void redirectFloatPut(CallbackInfo ci) {
-//        ci.cancel();
-//    }
+@Mixin(Uniform.class)
+public abstract class GlUniformMixin extends AbstractUniform implements VulkanUniformBuffer {
+    @Unique
+    private ByteBuffer writeLocation;
+
+    @Shadow
+    private int type;
+
+    @Shadow
+    private IntBuffer intValues;
+
+    @Shadow
+    private FloatBuffer floatValues;
+
+    @Shadow
+    private String name;
+
+    @Shadow
+    private boolean dirty;
+
+    @Override
+    public void writeLocation(ByteBuffer buffer) {
+        writeLocation = buffer;
+    }
+
+    @Inject(method = "upload", at = @At("HEAD"), cancellable = true)
+    public void uploadToRosellaBuffer(CallbackInfo ci) {
+        if (writeLocation == null) {
+            return;
+        }
+
+        this.dirty = false;
+        if (this.type <= 3) {
+            MemoryUtil.memCopy(MemoryUtil.memAddress(intValues), MemoryUtil.memAddress(writeLocation), (long) (type + 1) * Integer.BYTES);
+        } else if (this.type <= 7) {
+            MemoryUtil.memCopy(MemoryUtil.memAddress(floatValues), MemoryUtil.memAddress(writeLocation), (long) (type - 3) * Float.BYTES);
+        } else {
+            if (this.type > 10) {
+                return;
+            }
+            MemoryUtil.memCopy(MemoryUtil.memAddress(floatValues), MemoryUtil.memAddress(writeLocation), (long) Math.pow(type - 6, 2) * Float.BYTES);
+        }
+        ci.cancel();
+    }
+
+    @Override
+    public void set(Matrix4f matrix4f) {
+        org.joml.Matrix4f matrix;
+        if (this.name.equals("ProjMat")) {
+             matrix = ConversionUtils.mcToJomlProjectionMatrix(matrix4f);
+        } else {
+            matrix = ConversionUtils.mcToJomlMatrix(matrix4f);
+        }
+        matrix.get(floatValues);
+        markDirty();
+    }
+
+    @Shadow
+    public abstract void markDirty();
 }

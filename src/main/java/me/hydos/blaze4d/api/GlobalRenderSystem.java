@@ -1,10 +1,19 @@
 package me.hydos.blaze4d.api;
 
+import com.mojang.blaze3d.platform.Window;
+import com.mojang.blaze3d.shaders.Uniform;
+import com.mojang.blaze3d.systems.RenderSystem;
 import com.mojang.blaze3d.vertex.VertexFormat;
 import it.unimi.dsi.fastutil.ints.Int2ObjectOpenHashMap;
-import it.unimi.dsi.fastutil.objects.*;
+import it.unimi.dsi.fastutil.objects.Object2IntMap;
+import it.unimi.dsi.fastutil.objects.Object2IntOpenHashMap;
+import it.unimi.dsi.fastutil.objects.Object2ObjectLinkedOpenHashMap;
+import it.unimi.dsi.fastutil.objects.ObjectIntImmutablePair;
+import it.unimi.dsi.fastutil.objects.ObjectIntPair;
 import me.hydos.blaze4d.Blaze4D;
+import me.hydos.blaze4d.api.shader.MinecraftShaderProgram;
 import me.hydos.blaze4d.api.shader.ShaderContext;
+import me.hydos.blaze4d.api.shader.VulkanUniformBuffer;
 import me.hydos.blaze4d.api.vertex.ConsumerRenderObject;
 import me.hydos.blaze4d.mixin.shader.ShaderAccessor;
 import me.hydos.rosella.Rosella;
@@ -17,8 +26,6 @@ import me.hydos.rosella.render.shader.ShaderProgram;
 import me.hydos.rosella.render.texture.Texture;
 import me.hydos.rosella.render.texture.TextureManager;
 import me.hydos.rosella.scene.object.impl.SimpleObjectManager;
-import org.joml.Matrix4f;
-import org.joml.Vector3f;
 import org.lwjgl.system.MemoryUtil;
 import org.lwjgl.vulkan.VK10;
 
@@ -28,6 +35,9 @@ import java.util.Collections;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.CompletableFuture;
+
+import net.minecraft.client.Minecraft;
+import net.minecraft.client.renderer.ShaderInstance;
 
 /**
  * Used to make bits of the code easier to manage.
@@ -69,18 +79,6 @@ public class GlobalRenderSystem {
             VK10.VK_LOGIC_OP_COPY,
             1.0f
     );
-
-    // Uniforms FIXME FIXME FIXME: to add support for custom uniforms and add support for mods like iris & lambdynamic lights, we need to do this
-    // TODO: Custom uniforms are complete, but support for stuff like lambdynamic lights and iris is needed
-    public static Matrix4f projectionMatrix = new Matrix4f();
-    public static Matrix4f modelViewMatrix = new Matrix4f();
-    public static Vector3f chunkOffset = new Vector3f();
-    public static com.mojang.math.Vector3f shaderLightDirections0 = new com.mojang.math.Vector3f();
-    public static com.mojang.math.Vector3f shaderLightDirections1 = new com.mojang.math.Vector3f();
-
-    // FIXME: dont rely on these
-    public static Matrix4f tmpProjectionMatrix = new Matrix4f();
-    public static Matrix4f tmpModelViewMatrix = new Matrix4f();
 
     // Captured Shader for more dynamic uniforms and samplers
     public static ShaderAccessor blaze4d$capturedShaderProgram = null;
@@ -141,8 +139,7 @@ public class GlobalRenderSystem {
 
     public static void uploadAsyncCreatableObject(ManagedBuffer<ByteBuffer> vertexBufferSource, ManagedBuffer<ByteBuffer> indexBufferSource,
                                     int indexCount, me.hydos.rosella.render.vertex.VertexFormat format, ShaderProgram shader,
-                                    Texture[] textures, StateInfo stateInfo, Matrix4f projMatrix, Matrix4f viewMatrix, Vector3f chunkOffset,
-                                    com.mojang.math.Vector3f shaderLightDirections0, com.mojang.math.Vector3f shaderLightDirections1,
+                                    Texture[] textures, StateInfo stateInfo,
                                     VertexFormat mcFormat, VertexFormat.Mode mcDrawMode, Rosella rosella) {
 
         if (shader == null) return; // TODO: designate thread pool for this maybe
@@ -152,11 +149,7 @@ public class GlobalRenderSystem {
                 shader,
                 textures,
                 stateInfo,
-                projMatrix,
-                viewMatrix,
-                chunkOffset,
-                shaderLightDirections0,
-                shaderLightDirections1,
+
                 mcFormat,
                 mcDrawMode,
                 rosella
@@ -165,9 +158,7 @@ public class GlobalRenderSystem {
     }
 
     public static void uploadPreCreatedObject(RenderInfo renderInfo, me.hydos.rosella.render.vertex.VertexFormat format,
-                                    ShaderProgram shader, Texture[] textures, StateInfo stateInfo, Matrix4f projMatrix,
-                                    Matrix4f viewMatrix, Vector3f chunkOffset, com.mojang.math.Vector3f shaderLightDirections0,
-                                    com.mojang.math.Vector3f shaderLightDirections1, VertexFormat mcFormat, VertexFormat.Mode mcDrawMode,
+                                    ShaderProgram shader, Texture[] textures, StateInfo stateInfo, VertexFormat mcFormat, VertexFormat.Mode mcDrawMode,
                                     Rosella rosella) {
 
         if (shader == null) return;
@@ -177,15 +168,11 @@ public class GlobalRenderSystem {
                 shader,
                 textures,
                 stateInfo,
-                projMatrix,
-                viewMatrix,
-                chunkOffset,
-                shaderLightDirections0,
-                shaderLightDirections1,
                 mcFormat,
                 mcDrawMode,
                 rosella
         );
+
         currentFrameObjects.add(renderObject);
     }
 
@@ -241,4 +228,64 @@ public class GlobalRenderSystem {
         return new ObjectIntImmutablePair<>(new ManagedBuffer<>(MemoryUtil.memByteBuffer(indices), true), indexCount);
     }
 
+    public static void updateUniforms() {
+        ShaderInstance shaderInstance = RenderSystem.getShader();
+        assert shaderInstance != null;
+        if (shaderInstance.MODEL_VIEW_MATRIX != null) {
+            shaderInstance.MODEL_VIEW_MATRIX.set(RenderSystem.getModelViewMatrix());
+        }
+
+        if (shaderInstance.PROJECTION_MATRIX != null) {
+            shaderInstance.PROJECTION_MATRIX.set(RenderSystem.getProjectionMatrix());
+        }
+
+        if (shaderInstance.COLOR_MODULATOR != null) {
+            shaderInstance.COLOR_MODULATOR.set(RenderSystem.getShaderColor());
+        }
+
+        if (shaderInstance.FOG_START != null) {
+            shaderInstance.FOG_START.set(RenderSystem.getShaderFogStart());
+        }
+
+        if (shaderInstance.FOG_END != null) {
+            shaderInstance.FOG_END.set(RenderSystem.getShaderFogEnd());
+        }
+
+        if (shaderInstance.FOG_COLOR != null) {
+            shaderInstance.FOG_COLOR.set(RenderSystem.getShaderFogColor());
+        }
+
+        if (shaderInstance.TEXTURE_MATRIX != null) {
+            shaderInstance.TEXTURE_MATRIX.set(RenderSystem.getTextureMatrix());
+        }
+
+        if (shaderInstance.GAME_TIME != null) {
+            shaderInstance.GAME_TIME.set(RenderSystem.getShaderGameTime());
+        }
+
+        if (shaderInstance.SCREEN_SIZE != null) {
+            Window window = Minecraft.getInstance().getWindow();
+            shaderInstance.SCREEN_SIZE.set((float)window.getWidth(), (float)window.getHeight());
+        }
+
+        if (shaderInstance.LINE_WIDTH != null) {
+            shaderInstance.LINE_WIDTH.set(RenderSystem.getShaderLineWidth());
+        }
+
+        RenderSystem.setupShaderLights(shaderInstance);
+    }
+
+    public static ByteBuffer getShaderUbo() {
+        int size = 0;
+        int totalSize = ((ShaderAccessor) RenderSystem.getShader()).blaze4d$getUniforms().stream().map(Uniform::getType).map(MinecraftShaderProgram.UNIFORM_SIZES::get).reduce(0, Integer::sum);
+        ByteBuffer mainBuffer = MemoryUtil.memAlloc(totalSize);
+        for(Uniform uniform : ((ShaderAccessor) RenderSystem.getShader()).blaze4d$getUniforms()) {
+            int uniformSize = MinecraftShaderProgram.UNIFORM_SIZES.get(uniform.getType());
+            ByteBuffer writeLocation = MemoryUtil.memSlice(mainBuffer, size, uniformSize);
+            ((VulkanUniformBuffer) uniform).writeLocation(writeLocation);
+            uniform.upload();
+            size += uniformSize;
+        }
+        return mainBuffer;
+    }
 }

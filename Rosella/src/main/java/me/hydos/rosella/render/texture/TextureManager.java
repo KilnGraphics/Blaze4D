@@ -1,7 +1,10 @@
 package me.hydos.rosella.render.texture;
 
-import it.unimi.dsi.fastutil.ints.*;
-import me.hydos.rosella.Rosella;
+import it.unimi.dsi.fastutil.ints.Int2ObjectMap;
+import it.unimi.dsi.fastutil.ints.Int2ObjectOpenHashMap;
+import it.unimi.dsi.fastutil.ints.IntArrayPriorityQueue;
+import it.unimi.dsi.fastutil.ints.IntPriorityQueue;
+import it.unimi.dsi.fastutil.ints.IntPriorityQueues;
 import me.hydos.rosella.render.renderer.Renderer;
 import me.hydos.rosella.util.VkUtils;
 import me.hydos.rosella.vkobjects.VkCommon;
@@ -76,7 +79,7 @@ public class TextureManager {
         }
         TextureImage textureImage = VkUtils.createTextureImage(renderer, common.memory, common.device, width, height, imgFormat);
         textureImage.setView(VkUtils.createTextureImageView(common.device, imgFormat, textureImage.pointer()));
-        textureMap.put(textureId, new Texture(imgFormat, width, height, textureImage, 0));
+        textureMap.put(textureId, new Texture(imgFormat, width, height, textureImage, VK10.VK_NULL_HANDLE));
     }
 
     public void setTextureSampler(int textureId, int textureNo, SamplerCreateInfo samplerCreateInfo) {

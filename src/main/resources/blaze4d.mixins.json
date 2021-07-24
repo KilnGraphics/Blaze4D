@@ -18,20 +18,18 @@
     "integration.VideoWarningManagerMixin",
     "integration.WindowFramebufferMixin",
     "integration.WindowMixin",
-    "matrices.RenderSystemMixin",
     "shader.GlStateManagerMixin",
     "shader.GlUniformMixin",
     "shader.RenderSystemMixin",
     "shader.ShaderAccessor",
     "shader.ShaderMixin",
-    "shader.WorldRendererMixin",
     "texture.LightmapTextureManagerMixin",
     "texture.NativeImageMixin",
     "texture.RenderSystemMixin",
     "texture.TextureManagerMixin",
     "texture.TextureUtilMixin",
     "vertices.BufferRendererMixin",
-    "vertices.VertexBufferMixin",
+    "vertices.VertexBufferMixin"
   ],
   "injectors": {
     "defaultRequire": 1
