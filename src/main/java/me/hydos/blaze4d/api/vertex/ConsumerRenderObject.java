@@ -47,6 +47,7 @@ public class ConsumerRenderObject implements Renderable {
         this.textures = textures;
         this.stateInfo = stateInfo;
         Material material = getMaterial(mcFormat, mcDrawMode);
+        // FIXME: we want all of the processing to happen before the constructor, so do getShaderUbo outside of here and pass the buffer in or something
         instanceInfo = new InstanceInfo(((MinecraftShaderProgram) shader.getRaw()).createMinecraftUbo(rosella.common.memory, material, GlobalRenderSystem.getShaderUbo()), material);
     }
 

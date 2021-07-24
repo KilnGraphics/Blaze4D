@@ -11,9 +11,9 @@
     "debug.Sprite$AnimationMixin",
     "integration.FramebufferMixin",
     "integration.GameRendererMixin",
-    "integration.GLXMixin",
     "integration.GlDebugMixin",
     "integration.GlStateManagerMixin",
+    "integration.GLXMixin",
     "integration.MinecraftClientMixin",
     "integration.VideoWarningManagerMixin",
     "integration.WindowFramebufferMixin",
@@ -29,7 +29,8 @@
     "texture.TextureManagerMixin",
     "texture.TextureUtilMixin",
     "vertices.BufferRendererMixin",
-    "vertices.VertexBufferMixin"
+    "vertices.VertexBufferMixin",
+    "vertices.WorldRendererMixin"
   ],
   "injectors": {
     "defaultRequire": 1
