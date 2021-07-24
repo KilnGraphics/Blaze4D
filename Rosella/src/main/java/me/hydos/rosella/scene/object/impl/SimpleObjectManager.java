@@ -1,7 +1,6 @@
 package me.hydos.rosella.scene.object.impl;
 
 import it.unimi.dsi.fastutil.Pair;
-import it.unimi.dsi.fastutil.objects.Object2ObjectLinkedOpenHashMap;
 import it.unimi.dsi.fastutil.objects.ObjectArrayList;
 import it.unimi.dsi.fastutil.objects.ObjectObjectImmutablePair;
 import me.hydos.rosella.Rosella;
@@ -21,7 +20,6 @@ import me.hydos.rosella.vkobjects.VkCommon;
 
 import java.util.ArrayList;
 import java.util.List;
-import java.util.Map;
 import java.util.concurrent.Future;
 
 /**
@@ -53,14 +51,14 @@ public class SimpleObjectManager implements ObjectManager {
     }
 
     @Override
-    public void addObject(Renderable obj) {
+    public Renderable addObject(Renderable obj) {
         obj.onAddedToScene(rosella);
         renderObjects.add(new ObjectObjectImmutablePair<>(obj.getRenderInfo(), obj.getInstanceInfo()));
+        return obj;
     }
 
     @Override
     public Material registerMaterial(Material material) {
-        material.loadTextures(this, rosella); //TODO: ew ew ew ew ew ew ew ew ew ew ew ew ew ew ew ew ew ew ew ew ew ew ew ew ew ew
         unprocessedMaterials.add(material);
         return material;
     }
@@ -73,10 +71,10 @@ public class SimpleObjectManager implements ObjectManager {
     @Override
     public void submitMaterials() {
         for (Material material : unprocessedMaterials) {
-            if (material.getShader().getRaw().getDescriptorSetLayout() == 0L) {
-                material.getShader().getRaw().createDescriptorSetLayout();
+            if (material.getShaderProgram().getRaw().getDescriptorSetLayout() == 0L) {
+                material.getShaderProgram().getRaw().createDescriptorSetLayout();
             }
-            material.setPipeline(pipelineManager.getPipeline(material, renderer));
+            material.setPipeline(pipelineManager.getOrCreatePipeline(material, renderer));
             materials.add(material);
         }
         unprocessedMaterials.clear();

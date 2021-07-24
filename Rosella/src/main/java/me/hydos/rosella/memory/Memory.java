@@ -307,15 +307,5 @@ public abstract class Memory {
         dst.put(src);
         src.limit(src.capacity()).rewind();
     }
-
-    public static PointerBuffer asPointerBuffer(List<? extends Pointer> pointers) {
-        PointerBuffer buffer = MemoryStack.stackGet().mallocPointer(pointers.size());
-
-        for (Pointer pointer : pointers) {
-            buffer.put(pointer);
-        }
-
-        return buffer.rewind();
-    }
 }
 

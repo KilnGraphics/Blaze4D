@@ -40,7 +40,7 @@ public class MinecraftUbo extends Ubo {
 
     public MinecraftUbo(@NotNull Memory memory, Material material, List<AddUboMemoryStep> steps, int size) {
         this.memory = memory;
-        this.descSets = new DescriptorSets(material.getShader().getRaw().getDescriptorPool());
+        this.descSets = new DescriptorSets(material.getShaderProgram().getRaw().getDescriptorPool());
         this.totalSize = size;
         this.steps = steps;
     }

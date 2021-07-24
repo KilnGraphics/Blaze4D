@@ -6,18 +6,20 @@ import me.hydos.rosella.memory.Memory;
 import me.hydos.rosella.memory.MemoryCloseable;
 import me.hydos.rosella.render.material.Material;
 import me.hydos.rosella.render.shader.ubo.Ubo;
+import me.hydos.rosella.render.texture.Texture;
 import org.jetbrains.annotations.NotNull;
 
 /**
  * Info such as the {@link Material} and {@link Ubo} for rendering objects
  */
 public record InstanceInfo(Ubo ubo,
+                           Texture[] textures,
                            Material material) implements MemoryCloseable {
 
     @Override
     public void free(VulkanDevice device, Memory memory) {
         ubo.free(device, memory);
-        material.getShader().getDescriptorManager().freeDescriptorSets(ubo.getDescriptors());
+        material.getShaderProgram().getDescriptorManager().freeDescriptorSets(ubo.getDescriptors());
     }
 
     /**
@@ -28,7 +30,7 @@ public record InstanceInfo(Ubo ubo,
     public void rebuild(@NotNull Rosella rosella) {
         if (ubo.getUniformBuffers().size() == 0) {
             ubo.create(rosella.renderer.swapchain);
-            material.getShader().getDescriptorManager().createNewDescriptor(material.getTextures(), ubo);
+            material.getShaderProgram().getDescriptorManager().createNewDescriptor(textures, ubo);
         }
     }
 
@@ -38,13 +40,13 @@ public record InstanceInfo(Ubo ubo,
      * @param rosella the Rosella
      */
     public void hardRebuild(@NotNull Rosella rosella) {
-        material.getShader().getDescriptorManager().clearDescriptorSets(ubo.getDescriptors());
+        material.getShaderProgram().getDescriptorManager().clearDescriptorSets(ubo.getDescriptors());
         ubo.free(rosella.common.device, rosella.common.memory);
 
         if (ubo.getUniformBuffers().size() == 0) {
             ubo.create(rosella.renderer.swapchain);
         }
 
-        material.getShader().getDescriptorManager().createNewDescriptor(material.getTextures(), ubo);
+        material.getShaderProgram().getDescriptorManager().createNewDescriptor(textures, ubo);
     }
 }

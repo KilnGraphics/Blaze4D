@@ -2,6 +2,7 @@ package me.hydos.blaze4d.mixin.vertices;
 
 import com.mojang.blaze3d.vertex.BufferBuilder;
 import com.mojang.blaze3d.vertex.BufferUploader;
+import com.mojang.blaze3d.vertex.VertexFormat;
 import com.mojang.datafixers.util.Pair;
 import it.unimi.dsi.fastutil.objects.ObjectIntPair;
 import me.hydos.blaze4d.Blaze4D;
@@ -45,11 +46,17 @@ public class BufferRendererMixin {
 
             ObjectIntPair<ManagedBuffer<ByteBuffer>> indexBufferPair = GlobalRenderSystem.createIndices(drawState.mode(), drawState.vertexCount());
 
+            VertexFormat mcFormat = drawState.format();
+            // TODO: why was this here? (ported from older code)
+//            if (mcFormat == com.mojang.blaze3d.vertex.DefaultVertexFormat.BLIT_SCREEN || mcFormat == com.mojang.blaze3d.vertex.DefaultVertexFormat.POSITION) {
+//                throw new RuntimeException("Unsupported Vertex Format: " + mcFormat);
+//            }
             GlobalRenderSystem.uploadAsyncCreatableObject(
                     new ManagedBuffer<>(copiedBuffer, true),
                     indexBufferPair.key(),
                     indexBufferPair.valueInt(),
-                    ConversionUtils.FORMAT_CONVERSION_MAP.get(drawState.format().getElements()),
+                    ConversionUtils.FORMAT_CONVERSION_MAP.get(mcFormat.getElements()),
+                    ConversionUtils.mcDrawModeToRosellaTopology(drawState.mode()),
                     GlobalRenderSystem.activeShader,
                     GlobalRenderSystem.createTextureArray(),
                     GlobalRenderSystem.currentStateInfo.snapshot(),
@@ -58,8 +65,6 @@ public class BufferRendererMixin {
                     chunkOffset,
                     shaderLightDirections0,
                     shaderLightDirections1,
-                    drawState.format(),
-                    drawState.mode(),
                     Blaze4D.rosella
             );
         }

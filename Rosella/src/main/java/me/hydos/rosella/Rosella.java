@@ -39,6 +39,7 @@ public class Rosella {
 
     public static final Logger LOGGER = LogManager.getLogger("Rosella", new StringFormatterMessageFactory());
     public static final int VULKAN_VERSION = VK_API_VERSION_1_2;
+    // NVFillRectangle.VK_POLYGON_MODE_FILL_RECTANGLE_NV
     public static final int POLYGON_MODE = VK_POLYGON_MODE_FILL; // TODO: wtf
     public final GlobalBufferManager bufferManager;
     public final VkCommon common = new VkCommon();

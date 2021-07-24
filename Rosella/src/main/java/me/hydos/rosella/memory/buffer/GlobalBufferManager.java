@@ -1,8 +1,6 @@
 package me.hydos.rosella.memory.buffer;
 
-import it.unimi.dsi.fastutil.ints.Int2ObjectMap;
-import it.unimi.dsi.fastutil.ints.Int2ObjectOpenCustomHashMap;
-import it.unimi.dsi.fastutil.ints.IntHash;
+import it.unimi.dsi.fastutil.ints.*;
 import me.hydos.rosella.Rosella;
 import me.hydos.rosella.memory.BufferInfo;
 import me.hydos.rosella.memory.ManagedBuffer;
@@ -15,7 +13,7 @@ import org.lwjgl.system.MemoryStack;
 
 import java.nio.ByteBuffer;
 import java.nio.LongBuffer;
-import java.util.concurrent.atomic.AtomicInteger;
+import java.util.Iterator;
 
 import static org.lwjgl.system.MemoryStack.stackPush;
 import static org.lwjgl.util.vma.Vma.VMA_MEMORY_USAGE_GPU_ONLY;
@@ -31,7 +29,7 @@ public class GlobalBufferManager {
      */
     private static final XXHash64 BUFFER_HASH_FUNCTION = XXHashFactory.fastestInstance().hash64();
     private static final long HASH_SEED = System.currentTimeMillis();
-    private static final IntHash.Strategy PREHASHED_STRATEGY = new IntHash.Strategy() {
+    private static final IntHash.Strategy PREHASHED_STRATEGY = new IntHash.Strategy() { // for some reason fastutil still does HashCommon.mix on the strategy
         @Override
         public int hashCode(int e) {
             return e;
@@ -47,11 +45,15 @@ public class GlobalBufferManager {
     private final VkCommon common;
     private final Renderer renderer;
 
-    private final Int2ObjectMap<BufferInfo> vertexHashToBufferMap = new Int2ObjectOpenCustomHashMap<>(PREHASHED_STRATEGY);
-    private final Int2ObjectMap<AtomicInteger> vertexHashToInvocationsFrameMap = new Int2ObjectOpenCustomHashMap<>(PREHASHED_STRATEGY);
+    // TODO: synchronize these structures when we start async (actually may only need to sync in postDraw)
 
+    // these maps are used for actually storing the buffers
+    private final Int2ObjectMap<BufferInfo> vertexHashToBufferMap = new Int2ObjectOpenCustomHashMap<>(PREHASHED_STRATEGY);
     private final Int2ObjectMap<BufferInfo> indexHashToBufferMap = new Int2ObjectOpenCustomHashMap<>(PREHASHED_STRATEGY);
-    private final Int2ObjectMap<AtomicInteger> indexHashToInvocationsFrameMap = new Int2ObjectOpenCustomHashMap<>(PREHASHED_STRATEGY);
+
+    // these sets are used to see if the buffers have been used in the past frame
+    private final IntSet usedVertexHashes = new IntOpenCustomHashSet(PREHASHED_STRATEGY);
+    private final IntSet usedIndexHashes = new IntOpenCustomHashSet(PREHASHED_STRATEGY);
 
     public GlobalBufferManager(Rosella rosella) {
         this.memory = rosella.common.memory;
@@ -60,19 +62,20 @@ public class GlobalBufferManager {
     }
 
     public void postDraw() {
-        for (Int2ObjectMap.Entry<AtomicInteger> entry : vertexHashToInvocationsFrameMap.int2ObjectEntrySet()) {
-            if (entry.getValue().getAcquire() < 1) {
-                vertexHashToBufferMap.remove(entry.getIntKey()).free(common.device, memory);
-            }
-        }
-        vertexHashToInvocationsFrameMap.clear();
+        freeUnusedBuffers(vertexHashToBufferMap, usedVertexHashes);
+        freeUnusedBuffers(indexHashToBufferMap, usedIndexHashes);
+    }
 
-        for (Int2ObjectMap.Entry<AtomicInteger> entry : indexHashToInvocationsFrameMap.int2ObjectEntrySet()) {
-            if (entry.getValue().getAcquire() < 1) {
-                indexHashToBufferMap.remove(entry.getIntKey()).free(common.device, memory);
+    private void freeUnusedBuffers(Int2ObjectMap<BufferInfo> hashToBufferMap, IntSet usedHashes) {
+        Iterator<Int2ObjectMap.Entry<BufferInfo>> entryIterator = hashToBufferMap.int2ObjectEntrySet().iterator();
+        while (entryIterator.hasNext()) {
+            Int2ObjectMap.Entry<BufferInfo> entry = entryIterator.next();
+            if (!usedHashes.contains(entry.getIntKey())) {
+                entry.getValue().free(common.device, memory);
+                entryIterator.remove();
             }
         }
-        indexHashToInvocationsFrameMap.clear();
+        usedHashes.clear();
     }
 
     /**
@@ -88,7 +91,7 @@ public class GlobalBufferManager {
         int previousPosition = bytes.position();
         int hash = (int) BUFFER_HASH_FUNCTION.hash(bytes, HASH_SEED);
         bytes.position(previousPosition);
-        indexHashToInvocationsFrameMap.computeIfAbsent(hash, i -> new AtomicInteger()).incrementAndGet();
+        usedIndexHashes.add(hash);
         BufferInfo buffer = indexHashToBufferMap.get(hash);
         if (buffer == null) {
             buffer = createIndexBuffer(indexBytes);
@@ -112,7 +115,7 @@ public class GlobalBufferManager {
         int previousPosition = bytes.position();
         int hash = (int) BUFFER_HASH_FUNCTION.hash(bytes, HASH_SEED);
         bytes.position(previousPosition);
-        vertexHashToInvocationsFrameMap.computeIfAbsent(hash, i -> new AtomicInteger()).incrementAndGet();
+        usedVertexHashes.add(hash);
         BufferInfo buffer = vertexHashToBufferMap.get(hash);
         if (buffer == null) {
             buffer = createVertexBuffer(vertexBytes);
