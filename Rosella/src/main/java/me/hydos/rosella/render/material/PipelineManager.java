@@ -53,7 +53,7 @@ public class PipelineManager {
                 createInfo.renderPass(),
                 createInfo.descriptorSetLayout(),
                 createInfo.polygonMode(),
-                createInfo.shader(),
+                createInfo.shaderProgram(),
                 createInfo.topology(),
                 createInfo.vertexFormat(),
                 createInfo.stateInfo()
