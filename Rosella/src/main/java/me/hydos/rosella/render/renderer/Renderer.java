@@ -420,7 +420,7 @@ public class Renderer {
                     VK_PIPELINE_BIND_POINT_GRAPHICS,
                     instanceInfo.material().getPipeline().pipelineLayout(),
                     0,
-                    stack.longs(instanceInfo.ubo().getDescriptors().getRawDescriptorSets().getLong(commandBufferIndex)),
+                    stack.longs(instanceInfo.ubo().getDescriptors().getRawDescriptorSets().getLong(commandBufferIndex)), // FIXME: the descriptor set list is sometimes not updated before this is called
                     null
             );
         }
