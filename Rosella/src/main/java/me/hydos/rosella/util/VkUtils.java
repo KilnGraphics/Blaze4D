@@ -219,14 +219,16 @@ public class VkUtils {
     }
 
     public static int findMemoryType(VulkanDevice device, int typeFilter, int properties) {
-        VkPhysicalDeviceMemoryProperties memProperties = VkPhysicalDeviceMemoryProperties.mallocStack();
-        vkGetPhysicalDeviceMemoryProperties(device.physicalDevice, memProperties);
-        for (int i = 0; i < memProperties.memoryTypeCount(); i++) {
-            if ((typeFilter & (1 << i)) != 0 && (memProperties.memoryTypes(i).propertyFlags() & properties) == properties) {
-                return i;
+        try (MemoryStack stack = MemoryStack.stackPush()) {
+            VkPhysicalDeviceMemoryProperties memProperties = VkPhysicalDeviceMemoryProperties.mallocStack(stack);
+            vkGetPhysicalDeviceMemoryProperties(device.physicalDevice, memProperties);
+            for (int i = 0; i < memProperties.memoryTypeCount(); i++) {
+                if ((typeFilter & (1 << i)) != 0 && (memProperties.memoryTypes(i).propertyFlags() & properties) == properties) {
+                    return i;
+                }
             }
+            throw new IllegalStateException("Failed to find suitable memory type");
         }
-        throw new IllegalStateException("Failed to find suitable memory type");
     }
 
     public static TextureImage createImage(Memory memory, int width, int height, int format, int tiling, int usage, int memoryProperties, int vmaUsage) {
