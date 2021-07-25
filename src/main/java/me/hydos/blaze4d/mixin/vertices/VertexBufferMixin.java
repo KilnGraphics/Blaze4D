@@ -95,15 +95,11 @@ public class VertexBufferMixin {
 
     @Unique
     private void addBufferToRosella(Matrix4f projMatrix, Matrix4f modelViewMatrix, Vector3f chunkOffset, com.mojang.math.Vector3f shaderLightDirections0, com.mojang.math.Vector3f shaderLightDirections1) {
+        // TODO: why were these format checks here? (ported from old code) drawState.format() != com.mojang.blaze3d.vertex.DefaultVertexFormat.BLIT_SCREEN && drawState.format() != com.mojang.blaze3d.vertex.DefaultVertexFormat.POSITION
         if (currentRenderInfo != null && drawState != null) {
-            VertexFormat mcFormat = drawState.format();
-            // TODO: why was this here? (ported from older code)
-//            if (mcFormat == com.mojang.blaze3d.vertex.DefaultVertexFormat.BLIT_SCREEN || mcFormat == com.mojang.blaze3d.vertex.DefaultVertexFormat.POSITION) {
-//                throw new RuntimeException("Unsupported Vertex Format: " + mcFormat);
-//            }
             GlobalRenderSystem.uploadPreCreatedObject(
                     currentRenderInfo,
-                    ConversionUtils.FORMAT_CONVERSION_MAP.get(mcFormat.getElements()),
+                    ConversionUtils.FORMAT_CONVERSION_MAP.get(drawState.format().getElements()),
                     ConversionUtils.mcDrawModeToRosellaTopology(drawState.mode()),
                     GlobalRenderSystem.activeShader,
                     GlobalRenderSystem.createTextureArray(),

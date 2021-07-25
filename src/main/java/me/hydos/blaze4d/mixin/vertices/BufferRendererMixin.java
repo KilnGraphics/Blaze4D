@@ -40,22 +40,18 @@ public class BufferRendererMixin {
 
         int vertexCount = drawState.vertexCount();
 
+        // TODO: why were these format checks here? (ported from old code) drawState.format() != com.mojang.blaze3d.vertex.DefaultVertexFormat.BLIT_SCREEN && drawState.format() != com.mojang.blaze3d.vertex.DefaultVertexFormat.POSITION
         if (vertexCount > 0) {
             ByteBuffer copiedBuffer = MemoryUtil.memAlloc(drawState.vertexBufferSize());
             copiedBuffer.put(0, originalBuffer, 0, drawState.vertexBufferSize());
 
             ObjectIntPair<ManagedBuffer<ByteBuffer>> indexBufferPair = GlobalRenderSystem.createIndices(drawState.mode(), drawState.vertexCount());
 
-            VertexFormat mcFormat = drawState.format();
-            // TODO: why was this here? (ported from older code)
-//            if (mcFormat == com.mojang.blaze3d.vertex.DefaultVertexFormat.BLIT_SCREEN || mcFormat == com.mojang.blaze3d.vertex.DefaultVertexFormat.POSITION) {
-//                throw new RuntimeException("Unsupported Vertex Format: " + mcFormat);
-//            }
             GlobalRenderSystem.uploadAsyncCreatableObject(
                     new ManagedBuffer<>(copiedBuffer, true),
                     indexBufferPair.key(),
                     indexBufferPair.valueInt(),
-                    ConversionUtils.FORMAT_CONVERSION_MAP.get(mcFormat.getElements()),
+                    ConversionUtils.FORMAT_CONVERSION_MAP.get(drawState.format().getElements()),
                     ConversionUtils.mcDrawModeToRosellaTopology(drawState.mode()),
                     GlobalRenderSystem.activeShader,
                     GlobalRenderSystem.createTextureArray(),
