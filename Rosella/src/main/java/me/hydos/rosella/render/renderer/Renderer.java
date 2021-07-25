@@ -1,6 +1,5 @@
 package me.hydos.rosella.render.renderer;
 
-import it.unimi.dsi.fastutil.Pair;
 import it.unimi.dsi.fastutil.ints.Int2ObjectOpenHashMap;
 import it.unimi.dsi.fastutil.longs.LongArrayList;
 import it.unimi.dsi.fastutil.objects.ObjectArrayList;
@@ -16,6 +15,7 @@ import me.hydos.rosella.render.swapchain.DepthBuffer;
 import me.hydos.rosella.render.swapchain.Frame;
 import me.hydos.rosella.render.swapchain.RenderPass;
 import me.hydos.rosella.render.swapchain.Swapchain;
+import me.hydos.rosella.scene.object.Renderable;
 import me.hydos.rosella.scene.object.impl.SimpleObjectManager;
 import me.hydos.rosella.util.Color;
 import me.hydos.rosella.util.VkUtils;
@@ -31,7 +31,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.concurrent.ExecutionException;
-import java.util.concurrent.Future;
 
 import static me.hydos.rosella.util.VkUtils.ok;
 import static org.lwjgl.vulkan.VK10.*;
@@ -323,12 +322,11 @@ public class Renderer {
         if (!recreateSwapChain) {
             simpleObjectManager.rebuildCmdBuffers(renderPass, null, null); //TODO: move it into here
 
-            for (Pair<Future<RenderInfo>, InstanceInfo> renderObject : simpleObjectManager.renderObjects) {
-                InstanceInfo instance = renderObject.value();
+            for (Renderable renderObject : simpleObjectManager.renderObjects) {
                 if (requireHardRebuild) {
-                    instance.hardRebuild(rosella);
+                    renderObject.hardRebuild(rosella);
                 } else {
-                    instance.rebuild(rosella);
+                    renderObject.rebuild(rosella);
                 }
             }
             requireHardRebuild = false;
@@ -369,10 +367,10 @@ public class Renderer {
 
                     RenderInfo previousRenderInfo = null;
                     long previousGraphicsPipeline = VK_NULL_HANDLE;
-                    for (Pair<Future<RenderInfo>, InstanceInfo> renderObject : simpleObjectManager.renderObjects) {
+                    for (Renderable renderObject : simpleObjectManager.renderObjects) {
                         try {
-                            RenderInfo currentRenderInfo = renderObject.key().get();
-                            InstanceInfo currentInstanceInfo = renderObject.value();
+                            RenderInfo currentRenderInfo = renderObject.getRenderInfo().get();
+                            InstanceInfo currentInstanceInfo = renderObject.getInstanceInfo();
                             long currentGraphicsPipeline = currentInstanceInfo.material().getPipeline().graphicsPipeline();
 
                             if (!Objects.equals(currentRenderInfo, previousRenderInfo)) {
@@ -385,7 +383,7 @@ public class Renderer {
                                 bindPipeline(currentGraphicsPipeline, commandBuffer);
                             }
 
-                            bindInstanceDescriptorSets(renderObject.value(), commandBuffer, i);
+                            bindInstanceDescriptorSets(renderObject.getInstanceInfo(), commandBuffer, i);
                             vkCmdDrawIndexed(
                                     commandBuffer,
                                     currentRenderInfo.indexCount(),

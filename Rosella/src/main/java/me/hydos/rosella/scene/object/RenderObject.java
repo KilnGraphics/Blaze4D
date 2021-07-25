@@ -80,6 +80,11 @@ public class RenderObject implements Renderable {
     }
 
     @Override
+    public void hardRebuild(Rosella rosella) {
+        instanceInfo.hardRebuild(rosella);
+    }
+
+    @Override
     public InstanceInfo getInstanceInfo() {
         return instanceInfo;
     }

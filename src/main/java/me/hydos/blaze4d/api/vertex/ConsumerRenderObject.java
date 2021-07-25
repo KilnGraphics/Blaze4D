@@ -3,7 +3,6 @@ package me.hydos.blaze4d.api.vertex;
 import me.hydos.blaze4d.api.Materials;
 import me.hydos.blaze4d.api.shader.MinecraftShaderProgram;
 import me.hydos.blaze4d.api.shader.MinecraftUbo;
-import me.hydos.blaze4d.api.util.ConversionUtils;
 import me.hydos.rosella.Rosella;
 import me.hydos.rosella.device.VulkanDevice;
 import me.hydos.rosella.memory.Memory;
@@ -19,7 +18,7 @@ import me.hydos.rosella.scene.object.Renderable;
 import org.joml.Matrix4f;
 import org.joml.Vector3f;
 
-import java.util.concurrent.ExecutionException;
+import java.util.Objects;
 import java.util.concurrent.Future;
 
 public class ConsumerRenderObject implements Renderable {
@@ -54,7 +53,7 @@ public class ConsumerRenderObject implements Renderable {
 
     @Override
     public void onAddedToScene(Rosella rosella) {
-        instanceInfo.hardRebuild(rosella);
+        // WE DO NOT NEED TO HARD REBUILD HERE
     }
 
     @Override
@@ -69,6 +68,11 @@ public class ConsumerRenderObject implements Renderable {
     }
 
     @Override
+    public void hardRebuild(Rosella rosella) {
+        instanceInfo.hardRebuild(rosella);
+    }
+
+    @Override
     public InstanceInfo getInstanceInfo() {
         return instanceInfo;
     }
@@ -76,5 +80,18 @@ public class ConsumerRenderObject implements Renderable {
     @Override
     public Future<RenderInfo> getRenderInfo() {
         return renderInfo;
+    }
+
+    @Override
+    public boolean equals(Object o) {
+        if (this == o) return true;
+        if (o == null || getClass() != o.getClass()) return false;
+        ConsumerRenderObject that = (ConsumerRenderObject) o;
+        return renderInfo.equals(that.renderInfo) && instanceInfo.equals(that.instanceInfo);
+    }
+
+    @Override
+    public int hashCode() {
+        return Objects.hash(renderInfo, instanceInfo);
     }
 }
