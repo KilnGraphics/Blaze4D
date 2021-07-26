@@ -1,6 +1,7 @@
 package me.hydos.rosella.render.shader
 
 import it.unimi.dsi.fastutil.Hash.VERY_FAST_LOAD_FACTOR
+import it.unimi.dsi.fastutil.objects.ObjectOpenHashSet
 import it.unimi.dsi.fastutil.objects.ReferenceOpenHashSet
 import me.hydos.rosella.device.VulkanDevice
 import me.hydos.rosella.memory.Memory
@@ -31,11 +32,16 @@ open class RawShaderProgram(
     private val preparableTextures = ReferenceOpenHashSet<Texture?>(3, VERY_FAST_LOAD_FACTOR)
 
     fun updateUbos(currentImage: Int, swapchain: Swapchain, objectManager: SimpleObjectManager) {
+        val updated = ObjectOpenHashSet<Ubo>();
         for (renderObject in objectManager.renderObjects) {
-            renderObject.value().ubo.update(
-                currentImage,
-                swapchain
-            )
+            val currentUbo = renderObject.instanceInfo.ubo;
+            if (!updated.contains(currentUbo)) {
+                currentUbo.update(
+                    currentImage,
+                    swapchain
+                )
+                updated.add(currentUbo)
+            }
         }
     }
 

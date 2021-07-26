@@ -2,6 +2,7 @@ package me.hydos.blaze4d.mixin.vertices;
 
 import com.mojang.blaze3d.vertex.BufferBuilder;
 import com.mojang.blaze3d.vertex.BufferUploader;
+import com.mojang.blaze3d.vertex.VertexFormat;
 import com.mojang.datafixers.util.Pair;
 import it.unimi.dsi.fastutil.objects.ObjectIntPair;
 import me.hydos.blaze4d.Blaze4D;
@@ -33,6 +34,7 @@ public class BufferRendererMixin {
 
         int vertexCount = drawState.vertexCount();
 
+        // TODO: why were these format checks here? (ported from old code) drawState.format() != com.mojang.blaze3d.vertex.DefaultVertexFormat.BLIT_SCREEN && drawState.format() != com.mojang.blaze3d.vertex.DefaultVertexFormat.POSITION
         if (vertexCount > 0) {
             ByteBuffer copiedBuffer = MemoryUtil.memAlloc(drawState.vertexBufferSize());
             copiedBuffer.put(0, originalBuffer, 0, drawState.vertexBufferSize());
@@ -44,11 +46,10 @@ public class BufferRendererMixin {
                     indexBufferPair.key(),
                     indexBufferPair.valueInt(),
                     ConversionUtils.FORMAT_CONVERSION_MAP.get(drawState.format().getElements()),
+                    ConversionUtils.mcDrawModeToRosellaTopology(drawState.mode()),
                     GlobalRenderSystem.activeShader,
                     GlobalRenderSystem.createTextureArray(),
                     GlobalRenderSystem.currentStateInfo.snapshot(),
-                    drawState.format(),
-                    drawState.mode(),
                     Blaze4D.rosella
             );
             GlobalRenderSystem.updateUniforms();

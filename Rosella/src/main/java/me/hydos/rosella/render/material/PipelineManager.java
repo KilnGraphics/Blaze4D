@@ -46,14 +46,14 @@ public class PipelineManager {
         this.renderer = renderer;
     }
 
-    private PipelineInfo getPipeline(PipelineCreateInfo createInfo) {
+    private PipelineInfo getOrCreatePipeline(PipelineCreateInfo createInfo) {
         return pipelines.computeIfAbsent(createInfo, _createInfo -> createPipeline(
                 common.device,
                 renderer.swapchain,
                 createInfo.renderPass(),
                 createInfo.descriptorSetLayout(),
                 createInfo.polygonMode(),
-                createInfo.shader(),
+                createInfo.shaderProgram(),
                 createInfo.topology(),
                 createInfo.vertexFormat(),
                 createInfo.stateInfo()
@@ -61,18 +61,18 @@ public class PipelineManager {
     }
 
     @NotNull
-    public PipelineInfo getPipeline(Material material, Renderer renderer) {
+    public PipelineInfo getOrCreatePipeline(Material material, Renderer renderer) {
         PipelineCreateInfo createInfo = new PipelineCreateInfo(
                 renderer.renderPass,
-                material.shader.getRaw().getDescriptorSetLayout(),
+                material.shaderProgram.getRaw().getDescriptorSetLayout(),
                 Rosella.POLYGON_MODE,
-                material.shader,
+                material.shaderProgram,
                 material.topology,
                 material.vertexFormat,
                 material.stateInfo
         );
 
-        return getPipeline(createInfo);
+        return getOrCreatePipeline(createInfo);
     }
 
     public void invalidatePipelines(VkCommon common) {

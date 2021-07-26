@@ -25,13 +25,15 @@ public class DescriptorSets implements MemoryCloseable {
 
     @Override
     public void free(VulkanDevice device, Memory memory) {
-        LongBuffer buffer = MemoryUtil.memAllocLong(descriptorSets.size());
-        for (long descriptorSet : descriptorSets) {
-            if (descriptorSet != 0L) {
+        if (descriptorPool != 0L) {
+            LongBuffer buffer = MemoryUtil.memAllocLong(descriptorSets.size());
+            for (long descriptorSet : descriptorSets) {
                 buffer.put(descriptorSet);
             }
+            memory.freeDescriptorSets(descriptorPool, new ManagedBuffer<>(buffer, true));
         }
-        memory.freeDescriptorSets(descriptorPool, new ManagedBuffer<>(buffer, true));
+        descriptorSets.clear();
+        // TODO: should we also set the descriptor pool to 0 here?
     }
 
     /**

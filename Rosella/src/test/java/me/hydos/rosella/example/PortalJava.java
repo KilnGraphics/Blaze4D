@@ -75,28 +75,28 @@ public class PortalJava {
     }
 
     private static void loadMaterials() {
-        menuBackground = rosella.objectManager.registerMaterial(
-                new Material(
-                        Global.INSTANCE.ensureResource(new Identifier("example", "textures/background/background01.png")),
-                        guiShader,
-                        VK10.VK_FORMAT_R8G8B8A8_UNORM,
-                        Topology.TRIANGLES,
-                        VertexFormats.POSITION_COLOR3_UV0,
-                        new SamplerCreateInfo(TextureFilter.NEAREST, WrapMode.REPEAT),
-                        defaultStateInfo
-                )
+        menuBackground = rosella.objectManager.registerMaterial(null // FIXME
+//                new Material(
+//                        Global.INSTANCE.ensureResource(new Identifier("example", "textures/background/background01.png")),
+//                        guiShader,
+//                        VK10.VK_FORMAT_R8G8B8A8_UNORM,
+//                        Topology.TRIANGLES,
+//                        VertexFormats.POSITION_COLOR3_UV0,
+//                        new SamplerCreateInfo(TextureFilter.NEAREST, WrapMode.REPEAT),
+//                        defaultStateInfo
+//                )
         );
 
-        portalLogo = rosella.objectManager.registerMaterial(
-                new Material(
-                        Global.INSTANCE.ensureResource(new Identifier("example", "textures/gui/portal2logo.png")),
-                        guiShader,
-                        VK10.VK_FORMAT_R8G8B8A8_SRGB,
-                        Topology.TRIANGLES,
-                        VertexFormats.POSITION_COLOR3_UV0,
-                        new SamplerCreateInfo(TextureFilter.NEAREST, WrapMode.REPEAT),
-                        defaultStateInfo
-                )
+        portalLogo = rosella.objectManager.registerMaterial(null // FIXME
+//                new Material(
+//                        Global.INSTANCE.ensureResource(new Identifier("example", "textures/gui/portal2logo.png")),
+//                        guiShader,
+//                        VK10.VK_FORMAT_R8G8B8A8_SRGB,
+//                        Topology.TRIANGLES,
+//                        VertexFormats.POSITION_COLOR3_UV0,
+//                        new SamplerCreateInfo(TextureFilter.NEAREST, WrapMode.REPEAT),
+//                        defaultStateInfo
+//                )
         );
 
         rosella.objectManager.submitMaterials();

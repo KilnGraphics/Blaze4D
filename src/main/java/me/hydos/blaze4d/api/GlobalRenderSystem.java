@@ -18,6 +18,7 @@ import me.hydos.blaze4d.api.vertex.ConsumerRenderObject;
 import me.hydos.blaze4d.mixin.shader.ShaderAccessor;
 import me.hydos.rosella.Rosella;
 import me.hydos.rosella.memory.ManagedBuffer;
+import me.hydos.rosella.render.Topology;
 import me.hydos.rosella.render.info.RenderInfo;
 import me.hydos.rosella.render.material.state.StateInfo;
 import me.hydos.rosella.render.resource.Identifier;
@@ -121,6 +122,10 @@ public class GlobalRenderSystem {
 
         Blaze4D.window.update();
         Blaze4D.rosella.renderer.render();
+        // FIXME: move postDraw to somewhere else
+        // if we decide to have 1 bufferManager per framebuffer, do this after the framebuffer is presented
+        // if we decide to have 1 bufferManager total, do this after we know ALL framebuffers have been presented
+        Blaze4D.rosella.bufferManager.postDraw();
 
         for (ConsumerRenderObject consumerRenderObject : currentFrameObjects) {
             consumerRenderObject.free(Blaze4D.rosella.common.device, Blaze4D.rosella.common.memory);
@@ -138,38 +143,33 @@ public class GlobalRenderSystem {
     }
 
     public static void uploadAsyncCreatableObject(ManagedBuffer<ByteBuffer> vertexBufferSource, ManagedBuffer<ByteBuffer> indexBufferSource,
-                                    int indexCount, me.hydos.rosella.render.vertex.VertexFormat format, ShaderProgram shader,
-                                    Texture[] textures, StateInfo stateInfo,
-                                    VertexFormat mcFormat, VertexFormat.Mode mcDrawMode, Rosella rosella) {
+                                    int indexCount, me.hydos.rosella.render.vertex.VertexFormat format, Topology topology,
+                                    ShaderProgram shader, Texture[] textures, StateInfo stateInfo, Rosella rosella) {
 
-        if (shader == null) return; // TODO: designate thread pool for this maybe
+        if (shader == null) return;
         ConsumerRenderObject renderObject = new ConsumerRenderObject(
-                CompletableFuture.completedFuture(new RenderInfo(rosella.bufferManager.getOrCreateVertexBuffer(vertexBufferSource), rosella.bufferManager.getOrCreateIndexBuffer(indexBufferSource), indexCount)),
+                CompletableFuture.completedFuture(new RenderInfo(rosella.bufferManager.getOrCreateVertexBuffer(vertexBufferSource), rosella.bufferManager.getOrCreateIndexBuffer(indexBufferSource), indexCount)), // TODO: designate thread pool for this maybe
                 format,
+                topology,
                 shader,
                 textures,
                 stateInfo,
-
-                mcFormat,
-                mcDrawMode,
                 rosella
         );
         currentFrameObjects.add(renderObject);
     }
 
     public static void uploadPreCreatedObject(RenderInfo renderInfo, me.hydos.rosella.render.vertex.VertexFormat format,
-                                    ShaderProgram shader, Texture[] textures, StateInfo stateInfo, VertexFormat mcFormat, VertexFormat.Mode mcDrawMode,
-                                    Rosella rosella) {
+                                    Topology topology, ShaderProgram shader, Texture[] textures, StateInfo stateInfo, Rosella rosella) {
 
         if (shader == null) return;
         ConsumerRenderObject renderObject = new ConsumerRenderObject(
                 CompletableFuture.completedFuture(renderInfo),
                 format,
+                topology,
                 shader,
                 textures,
                 stateInfo,
-                mcFormat,
-                mcDrawMode,
                 rosella
         );
 

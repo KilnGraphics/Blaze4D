@@ -7,7 +7,7 @@ import me.hydos.rosella.render.swapchain.RenderPass;
 import me.hydos.rosella.render.vertex.VertexFormat;
 
 public record PipelineCreateInfo(RenderPass renderPass, long descriptorSetLayout,
-                                 int polygonMode, ShaderProgram shader,
+                                 int polygonMode, ShaderProgram shaderProgram,
                                  Topology topology,
                                  VertexFormat vertexFormat,
                                  StateInfo stateInfo) {

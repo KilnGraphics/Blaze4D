@@ -2,6 +2,7 @@ package me.hydos.blaze4d.mixin.vertices;
 
 import com.mojang.blaze3d.vertex.BufferBuilder;
 import com.mojang.blaze3d.vertex.VertexBuffer;
+import com.mojang.blaze3d.vertex.VertexFormat;
 import com.mojang.datafixers.util.Pair;
 import it.unimi.dsi.fastutil.objects.ObjectIntPair;
 import me.hydos.blaze4d.Blaze4D;
@@ -82,15 +83,15 @@ public class VertexBufferMixin {
 
     @Unique
     private void addBufferToRosella() {
+        // TODO: why were these format checks here? (ported from old code) drawState.format() != com.mojang.blaze3d.vertex.DefaultVertexFormat.BLIT_SCREEN && drawState.format() != com.mojang.blaze3d.vertex.DefaultVertexFormat.POSITION
         if (currentRenderInfo != null && drawState != null) {
             GlobalRenderSystem.uploadPreCreatedObject(
                     currentRenderInfo,
                     ConversionUtils.FORMAT_CONVERSION_MAP.get(drawState.format().getElements()),
+                    ConversionUtils.mcDrawModeToRosellaTopology(drawState.mode()),
                     GlobalRenderSystem.activeShader,
                     GlobalRenderSystem.createTextureArray(),
                     GlobalRenderSystem.currentStateInfo.snapshot(),
-                    drawState.format(),
-                    drawState.mode(),
                     Blaze4D.rosella
             );
         }

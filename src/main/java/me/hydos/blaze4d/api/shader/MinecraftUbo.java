@@ -1,15 +1,6 @@
 package me.hydos.blaze4d.api.shader;
 
-import java.nio.ByteBuffer;
-import java.nio.LongBuffer;
-import java.util.ArrayList;
-import java.util.List;
-
-import com.mojang.blaze3d.platform.Window;
-import com.mojang.blaze3d.shaders.Uniform;
-import com.mojang.blaze3d.systems.RenderSystem;
 import me.hydos.blaze4d.Blaze4D;
-import me.hydos.blaze4d.api.util.ConversionUtils;
 import me.hydos.rosella.memory.BufferInfo;
 import me.hydos.rosella.memory.Memory;
 import me.hydos.rosella.render.descriptorsets.DescriptorSets;
@@ -17,15 +8,16 @@ import me.hydos.rosella.render.material.Material;
 import me.hydos.rosella.render.shader.ubo.Ubo;
 import me.hydos.rosella.render.swapchain.Swapchain;
 import org.jetbrains.annotations.NotNull;
-import org.joml.Matrix4f;
-import org.joml.Vector3f;
 import org.lwjgl.PointerBuffer;
 import org.lwjgl.system.MemoryStack;
 import org.lwjgl.system.MemoryUtil;
 import org.lwjgl.util.vma.Vma;
 import org.lwjgl.vulkan.VK10;
 
-import net.minecraft.client.Minecraft;
+import java.nio.ByteBuffer;
+import java.nio.LongBuffer;
+import java.util.ArrayList;
+import java.util.List;
 
 public class MinecraftUbo extends Ubo {
     private final Memory memory;
@@ -36,15 +28,9 @@ public class MinecraftUbo extends Ubo {
     private PointerBuffer pLocation;
     private ByteBuffer data;
 
-    public MinecraftUbo(@NotNull Memory memory, Material material, List<Uniform> uniforms, int size) {
-        this.memory = memory;
-        this.descSets = new DescriptorSets(material.getShader().getRaw().getDescriptorPool());
-        this.totalSize = size;
-    }
-
     public MinecraftUbo(Memory memory, Material material, ByteBuffer shaderUbo) {
         this.memory = memory;
-        this.descSets = new DescriptorSets(material.getShader().getRaw().getDescriptorPool());
+        this.descSets = new DescriptorSets(material.getShaderProgram().getRaw().getDescriptorPool());
         this.totalSize = shaderUbo.capacity();
         this.data = shaderUbo;
     }
@@ -97,6 +83,7 @@ public class MinecraftUbo extends Ubo {
     public void free() {
         for (BufferInfo uboImg : uboFrames) {
             uboImg.free(Blaze4D.rosella.common.device, memory);
+//            memory.unmap(uboImg.allocation());
         }
         uboFrames.clear();
     }

@@ -22,11 +22,18 @@ public interface Renderable extends MemoryCloseable {
     void onAddedToScene(Rosella rosella);
 
     /**
-     * Called when the swapchain needs to be resized
+     * Called when the command buffers need to be refreshed.
      *
      * @param rosella the instance of the {@link Rosella} engine used.
      */
     void rebuild(Rosella rosella);
+
+    /**
+     * Called when the swapchain needs to be resized
+     *
+     * @param rosella the instance of the {@link Rosella} engine used.
+     */
+    void hardRebuild(Rosella rosella);
 
     InstanceInfo getInstanceInfo();
 

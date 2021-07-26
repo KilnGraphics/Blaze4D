@@ -3,7 +3,10 @@ package me.hydos.blaze4d.api.util;
 import com.google.common.collect.ImmutableList;
 import com.mojang.blaze3d.shaders.Program;
 import com.mojang.blaze3d.vertex.DefaultVertexFormat;
+import com.mojang.blaze3d.vertex.VertexFormat;
 import com.mojang.blaze3d.vertex.VertexFormatElement;
+import me.hydos.blaze4d.api.Materials;
+import me.hydos.rosella.render.Topology;
 import me.hydos.rosella.render.shader.ShaderType;
 import me.hydos.rosella.render.texture.ImageFormat;
 import me.hydos.rosella.render.vertex.VertexFormatElements;
@@ -191,5 +194,16 @@ public abstract class ConversionUtils {
                 mcMatrix.m23,
                 mcMatrix.m33
         );
+    }
+
+    public static Topology mcDrawModeToRosellaTopology(VertexFormat.Mode mcDrawMode) {
+        return switch (mcDrawMode) {
+            case TRIANGLES, QUADS, LINES -> Topology.TRIANGLES;
+            case TRIANGLE_STRIP, LINE_STRIP -> Topology.TRIANGLE_STRIP;
+            case TRIANGLE_FAN -> Topology.TRIANGLE_FAN;
+            case DEBUG_LINES -> Topology.LINE_LIST;
+            case DEBUG_LINE_STRIP -> Topology.LINE_STRIP;
+            default -> throw new RuntimeException("Minecraft draw mode " + mcDrawMode + " is invalid or does not have a rosella equivalent");
+        };
     }
 }

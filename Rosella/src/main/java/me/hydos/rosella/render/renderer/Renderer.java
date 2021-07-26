@@ -1,6 +1,5 @@
 package me.hydos.rosella.render.renderer;
 
-import it.unimi.dsi.fastutil.Pair;
 import it.unimi.dsi.fastutil.ints.Int2ObjectOpenHashMap;
 import it.unimi.dsi.fastutil.longs.LongArrayList;
 import it.unimi.dsi.fastutil.objects.ObjectArrayList;
@@ -8,7 +7,6 @@ import me.hydos.rosella.Rosella;
 import me.hydos.rosella.device.VulkanDevice;
 import me.hydos.rosella.device.VulkanQueues;
 import me.hydos.rosella.display.Display;
-import me.hydos.rosella.memory.Memory;
 import me.hydos.rosella.render.info.InstanceInfo;
 import me.hydos.rosella.render.info.RenderInfo;
 import me.hydos.rosella.render.material.Material;
@@ -17,6 +15,7 @@ import me.hydos.rosella.render.swapchain.DepthBuffer;
 import me.hydos.rosella.render.swapchain.Frame;
 import me.hydos.rosella.render.swapchain.RenderPass;
 import me.hydos.rosella.render.swapchain.Swapchain;
+import me.hydos.rosella.scene.object.Renderable;
 import me.hydos.rosella.scene.object.impl.SimpleObjectManager;
 import me.hydos.rosella.util.Color;
 import me.hydos.rosella.util.VkUtils;
@@ -32,7 +31,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.concurrent.ExecutionException;
-import java.util.concurrent.Future;
 
 import static me.hydos.rosella.util.VkUtils.ok;
 import static org.lwjgl.vulkan.VK10.*;
@@ -55,7 +53,7 @@ public class Renderer {
     public final DepthBuffer depthBuffer;
 
     // Should the swap chain be recreated next render
-    private boolean initialSwapchainCreated;
+    private final boolean initialSwapchainCreated;
     private boolean recreateSwapChain;
     private boolean requireHardRebuild;
 
@@ -84,7 +82,7 @@ public class Renderer {
     public RenderPass renderPass;
 
     public long commandPool = 0;
-    List<VkCommandBuffer> commandBuffers = new ObjectArrayList<>();
+    public VkCommandBuffer[] commandBuffers;
 
     private void createSwapChain(VkCommon common, Display display, SimpleObjectManager objectManager) {
         this.swapchain = new Swapchain(display, common.device.rawDevice, common.device.physicalDevice, common.surface);
@@ -99,7 +97,7 @@ public class Renderer {
         }
 
         for (Material material : objectManager.materials) {
-            material.setPipeline(objectManager.pipelineManager.getPipeline(material, this));
+            material.setPipeline(objectManager.pipelineManager.getOrCreatePipeline(material, this));
         }
 
         rebuildCommandBuffers(renderPass, objectManager);
@@ -169,7 +167,7 @@ public class Renderer {
                     .pWaitSemaphores(thisFrame.pImageAvailableSemaphore())
                     .pWaitDstStageMask(stack.ints(VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT))
                     .pSignalSemaphores(thisFrame.pRenderFinishedSemaphore())
-                    .pCommandBuffers(stack.pointers(commandBuffers.get(imageIndex)));
+                    .pCommandBuffers(stack.pointers(commandBuffers[imageIndex]));
 
             ok(vkResetFences(rosella.common.device.rawDevice, thisFrame.pFence()));
             ok(queues.graphicsQueue.vkQueueSubmit(submitInfo, thisFrame.fence()));
@@ -243,9 +241,11 @@ public class Renderer {
     }
 
     public void clearCommandBuffers(VulkanDevice device) {
-        if (commandBuffers.size() != 0) {
-            vkFreeCommandBuffers(device.rawDevice, commandPool, Memory.asPointerBuffer(commandBuffers));
-            commandBuffers.clear();
+        if (commandBuffers != null) {
+            try (MemoryStack stack = MemoryStack.stackPush()) {
+                vkFreeCommandBuffers(device.rawDevice, commandPool, stack.pointers(commandBuffers));
+            }
+            commandBuffers = null;
         }
     }
 
@@ -322,89 +322,84 @@ public class Renderer {
         if (!recreateSwapChain) {
             simpleObjectManager.rebuildCmdBuffers(renderPass, null, null); //TODO: move it into here
 
-            for (Pair<Future<RenderInfo>, InstanceInfo> renderObject : simpleObjectManager.renderObjects) {
-                InstanceInfo instance = renderObject.value();
+            for (Renderable renderObject : simpleObjectManager.renderObjects) {
                 if (requireHardRebuild) {
-                    instance.hardRebuild(rosella);
+                    renderObject.hardRebuild(rosella);
                 } else {
-                    instance.rebuild(rosella);
+                    renderObject.rebuild(rosella);
                 }
             }
             requireHardRebuild = false;
 
-            try (MemoryStack stack = MemoryStack.stackPush()) {
-                int commandBuffersCount = swapchain.getFrameBuffers().size();
+            int commandBuffersCount = swapchain.getFrameBuffers().size();
 
-                commandBuffers = new ObjectArrayList<>(commandBuffersCount);
+            clearCommandBuffers(common.device);
+            commandBuffers = new VkCommandBuffer[commandBuffersCount];
 
-                PointerBuffer pCommandBuffers = VkUtils.allocateCommandBuffers(
-                        common.device,
-                        commandPool,
-                        commandBuffersCount,
-                        VK_COMMAND_BUFFER_LEVEL_PRIMARY
-                );
+            PointerBuffer pCommandBuffers = VkUtils.allocateCommandBuffers(
+                    common.device,
+                    commandPool,
+                    commandBuffersCount,
+                    VK_COMMAND_BUFFER_LEVEL_PRIMARY
+            );
 
+            for (int i = 0; i < commandBuffersCount; i++) {
+                commandBuffers[i] =
+                        new VkCommandBuffer(
+                                pCommandBuffers.get(i),
+                                common.device.rawDevice
+                        );
+            }
+
+            VkCommandBufferBeginInfo beginInfo = VkUtils.createBeginInfo();
+            VkRenderPassBeginInfo renderPassInfo = VkUtils.createRenderPassInfo(renderPass);
+            VkRect2D renderArea = VkUtils.createRenderArea(0, 0, swapchain); // TODO: when scissoring, make sure this is correct
+            VkClearValue.Buffer clearValues = VkUtils.createClearValues(clearColor.rAsFloat(), clearColor.gAsFloat(), clearColor.bAsFloat(), clearDepth, clearStencil);
+
+            renderPassInfo.renderArea(renderArea)
+                    .pClearValues(clearValues);
+
+            if (rosella.bufferManager != null && !simpleObjectManager.renderObjects.isEmpty()) {
                 for (int i = 0; i < commandBuffersCount; i++) {
-                    commandBuffers.add(
-                            new VkCommandBuffer(
-                                    pCommandBuffers.get(i),
-                                    common.device.rawDevice
-                            )
-                    );
-                }
+                    VkCommandBuffer commandBuffer = commandBuffers[i];
+                    ok(vkBeginCommandBuffer(commandBuffer, beginInfo));
+                    renderPassInfo.framebuffer(swapchain.getFrameBuffers().getLong(i));
+                    vkCmdBeginRenderPass(commandBuffer, renderPassInfo, VK_SUBPASS_CONTENTS_INLINE);
 
-                VkCommandBufferBeginInfo beginInfo = VkUtils.createBeginInfo();
-                VkRenderPassBeginInfo renderPassInfo = VkUtils.createRenderPassInfo(renderPass);
-                VkRect2D renderArea = VkUtils.createRenderArea(0, 0, swapchain); // TODO: when scissoring, make sure this is correct
-                VkClearValue.Buffer clearValues = VkUtils.createClearValues(clearColor.rAsFloat(), clearColor.gAsFloat(), clearColor.bAsFloat(), clearDepth, clearStencil);
+                    RenderInfo previousRenderInfo = null;
+                    long previousGraphicsPipeline = VK_NULL_HANDLE;
+                    for (Renderable renderObject : simpleObjectManager.renderObjects) {
+                        try {
+                            RenderInfo currentRenderInfo = renderObject.getRenderInfo().get();
+                            InstanceInfo currentInstanceInfo = renderObject.getInstanceInfo();
+                            long currentGraphicsPipeline = currentInstanceInfo.material().getPipeline().graphicsPipeline();
 
-                renderPassInfo.renderArea(renderArea)
-                        .pClearValues(clearValues);
-
-                if (rosella.bufferManager != null && !simpleObjectManager.renderObjects.isEmpty()) {
-                    for (int i = 0; i < commandBuffersCount; i++) {
-                        VkCommandBuffer commandBuffer = commandBuffers.get(i);
-                        ok(vkBeginCommandBuffer(commandBuffer, beginInfo));
-                        renderPassInfo.framebuffer(swapchain.getFrameBuffers().getLong(i));
-                        vkCmdBeginRenderPass(commandBuffer, renderPassInfo, VK_SUBPASS_CONTENTS_INLINE);
-
-                        RenderInfo previousRenderInfo = null;
-                        long previousGraphicsPipeline = VK_NULL_HANDLE;
-                        for (Pair<Future<RenderInfo>, InstanceInfo> renderObject : simpleObjectManager.renderObjects) {
-                            try {
-                                RenderInfo currentRenderInfo = renderObject.key().get();
-                                InstanceInfo currentInstanceInfo = renderObject.value();
-                                long currentGraphicsPipeline = currentInstanceInfo.material().getPipeline().graphicsPipeline();
-
-                                if (!Objects.equals(currentRenderInfo, previousRenderInfo)) {
-                                    previousRenderInfo = currentRenderInfo;
-                                    bindRenderInfo(currentRenderInfo, commandBuffer);
-                                }
-
-                                if (previousGraphicsPipeline != currentGraphicsPipeline) {
-                                    previousGraphicsPipeline = currentGraphicsPipeline;
-                                    bindPipeline(currentGraphicsPipeline, commandBuffer);
-                                }
-
-                                bindInstanceDescriptorSets(renderObject.value(), commandBuffer, i);
-                                vkCmdDrawIndexed(
-                                        commandBuffer,
-                                        currentRenderInfo.indexCount(),
-                                        1,
-                                        0,
-                                        0,
-                                        0
-                                );
-                            } catch (InterruptedException | ExecutionException e) {
-                                Rosella.LOGGER.error("Error obtaining render info", e);
+                            if (!Objects.equals(currentRenderInfo, previousRenderInfo)) {
+                                previousRenderInfo = currentRenderInfo;
+                                bindRenderInfo(currentRenderInfo, commandBuffer);
                             }
-                        }
 
-                        vkCmdEndRenderPass(commandBuffer);
-                        ok(vkEndCommandBuffer(commandBuffer));
+                            if (previousGraphicsPipeline != currentGraphicsPipeline) {
+                                previousGraphicsPipeline = currentGraphicsPipeline;
+                                bindPipeline(currentGraphicsPipeline, commandBuffer);
+                            }
+
+                            bindInstanceDescriptorSets(renderObject.getInstanceInfo(), commandBuffer, i);
+                            vkCmdDrawIndexed(
+                                    commandBuffer,
+                                    currentRenderInfo.indexCount(),
+                                    1,
+                                    0,
+                                    0,
+                                    0
+                            );
+                        } catch (InterruptedException | ExecutionException e) {
+                            Rosella.LOGGER.error("Error obtaining render info", e);
+                        }
                     }
 
-                    rosella.bufferManager.postDraw();
+                    vkCmdEndRenderPass(commandBuffer);
+                    ok(vkEndCommandBuffer(commandBuffer));
                 }
             }
         }
@@ -426,7 +421,7 @@ public class Renderer {
                     VK_PIPELINE_BIND_POINT_GRAPHICS,
                     instanceInfo.material().getPipeline().pipelineLayout(),
                     0,
-                    stack.longs(instanceInfo.ubo().getDescriptors().getRawDescriptorSets().getLong(commandBufferIndex)),
+                    stack.longs(instanceInfo.ubo().getDescriptors().getRawDescriptorSets().getLong(commandBufferIndex)), // FIXME: the descriptor set list is sometimes not updated before this is called
                     null
             );
         }
