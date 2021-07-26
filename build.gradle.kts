@@ -54,7 +54,7 @@ dependencies {
     minecraft("net.minecraft", "minecraft", properties["minecraft_version"].toString())
     mappings (loom.layered {
         officialMojangMappings()
-        parchment("org.parchmentmc.data:parchment-1.17:2021.07.09-nightly-SNAPSHOT@zip")
+        parchment("org.parchmentmc.data:parchment-1.17.1:2021.07.26-nightly-SNAPSHOT@zip")
     })
     modImplementation("net.fabricmc", "fabric-loader", properties["loader_version"].toString())
 
