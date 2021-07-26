@@ -53,7 +53,7 @@ public class Renderer {
     public final DepthBuffer depthBuffer;
 
     // Should the swap chain be recreated next render
-    private boolean initialSwapchainCreated;
+    private final boolean initialSwapchainCreated;
     private boolean recreateSwapChain;
     private boolean requireHardRebuild;
 
@@ -82,7 +82,7 @@ public class Renderer {
     public RenderPass renderPass;
 
     public long commandPool = 0;
-    VkCommandBuffer[] commandBuffers;
+    public VkCommandBuffer[] commandBuffers;
 
     private void createSwapChain(VkCommon common, Display display, SimpleObjectManager objectManager) {
         this.swapchain = new Swapchain(display, common.device.rawDevice, common.device.physicalDevice, common.surface);
@@ -333,6 +333,7 @@ public class Renderer {
 
             int commandBuffersCount = swapchain.getFrameBuffers().size();
 
+            clearCommandBuffers(common.device);
             commandBuffers = new VkCommandBuffer[commandBuffersCount];
 
             PointerBuffer pCommandBuffers = VkUtils.allocateCommandBuffers(
