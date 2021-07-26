@@ -276,7 +276,7 @@ public class GlobalRenderSystem {
 
     public static ByteBuffer getShaderUbo() {
         int size = 0;
-        int totalSize = ((ShaderAccessor) RenderSystem.getShader()).blaze4d$getUniforms().stream().map(Uniform::getType).map(MinecraftShaderProgram.UNIFORM_SIZES::get).reduce(0, Integer::sum);
+        int totalSize = ((ShaderAccessor) RenderSystem.getShader()).blaze4d$getUniforms().stream().mapToInt(Uniform::getType).map(MinecraftShaderProgram.UNIFORM_SIZES::get).reduce(0, Integer::sum);
         ByteBuffer mainBuffer = MemoryUtil.memAlloc(totalSize);
         for(Uniform uniform : ((ShaderAccessor) RenderSystem.getShader()).blaze4d$getUniforms()) {
             int uniformSize = MinecraftShaderProgram.UNIFORM_SIZES.get(uniform.getType());

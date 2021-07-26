@@ -4,9 +4,9 @@ import me.hydos.blaze4d.Blaze4D;
 import me.hydos.rosella.memory.BufferInfo;
 import me.hydos.rosella.memory.Memory;
 import me.hydos.rosella.render.descriptorsets.DescriptorSets;
-import me.hydos.rosella.render.material.Material;
 import me.hydos.rosella.render.shader.ubo.Ubo;
 import me.hydos.rosella.render.swapchain.Swapchain;
+import net.minecraft.util.Mth;
 import org.jetbrains.annotations.NotNull;
 import org.lwjgl.PointerBuffer;
 import org.lwjgl.system.MemoryStack;
@@ -24,14 +24,13 @@ public class MinecraftUbo extends Ubo {
     private final int totalSize;
     public DescriptorSets descSets;
     public List<BufferInfo> uboFrames = new ArrayList<>();
-    private int size;
     private PointerBuffer pLocation;
     private ByteBuffer data;
 
-    public MinecraftUbo(Memory memory, Material material, ByteBuffer shaderUbo) {
+    public MinecraftUbo(Memory memory, long rawDescriptorPool, ByteBuffer shaderUbo) {
         this.memory = memory;
-        this.descSets = new DescriptorSets(material.getShaderProgram().getRaw().getDescriptorPool());
-        this.totalSize = shaderUbo.capacity();
+        this.descSets = new DescriptorSets(rawDescriptorPool);
+        this.totalSize = Mth.roundToward(shaderUbo.capacity(), 16);
         this.data = shaderUbo;
     }
 
@@ -70,13 +69,8 @@ public class MinecraftUbo extends Ubo {
             memory.map(uboFrames.get(currentImg).allocation(), false, pLocation);
         }
 
-        beginUboWrite();
         ByteBuffer mainBuffer = pLocation.getByteBuffer(0, getSize());
         MemoryUtil.memCopy(data, mainBuffer);
-    }
-
-    private void beginUboWrite() {
-        size = 0;
     }
 
     @Override
