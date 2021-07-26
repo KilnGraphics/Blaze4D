@@ -2,12 +2,9 @@ package me.hydos.blaze4d.mixin.vertices;
 
 import com.mojang.blaze3d.shaders.Uniform;
 import com.mojang.blaze3d.systems.RenderSystem;
-import com.mojang.blaze3d.vertex.BufferUploader;
 import com.mojang.blaze3d.vertex.PoseStack;
 import com.mojang.blaze3d.vertex.VertexBuffer;
-import com.mojang.blaze3d.vertex.VertexFormat;
 import com.mojang.math.Matrix4f;
-import com.mojang.math.Vector3f;
 import it.unimi.dsi.fastutil.objects.ObjectArrayList;
 import it.unimi.dsi.fastutil.objects.ObjectListIterator;
 import me.hydos.blaze4d.api.GlobalRenderSystem;
@@ -42,7 +39,7 @@ public class WorldRendererMixin {
      * @author burger
      */
     @Overwrite
-    private void renderChunkLayer(RenderType renderType, PoseStack poseStack, double xTransparent, double yTransparent, double zTransparent, Matrix4f matrix4f) {
+    private void renderChunkLayer(RenderType renderType, PoseStack modelViewStack, double xTransparent, double yTransparent, double zTransparent, Matrix4f projectionMatrix) {
 
         RenderSystem.assertThread(RenderSystem::isOnRenderThread);
         renderType.setupRenderState();
@@ -72,9 +69,11 @@ public class WorldRendererMixin {
         boolean bl = renderType != RenderType.translucent();
         ObjectListIterator<LevelRenderer.RenderChunkInfo> objectListIterator = this.renderChunks.listIterator(bl ? 0 : this.renderChunks.size());
 
-        GlobalRenderSystem.updateUniforms();
+        ShaderInstance shader = RenderSystem.getShader();
 
-        Uniform chunkOffset = RenderSystem.getShader().CHUNK_OFFSET;
+        GlobalRenderSystem.updateUniforms(shader, modelViewStack.last().pose(), projectionMatrix);
+
+        Uniform chunkOffset = shader.CHUNK_OFFSET;
 
         while(true) {
             if (bl) {
@@ -92,18 +91,17 @@ public class WorldRendererMixin {
                 BlockPos blockPos = renderChunk.getOrigin();
                 if (chunkOffset != null) {
                     chunkOffset.set((float)((double)blockPos.getX() - xTransparent), (float)((double)blockPos.getY() - yTransparent), (float)((double)blockPos.getZ() - zTransparent));
-                    chunkOffset.upload();
                 }
 
                 vertexBuffer.drawChunkLayer();
             }
         }
 
-        if (chunkOffset != null) {
-            chunkOffset.set(Vector3f.ZERO);
-        }
+//        if (chunkOffset != null) {
+//            chunkOffset.set(Vector3f.ZERO);
+//        }
 
-        RenderSystem.getShader().clear();
+        shader.clear();
         this.minecraft.getProfiler().pop();
         renderType.clearRenderState();
     }

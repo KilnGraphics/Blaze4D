@@ -2,7 +2,6 @@ package me.hydos.blaze4d.mixin.vertices;
 
 import com.mojang.blaze3d.vertex.BufferBuilder;
 import com.mojang.blaze3d.vertex.VertexBuffer;
-import com.mojang.blaze3d.vertex.VertexFormat;
 import com.mojang.datafixers.util.Pair;
 import it.unimi.dsi.fastutil.objects.ObjectIntPair;
 import me.hydos.blaze4d.Blaze4D;
@@ -12,8 +11,6 @@ import me.hydos.rosella.memory.BufferInfo;
 import me.hydos.rosella.memory.ManagedBuffer;
 import me.hydos.rosella.render.info.RenderInfo;
 import net.minecraft.client.renderer.ShaderInstance;
-import org.joml.Matrix4f;
-import org.joml.Vector3f;
 import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.Overwrite;
 import org.spongepowered.asm.mixin.Unique;
@@ -68,7 +65,7 @@ public class VertexBufferMixin {
      */
     @Overwrite
     public void _drawWithShader(com.mojang.math.Matrix4f mcModelViewMatrix, com.mojang.math.Matrix4f mcProjectionMatrix, ShaderInstance shader) {
-        GlobalRenderSystem.updateUniforms();
+        GlobalRenderSystem.updateUniforms(shader, mcModelViewMatrix, mcProjectionMatrix);
         addBufferToRosella();
     }
 

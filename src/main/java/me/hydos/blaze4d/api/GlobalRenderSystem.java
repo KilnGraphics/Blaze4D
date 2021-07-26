@@ -4,12 +4,9 @@ import com.mojang.blaze3d.platform.Window;
 import com.mojang.blaze3d.shaders.Uniform;
 import com.mojang.blaze3d.systems.RenderSystem;
 import com.mojang.blaze3d.vertex.VertexFormat;
+import com.mojang.math.Matrix4f;
 import it.unimi.dsi.fastutil.ints.Int2ObjectOpenHashMap;
-import it.unimi.dsi.fastutil.objects.Object2IntMap;
-import it.unimi.dsi.fastutil.objects.Object2IntOpenHashMap;
-import it.unimi.dsi.fastutil.objects.Object2ObjectLinkedOpenHashMap;
-import it.unimi.dsi.fastutil.objects.ObjectIntImmutablePair;
-import it.unimi.dsi.fastutil.objects.ObjectIntPair;
+import it.unimi.dsi.fastutil.objects.*;
 import me.hydos.blaze4d.Blaze4D;
 import me.hydos.blaze4d.api.shader.MinecraftShaderProgram;
 import me.hydos.blaze4d.api.shader.ShaderContext;
@@ -27,6 +24,8 @@ import me.hydos.rosella.render.shader.ShaderProgram;
 import me.hydos.rosella.render.texture.Texture;
 import me.hydos.rosella.render.texture.TextureManager;
 import me.hydos.rosella.scene.object.impl.SimpleObjectManager;
+import net.minecraft.client.Minecraft;
+import net.minecraft.client.renderer.ShaderInstance;
 import org.lwjgl.system.MemoryUtil;
 import org.lwjgl.vulkan.VK10;
 
@@ -36,9 +35,6 @@ import java.util.Collections;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.CompletableFuture;
-
-import net.minecraft.client.Minecraft;
-import net.minecraft.client.renderer.ShaderInstance;
 
 /**
  * Used to make bits of the code easier to manage.
@@ -229,50 +225,53 @@ public class GlobalRenderSystem {
     }
 
     public static void updateUniforms() {
-        ShaderInstance shaderInstance = RenderSystem.getShader();
-        assert shaderInstance != null;
-        if (shaderInstance.MODEL_VIEW_MATRIX != null) {
-            shaderInstance.MODEL_VIEW_MATRIX.set(RenderSystem.getModelViewMatrix());
+        updateUniforms(RenderSystem.getShader(), RenderSystem.getModelViewMatrix(), RenderSystem.getProjectionMatrix());
+    }
+
+    public static void updateUniforms(ShaderInstance shader, Matrix4f modelViewMatrix, Matrix4f projectionMatrix) {
+        assert shader != null;
+        if (shader.MODEL_VIEW_MATRIX != null) {
+            shader.MODEL_VIEW_MATRIX.set(modelViewMatrix);
         }
 
-        if (shaderInstance.PROJECTION_MATRIX != null) {
-            shaderInstance.PROJECTION_MATRIX.set(RenderSystem.getProjectionMatrix());
+        if (shader.PROJECTION_MATRIX != null) {
+            shader.PROJECTION_MATRIX.set(projectionMatrix);
         }
 
-        if (shaderInstance.COLOR_MODULATOR != null) {
-            shaderInstance.COLOR_MODULATOR.set(RenderSystem.getShaderColor());
+        if (shader.COLOR_MODULATOR != null) {
+            shader.COLOR_MODULATOR.set(RenderSystem.getShaderColor());
         }
 
-        if (shaderInstance.FOG_START != null) {
-            shaderInstance.FOG_START.set(RenderSystem.getShaderFogStart());
+        if (shader.FOG_START != null) {
+            shader.FOG_START.set(RenderSystem.getShaderFogStart());
         }
 
-        if (shaderInstance.FOG_END != null) {
-            shaderInstance.FOG_END.set(RenderSystem.getShaderFogEnd());
+        if (shader.FOG_END != null) {
+            shader.FOG_END.set(RenderSystem.getShaderFogEnd());
         }
 
-        if (shaderInstance.FOG_COLOR != null) {
-            shaderInstance.FOG_COLOR.set(RenderSystem.getShaderFogColor());
+        if (shader.FOG_COLOR != null) {
+            shader.FOG_COLOR.set(RenderSystem.getShaderFogColor());
         }
 
-        if (shaderInstance.TEXTURE_MATRIX != null) {
-            shaderInstance.TEXTURE_MATRIX.set(RenderSystem.getTextureMatrix());
+        if (shader.TEXTURE_MATRIX != null) {
+            shader.TEXTURE_MATRIX.set(RenderSystem.getTextureMatrix());
         }
 
-        if (shaderInstance.GAME_TIME != null) {
-            shaderInstance.GAME_TIME.set(RenderSystem.getShaderGameTime());
+        if (shader.GAME_TIME != null) {
+            shader.GAME_TIME.set(RenderSystem.getShaderGameTime());
         }
 
-        if (shaderInstance.SCREEN_SIZE != null) {
+        if (shader.SCREEN_SIZE != null) {
             Window window = Minecraft.getInstance().getWindow();
-            shaderInstance.SCREEN_SIZE.set((float)window.getWidth(), (float)window.getHeight());
+            shader.SCREEN_SIZE.set((float)window.getWidth(), (float)window.getHeight());
         }
 
-        if (shaderInstance.LINE_WIDTH != null) {
-            shaderInstance.LINE_WIDTH.set(RenderSystem.getShaderLineWidth());
+        if (shader.LINE_WIDTH != null) {
+            shader.LINE_WIDTH.set(RenderSystem.getShaderLineWidth());
         }
 
-        RenderSystem.setupShaderLights(shaderInstance);
+        RenderSystem.setupShaderLights(shader);
     }
 
     public static ByteBuffer getShaderUbo() {
