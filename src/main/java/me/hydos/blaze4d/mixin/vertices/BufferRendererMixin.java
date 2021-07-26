@@ -2,15 +2,12 @@ package me.hydos.blaze4d.mixin.vertices;
 
 import com.mojang.blaze3d.vertex.BufferBuilder;
 import com.mojang.blaze3d.vertex.BufferUploader;
-import com.mojang.blaze3d.vertex.VertexFormat;
 import com.mojang.datafixers.util.Pair;
 import it.unimi.dsi.fastutil.objects.ObjectIntPair;
 import me.hydos.blaze4d.Blaze4D;
 import me.hydos.blaze4d.api.GlobalRenderSystem;
 import me.hydos.blaze4d.api.util.ConversionUtils;
 import me.hydos.rosella.memory.ManagedBuffer;
-import org.joml.Matrix4f;
-import org.joml.Vector3f;
 import org.lwjgl.system.MemoryUtil;
 import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.Overwrite;
@@ -41,6 +38,8 @@ public class BufferRendererMixin {
 
             ObjectIntPair<ManagedBuffer<ByteBuffer>> indexBufferPair = GlobalRenderSystem.createIndices(drawState.mode(), drawState.vertexCount());
 
+            GlobalRenderSystem.updateUniforms();
+
             GlobalRenderSystem.uploadAsyncCreatableObject(
                     new ManagedBuffer<>(copiedBuffer, true),
                     indexBufferPair.key(),
@@ -52,7 +51,6 @@ public class BufferRendererMixin {
                     GlobalRenderSystem.currentStateInfo.snapshot(),
                     Blaze4D.rosella
             );
-            GlobalRenderSystem.updateUniforms();
         }
     }
 

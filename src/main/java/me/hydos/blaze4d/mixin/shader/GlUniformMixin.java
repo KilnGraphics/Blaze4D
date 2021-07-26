@@ -1,9 +1,5 @@
 package me.hydos.blaze4d.mixin.shader;
 
-import java.nio.ByteBuffer;
-import java.nio.FloatBuffer;
-import java.nio.IntBuffer;
-
 import com.mojang.blaze3d.shaders.AbstractUniform;
 import com.mojang.blaze3d.shaders.Uniform;
 import com.mojang.math.Matrix4f;
@@ -16,6 +12,10 @@ import org.spongepowered.asm.mixin.Unique;
 import org.spongepowered.asm.mixin.injection.At;
 import org.spongepowered.asm.mixin.injection.Inject;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
+
+import java.nio.ByteBuffer;
+import java.nio.FloatBuffer;
+import java.nio.IntBuffer;
 
 @Mixin(Uniform.class)
 public abstract class GlUniformMixin extends AbstractUniform implements VulkanUniformBuffer {
@@ -75,5 +75,5 @@ public abstract class GlUniformMixin extends AbstractUniform implements VulkanUn
     }
 
     @Shadow
-    public abstract void markDirty();
+    protected abstract void markDirty();
 }
