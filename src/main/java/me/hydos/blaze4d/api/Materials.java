@@ -28,7 +28,7 @@ public class Materials {
             Blaze4D.rosella.objectManager.registerMaterial(
                     material
             );
-            Blaze4D.rosella.renderer.clearCommandBuffers(Blaze4D.rosella.common.device);
+//            Blaze4D.rosella.renderer.clearCommandBuffers(Blaze4D.rosella.common.device);
             Blaze4D.rosella.objectManager.submitMaterials();
             return material;
         });
