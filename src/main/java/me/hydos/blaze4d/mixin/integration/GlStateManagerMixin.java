@@ -253,6 +253,7 @@ public class GlStateManagerMixin {
      * @reason Clear Color Integration
      * <p>
      * Minecraft may be regarded as having bad code, but sometimes its ok.
+     * TODO: use vkCmdClearAttachments after implementing render graph
      */
     @Overwrite
     public static void _clearColor(float red, float green, float blue, float alpha) {

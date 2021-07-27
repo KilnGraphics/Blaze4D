@@ -20,7 +20,7 @@ import java.nio.IntBuffer;
 @Mixin(Uniform.class)
 public abstract class GlUniformMixin extends AbstractUniform implements VulkanUniformBuffer {
     @Unique
-    private ByteBuffer writeLocation;
+    private long writeLocation = MemoryUtil.NULL;
 
     @Shadow
     private int type;
@@ -39,25 +39,31 @@ public abstract class GlUniformMixin extends AbstractUniform implements VulkanUn
 
     @Override
     public void writeLocation(ByteBuffer buffer) {
-        writeLocation = buffer;
+        long newLocation = buffer == null ? MemoryUtil.NULL : MemoryUtil.memAddress(buffer);
+        if (writeLocation != newLocation) {
+            writeLocation = newLocation;
+            markDirty();
+        } else {
+            System.out.println("lol");
+        }
     }
 
     @Inject(method = "upload", at = @At("HEAD"), cancellable = true)
     public void uploadToRosellaBuffer(CallbackInfo ci) {
-        if (writeLocation == null) {
+        if (writeLocation == MemoryUtil.NULL || !dirty) {
             return;
         }
 
         this.dirty = false;
         if (this.type <= 3) {
-            MemoryUtil.memCopy(MemoryUtil.memAddress(intValues), MemoryUtil.memAddress(writeLocation), (long) (type + 1) * Integer.BYTES);
+            MemoryUtil.memCopy(MemoryUtil.memAddress(intValues), writeLocation, (long) (type + 1) * Integer.BYTES);
         } else if (this.type <= 7) {
-            MemoryUtil.memCopy(MemoryUtil.memAddress(floatValues), MemoryUtil.memAddress(writeLocation), (long) (type - 3) * Float.BYTES);
+            MemoryUtil.memCopy(MemoryUtil.memAddress(floatValues), writeLocation, (long) (type - 3) * Float.BYTES);
         } else {
             if (this.type > 10) {
                 return;
             }
-            MemoryUtil.memCopy(MemoryUtil.memAddress(floatValues), MemoryUtil.memAddress(writeLocation), (long) Math.pow(type - 6, 2) * Float.BYTES);
+            MemoryUtil.memCopy(MemoryUtil.memAddress(floatValues), writeLocation, (long) Math.pow(type - 6, 2) * Float.BYTES);
         }
         ci.cancel();
     }
