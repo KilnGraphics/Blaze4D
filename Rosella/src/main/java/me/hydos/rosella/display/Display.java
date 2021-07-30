@@ -39,7 +39,7 @@ public abstract class Display {
     public abstract void startAutomaticLoop(Rosella rosella);
 
     /**
-     * Exit's the {@link Display}. should be called after {@link me.hydos.rosella.Rosella} exit's
+     * Exit's the {@link Display}. should be called after {@link Rosella} exit's
      */
     public abstract void exit();
 
@@ -71,13 +71,13 @@ public abstract class Display {
     public abstract long createSurface(VkCommon common);
 
     /**
-     * Called when {@link me.hydos.rosella.Rosella} has finished initializing so the display can do what it needs to do
+     * Called when {@link Rosella} has finished initializing so the display can do what it needs to do
      */
     public void onReady() {
     }
 
     /**
-     * When swapchain recreation happens, the size may be 0, 0. we need to wait for the display's size to not be 0, 0. Not doing so may crash {@link me.hydos.rosella.Rosella}
+     * When swapchain recreation happens, the size may be 0, 0. we need to wait for the display's size to not be 0, 0. Not doing so may crash {@link Rosella}
      */
     public abstract void waitForNonZeroSize();
 }

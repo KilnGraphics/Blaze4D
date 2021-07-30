@@ -33,14 +33,12 @@ import static org.lwjgl.vulkan.VK10.*;
 import static org.lwjgl.vulkan.VK12.VK_API_VERSION_1_2;
 
 /**
- * Main Rosella class. If your interacting with the engine from here, You will most likely be safe.
+ * Main Rosella class. If you're interacting with the engine from here, You will most likely be safe.
  */
 public class Rosella {
 
     public static final Logger LOGGER = LogManager.getLogger("Rosella", new StringFormatterMessageFactory());
     public static final int VULKAN_VERSION = VK_API_VERSION_1_2;
-    // NVFillRectangle.VK_POLYGON_MODE_FILL_RECTANGLE_NV
-    public static final int POLYGON_MODE = VK_POLYGON_MODE_FILL; // TODO: wtf
     public final GlobalBufferManager bufferManager;
     public final VkCommon common = new VkCommon();
     public final Renderer renderer;

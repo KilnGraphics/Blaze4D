@@ -84,11 +84,12 @@ public class VertexBufferMixin {
         if (currentRenderInfo != null && drawState != null) {
             GlobalRenderSystem.uploadPreCreatedObject(
                     currentRenderInfo,
-                    ConversionUtils.FORMAT_CONVERSION_MAP.get(drawState.format().getElements()),
-                    ConversionUtils.mcDrawModeToRosellaTopology(drawState.mode()),
                     GlobalRenderSystem.activeShader,
-                    GlobalRenderSystem.createTextureArray(),
+                    ConversionUtils.mcDrawModeToRosellaTopology(drawState.mode()),
+                    GlobalRenderSystem.DEFAULT_POLYGON_MODE,
+                    ConversionUtils.FORMAT_CONVERSION_MAP.get(drawState.format().getElements()),
                     GlobalRenderSystem.currentStateInfo.snapshot(),
+                    GlobalRenderSystem.getCurrentTextureMap(),
                     Blaze4D.rosella
             );
         }

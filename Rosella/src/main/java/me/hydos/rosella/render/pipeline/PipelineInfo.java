@@ -1,4 +1,4 @@
-package me.hydos.rosella.render.material;
+package me.hydos.rosella.render.pipeline;
 
 import me.hydos.rosella.device.VulkanDevice;
 import me.hydos.rosella.memory.Memory;

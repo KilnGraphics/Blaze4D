@@ -30,7 +30,7 @@ public class MemoryUtils {
             entry(Vector2f.class, 2 * Float.BYTES),
             entry(Vector3f.class, 3 * Float.BYTES),
             entry(Vector4f.class, 4 * Float.BYTES),
-            entry(Matrix4f.class, 16 * java.lang.Float.BYTES)
+            entry(Matrix4f.class, 16 * Float.BYTES)
     );
 
     public static int size(Class<?> klass) {

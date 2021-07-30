@@ -15,14 +15,16 @@ import me.hydos.blaze4d.api.vertex.ConsumerRenderObject;
 import me.hydos.blaze4d.mixin.shader.ShaderAccessor;
 import me.hydos.rosella.Rosella;
 import me.hydos.rosella.memory.ManagedBuffer;
+import me.hydos.rosella.render.PolygonMode;
 import me.hydos.rosella.render.Topology;
 import me.hydos.rosella.render.info.RenderInfo;
-import me.hydos.rosella.render.material.state.StateInfo;
+import me.hydos.rosella.render.pipeline.state.StateInfo;
 import me.hydos.rosella.render.resource.Identifier;
 import me.hydos.rosella.render.shader.RawShaderProgram;
 import me.hydos.rosella.render.shader.ShaderProgram;
-import me.hydos.rosella.render.texture.Texture;
+import me.hydos.rosella.render.texture.DynamicTextureMap;
 import me.hydos.rosella.render.texture.TextureManager;
+import me.hydos.rosella.render.texture.TextureMap;
 import me.hydos.rosella.scene.object.impl.SimpleObjectManager;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.renderer.ShaderInstance;
@@ -40,6 +42,10 @@ import java.util.concurrent.CompletableFuture;
  * Used to make bits of the code easier to manage.
  */
 public class GlobalRenderSystem {
+
+    // Constants
+    public static final PolygonMode DEFAULT_POLYGON_MODE = PolygonMode.FILL;
+
     // Shader Fields
     public static final Map<Integer, ShaderContext> SHADER_MAP = new Int2ObjectOpenHashMap<>();
     public static final Map<Integer, RawShaderProgram> SHADER_PROGRAM_MAP = new Int2ObjectOpenHashMap<>();
@@ -53,9 +59,12 @@ public class GlobalRenderSystem {
     public static Set<ConsumerRenderObject> currentFrameObjects = Collections.newSetFromMap(new Object2ObjectLinkedOpenHashMap<>()); // this is sorted
 
     // Active Fields
-    public static final int maxTextures = 12;
-    public static int[] boundTextureIds = new int[maxTextures]; // TODO: generate an identifier instead of using int id, or switch everything over to ints
-    public static int activeTexture = 0;
+    public static final int MAX_TEXTURES = 12;
+    private static int[] boundTextureIds = new int[MAX_TEXTURES]; // TODO: generate an identifier instead of using int id, or switch everything over to ints
+    private static int activeTextureSlot = 0;
+
+    private static DynamicTextureMap currentTextureMap = new DynamicTextureMap();
+    private static boolean textureMapRequiresUpdate = false;
 
     public static ShaderProgram activeShader;
 
@@ -129,43 +138,89 @@ public class GlobalRenderSystem {
         currentFrameObjects.clear();
     }
 
-    public static Texture[] createTextureArray() {
-        Texture[] textures = new Texture[maxTextures];
-        for (int i = 0; i < maxTextures; i++) {
-            int texId = boundTextureIds[i];
-            textures[i] = texId == TextureManager.BLANK_TEXTURE_ID ? null : ((SimpleObjectManager) Blaze4D.rosella.objectManager).textureManager.getTexture(texId);
-        }
-        return textures;
+    public static int getTextureIdInSlot(int slot) {
+        return boundTextureIds[slot];
     }
 
-    public static void uploadAsyncCreatableObject(ManagedBuffer<ByteBuffer> vertexBufferSource, ManagedBuffer<ByteBuffer> indexBufferSource,
-                                    int indexCount, me.hydos.rosella.render.vertex.VertexFormat format, Topology topology,
-                                    ShaderProgram shader, Texture[] textures, StateInfo stateInfo, Rosella rosella) {
+    public static void setTextureIdInSlot(int slot, int texId) {
+        int oldTexId = boundTextureIds[slot];
+        if (texId != oldTexId) {
+            boundTextureIds[slot] = texId;
+            textureMapRequiresUpdate = true;
+        }
+    }
+
+    public static int getActiveTextureSlot() {
+        return activeTextureSlot;
+    }
+
+    public static void setActiveTextureSlot(int slot) {
+        if (slot != activeTextureSlot) {
+            activeTextureSlot = slot;
+            textureMapRequiresUpdate = true;
+        }
+    }
+
+    public static String getSamplerNameForSlot(int slot) {
+        return "Sampler" + slot;
+    }
+
+    public static TextureMap getCurrentTextureMap() {
+        if (textureMapRequiresUpdate) {
+            for (int i = 0; i < MAX_TEXTURES; i++) {
+                int texId = boundTextureIds[i];
+                currentTextureMap.put(getSamplerNameForSlot(i), texId == TextureManager.BLANK_TEXTURE_ID ? null : ((SimpleObjectManager) Blaze4D.rosella.objectManager).textureManager.getTexture(texId));
+            }
+            currentTextureMap.put("DiffuseSampler", TextureManager.BLANK_TEXTURE); // TODO: this should be the current framebuffer
+        }
+        return currentTextureMap;
+    }
+
+    public static void uploadAsyncCreatableObject(
+            ManagedBuffer<ByteBuffer> vertexBufferSource,
+            ManagedBuffer<ByteBuffer> indexBufferSource,
+            int indexCount,
+            ShaderProgram shader,
+            Topology topology,
+            PolygonMode polygonMode,
+            me.hydos.rosella.render.vertex.VertexFormat format,
+            StateInfo stateInfo,
+            TextureMap textures,
+            Rosella rosella) {
 
         if (shader == null) return;
         ConsumerRenderObject renderObject = new ConsumerRenderObject(
                 CompletableFuture.completedFuture(new RenderInfo(rosella.bufferManager.getOrCreateVertexBuffer(vertexBufferSource), rosella.bufferManager.getOrCreateIndexBuffer(indexBufferSource), indexCount)), // TODO: designate thread pool for this maybe
-                format,
-                topology,
                 shader,
-                textures,
+                topology,
+                polygonMode,
+                format,
                 stateInfo,
+                textures,
                 rosella
         );
         currentFrameObjects.add(renderObject);
     }
 
-    public static void uploadPreCreatedObject(RenderInfo renderInfo, me.hydos.rosella.render.vertex.VertexFormat format,
-                                    Topology topology, ShaderProgram shader, Texture[] textures, StateInfo stateInfo, Rosella rosella) {
+    public static void uploadPreCreatedObject(
+            RenderInfo renderInfo,
+            ShaderProgram shader,
+            Topology topology,
+            PolygonMode polygonMode,
+            me.hydos.rosella.render.vertex.VertexFormat format,
+            StateInfo stateInfo,
+            TextureMap textures,
+            Rosella rosella) {
 
         if (shader == null) return;
         ConsumerRenderObject renderObject = new ConsumerRenderObject(
                 CompletableFuture.completedFuture(renderInfo),
-                format,
-                topology,
                 shader,
-                textures,
+                topology,
+                polygonMode,
+                format,
                 stateInfo,
+                textures,
                 rosella
         );
 

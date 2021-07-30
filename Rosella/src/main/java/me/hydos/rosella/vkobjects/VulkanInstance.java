@@ -1,7 +1,6 @@
 package me.hydos.rosella.vkobjects;
 
 import me.hydos.rosella.logging.DebugLogger;
-import me.hydos.rosella.memory.Memory;
 import org.lwjgl.PointerBuffer;
 import org.lwjgl.system.MemoryStack;
 import org.lwjgl.vulkan.*;
@@ -36,7 +35,7 @@ public class VulkanInstance {
                     .sType(VK_STRUCTURE_TYPE_APPLICATION_INFO)
                     .apiVersion(VK_API_VERSION_1_2) // TODO: check the device's vulkan version
                     .pEngineName(stack.UTF8Safe("Rosella"))
-                    .engineVersion(VK_MAKE_VERSION(2, 0, 0))
+                    .engineVersion(VK_MAKE_VERSION(1, 2, 0))
 
                     .pApplicationName(stack.UTF8Safe(applicationName))
                     .applicationVersion(VK_MAKE_VERSION(1, 0, 0));
@@ -47,7 +46,6 @@ public class VulkanInstance {
                     .ppEnabledExtensionNames(getRequiredExtensions(requestedValidationLayers.size() != 0, requestedExtensions));
 
             VkDebugUtilsMessengerCreateInfoEXT debugMessengerCreateInfo;
-
             {
                 IntBuffer validationFeatures = stack.callocInt(6)
                         .put(EXTValidationFeatures.VK_VALIDATION_FEATURE_ENABLE_BEST_PRACTICES_EXT)

@@ -16,34 +16,34 @@ import org.spongepowered.asm.mixin.injection.callback.CallbackInfoReturnable;
 public class RenderSystemMixin {
 
     @Inject(method = "setShaderTexture(ILnet/minecraft/resources/ResourceLocation;)V", at = @At("HEAD"), require = 0, cancellable = true)
-    private static void setTextureFromIdentifier(int i, ResourceLocation identifier, CallbackInfo ci) {
-        setTexture(i, identifier, ci);
+    private static void setTextureFromIdentifier(int slot, ResourceLocation identifier, CallbackInfo ci) {
+        setTexture(slot, identifier, ci);
     }
 
     @Inject(method = "setShaderTexture(ILnet/minecraft/class_2960;)V", at = @At("HEAD"), require = 0, cancellable = true) // ugly hack to get around mixin not remapping properly
-    private static void setTextureFromIdentifierInIntermediary(int i, ResourceLocation identifier, CallbackInfo ci) {
-        setTexture(i, identifier, ci);
+    private static void setTextureFromIdentifierInIntermediary(int slot, ResourceLocation identifier, CallbackInfo ci) {
+        setTexture(slot, identifier, ci);
     }
 
-    private static void setTexture(int i, ResourceLocation identifier, CallbackInfo ci) {
-        if (i >= 0 && i < GlobalRenderSystem.boundTextureIds.length) {
+    private static void setTexture(int slot, ResourceLocation identifier, CallbackInfo ci) {
+        if (slot >= 0 && slot < GlobalRenderSystem.MAX_TEXTURES) {
             TextureManager textureManager = Minecraft.getInstance().getTextureManager();
             AbstractTexture abstractTexture = textureManager.getTexture(identifier);
-            GlobalRenderSystem.boundTextureIds[i] = abstractTexture.getId();
+            GlobalRenderSystem.setTextureIdInSlot(slot, abstractTexture.getId());
         }
         ci.cancel();
     }
 
     @Inject(method = "setShaderTexture(II)V", at = @At("HEAD"), cancellable = true)
-    private static void setTextureFromId(int i, int j, CallbackInfo ci) {
-        if (i >= 0 && i < GlobalRenderSystem.boundTextureIds.length) {
-            GlobalRenderSystem.boundTextureIds[i] = j;
+    private static void setTextureFromId(int slot, int texId, CallbackInfo ci) {
+        if (slot >= 0 && slot < GlobalRenderSystem.MAX_TEXTURES) {
+            GlobalRenderSystem.setTextureIdInSlot(slot, texId);
         }
         ci.cancel();
     }
 
     @Inject(method = "getShaderTexture", at = @At("HEAD"), cancellable = true)
-    private static void getTextureFromUs(int i, CallbackInfoReturnable<Integer> cir) {
-        cir.setReturnValue(i >= 0 && i < GlobalRenderSystem.boundTextureIds.length ? GlobalRenderSystem.boundTextureIds[i] : 0);
+    private static void getTextureFromUs(int slot, CallbackInfoReturnable<Integer> cir) {
+        cir.setReturnValue(slot >= 0 && slot < GlobalRenderSystem.MAX_TEXTURES ? GlobalRenderSystem.getTextureIdInSlot(slot) : 0);
     }
 }

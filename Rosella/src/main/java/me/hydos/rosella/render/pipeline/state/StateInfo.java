@@ -1,4 +1,4 @@
-package me.hydos.rosella.render.material.state;
+package me.hydos.rosella.render.pipeline.state;
 
 import org.jetbrains.annotations.NotNull;
 import org.lwjgl.system.MemoryStack;
@@ -13,6 +13,7 @@ import org.lwjgl.vulkan.VkRect2D;
 
 import java.util.Objects;
 
+// TODO OPT: split this up into multiple things and allow for optional dynamic pipelines
 public class StateInfo {
     private int colorMask;
     private boolean depthMask;

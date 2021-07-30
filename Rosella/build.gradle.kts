@@ -5,10 +5,29 @@ plugins {
 }
 
 group = "me.hydos"
-version = "1.0-SNAPSHOT"
+version = "1.1-SNAPSHOT"
 
-val lwjglVersion = extra["lwjgl.version"].toString()
-val lwjglNatives = extra["lwjgl.natives"].toString()
+val lwjglVersion = "3.3.0-SNAPSHOT"
+val lwjglNatives = when (org.gradle.internal.os.OperatingSystem.current()) {
+    org.gradle.internal.os.OperatingSystem.LINUX -> System.getProperty("os.arch").let {
+        if (it.startsWith("arm") || it.startsWith("aarch64")) {
+            val arch = if (it.contains("64") || it.startsWith("armv8")) {
+                "arm64"
+            } else {
+                "arm32"
+            }
+
+            "natives-linux-$arch"
+        } else {
+            "natives-linux"
+        }
+    }
+    org.gradle.internal.os.OperatingSystem.MAC_OS -> if (System.getProperty("os.arch")
+            .startsWith("aarch64")
+    ) "natives-macos-arm64" else "natives-macos"
+    org.gradle.internal.os.OperatingSystem.WINDOWS -> "natives-windows"
+    else -> error("Unrecognized or unsupported Operating system. Please set \"lwjglNatives\" manually")
+}
 
 repositories {
     mavenCentral()

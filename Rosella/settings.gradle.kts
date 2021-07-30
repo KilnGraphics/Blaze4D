@@ -1,8 +1,2 @@
-rootProject.name = "Rosella"
+rootProject.name = "rosella"
 
-pluginManagement {
-    repositories {
-        gradlePluginPortal()
-        jcenter()
-    }
-}

@@ -2,27 +2,38 @@ package me.hydos.rosella.scene.object;
 
 import me.hydos.rosella.Rosella;
 import me.hydos.rosella.device.VulkanDevice;
+import me.hydos.rosella.memory.ManagedBuffer;
 import me.hydos.rosella.memory.Memory;
 import me.hydos.rosella.render.info.InstanceInfo;
 import me.hydos.rosella.render.info.RenderInfo;
 import me.hydos.rosella.render.material.Material;
+import me.hydos.rosella.render.model.ModelLoader;
 import me.hydos.rosella.render.resource.Resource;
 import me.hydos.rosella.render.shader.ubo.RenderObjectUbo;
 import org.joml.Matrix4f;
+import org.joml.Vector2fc;
+import org.joml.Vector3f;
+import org.joml.Vector3fc;
+import org.lwjgl.assimp.Assimp;
+import org.lwjgl.system.MemoryUtil;
 
+import java.nio.ByteBuffer;
+import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.Future;
 
 public class RenderObject implements Renderable {
 
-    private final Material material;
+    protected final Material material;
     private final Resource modelId;
-    public final Future<RenderInfo> renderInfo = null;//new RenderInfo(new BufferVertexConsumer(VertexFormats.POSITION_COLOR3_UV0));
+    public Future<RenderInfo> renderInfo;
     public InstanceInfo instanceInfo;
 
     public final Matrix4f modelMatrix = new Matrix4f();
     public final Matrix4f viewMatrix;
     public final Matrix4f projectionMatrix;
+    protected ByteBuffer indices;
+    protected ByteBuffer vertexBuffer;
 
     public RenderObject(Resource model, Material material, Matrix4f projectionMatrix, Matrix4f viewMatrix) {
         this.material = material;
@@ -33,35 +44,47 @@ public class RenderObject implements Renderable {
     }
 
     public void loadModelInfo() {
-        // FIXME redo after fixing BufferVertexConsumer
-//        ModelLoader.SimpleModel model = ModelLoader.loadModel(modelId, Assimp.aiProcess_FlipUVs | Assimp.aiProcess_DropNormals);
-//        int vertexCount = model.getPositions().size();
-//
-//        BufferVertexConsumer vertexConsumer = (BufferVertexConsumer) renderInfo.bufferProvider;
-//
-//        vertexConsumer.clear();
-//        Vector3f color = new Vector3f(1.0f, 1.0f, 1.0f);
-//        for (int i = 0; i < vertexCount; i++) {
-//            Vector3fc pos = model.getPositions().get(i);
-//            Vector2fc uvs = model.getTexCoords().get(i);
-//            // TODO: is this conversion doing what it should be? should convert int representing unsigned byte to signed byte through wrapping
-//            vertexConsumer
-//                    .pos(pos.x(), pos.y(), pos.z())
-//                    .color((byte) (int) color.x(), (byte) (int) color.y(), (byte) (int) color.z())
-//                    .uv(uvs.x(), uvs.y())
-//                    .nextVertex();
-//        }
-//
-//        renderInfo.indices = new IntArrayList(model.getIndices().size());
-//        renderInfo.indices.addAll(model.getIndices());
+        ModelLoader.SimpleModel model = ModelLoader.loadModel(modelId, Assimp.aiProcess_FlipUVs | Assimp.aiProcess_DropNormals);
+        int vertexCount = model.getPositions().size();
+        int size = material.pipelineCreateInfo().vertexFormat().getSize();
+        this.vertexBuffer = MemoryUtil.memAlloc(size * vertexCount);
+        Vector3f color = new Vector3f(1.0f, 1.0f, 1.0f);
+
+        for (int i = 0; i < vertexCount; i++) {
+            Vector3fc pos = model.getPositions().get(i);
+            Vector2fc uvs = model.getTexCoords().get(i);
+
+            vertexBuffer
+                    .putFloat(pos.x())
+                    .putFloat(pos.y())
+                    .putFloat(pos.z());
+
+            vertexBuffer
+                    .putFloat(color.x())
+                    .putFloat(color.y())
+                    .putFloat(color.z());
+
+            vertexBuffer
+                    .putFloat(uvs.x())
+                    .putFloat(uvs.y());
+        }
+
+        this.indices = MemoryUtil.memAlloc(model.getIndices().size() * Integer.BYTES);
+        for (Integer index : model.getIndices()) {
+            this.indices.putInt(index);
+        }
+        this.indices.rewind();
+        this.vertexBuffer.rewind();
     }
 
     @Override
     public void onAddedToScene(Rosella rosella) {
-        // FIXME
-//        instanceInfo = new InstanceInfo(new RenderObjectUbo(rosella.common.device, rosella.common.memory, this, material.getShaderProgram()), material);
-//        this.projectionMatrix = rosella.getCamera().getProj();
-//        this.viewMatrix = rosella.getCamera().getView();
+        instanceInfo = new InstanceInfo(new RenderObjectUbo(rosella.common.device, rosella.common.memory, this, material.pipelineCreateInfo().shaderProgram()), material);
+        renderInfo = CompletableFuture.completedFuture(new RenderInfo(
+                rosella.bufferManager.createVertexBuffer(new ManagedBuffer<>(vertexBuffer, true)),
+                rosella.bufferManager.createIndexBuffer(new ManagedBuffer<>(indices, true)),
+                indices.capacity() / 4
+        ));
     }
 
     @Override

@@ -1,8 +1,10 @@
 package me.hydos.rosella.display;
 
 import me.hydos.rosella.Rosella;
+import me.hydos.rosella.scene.object.impl.SimpleObjectManager;
 import me.hydos.rosella.vkobjects.VkCommon;
 import org.lwjgl.PointerBuffer;
+import org.lwjgl.glfw.GLFW;
 import org.lwjgl.glfw.GLFWVidMode;
 import org.lwjgl.glfw.GLFWVulkan;
 import org.lwjgl.system.MemoryStack;
@@ -28,7 +30,7 @@ public class GlfwWindow extends Display {
     public double previousTime = glfwGetTime();
     public int frameCount;
 
-    private GlfwWindow(){
+    private GlfwWindow() {
         super(0, 0);
     }
 
@@ -43,6 +45,7 @@ public class GlfwWindow extends Display {
             throw new RuntimeException("Your machine doesn't support Vulkan :(");
         }
 
+        glfwDefaultWindowHints();
         glfwWindowHint(GLFW_CLIENT_API, GLFW_NO_API);
         glfwWindowHint(GLFW_VISIBLE, GLFW_FALSE);
         glfwWindowHint(GLFW_RESIZABLE, canResize ? GLFW_TRUE : GLFW_FALSE);
@@ -76,6 +79,7 @@ public class GlfwWindow extends Display {
     @Override
     public void startAutomaticLoop(Rosella rosella) {
         while (!glfwWindowShouldClose(pWindow)) {
+//            rosella.renderer.rebuildCommandBuffers(rosella.renderer.renderPass, (SimpleObjectManager) rosella.objectManager);
             update();
             rosella.renderer.render();
         }

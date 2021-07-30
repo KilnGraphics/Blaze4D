@@ -96,9 +96,10 @@ public class Renderer {
             objectManager.pipelineManager.invalidatePipelines(common);
         }
 
-        for (Material material : objectManager.materials) {
-            material.setPipeline(objectManager.pipelineManager.getOrCreatePipeline(material, this));
-        }
+        Rosella.LOGGER.info("recreating swapchain and renderpass");
+//        for (Material material : objectManager.materials) {
+//            material.setPipeline(objectManager.pipelineManager.getOrCreatePipeline(material, this));
+//        }
 
         rebuildCommandBuffers(renderPass, objectManager);
         createSyncObjects();
@@ -372,7 +373,7 @@ public class Renderer {
                         try {
                             RenderInfo currentRenderInfo = renderObject.getRenderInfo().get();
                             InstanceInfo currentInstanceInfo = renderObject.getInstanceInfo();
-                            long currentGraphicsPipeline = currentInstanceInfo.material().getPipeline().graphicsPipeline();
+                            long currentGraphicsPipeline = currentInstanceInfo.material().pipeline().graphicsPipeline();
 
                             if (!Objects.equals(currentRenderInfo, previousRenderInfo)) {
                                 previousRenderInfo = currentRenderInfo;
@@ -419,7 +420,7 @@ public class Renderer {
             vkCmdBindDescriptorSets(
                     commandBuffer,
                     VK_PIPELINE_BIND_POINT_GRAPHICS,
-                    instanceInfo.material().getPipeline().pipelineLayout(),
+                    instanceInfo.material().pipeline().pipelineLayout(),
                     0,
                     stack.longs(instanceInfo.ubo().getDescriptors().getRawDescriptorSets().getLong(commandBufferIndex)), // FIXME: the descriptor set list is sometimes not updated before this is called
                     null

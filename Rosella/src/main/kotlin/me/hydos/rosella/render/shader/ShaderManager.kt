@@ -9,6 +9,8 @@ class ShaderManager(val rosella: Rosella) {
     fun getOrCreateShader(rawShader: RawShaderProgram): ShaderProgram? {
         if (!cachedShaders.containsKey(rawShader)) {
             cachedShaders[rawShader] = ShaderProgram(rawShader, rosella, rawShader.maxObjCount)
+            // TODO: not sure if this should actually be here or later
+            rawShader.createDescriptorSetLayout()
         }
 
         return cachedShaders[rawShader]

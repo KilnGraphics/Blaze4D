@@ -5,7 +5,6 @@ import com.mojang.blaze3d.shaders.Program;
 import com.mojang.blaze3d.vertex.DefaultVertexFormat;
 import com.mojang.blaze3d.vertex.VertexFormat;
 import com.mojang.blaze3d.vertex.VertexFormatElement;
-import me.hydos.blaze4d.api.Materials;
 import me.hydos.rosella.render.Topology;
 import me.hydos.rosella.render.shader.ShaderType;
 import me.hydos.rosella.render.texture.ImageFormat;
@@ -17,10 +16,7 @@ import org.lwjgl.opengl.GL30;
 import org.lwjgl.opengl.GL33;
 import org.lwjgl.vulkan.VK10;
 
-import java.util.Collections;
 import java.util.Map;
-
-import static com.mojang.blaze3d.vertex.DefaultVertexFormat.ELEMENT_POSITION;
 
 public abstract class ConversionUtils {
 

@@ -49,11 +49,7 @@ public class MinecraftShaderProgram extends RawShaderProgram {
         for (Object2IntMap.Entry<String> sampler : samplers.object2IntEntrySet()) {
             String name = sampler.getKey();
             int bindingLocation = sampler.getIntValue();
-            if (name.equals("DiffuseSampler")) {
-                types.add(new PoolSamplerInfo(bindingLocation, -1)); // TODO: set to framebuffer
-            } else {
-                types.add(new PoolSamplerInfo(bindingLocation, Integer.parseInt(name.substring(7))));
-            }
+            types.add(new PoolSamplerInfo(bindingLocation, name));
         }
 
         return types.toArray(PoolObjectInfo[]::new);

@@ -23,7 +23,7 @@ public class TextureManager {
     private final VkCommon common;
 
     private final Int2ObjectMap<Texture> textureMap = new Int2ObjectOpenHashMap<>();
-    private final Map<SamplerCreateInfo, Map<Integer, TextureSampler>> samplerCache = new HashMap<>();
+    private final Map<SamplerCreateInfo, Map<String, TextureSampler>> samplerCache = new HashMap<>();
     private final Set<Texture> preparedTextures = new HashSet<>();
     private final IntPriorityQueue reusableTexIds = IntPriorityQueues.synchronize(new IntArrayPriorityQueue());
 
@@ -82,9 +82,10 @@ public class TextureManager {
         textureMap.put(textureId, new Texture(imgFormat, width, height, textureImage, VK10.VK_NULL_HANDLE));
     }
 
-    public void setTextureSampler(int textureId, int textureNo, SamplerCreateInfo samplerCreateInfo) {
-        Map<Integer, TextureSampler> textureNoMap = samplerCache.computeIfAbsent(samplerCreateInfo, s -> new HashMap<>());
-        TextureSampler textureSampler = textureNoMap.computeIfAbsent(textureNo, t -> new TextureSampler(samplerCreateInfo, common.device));
+    // TODO: figure out how to use binding ids instead of names
+    public void setTextureSampler(int textureId, String samplerName, SamplerCreateInfo samplerCreateInfo) {
+        Map<String, TextureSampler> textureNoMap = samplerCache.computeIfAbsent(samplerCreateInfo, s -> new HashMap<>());
+        TextureSampler textureSampler = textureNoMap.computeIfAbsent(samplerName, t -> new TextureSampler(samplerCreateInfo, common.device));
         textureMap.get(textureId).setTextureSampler(textureSampler.getPointer());
     }
 

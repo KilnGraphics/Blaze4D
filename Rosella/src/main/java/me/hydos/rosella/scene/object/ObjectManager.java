@@ -1,11 +1,17 @@
 package me.hydos.rosella.scene.object;
 
 import me.hydos.rosella.Rosella;
+import me.hydos.rosella.render.PolygonMode;
+import me.hydos.rosella.render.Topology;
 import me.hydos.rosella.render.material.Material;
+import me.hydos.rosella.render.pipeline.PipelineCreateInfo;
+import me.hydos.rosella.render.pipeline.state.StateInfo;
 import me.hydos.rosella.render.renderer.Renderer;
 import me.hydos.rosella.render.shader.RawShaderProgram;
 import me.hydos.rosella.render.shader.ShaderProgram;
 import me.hydos.rosella.render.swapchain.RenderPass;
+import me.hydos.rosella.render.texture.TextureMap;
+import me.hydos.rosella.render.vertex.VertexFormat;
 
 /**
  * Allows for multiple ways for the engine to handle objects.
@@ -28,11 +34,9 @@ public interface ObjectManager {
     Renderable addObject(Renderable renderable);
 
     /**
-     * registers a {@link Material} into the engine.
-     *
-     * @param material the material to register
+     * Creates a material using the specified contents
      */
-    Material registerMaterial(Material material);
+    Material createMaterial(PipelineCreateInfo pipelineCreateInfo, TextureMap textures);
 
     /**
      * registers a {@link RawShaderProgram} into the engine.
@@ -40,11 +44,6 @@ public interface ObjectManager {
      * @param program the program to register
      */
     ShaderProgram addShader(RawShaderProgram program);
-
-    /**
-     * Called when new materials are ready to be processed.
-     */
-    void submitMaterials();
 
     /**
      * Called when the engine is exiting.

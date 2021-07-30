@@ -6,7 +6,7 @@ import me.hydos.rosella.render.descriptorsets.DescriptorSets;
 import me.hydos.rosella.render.shader.ShaderProgram;
 import me.hydos.rosella.render.shader.ubo.Ubo;
 import me.hydos.rosella.render.swapchain.Swapchain;
-import me.hydos.rosella.render.texture.Texture;
+import me.hydos.rosella.render.texture.TextureMap;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
@@ -40,10 +40,10 @@ public class DescriptorManager {
     /**
      * Allocates a new {@link DescriptorSets}. This should only be called when no free {@link DescriptorSets}'s are available
      *
-     * @param textures the {@link Texture[]} array to use with the {@link DescriptorSets}
+     * @param textures the {@link TextureMap[]} to use with the {@link DescriptorSets}
      * @param ubo      the {@link Ubo} to use with the {@link DescriptorSets}
      */
-    public void createNewDescriptor(Texture[] textures, Ubo ubo) {
+    public void createNewDescriptor(TextureMap textures, Ubo ubo) {
         activeDescriptorCount++;
         if (maxObjects <= activeDescriptorCount) {
             throw new RuntimeException("Too many Descriptor Sets are being used at once (max is " + activeDescriptorCount + ")");

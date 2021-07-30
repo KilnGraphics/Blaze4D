@@ -15,6 +15,8 @@ public class RenderPass {
 
     private final long renderPass;
 
+    // TODO: have a create function that can be called on swapchain recreation or whatever
+    // TODO: add subpass support
     public RenderPass(VulkanDevice device, Swapchain swapchain, Renderer renderer) {
         try (MemoryStack stack = MemoryStack.stackPush()) {
             VkAttachmentDescription.Buffer attachments = VkAttachmentDescription.callocStack(2, stack);
