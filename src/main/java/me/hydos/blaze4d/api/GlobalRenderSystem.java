@@ -22,9 +22,7 @@ import me.hydos.rosella.render.pipeline.state.StateInfo;
 import me.hydos.rosella.render.resource.Identifier;
 import me.hydos.rosella.render.shader.RawShaderProgram;
 import me.hydos.rosella.render.shader.ShaderProgram;
-import me.hydos.rosella.render.texture.DynamicTextureMap;
-import me.hydos.rosella.render.texture.TextureManager;
-import me.hydos.rosella.render.texture.TextureMap;
+import me.hydos.rosella.render.texture.*;
 import me.hydos.rosella.scene.object.impl.SimpleObjectManager;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.renderer.ShaderInstance;
@@ -62,9 +60,6 @@ public class GlobalRenderSystem {
     public static final int MAX_TEXTURES = 12;
     private static int[] boundTextureIds = new int[MAX_TEXTURES]; // TODO: generate an identifier instead of using int id, or switch everything over to ints
     private static int activeTextureSlot = 0;
-
-    private static DynamicTextureMap currentTextureMap = new DynamicTextureMap();
-    private static boolean textureMapRequiresUpdate = false;
 
     public static ShaderProgram activeShader;
 
@@ -143,11 +138,7 @@ public class GlobalRenderSystem {
     }
 
     public static void setTextureIdInSlot(int slot, int texId) {
-        int oldTexId = boundTextureIds[slot];
-        if (texId != oldTexId) {
-            boundTextureIds[slot] = texId;
-            textureMapRequiresUpdate = true;
-        }
+        boundTextureIds[slot] = texId;
     }
 
     public static int getActiveTextureSlot() {
@@ -155,10 +146,7 @@ public class GlobalRenderSystem {
     }
 
     public static void setActiveTextureSlot(int slot) {
-        if (slot != activeTextureSlot) {
-            activeTextureSlot = slot;
-            textureMapRequiresUpdate = true;
-        }
+        activeTextureSlot = slot;
     }
 
     public static String getSamplerNameForSlot(int slot) {
@@ -166,14 +154,15 @@ public class GlobalRenderSystem {
     }
 
     public static TextureMap getCurrentTextureMap() {
-        if (textureMapRequiresUpdate) {
-            for (int i = 0; i < MAX_TEXTURES; i++) {
-                int texId = boundTextureIds[i];
-                currentTextureMap.put(getSamplerNameForSlot(i), texId == TextureManager.BLANK_TEXTURE_ID ? null : ((SimpleObjectManager) Blaze4D.rosella.objectManager).textureManager.getTexture(texId));
+        Map<String, Texture> map = new Object2ObjectOpenHashMap<>();
+        for (int i = 0; i < MAX_TEXTURES; i++) {
+            int texId = boundTextureIds[i];
+            if (texId != TextureManager.BLANK_TEXTURE_ID) {
+                map.put(getSamplerNameForSlot(i), ((SimpleObjectManager) Blaze4D.rosella.objectManager).textureManager.getTexture(texId));
             }
-            currentTextureMap.put("DiffuseSampler", TextureManager.BLANK_TEXTURE); // TODO: this should be the current framebuffer
         }
-        return currentTextureMap;
+        map.put("DiffuseSampler", TextureManager.BLANK_TEXTURE); // TODO: this should be the current framebuffer
+        return new ImmutableTextureMap(map);
     }
 
     public static void uploadAsyncCreatableObject(
