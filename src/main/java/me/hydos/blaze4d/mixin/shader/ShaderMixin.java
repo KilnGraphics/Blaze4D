@@ -2,7 +2,10 @@ package me.hydos.blaze4d.mixin.shader;
 
 import com.mojang.blaze3d.preprocessor.GlslPreprocessor;
 import com.mojang.blaze3d.shaders.Program;
+import com.mojang.blaze3d.shaders.Uniform;
 import com.mojang.blaze3d.vertex.VertexFormat;
+import it.unimi.dsi.fastutil.Pair;
+import it.unimi.dsi.fastutil.objects.ObjectIntImmutablePair;
 import it.unimi.dsi.fastutil.objects.ObjectIntPair;
 import me.hydos.blaze4d.api.GlobalRenderSystem;
 import me.hydos.blaze4d.api.shader.VanillaShaderProcessor;
@@ -18,6 +21,7 @@ import java.io.ByteArrayInputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.util.List;
+import java.util.stream.Collectors;
 
 @Mixin(ShaderInstance.class)
 public class ShaderMixin {
@@ -32,10 +36,11 @@ public class ShaderMixin {
         String originalSource = new String(stream.readAllBytes());
         ObjectIntPair<List<String>> conversionData = VanillaShaderProcessor.process(
                 List.of(originalSource),
-                GlobalRenderSystem.blaze4d$capturedShaderProgram.blaze4d$getUniforms(),
+                GlobalRenderSystem.blaze4d$capturedShaderProgram.blaze4d$getUniforms().stream().map(uniform -> (Pair<String, Integer>) new ObjectIntImmutablePair<>(uniform.getName(), uniform.getType())).toList(),
                 GlobalRenderSystem.processedSamplers,
                 GlobalRenderSystem.currentSamplerBinding
         );
+
         GlobalRenderSystem.currentSamplerBinding = conversionData.valueInt();
         String transformedToVulkan = String.join("\n", conversionData.key());
         return new ByteArrayInputStream(transformedToVulkan.getBytes());
