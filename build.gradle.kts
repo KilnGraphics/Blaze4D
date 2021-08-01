@@ -51,7 +51,7 @@ repositories {
 }
 
 dependencies {
-    minecraft("net.minecraft", "minecraft", properties["minecraft_version"].toString())
+	minecraft("net.minecraft", "minecraft", properties["minecraft_version"].toString())
     mappings (loom.layered {
         officialMojangMappings()
         parchment("org.parchmentmc.data:parchment-1.17.1:2021.07.26-nightly-SNAPSHOT@zip")
@@ -70,6 +70,12 @@ dependencies {
 
     if (lwjglNatives == "natives-macos" || lwjglNatives == "natives-macos-arm64") {
         include("org.lwjgl", "lwjgl-vulkan", lwjglVersion, classifier = lwjglNatives)
+    }
+    testImplementation("org.junit.jupiter:junit-jupiter:5.7.0")
+}
+
+tasks.test {
+    useJUnitPlatform {
     }
 }
 

@@ -1,0 +1,33 @@
+#version 450
+#extension GL_ARB_separate_shader_objects : enable
+layout(binding = 0) uniform UniformBufferObject {
+    mat4 Projection;
+    mat4 Model;
+    mat4 View;
+    float Time;
+    vec4 Color;
+} ubo;
+
+layout(location = 0) in vec3 Position;
+layout(location = 1) in vec3 Normal;
+layout(location = 2) in vec2 UV;
+
+layout(location = 0) out vec3 frag_Normal;
+layout(location = 1) out vec2 frag_UV;
+layout(location = 2) out float SomethingTime;
+
+float make_weird_value(float Time, vec3 Position) {
+    return Time * (Position.x + Position.y * Position.z);
+}
+
+float make_weird_value2(vec3 Normal) {
+    return ubo.Time * (Normal.x + Normal.y * Normal.z);
+}
+
+void main() {
+    gl_Position = ubo.Projection * ubo.Model * ubo.View * vec4(Position, 1.0);
+    frag_Normal = ubo.Model * vec4(Normal, 1.0).xyz;
+    frag_UV = UV;
+
+    SomethingTime = make_weird_value(ubo.Time, Position) + make_weird_value2(Normal);
+}

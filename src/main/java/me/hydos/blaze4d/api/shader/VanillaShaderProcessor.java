@@ -3,14 +3,12 @@ package me.hydos.blaze4d.api.shader;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
-import java.util.Map;
 import java.util.Set;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
 import it.unimi.dsi.fastutil.Pair;
 import it.unimi.dsi.fastutil.objects.Object2IntMap;
-import it.unimi.dsi.fastutil.objects.Object2IntOpenHashMap;
 import it.unimi.dsi.fastutil.objects.ObjectIntImmutablePair;
 import it.unimi.dsi.fastutil.objects.ObjectIntPair;
 import it.unimi.dsi.fastutil.objects.ObjectOpenHashSet;
@@ -36,13 +34,20 @@ public class VanillaShaderProcessor {
         Set<String> uniformStringShouldBeReplaced = new ObjectOpenHashSet<>(glUniforms.size());
 
         for (int i = 0; i < lines.size(); i++) {
-            for (String uboName : uniformStringShouldBeReplaced) {
-                lines.set(i, lines.get(i).replaceAll(uboName, "ubo." + uboName));
-            }
 
             String line = lines.get(i)
                     .replace("gl_VertexID", "gl_VertexIndex")
                     .replace("gl_InstanceID", "gl_InstanceIndex");
+
+            for (String uboName : uniformStringShouldBeReplaced) {
+                Matcher wordMatcher = Pattern.compile("([\\w_\\-.]+)").matcher(line);
+                while (wordMatcher.find()) {
+                    if (uboName.equals(wordMatcher.group(1))) {
+                        line = line.substring(0, wordMatcher.start(1)) + "ubo." + line.substring(wordMatcher.start(1));
+                        break;
+                    }
+                }
+            }
 
             lines.set(i, line);
 
@@ -56,7 +61,7 @@ public class VanillaShaderProcessor {
                         .map(glUniform -> String.format("%s %s;", getDataTypeName(glUniform.right()), glUniform.left()))
                         .toList();
                 StringBuilder uboInsert = new StringBuilder("layout(binding = 0) uniform UniformBufferObject {\n");
-                uboImports.forEach(string -> uboInsert.append("\t").append(string).append("\n"));
+                uboImports.forEach(string -> uboInsert.append("    ").append(string).append("\n"));
                 uboInsert.append("} ubo;\n\n");
                 lines.set(i + 1, uboInsert + lines.get(i + 1));
                 i++;
@@ -124,73 +129,5 @@ public class VanillaShaderProcessor {
             case 10 -> "mat4";
             default -> throw new IllegalStateException("Unexpected Data Type: " + dataType);
         };
-    }
-
-    public static void main(String[] args) {
-        String originalShader = """
-                #version 150
-
-                #moj_import <matrix.glsl>
-
-                uniform sampler2D Sampler0;
-                uniform sampler2D Sampler1;
-
-                uniform float GameTime;
-                uniform int EndPortalLayers;
-
-                in vec4 texProj0;
-
-                const vec3[] COLORS = vec3[](
-                    vec3(0.022087, 0.098399, 0.110818),
-                    vec3(0.011892, 0.095924, 0.089485),
-                    vec3(0.027636, 0.101689, 0.100326),
-                    vec3(0.046564, 0.109883, 0.114838),
-                    vec3(0.064901, 0.117696, 0.097189),
-                    vec3(0.063761, 0.086895, 0.123646),
-                    vec3(0.084817, 0.111994, 0.166380),
-                    vec3(0.097489, 0.154120, 0.091064),
-                    vec3(0.106152, 0.131144, 0.195191),
-                    vec3(0.097721, 0.110188, 0.187229),
-                    vec3(0.133516, 0.138278, 0.148582),
-                    vec3(0.070006, 0.243332, 0.235792),
-                    vec3(0.196766, 0.142899, 0.214696),
-                    vec3(0.047281, 0.315338, 0.321970),
-                    vec3(0.204675, 0.390010, 0.302066),
-                    vec3(0.080955, 0.314821, 0.661491)
-                );
-
-                const mat4 SCALE_TRANSLATE = mat4(
-                    0.5, 0.0, 0.0, 0.25,
-                    0.0, 0.5, 0.0, 0.25,
-                    0.0, 0.0, 1.0, 0.0,
-                    0.0, 0.0, 0.0, 1.0
-                );
-
-                mat4 end_portal_layer(float layer) {
-                    mat4 translate = mat4(
-                        1.0, 0.0, 0.0, 17.0 / layer,
-                        0.0, 1.0, 0.0, (2.0 + layer / 1.5) * (GameTime * 1.5),
-                        0.0, 0.0, 1.0, 0.0,
-                        0.0, 0.0, 0.0, 1.0
-                    );
-
-                    mat2 rotate = mat2_rotate_z(radians((layer * layer * 4321.0 + layer * 9.0) * 2.0));
-
-                    mat2 scale = mat2((4.5 - layer / 4.0) * 2.0);
-
-                    return mat4(scale * rotate) * translate * SCALE_TRANSLATE;
-                }
-
-                out vec4 fragColor;
-
-                void main() {
-                    vec3 color = textureProj(Sampler0, texProj0).rgb * COLORS[0];
-                    for (int i = 0; i < EndPortalLayers; i++) {
-                        color += textureProj(Sampler1, texProj0 * end_portal_layer(float(i + 1))).rgb * COLORS[i];
-                    }
-                    fragColor = vec4(color, 1.0);
-                }
-                """;
-        System.out.println(String.join("\n", process(List.of(originalShader), Map.of("GameTime", 4, "EndPortalLayers", 0).entrySet().stream().map(uniform -> (Pair<String, Integer>) new ObjectIntImmutablePair<>(uniform.getKey(), uniform.getValue())).toList(), new Object2IntOpenHashMap<>(), 1).key()));
     }
 }
