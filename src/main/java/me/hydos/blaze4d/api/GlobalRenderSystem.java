@@ -336,12 +336,10 @@ public class GlobalRenderSystem {
                 16
         );
         ByteBuffer mainBuffer = MemoryUtil.memAlloc(totalSize);
-        MemoryUtil.memSet(mainBuffer, 0x69);
         long writeLocation = MemoryUtil.memAddress(mainBuffer);
         int writeOffset = 0;
         for (Uniform uniform : ((ShaderAccessor) RenderSystem.getShader()).blaze4d$getUniforms()) {
-            writeOffset = ((VulkanUniform) uniform).fixAlignment(writeOffset);
-
+            writeOffset = ((VulkanUniform) uniform).alignOffset(writeOffset);
             ((VulkanUniform) uniform).writeLocation(writeLocation + writeOffset);
             uniform.upload();
             writeOffset += MinecraftUbo.UNIFORM_OFFSETS.get(uniform.getType());

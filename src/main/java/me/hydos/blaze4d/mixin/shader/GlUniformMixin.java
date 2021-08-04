@@ -42,6 +42,9 @@ public abstract class GlUniformMixin extends AbstractUniform implements VulkanUn
     @Shadow
     private boolean dirty;
 
+    @Shadow
+    protected abstract void markDirty();
+
     @Override
     public void writeLocation(long address) {
         writeLocation = address;
@@ -79,11 +82,12 @@ public abstract class GlUniformMixin extends AbstractUniform implements VulkanUn
         markDirty();
     }
 
-    @Shadow
-    protected abstract void markDirty();
-
     @Override
-    public int getMinecraftType() {
-        return type;
+    public int alignOffset(int currentOffset) {
+        return switch (type) {
+            case 1, 5 -> Mth.roundToward(currentOffset, 8);
+            case 2, 3, 6, 7, 8, 9, 10 -> Mth.roundToward(currentOffset, 16);
+            default -> currentOffset;
+        };
     }
 }
