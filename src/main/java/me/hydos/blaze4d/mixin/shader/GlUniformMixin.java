@@ -3,9 +3,11 @@ package me.hydos.blaze4d.mixin.shader;
 import com.mojang.blaze3d.shaders.AbstractUniform;
 import com.mojang.blaze3d.shaders.Uniform;
 import com.mojang.math.Matrix4f;
-import me.hydos.blaze4d.api.shader.VulkanUniformBuffer;
+import me.hydos.blaze4d.api.shader.VulkanUniform;
 import me.hydos.blaze4d.api.util.ConversionUtils;
+import net.minecraft.util.Mth;
 import org.lwjgl.system.MemoryUtil;
+import org.spongepowered.asm.mixin.Final;
 import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.Shadow;
 import org.spongepowered.asm.mixin.Unique;
@@ -13,24 +15,27 @@ import org.spongepowered.asm.mixin.injection.At;
 import org.spongepowered.asm.mixin.injection.Inject;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 
-import java.nio.ByteBuffer;
 import java.nio.FloatBuffer;
 import java.nio.IntBuffer;
 
 @Mixin(Uniform.class)
-public abstract class GlUniformMixin extends AbstractUniform implements VulkanUniformBuffer {
+public abstract class GlUniformMixin extends AbstractUniform implements VulkanUniform {
     @Unique
-    private long writeLocation = MemoryUtil.NULL;
+    private long writeLocation;
 
+    @Final
     @Shadow
     private int type;
 
+    @Final
     @Shadow
     private IntBuffer intValues;
 
+    @Final
     @Shadow
     private FloatBuffer floatValues;
 
+    @Final
     @Shadow
     private String name;
 
@@ -38,14 +43,9 @@ public abstract class GlUniformMixin extends AbstractUniform implements VulkanUn
     private boolean dirty;
 
     @Override
-    public void writeLocation(ByteBuffer buffer) {
-        long newLocation = buffer == null ? MemoryUtil.NULL : MemoryUtil.memAddress(buffer);
-        if (writeLocation != newLocation) {
-            writeLocation = newLocation;
-            markDirty();
-        } else {
-            System.out.println("lol");
-        }
+    public void writeLocation(long address) {
+        writeLocation = address;
+        markDirty();
     }
 
     @Inject(method = "upload", at = @At("HEAD"), cancellable = true)
@@ -59,11 +59,10 @@ public abstract class GlUniformMixin extends AbstractUniform implements VulkanUn
             MemoryUtil.memCopy(MemoryUtil.memAddress(intValues), writeLocation, (long) (type + 1) * Integer.BYTES);
         } else if (this.type <= 7) {
             MemoryUtil.memCopy(MemoryUtil.memAddress(floatValues), writeLocation, (long) (type - 3) * Float.BYTES);
+        } else if (this.type <= 10) {
+            MemoryUtil.memCopy(MemoryUtil.memAddress(floatValues), writeLocation, (long) Mth.square(type - 6) * Float.BYTES);
         } else {
-            if (this.type > 10) {
-                return;
-            }
-            MemoryUtil.memCopy(MemoryUtil.memAddress(floatValues), writeLocation, (long) Math.pow(type - 6, 2) * Float.BYTES);
+            throw new UnsupportedOperationException("Uniform has unexpected type " + type);
         }
         ci.cancel();
     }

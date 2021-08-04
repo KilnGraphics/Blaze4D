@@ -262,7 +262,7 @@ public abstract class Memory {
     public void freeDescriptorSets(long descriptorPool, ManagedBuffer<LongBuffer> descriptorSets) {
 //        deallocatorThreadPool.execute(() -> {
             // FIXME synchronize
-            VK10.vkFreeDescriptorSets(common.device.rawDevice, descriptorPool, descriptorSets.buffer().flip());
+            VK10.vkFreeDescriptorSets(common.device.rawDevice, descriptorPool, descriptorSets.buffer());
             descriptorSets.free(common.device, this);
 //        });
     }
