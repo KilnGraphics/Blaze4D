@@ -6,7 +6,12 @@ import com.mojang.blaze3d.systems.RenderSystem;
 import com.mojang.blaze3d.vertex.VertexFormat;
 import com.mojang.math.Matrix4f;
 import it.unimi.dsi.fastutil.ints.Int2ObjectOpenHashMap;
-import it.unimi.dsi.fastutil.objects.*;
+import it.unimi.dsi.fastutil.objects.Object2IntMap;
+import it.unimi.dsi.fastutil.objects.Object2IntOpenHashMap;
+import it.unimi.dsi.fastutil.objects.Object2ObjectLinkedOpenHashMap;
+import it.unimi.dsi.fastutil.objects.Object2ObjectOpenHashMap;
+import it.unimi.dsi.fastutil.objects.ObjectIntImmutablePair;
+import it.unimi.dsi.fastutil.objects.ObjectIntPair;
 import me.hydos.blaze4d.Blaze4D;
 import me.hydos.blaze4d.api.shader.MinecraftUbo;
 import me.hydos.blaze4d.api.shader.ShaderContext;
@@ -22,7 +27,10 @@ import me.hydos.rosella.render.pipeline.state.StateInfo;
 import me.hydos.rosella.render.resource.Identifier;
 import me.hydos.rosella.render.shader.RawShaderProgram;
 import me.hydos.rosella.render.shader.ShaderProgram;
-import me.hydos.rosella.render.texture.*;
+import me.hydos.rosella.render.texture.ImmutableTextureMap;
+import me.hydos.rosella.render.texture.Texture;
+import me.hydos.rosella.render.texture.TextureManager;
+import me.hydos.rosella.render.texture.TextureMap;
 import me.hydos.rosella.scene.object.impl.SimpleObjectManager;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.renderer.ShaderInstance;
@@ -329,23 +337,16 @@ public class GlobalRenderSystem {
         );
         ByteBuffer mainBuffer = MemoryUtil.memAlloc(totalSize);
         MemoryUtil.memSet(mainBuffer, 0x69);
-        long currentWriteLocation = MemoryUtil.memAddress(mainBuffer);
-        for(Uniform uniform : ((ShaderAccessor) RenderSystem.getShader()).blaze4d$getUniforms()) {
-            int uniformOffset = MinecraftUbo.UNIFORM_OFFSETS.get(uniform.getType());
-            if (!checkProbablyUnset(currentWriteLocation, uniformOffset)) {
-                System.out.println("hmm");
-            }
-            ((VulkanUniform) uniform).writeLocation(currentWriteLocation);
-            uniform.upload();
-            currentWriteLocation += uniformOffset;
-        }
-        return mainBuffer;
-    }
+        long writeLocation = MemoryUtil.memAddress(mainBuffer);
+        int writeOffset = 0;
+        for (Uniform uniform : ((ShaderAccessor) RenderSystem.getShader()).blaze4d$getUniforms()) {
+            writeOffset = ((VulkanUniform) uniform).fixAlignment(writeOffset);
 
-    private static boolean checkProbablyUnset(long address, long length) {
-        for (long offset = 0; offset < length; offset++) {
-            if (MemoryUtil.memGetByte(address + offset) != 0x69) return false;
+            ((VulkanUniform) uniform).writeLocation(writeLocation + writeOffset);
+            uniform.upload();
+            writeOffset += MinecraftUbo.UNIFORM_OFFSETS.get(uniform.getType());
         }
-        return true;
+
+        return mainBuffer;
     }
 }

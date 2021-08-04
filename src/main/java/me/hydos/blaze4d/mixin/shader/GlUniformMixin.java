@@ -81,4 +81,9 @@ public abstract class GlUniformMixin extends AbstractUniform implements VulkanUn
 
     @Shadow
     protected abstract void markDirty();
+
+    @Override
+    public int getMinecraftType() {
+        return type;
+    }
 }
