@@ -3,6 +3,8 @@ package me.hydos.blaze4d.api.shader;
 import it.unimi.dsi.fastutil.ints.Int2IntMap;
 import it.unimi.dsi.fastutil.ints.Int2IntMaps;
 import it.unimi.dsi.fastutil.ints.Int2IntOpenHashMap;
+import it.unimi.dsi.fastutil.longs.Long2ObjectMap;
+import it.unimi.dsi.fastutil.longs.Long2ObjectOpenHashMap;
 import me.hydos.blaze4d.Blaze4D;
 import me.hydos.rosella.memory.BufferInfo;
 import me.hydos.rosella.memory.Memory;
@@ -43,8 +45,8 @@ public class MinecraftUbo extends Ubo {
     private final Memory memory;
     private final int totalSize;
     public DescriptorSets descSets;
-    public List<BufferInfo> uboFrames = new ArrayList<>();
-//    private PointerBuffer pLocation;
+    private final List<BufferInfo> uboFrames = new ArrayList<>();
+    private final Long2ObjectMap<PointerBuffer> mappedAllocations = new Long2ObjectOpenHashMap<>();
     private ByteBuffer data; // TODO: when do we free this?
 
     public MinecraftUbo(Memory memory, long rawDescriptorPool, ByteBuffer shaderUbo) {
@@ -84,17 +86,14 @@ public class MinecraftUbo extends Ubo {
             create(swapChain); //TODO: CONCERN. why did i write this
         }
 
-//        if (pLocation == null) {
-//            PointerBuffer pLocation = MemoryUtil.memAllocPointer(1);
-//            memory.map(uboFrames.get(currentImg).allocation(), false, pLocation);
-//        }
-        try (MemoryStack stack = MemoryStack.stackPush()) {
-            PointerBuffer pLocation = stack.mallocPointer(1);
-            memory.map(uboFrames.get(currentImg).allocation(), false, pLocation);
+        PointerBuffer pLocation = mappedAllocations.computeIfAbsent(uboFrames.get(currentImg).allocation(), allocation -> {
+            PointerBuffer newPointer = MemoryUtil.memAllocPointer(1);
+            memory.map(allocation, true, newPointer);
+            return newPointer;
+        });
 
-            ByteBuffer mainBuffer = pLocation.getByteBuffer(0, getSize());
-            MemoryUtil.memCopy(data, mainBuffer);
-        }
+        ByteBuffer mainBuffer = pLocation.getByteBuffer(0, getSize());
+        MemoryUtil.memCopy(data, mainBuffer);
     }
 
     @Override
@@ -103,8 +102,12 @@ public class MinecraftUbo extends Ubo {
             uboImg.free(Blaze4D.rosella.common.device, memory);
             memory.unmap(uboImg.allocation());
         }
-//        MemoryUtil.memFree(pLocation);
-//        pLocation = null;
+
+        for (PointerBuffer pointer : mappedAllocations.values()) {
+            MemoryUtil.memFree(pointer);
+        }
+
+        mappedAllocations.clear();
         uboFrames.clear();
     }
 
