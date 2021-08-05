@@ -71,7 +71,6 @@ public class GlobalRenderSystem {
     public static int[] boundTextureIds = new int[MAX_TEXTURES]; // TODO: generate an identifier instead of using int id, or switch everything over to ints
     public static int activeTextureSlot = 0;
 
-
     // TODO maybe store snapshots of this in the materials so we keep the statelessness of vulkan
     public static StateInfo currentStateInfo = new StateInfo(
             VK10.VK_COLOR_COMPONENT_R_BIT | VK10.VK_COLOR_COMPONENT_G_BIT | VK10.VK_COLOR_COMPONENT_B_BIT | VK10.VK_COLOR_COMPONENT_A_BIT,
@@ -140,22 +139,6 @@ public class GlobalRenderSystem {
             consumerRenderObject.free(Blaze4D.rosella.common.device, Blaze4D.rosella.common.memory);
         }
         currentFrameObjects.clear();
-    }
-
-    public static int getTextureIdInSlot(int slot) {
-        return boundTextureIds[slot];
-    }
-
-    public static void setTextureIdInSlot(int slot, int texId) {
-        boundTextureIds[slot] = texId;
-    }
-
-    public static int getActiveTextureSlot() {
-        return activeTextureSlot;
-    }
-
-    public static void setActiveTextureSlot(int slot) {
-        activeTextureSlot = slot;
     }
 
     public static String getSamplerNameForSlot(int slot) {

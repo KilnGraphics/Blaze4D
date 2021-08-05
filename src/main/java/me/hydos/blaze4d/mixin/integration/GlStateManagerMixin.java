@@ -164,18 +164,18 @@ public class GlStateManagerMixin {
 
     @Inject(method = "_bindTexture", at = @At("HEAD"), cancellable = true)
     private static void bindTexture(int texId, CallbackInfo ci) {
-        GlobalRenderSystem.setTextureIdInSlot(GlobalRenderSystem.getActiveTextureSlot(), texId);
+        GlobalRenderSystem.boundTextureIds[GlobalRenderSystem.activeTextureSlot] = texId;
         ci.cancel();
     }
 
     @Inject(method = "_getActiveTexture", at = @At("HEAD"), cancellable = true)
     private static void getActiveTexture(CallbackInfoReturnable<Integer> cir) {
-        cir.setReturnValue(GlobalRenderSystem.getActiveTextureSlot() + GL13.GL_TEXTURE0);
+        cir.setReturnValue(GlobalRenderSystem.activeTextureSlot + GL13.GL_TEXTURE0);
     }
 
     @Inject(method = "_activeTexture", at = @At("HEAD"), cancellable = true)
     private static void activeTexture(int texSlot, CallbackInfo ci) {
-        GlobalRenderSystem.setActiveTextureSlot(texSlot - GL13.GL_TEXTURE0);
+        GlobalRenderSystem.activeTextureSlot = texSlot - GL13.GL_TEXTURE0;
         ci.cancel();
     }
 

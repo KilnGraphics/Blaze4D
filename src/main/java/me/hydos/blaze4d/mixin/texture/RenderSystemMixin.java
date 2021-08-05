@@ -29,7 +29,7 @@ public class RenderSystemMixin {
         if (slot >= 0 && slot < GlobalRenderSystem.MAX_TEXTURES) {
             TextureManager textureManager = Minecraft.getInstance().getTextureManager();
             AbstractTexture abstractTexture = textureManager.getTexture(identifier);
-            GlobalRenderSystem.setTextureIdInSlot(slot, abstractTexture.getId());
+            GlobalRenderSystem.boundTextureIds[slot] = abstractTexture.getId();
         }
         ci.cancel();
     }
@@ -37,13 +37,13 @@ public class RenderSystemMixin {
     @Inject(method = "setShaderTexture(II)V", at = @At("HEAD"), cancellable = true)
     private static void setTextureFromId(int slot, int texId, CallbackInfo ci) {
         if (slot >= 0 && slot < GlobalRenderSystem.MAX_TEXTURES) {
-            GlobalRenderSystem.setTextureIdInSlot(slot, texId);
+            GlobalRenderSystem.boundTextureIds[slot] = texId;
         }
         ci.cancel();
     }
 
     @Inject(method = "getShaderTexture", at = @At("HEAD"), cancellable = true)
     private static void getTextureFromUs(int slot, CallbackInfoReturnable<Integer> cir) {
-        cir.setReturnValue(slot >= 0 && slot < GlobalRenderSystem.MAX_TEXTURES ? GlobalRenderSystem.getTextureIdInSlot(slot) : 0);
+        cir.setReturnValue(slot >= 0 && slot < GlobalRenderSystem.MAX_TEXTURES ? GlobalRenderSystem.boundTextureIds[slot] : 0);
     }
 }
