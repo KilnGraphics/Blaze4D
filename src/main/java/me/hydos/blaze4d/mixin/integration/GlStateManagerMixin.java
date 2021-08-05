@@ -222,13 +222,13 @@ public class GlStateManagerMixin {
     private static void getString(int glStringId, CallbackInfoReturnable<String> ci) {
         ci.setReturnValue(
                 Blaze4D.rosella == null ? "Device not initialized" :
-                    switch (glStringId) {
-                        case GL.GL_VENDOR -> tryParseVendorId(Blaze4D.rosella.common.device.properties.vendorId);
-                        case GL.GL_EXTENSIONS -> Blaze4D.rosella.common.device.combinedExtensionsString;
-                        case GL.GL_RENDERER -> Blaze4D.rosella.common.device.properties.deviceName;
-                        case GL.GL_VERSION -> "Vulkan API " + Blaze4D.rosella.common.device.properties.apiVersion;
-                        default -> throw new IllegalStateException("Unexpected value: " + glStringId);
-                    }
+                        switch (glStringId) {
+                            case GL.GL_VENDOR -> tryParseVendorId(Blaze4D.rosella.common.device.properties.vendorId);
+                            case GL.GL_EXTENSIONS -> Blaze4D.rosella.common.device.combinedExtensionsString;
+                            case GL.GL_RENDERER -> Blaze4D.rosella.common.device.properties.deviceName;
+                            case GL.GL_VERSION -> "Vulkan API " + Blaze4D.rosella.common.device.properties.apiVersion;
+                            default -> throw new IllegalStateException("Unexpected value: " + glStringId);
+                        }
         );
     }
 
@@ -255,18 +255,33 @@ public class GlStateManagerMixin {
     @Overwrite
     public static void _clearColor(float red, float green, float blue, float alpha) {
         RenderSystem.assertThread(RenderSystem::isOnRenderThreadOrInit);
+        if (red == 0 && green == 0 && blue == 0) {
+            red = GlobalRenderSystem.fogR;
+            green = GlobalRenderSystem.fogG;
+            blue = GlobalRenderSystem.fogB;
+            alpha = 1;
+        }
         Blaze4D.rosella.renderer.lazilyClearColor(new Color(red, green, blue, alpha));
     }
 
+    /**
+     * @author Blaze4D
+     */
     @Overwrite
     public static int _glGenVertexArrays() {
         return 0;
     }
 
+    /**
+     * @author Blaze4D
+     */
     @Overwrite
     public static void _glBindVertexArray(int i) {
     }
 
+    /**
+     * @author Blaze4D
+     */
     @Overwrite
     public static void _disableVertexAttribArray(int index) {
     }
