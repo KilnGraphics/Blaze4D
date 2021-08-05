@@ -1,7 +1,6 @@
 package me.hydos.blaze4d.mixin.integration;
 
 import com.mojang.blaze3d.platform.DisplayData;
-import com.mojang.blaze3d.platform.Monitor;
 import com.mojang.blaze3d.platform.ScreenManager;
 import com.mojang.blaze3d.platform.VideoMode;
 import com.mojang.blaze3d.platform.WindowEventHandler;
@@ -121,7 +120,7 @@ public abstract class WindowMixin {
         Blaze4D.finishSetup();
 
         try {
-            AftermathHandler.initialize();
+            AftermathHandler.initialize(Thread.currentThread());
         } catch (Exception exception) {
             // We don't really care if this doesn't work, especially outside of development
             if (FabricLoader.getInstance().isDevelopmentEnvironment()) {

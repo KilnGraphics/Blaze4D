@@ -22,8 +22,13 @@ import org.lwjgl.system.MemoryUtil;
 public class AftermathHandler {
     private final Map<long[], String> SHADER_DEBUG_INFO = new HashMap<>();
     private final ShaderDatabase shaderDatabase = new ShaderDatabase();
+    private final Thread renderThread; // TODO: make this more modern
 
-    public static void initialize() {
+    public AftermathHandler(Thread renderThread) {
+        this.renderThread = renderThread;
+    }
+
+    public static void initialize(Thread renderThread) {
         int result = Aftermath.enableGPUCrashDumps(
                 Aftermath.AFTERMATH_API_VERSION,
                 Aftermath.GPU_CRASH_DUMP_WATCHED_API_FLAGS_VULKAN,
@@ -31,7 +36,7 @@ public class AftermathHandler {
                 AftermathHandler::onGpuCrashDump,
                 AftermathHandler::onShaderDebugInfo,
                 AftermathHandler::onGpuCrashDescription,
-                new AftermathHandler()
+                new AftermathHandler(renderThread)
         );
         if (result != 1) {
             Blaze4D.LOGGER.error("Failed to initialize Aftermath 0x%x", result);
@@ -40,16 +45,19 @@ public class AftermathHandler {
 
     private static void onGpuCrashDump(long pGpuCrashDump, int gpuCrashDumpSize, long pUserData) {
         AftermathHandler handler = MemoryUtil.memGlobalRefToObject(pUserData);
+        handler.renderThread.suspend();
         handler.onGpuCrashDump(pGpuCrashDump, gpuCrashDumpSize);
     }
 
     private static void onShaderDebugInfo(long pShaderDebugInfo, int shaderDebugInfoSize, long pUserData) {
         AftermathHandler handler = MemoryUtil.memGlobalRefToObject(pUserData);
+        handler.renderThread.suspend();
         handler.onShaderDebugInfo(pShaderDebugInfo, shaderDebugInfoSize);
     }
 
     private static void onGpuCrashDescription(long addValueCallback, long pUserData) {
         AftermathHandler handler = MemoryUtil.memGlobalRefToObject(pUserData);
+        handler.renderThread.suspend();
         handler.onGpuCrashDescription(addValueCallback);
     }
 
@@ -131,7 +139,7 @@ public class AftermathHandler {
             // registered with Nsight Graphics.
             String crashDumpFileName = baseFileName + ".nv-gpudmp";
             FileOutputStream dumpFile = new FileOutputStream(crashDumpFileName);
-            dumpFile.write(MemoryUtil.memUTF8Safe(pGpuCrashDump, gpuCrashDumpSize).getBytes(StandardCharsets.UTF_8));
+            dumpFile.write(MemoryUtil.memUTF8Safe(pGpuCrashDump, gpuCrashDumpSize).getBytes(StandardCharsets.UTF_8), 0, gpuCrashDumpSize - 1);
 
             // Decode the crash dump to a JSON string.
             // Step 1: Generate the JSON and get the size.
@@ -178,13 +186,15 @@ public class AftermathHandler {
             // Write the the crash dump data as JSON to a file.
             String jsonFileName = crashDumpFileName + ".json";
             FileOutputStream jsonDumpFile = new FileOutputStream(jsonFileName);
-            jsonDumpFile.write(MemoryUtil.memUTF8Safe(pJsonBuffer).getBytes(StandardCharsets.UTF_8));
+            jsonDumpFile.write(MemoryUtil.memUTF8Safe(pJsonBuffer).getBytes(StandardCharsets.UTF_8), 0, pJsonBuffer.capacity() - 1);
 
             // Destroy the GPU crash dump decoder object.
             Aftermath.destroyDecoder(decoder);
         } catch (Exception e) {
             throw new RuntimeException("Failed to write Gpu crash dump to file", e);
         }
+
+        renderThread.resume();
     }
 
     private static class ShaderDatabase {
