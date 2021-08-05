@@ -20,7 +20,7 @@ public class VanillaShaderProcessor {
     public static final Pattern METHOD_WITHOUT_PARAMETERS_SIGNATURE = Pattern.compile("\\w*\\s*\\w*\\(\\)\\s*\\{");
     public static final Pattern METHOD_WITH_PARAMETERS_SIGNATURE = Pattern.compile("\\w*\\s*\\w*\\(([\\w\\s,]*)\\)\\s*\\{");
     public static final Pattern VERSION = Pattern.compile("#version\\s*\\d*");
-    public static final Pattern TOKEN_PATTERN = Pattern.compile("([\\w_\\-.]+)");
+    public static final Pattern TOKEN_PATTERN = Pattern.compile("([\\w_.]+)");
 
     public static ObjectIntPair<List<String>> process(List<String> source, List<Pair<String, Integer>> glUniforms, Object2IntMap<String> currentSamplerBindings, int initialSamplerBinding) {
         List<String> lines = new ArrayList<>(source.stream()
@@ -43,9 +43,9 @@ public class VanillaShaderProcessor {
             for (String uboName : uniformStringShouldBeReplaced) {
                 Matcher wordMatcher = TOKEN_PATTERN.matcher(line);
                 while (wordMatcher.find()) {
-                    if (uboName.equals(wordMatcher.group(1))) {
+                    if (wordMatcher.group(1).startsWith(uboName)) {
                         line = line.substring(0, wordMatcher.start(1)) + "ubo." + line.substring(wordMatcher.start(1));
-                        break;
+                        wordMatcher = TOKEN_PATTERN.matcher(line);
                     }
                 }
             }

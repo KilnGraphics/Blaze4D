@@ -18,6 +18,7 @@ public class VanillaShaderProcessorTests {
     @Test
     public void testShaders() throws URISyntaxException, IOException {
         testShader("test"); // create more tests when new issues arise in the parser.
+        testShader("rendertype_outline");
     }
 
     private static void testShader(String name) throws URISyntaxException, IOException {
@@ -30,18 +31,14 @@ public class VanillaShaderProcessorTests {
         };
         List<Pair<String, Integer>> uniforms = Arrays.stream(lines.get(1).split(": ")[1].split("; ")).map(uniform -> (Pair<String, Integer>) new ObjectIntImmutablePair<>(uniform.split(", ")[0], Integer.parseInt(uniform.split(", ")[1]))).toList();
         Assertions.assertEquals(
-                readFileLines(path, name + ".spriv"),
-                VanillaShaderProcessor.process(
+                String.join("\n", readFileLines(path, name + ".spriv")),
+                String.join("\n", VanillaShaderProcessor.process(
                         readFileLines(path, name + ".glsl"),
                         uniforms,
                         new Object2IntOpenHashMap<>(),
                         0
-                ).key()
+                ).key())
         );
-    }
-
-    private static String readFile(String jarPath, String file) throws URISyntaxException, IOException {
-        return Files.readString(Path.of(VanillaShaderProcessorTests.class.getClassLoader().getResource(jarPath + file).toURI()));
     }
 
     private static List<String> readFileLines(String jarPath, String file) throws URISyntaxException, IOException {
