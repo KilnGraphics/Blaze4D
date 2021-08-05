@@ -35,4 +35,9 @@ public class FramebufferMixin {
     private void weDontSupportFbosAtm(int width, int height, boolean disableBlend, CallbackInfo ci) {
         ci.cancel();
     }
+
+    @Inject(method = "clear", at = @At("HEAD"), cancellable = true)
+    private void thisMessesUpSkyColor(boolean clearError, CallbackInfo ci) {
+        ci.cancel();
+    }
 }

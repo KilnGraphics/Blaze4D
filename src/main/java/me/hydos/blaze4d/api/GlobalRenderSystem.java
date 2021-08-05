@@ -95,11 +95,6 @@ public class GlobalRenderSystem {
     public static Object2IntMap<String> processedSamplers = new Object2IntOpenHashMap<>();
     public static int currentSamplerBinding = 1; // we start at 1 because 0 is reserved for the main UBO
 
-    // FIXME: if you hate it so much, why dont YOU fix it burger?
-    public static float fogR;
-    public static float fogG;
-    public static float fogB;
-
     static {
         processedSamplers.defaultReturnValue(SAMPLER_NOT_BOUND);
     }
