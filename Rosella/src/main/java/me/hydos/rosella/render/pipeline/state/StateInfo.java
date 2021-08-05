@@ -2,14 +2,7 @@ package me.hydos.rosella.render.pipeline.state;
 
 import org.jetbrains.annotations.NotNull;
 import org.lwjgl.system.MemoryStack;
-import org.lwjgl.vulkan.VK10;
-import org.lwjgl.vulkan.VkExtent2D;
-import org.lwjgl.vulkan.VkOffset2D;
-import org.lwjgl.vulkan.VkPipelineColorBlendAttachmentState;
-import org.lwjgl.vulkan.VkPipelineColorBlendStateCreateInfo;
-import org.lwjgl.vulkan.VkPipelineDepthStencilStateCreateInfo;
-import org.lwjgl.vulkan.VkPipelineRasterizationStateCreateInfo;
-import org.lwjgl.vulkan.VkRect2D;
+import org.lwjgl.vulkan.*;
 
 import java.util.Objects;
 
@@ -279,7 +272,7 @@ public class StateInfo {
     public VkPipelineRasterizationStateCreateInfo getRasterizationStateCreateInfo(int polygonMode) {
         return VkPipelineRasterizationStateCreateInfo.callocStack()
                 .sType(VK10.VK_STRUCTURE_TYPE_PIPELINE_RASTERIZATION_STATE_CREATE_INFO)
-                .depthClampEnable(true)
+                .depthClampEnable(false)
                 .rasterizerDiscardEnable(false)
                 .polygonMode(polygonMode)
                 .lineWidth(getLineWidth())
@@ -295,9 +288,9 @@ public class StateInfo {
                 .depthTestEnable(isDepthTestEnabled())
                 .depthWriteEnable(isDepthMask())
                 .depthCompareOp(getDepthCompareOp())
-                .depthBoundsTestEnable(true)
-                .minDepthBounds(0f)
-                .maxDepthBounds(1.0f)
+//                .depthBoundsTestEnable(true)
+//                .minDepthBounds(-1.0f)
+//                .maxDepthBounds(1.0f)
                 .stencilTestEnable(isStencilEnabled());
     }
 

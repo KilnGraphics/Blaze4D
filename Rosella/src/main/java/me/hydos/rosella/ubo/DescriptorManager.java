@@ -40,7 +40,7 @@ public class DescriptorManager {
     /**
      * Allocates a new {@link DescriptorSets}. This should only be called when no free {@link DescriptorSets}'s are available
      *
-     * @param textures the {@link TextureMap[]} to use with the {@link DescriptorSets}
+     * @param textures the {@link TextureMap} to use with the {@link DescriptorSets}
      * @param ubo      the {@link Ubo} to use with the {@link DescriptorSets}
      */
     public void createNewDescriptor(TextureMap textures, Ubo ubo) {

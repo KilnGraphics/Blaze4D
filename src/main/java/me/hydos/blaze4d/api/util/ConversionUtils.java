@@ -10,6 +10,7 @@ import me.hydos.rosella.render.shader.ShaderType;
 import me.hydos.rosella.render.texture.ImageFormat;
 import me.hydos.rosella.render.vertex.VertexFormatElements;
 import org.joml.Matrix4f;
+import org.joml.Matrix4fc;
 import org.lwjgl.opengl.GL11;
 import org.lwjgl.opengl.GL14;
 import org.lwjgl.opengl.GL30;
@@ -150,45 +151,30 @@ public abstract class ConversionUtils {
         };
     }
 
+    private static final Matrix4fc OGL_PROJECTION_CORRECTION_MATRIX = new Matrix4f(
+            1.0f,  0.0f, 0.0f, 0.0f,
+            0.0f, -1.0f, 0.0f, 0.0f,
+            0.0f,  0.0f, 0.5f, 0.0f,
+            0.0f,  0.0f, 0.5f, 1.0f
+    );
+
     public static Matrix4f mcToJomlProjectionMatrix(com.mojang.math.Matrix4f mcMatrix) {
-        return new Matrix4f(
-                mcMatrix.m00,
-                mcMatrix.m10,
-                mcMatrix.m20,
-                mcMatrix.m30,
-                mcMatrix.m01,
-                -mcMatrix.m11,
-                mcMatrix.m21,
-                mcMatrix.m31,
-                mcMatrix.m02,
-                mcMatrix.m12,
-                mcMatrix.m22 / 2.0F,
-                mcMatrix.m32,
-                mcMatrix.m03,
-                -mcMatrix.m13,
-                mcMatrix.m23 / 2.0F,
-                mcMatrix.m33
+        // avoid unneeded allocations with direct float values rather than JOML Matrix4f object
+        return OGL_PROJECTION_CORRECTION_MATRIX.mul(
+                mcMatrix.m00, mcMatrix.m10, mcMatrix.m20, mcMatrix.m30,
+                mcMatrix.m01, mcMatrix.m11, mcMatrix.m21, mcMatrix.m31,
+                mcMatrix.m02, mcMatrix.m12, mcMatrix.m22, mcMatrix.m32,
+                mcMatrix.m03, mcMatrix.m13, mcMatrix.m23, mcMatrix.m33,
+                new Matrix4f()
         );
     }
 
     public static Matrix4f mcToJomlMatrix(com.mojang.math.Matrix4f mcMatrix) {
        return new Matrix4f(
-                mcMatrix.m00,
-                mcMatrix.m10,
-                mcMatrix.m20,
-                mcMatrix.m30,
-                mcMatrix.m01,
-                mcMatrix.m11,
-                mcMatrix.m21,
-                mcMatrix.m31,
-                mcMatrix.m02,
-                mcMatrix.m12,
-                mcMatrix.m22,
-                mcMatrix.m32,
-                mcMatrix.m03,
-                mcMatrix.m13,
-                mcMatrix.m23,
-                mcMatrix.m33
+                mcMatrix.m00, mcMatrix.m10, mcMatrix.m20, mcMatrix.m30,
+                mcMatrix.m01, mcMatrix.m11, mcMatrix.m21, mcMatrix.m31,
+                mcMatrix.m02, mcMatrix.m12, mcMatrix.m22, mcMatrix.m32,
+                mcMatrix.m03, mcMatrix.m13, mcMatrix.m23, mcMatrix.m33
         );
     }
 

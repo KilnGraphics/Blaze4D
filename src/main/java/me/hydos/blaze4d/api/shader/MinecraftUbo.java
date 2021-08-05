@@ -44,7 +44,7 @@ public class MinecraftUbo extends Ubo {
 
     private final Memory memory;
     private final int totalSize;
-    public DescriptorSets descSets;
+    private DescriptorSets descSets;
     private final List<BufferInfo> uboFrames = new ArrayList<>();
     private final Long2ObjectMap<PointerBuffer> mappedAllocations = new Long2ObjectOpenHashMap<>();
     private ByteBuffer data; // TODO: when do we free this?

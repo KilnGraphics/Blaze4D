@@ -32,7 +32,8 @@ public class DescriptorSets implements MemoryCloseable {
             }
             memory.freeDescriptorSets(descriptorPool, new ManagedBuffer<>(buffer.flip(), true));
         }
-        descriptorSets.clear();
+//        descriptorSets.clear();
+        clear();
         // TODO: should we also set the descriptor pool to 0 here?
     }
 
