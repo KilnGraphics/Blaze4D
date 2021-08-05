@@ -82,6 +82,8 @@ public class MinecraftUbo extends Ubo {
 
     @Override
     public void update(int currentImg, @NotNull Swapchain swapChain) {
+        if (uboFrames.isEmpty()) return;
+
         PointerBuffer pLocation = mappedAllocations.computeIfAbsent(uboFrames.get(currentImg).allocation(), allocation -> {
             PointerBuffer newPointer = MemoryUtil.memAllocPointer(1);
             memory.map(allocation, true, newPointer);

@@ -50,12 +50,13 @@ import java.util.concurrent.CompletableFuture;
  */
 public class GlobalRenderSystem {
 
-    // Constants
+    // Misc Constants
     public static final PolygonMode DEFAULT_POLYGON_MODE = PolygonMode.FILL;
 
     // Shader Fields
     public static final Map<Integer, ShaderContext> SHADER_MAP = new Int2ObjectOpenHashMap<>();
     public static final Map<Integer, RawShaderProgram> SHADER_PROGRAM_MAP = new Int2ObjectOpenHashMap<>();
+    public static ShaderProgram activeShader;
 
     public static final int DEFAULT_MAX_OBJECTS = 8092;
     public static String programErrorLog = "none";
@@ -65,12 +66,11 @@ public class GlobalRenderSystem {
     // Frame/Drawing Fields
     public static Set<ConsumerRenderObject> currentFrameObjects = Collections.newSetFromMap(new Object2ObjectLinkedOpenHashMap<>()); // this is sorted
 
-    // Active Fields
+    // Texture Fields
     public static final int MAX_TEXTURES = 12;
-    private static int[] boundTextureIds = new int[MAX_TEXTURES]; // TODO: generate an identifier instead of using int id, or switch everything over to ints
-    private static int activeTextureSlot = 0;
+    public static int[] boundTextureIds = new int[MAX_TEXTURES]; // TODO: generate an identifier instead of using int id, or switch everything over to ints
+    public static int activeTextureSlot = 0;
 
-    public static ShaderProgram activeShader;
 
     // TODO maybe store snapshots of this in the materials so we keep the statelessness of vulkan
     public static StateInfo currentStateInfo = new StateInfo(
