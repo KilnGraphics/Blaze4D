@@ -47,7 +47,7 @@ public class RenderObject implements Renderable {
     public void loadModelInfo() {
         ModelLoader.SimpleModel model = ModelLoader.loadModel(modelId, Assimp.aiProcess_FlipUVs | Assimp.aiProcess_DropNormals);
         int vertexCount = model.getPositions().size();
-        int size = material.pipelineCreateInfo().vertexFormat().getSize();
+        int size = material.pipeline().getVertexFormat().getSize();
         this.vertexBuffer = MemoryUtil.memAlloc(size * vertexCount);
         Vector3f color = new Vector3f(1.0f, 1.0f, 1.0f);
 
@@ -80,7 +80,7 @@ public class RenderObject implements Renderable {
 
     @Override
     public void onAddedToScene(Rosella rosella) {
-        instanceInfo = new InstanceInfo(new RenderObjectUbo(rosella.common.device, rosella.common.memory, this, material.pipelineCreateInfo().shaderProgram()), material);
+        instanceInfo = new InstanceInfo(new RenderObjectUbo(rosella.common.device, rosella.common.memory, this, material.pipeline().getShaderProgram()), material);
         renderInfo = CompletableFuture.completedFuture(new RenderInfo(
                 rosella.bufferManager.createVertexBuffer(new ManagedBuffer<>(vertexBuffer, true)),
                 rosella.bufferManager.createIndexBuffer(new ManagedBuffer<>(indices, true)),

@@ -5,7 +5,7 @@ import me.hydos.rosella.render.PolygonMode;
 import me.hydos.rosella.render.Topology;
 import me.hydos.rosella.render.material.Material;
 import me.hydos.rosella.render.model.AssimpHelperKt;
-import me.hydos.rosella.render.pipeline.PipelineCreateInfo;
+import me.hydos.rosella.render.pipeline.Pipeline;
 import me.hydos.rosella.render.pipeline.state.StateInfo;
 import me.hydos.rosella.render.resource.Resource;
 import me.hydos.rosella.render.shader.ShaderProgram;
@@ -94,8 +94,8 @@ public class GlbModelLoader {
                 TextureMap textureMap = new ImmutableTextureMap(images, new SamplerCreateInfo(TextureFilter.NEAREST, WrapMode.CLAMP_TO_EDGE), rosella, ((SimpleObjectManager) rosella.objectManager).textureManager);
 
                 // FIXME: generate shaders for models based on their properties
-                PipelineCreateInfo pipelineCreateInfo = new PipelineCreateInfo(
-                        rosella.renderer.renderPass,
+                Pipeline pipeline = new Pipeline(
+                        rosella.renderer.mainRenderPass,
                         program,
                         Topology.TRIANGLES,
                         PolygonMode.FILL,
@@ -103,7 +103,7 @@ public class GlbModelLoader {
                         StateInfo.DEFAULT_3D
                 );
                 materials.add(
-                        rosella.objectManager.createMaterial(pipelineCreateInfo, textureMap)
+                        new Material(((SimpleObjectManager) rosella.objectManager).pipelineManager.registerPipeline(pipeline), textureMap)
                         /*new Material(
                         images,
                         program,

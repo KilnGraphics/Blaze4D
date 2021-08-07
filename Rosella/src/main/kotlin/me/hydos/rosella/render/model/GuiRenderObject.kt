@@ -43,7 +43,7 @@ open class GuiRenderObject(
     }
 
     override fun loadModelInfo() {
-        val size = material.pipelineCreateInfo().vertexFormat().size
+        val size = material.pipeline.vertexFormat.size
         vertexBuffer = MemoryUtil.memAlloc(size * 4)
         colour = Vector3f(0f, 0f, 0f)
 

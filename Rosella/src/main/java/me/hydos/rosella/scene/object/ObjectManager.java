@@ -2,7 +2,7 @@ package me.hydos.rosella.scene.object;
 
 import me.hydos.rosella.Rosella;
 import me.hydos.rosella.render.material.Material;
-import me.hydos.rosella.render.pipeline.PipelineCreateInfo;
+import me.hydos.rosella.render.pipeline.Pipeline;
 import me.hydos.rosella.render.renderer.Renderer;
 import me.hydos.rosella.render.shader.RawShaderProgram;
 import me.hydos.rosella.render.shader.ShaderProgram;
@@ -28,11 +28,6 @@ public interface ObjectManager {
      * @param renderable the material to add to the scene
      */
     Renderable addObject(Renderable renderable);
-
-    /**
-     * Creates a material using the specified contents
-     */
-    Material createMaterial(PipelineCreateInfo pipelineCreateInfo, TextureMap textures);
 
     /**
      * registers a {@link RawShaderProgram} into the engine.

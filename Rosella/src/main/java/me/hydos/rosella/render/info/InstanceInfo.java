@@ -17,7 +17,7 @@ public record InstanceInfo(Ubo ubo, Material material) implements MemoryCloseabl
     @Override
     public void free(LegacyVulkanDevice device, Memory memory) {
         ubo.free(device, memory);
-        material.pipelineCreateInfo().shaderProgram().getDescriptorManager().freeDescriptorSets(ubo.getDescriptors());
+        material.pipeline().getShaderProgram().getDescriptorManager().freeDescriptorSets(ubo.getDescriptors());
     }
 
     /**
@@ -28,7 +28,7 @@ public record InstanceInfo(Ubo ubo, Material material) implements MemoryCloseabl
     public void rebuild(@NotNull Rosella rosella) {
         if (ubo.getUniformBuffers().size() == 0) {
             ubo.create(rosella.renderer.swapchain);
-            material.pipelineCreateInfo().shaderProgram().getDescriptorManager().createNewDescriptor(material.textures(), ubo);
+            material.pipeline().getShaderProgram().getDescriptorManager().createNewDescriptor(material.textures(), ubo);
         }
     }
 
@@ -38,13 +38,13 @@ public record InstanceInfo(Ubo ubo, Material material) implements MemoryCloseabl
      * @param rosella the Rosella
      */
     public void hardRebuild(@NotNull Rosella rosella) {
-        material.pipelineCreateInfo().shaderProgram().getDescriptorManager().clearDescriptorSets(ubo.getDescriptors());
+        material.pipeline().getShaderProgram().getDescriptorManager().clearDescriptorSets(ubo.getDescriptors());
         ubo.free(rosella.common.device, rosella.common.memory);
 
         if (ubo.getUniformBuffers().size() == 0) {
             ubo.create(rosella.renderer.swapchain);
         }
 
-        material.pipelineCreateInfo().shaderProgram().getDescriptorManager().createNewDescriptor(material.textures(), ubo);
+        material.pipeline().getShaderProgram().getDescriptorManager().createNewDescriptor(material.textures(), ubo);
     }
 }

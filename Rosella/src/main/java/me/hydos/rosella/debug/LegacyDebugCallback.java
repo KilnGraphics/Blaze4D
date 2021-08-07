@@ -17,9 +17,10 @@ public class LegacyDebugCallback extends VulkanDebugCallback.Callback {
         String message = data.pMessageString();
 
         switch(type) {
-            case GENERAL -> this.logger.logGeneral(severity.name, message);
-            case VALIDATION -> this.logger.logValidation(severity.name, message);
-            case PERFORMANCE -> this.logger.logPerformance(severity.name, message);
+            case GENERAL -> this.logger.logGeneral(message, severity);
+            case VALIDATION -> this.logger.logValidation(message, severity);
+            case PERFORMANCE -> this.logger.logPerformance(message, severity);
+            default -> this.logger.logUnknown(message, severity);
         }
     }
 }

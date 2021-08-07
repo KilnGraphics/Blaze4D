@@ -129,7 +129,7 @@ public class GlobalRenderSystem {
             Blaze4D.rosella.objectManager.addObject(renderObject);
         }
 
-        Blaze4D.rosella.renderer.rebuildCommandBuffers(Blaze4D.rosella.renderer.renderPass, (SimpleObjectManager) Blaze4D.rosella.objectManager);
+        Blaze4D.rosella.renderer.rebuildCommandBuffers(Blaze4D.rosella.renderer.mainRenderPass, (SimpleObjectManager) Blaze4D.rosella.objectManager);
 
         Blaze4D.window.update();
         Blaze4D.rosella.renderer.render();

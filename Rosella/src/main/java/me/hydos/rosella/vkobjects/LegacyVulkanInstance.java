@@ -1,6 +1,7 @@
 package me.hydos.rosella.vkobjects;
 
 import me.hydos.rosella.debug.LegacyDebugCallback;
+import me.hydos.rosella.debug.MessageSeverity;
 import me.hydos.rosella.device.init.InitializationRegistry;
 import me.hydos.rosella.device.init.InstanceBuilder;
 import me.hydos.rosella.device.init.VulkanInstance;
@@ -142,11 +143,11 @@ public class LegacyVulkanInstance {
         VkDebugUtilsMessengerCallbackDataEXT callbackData = VkDebugUtilsMessengerCallbackDataEXT.create(pCallbackData);
         String message = callbackData.pMessageString();
 
-        String msgSeverity = switch (severity) {
-            case VK_DEBUG_UTILS_MESSAGE_SEVERITY_VERBOSE_BIT_EXT -> "VERBOSE";
-            case VK_DEBUG_UTILS_MESSAGE_SEVERITY_INFO_BIT_EXT -> "INFO";
-            case VK_DEBUG_UTILS_MESSAGE_SEVERITY_WARNING_BIT_EXT -> "WARNING";
-            case VK_DEBUG_UTILS_MESSAGE_SEVERITY_ERROR_BIT_EXT -> "ERROR";
+        MessageSeverity msgSeverity = switch (severity) {
+            case VK_DEBUG_UTILS_MESSAGE_SEVERITY_VERBOSE_BIT_EXT -> MessageSeverity.VERBOSE;
+            case VK_DEBUG_UTILS_MESSAGE_SEVERITY_INFO_BIT_EXT -> MessageSeverity.INFO;
+            case VK_DEBUG_UTILS_MESSAGE_SEVERITY_WARNING_BIT_EXT -> MessageSeverity.WARNING;
+            case VK_DEBUG_UTILS_MESSAGE_SEVERITY_ERROR_BIT_EXT -> MessageSeverity.ERROR;
             default -> throw new IllegalStateException("Unexpected severity: " + severity);
         };
 

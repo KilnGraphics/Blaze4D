@@ -9,7 +9,6 @@ import me.hydos.rosella.device.VulkanQueues;
 import me.hydos.rosella.display.Display;
 import me.hydos.rosella.render.info.InstanceInfo;
 import me.hydos.rosella.render.info.RenderInfo;
-import me.hydos.rosella.render.material.Material;
 import me.hydos.rosella.render.shader.RawShaderProgram;
 import me.hydos.rosella.render.swapchain.DepthBuffer;
 import me.hydos.rosella.render.swapchain.Frame;
@@ -52,6 +51,10 @@ public class Renderer {
     // The depth buffer as Vulkan forces us to create our own
     public final DepthBuffer depthBuffer;
 
+    // The main render pass used by the engine.
+    // At some point there will be multiple of these, so we won't have this field anymore.
+    public final RenderPass mainRenderPass;
+
     // Should the swap chain be recreated next render
     private final boolean initialSwapchainCreated;
     private boolean recreateSwapChain;
@@ -66,42 +69,37 @@ public class Renderer {
     private Map<Integer, Frame> imagesInFlight = new Int2ObjectOpenHashMap<>();
     private int currentFrameInFlight = 0;
 
+
     public Renderer(Rosella rosella) {
         this.rosella = rosella;
         this.common = rosella.common;
 
         this.queues = common.queues;
         this.depthBuffer = new DepthBuffer();
+        this.mainRenderPass = new RenderPass();
 
         VkUtils.createCommandPool(common.device, this, common.surface);
         createSwapChain(common, common.display, ((SimpleObjectManager) rosella.objectManager));
         initialSwapchainCreated = true;
     }
-
     public Swapchain swapchain;
-    public RenderPass renderPass;
 
     public long commandPool = 0;
     public VkCommandBuffer[] commandBuffers;
 
     private void createSwapChain(VkCommon common, Display display, SimpleObjectManager objectManager) {
         this.swapchain = new Swapchain(display, common.device.rawDevice, common.device.physicalDevice, common.surface);
-        this.renderPass = new RenderPass(common.device, swapchain, this);
+        mainRenderPass.create(common.device, swapchain, this);
         VkUtils.createSwapchainImageViews(swapchain, common.device);
         depthBuffer.createDepthResources(common.device, common.memory, swapchain, this);
         createFrameBuffers();
 
         // Engine may still be initialising so we do a null check just in case
         if (objectManager.pipelineManager != null) {
-            objectManager.pipelineManager.invalidatePipelines(common);
+            objectManager.pipelineManager.rebuildPipelines();
         }
 
-        Rosella.LOGGER.info("recreating swapchain and renderpass");
-//        for (Material material : objectManager.materials) {
-//            material.setPipeline(objectManager.pipelineManager.getOrCreatePipeline(material, this));
-//        }
-
-        rebuildCommandBuffers(renderPass, objectManager);
+        rebuildCommandBuffers(mainRenderPass, objectManager);
         createSyncObjects();
     }
 
@@ -229,7 +227,7 @@ public class Renderer {
             );
         }
 
-        vkDestroyRenderPass(rosella.common.device.rawDevice, renderPass.getRenderPass(), null);
+        vkDestroyRenderPass(rosella.common.device.rawDevice, mainRenderPass.getRawRenderPass(), null);
         swapchain.getSwapChainImageViews().forEach(imageView ->
                 vkDestroyImageView(
                         rosella.common.device.rawDevice,
@@ -303,7 +301,7 @@ public class Renderer {
             LongBuffer pFramebuffer = stack.mallocLong(1);
             VkFramebufferCreateInfo framebufferInfo = VkFramebufferCreateInfo.callocStack(stack)
                     .sType(VK_STRUCTURE_TYPE_FRAMEBUFFER_CREATE_INFO)
-                    .renderPass(renderPass.getRenderPass())
+                    .renderPass(mainRenderPass.getRawRenderPass())
                     .width(swapchain.getSwapChainExtent().width())
                     .height(swapchain.getSwapChainExtent().height())
                     .layers(1);
@@ -373,7 +371,7 @@ public class Renderer {
                         try {
                             RenderInfo currentRenderInfo = renderObject.getRenderInfo().get();
                             InstanceInfo currentInstanceInfo = renderObject.getInstanceInfo();
-                            long currentGraphicsPipeline = currentInstanceInfo.material().pipeline().graphicsPipeline();
+                            long currentGraphicsPipeline = currentInstanceInfo.material().pipeline().getGraphicsPipeline();
 
                             if (!Objects.equals(currentRenderInfo, previousRenderInfo)) {
                                 previousRenderInfo = currentRenderInfo;
@@ -420,7 +418,7 @@ public class Renderer {
             vkCmdBindDescriptorSets(
                     commandBuffer,
                     VK_PIPELINE_BIND_POINT_GRAPHICS,
-                    instanceInfo.material().pipeline().pipelineLayout(),
+                    instanceInfo.material().pipeline().getPipelineLayout(),
                     0,
                     stack.longs(instanceInfo.ubo().getDescriptors().getRawDescriptorSets().getLong(commandBufferIndex)), // FIXME: the descriptor set list is sometimes not updated before this is called
                     null
@@ -679,7 +677,7 @@ public class Renderer {
     public void clearColor(Color color) {
         if (clearColor != color) {
             lazilyClearColor(color);
-            rebuildCommandBuffers(renderPass, ((SimpleObjectManager) rosella.objectManager));
+            rebuildCommandBuffers(mainRenderPass, ((SimpleObjectManager) rosella.objectManager));
         }
     }
 

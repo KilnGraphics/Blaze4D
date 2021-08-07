@@ -13,11 +13,14 @@ import static org.lwjgl.vulkan.VK10.*;
 
 public class RenderPass {
 
-    private final long renderPass;
+    private long renderPass;
 
     // TODO: have a create function that can be called on swapchain recreation or whatever
     // TODO: add subpass support
-    public RenderPass(LegacyVulkanDevice device, Swapchain swapchain, Renderer renderer) {
+    public RenderPass() {
+    }
+
+    public void create(LegacyVulkanDevice device, Swapchain swapchain, Renderer renderer) {
         try (MemoryStack stack = MemoryStack.stackPush()) {
             VkAttachmentDescription.Buffer attachments = VkAttachmentDescription.callocStack(2, stack);
             VkAttachmentReference.Buffer attachmentRefs = VkAttachmentReference.callocStack(2, stack);
@@ -76,7 +79,7 @@ public class RenderPass {
         }
     }
 
-    public long getRenderPass() {
+    public long getRawRenderPass() {
         return renderPass;
     }
 }

@@ -2,8 +2,6 @@ package me.hydos.rosella.scene.object.impl;
 
 import it.unimi.dsi.fastutil.objects.ObjectArrayList;
 import me.hydos.rosella.Rosella;
-import me.hydos.rosella.render.material.Material;
-import me.hydos.rosella.render.pipeline.PipelineCreateInfo;
 import me.hydos.rosella.render.pipeline.PipelineManager;
 import me.hydos.rosella.render.renderer.Renderer;
 import me.hydos.rosella.render.shader.RawShaderProgram;
@@ -11,7 +9,6 @@ import me.hydos.rosella.render.shader.ShaderManager;
 import me.hydos.rosella.render.shader.ShaderProgram;
 import me.hydos.rosella.render.swapchain.RenderPass;
 import me.hydos.rosella.render.texture.TextureManager;
-import me.hydos.rosella.render.texture.TextureMap;
 import me.hydos.rosella.scene.object.ObjectManager;
 import me.hydos.rosella.scene.object.Renderable;
 import me.hydos.rosella.vkobjects.VkCommon;
@@ -48,11 +45,6 @@ public class SimpleObjectManager implements ObjectManager {
         obj.onAddedToScene(rosella);
         renderObjects.add(obj);
         return obj;
-    }
-
-    @Override
-    public Material createMaterial(PipelineCreateInfo pipelineCreateInfo, TextureMap textures) {
-        return new Material(pipelineCreateInfo, pipelineManager.getOrCreatePipeline(pipelineCreateInfo), textures);
     }
 
     @Override

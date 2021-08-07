@@ -8,7 +8,7 @@ import me.hydos.rosella.render.PolygonMode;
 import me.hydos.rosella.render.Topology;
 import me.hydos.rosella.render.material.Material;
 import me.hydos.rosella.render.model.GuiRenderObject;
-import me.hydos.rosella.render.pipeline.PipelineCreateInfo;
+import me.hydos.rosella.render.pipeline.Pipeline;
 import me.hydos.rosella.render.pipeline.state.StateInfo;
 import me.hydos.rosella.render.resource.Global;
 import me.hydos.rosella.render.resource.Identifier;
@@ -57,7 +57,7 @@ public class GenericSourceTest {
         loadShaders();
         loadMaterials();
         setupMainMenuScene();
-        rosella.renderer.rebuildCommandBuffers(rosella.renderer.renderPass, (SimpleObjectManager) rosella.objectManager);
+        rosella.renderer.rebuildCommandBuffers(rosella.renderer.mainRenderPass, (SimpleObjectManager) rosella.objectManager);
 //        rosella.renderer.queueRecreateSwapchain(); FIXME: # C  [libVkLayer_khronos_validation.so+0xe16204]  CoreChecks::ValidateMemoryIsBoundToBuffer(BUFFER_STATE const*, char const*, char const*) const+0x14
 
         window.startAutomaticLoop(rosella, () -> {
@@ -138,14 +138,16 @@ public class GenericSourceTest {
     }
 
     private static void loadMaterials() {
-        menuBackground = rosella.objectManager.createMaterial(
-                new PipelineCreateInfo(
-                        rosella.renderer.renderPass, // TODO: fix renderpasses being gross af
-                        guiShader,
-                        Topology.TRIANGLES,
-                        PolygonMode.FILL,
-                        VertexFormats.POSITION_COLOR3f_UV0,
-                        StateInfo.DEFAULT_GUI
+        menuBackground = new Material(
+                ((SimpleObjectManager) rosella.objectManager).pipelineManager.registerPipeline(
+                        new Pipeline(
+                                rosella.renderer.mainRenderPass, // TODO: fix renderpasses being gross af
+                                guiShader,
+                                Topology.TRIANGLES,
+                                PolygonMode.FILL,
+                                VertexFormats.POSITION_COLOR3f_UV0,
+                                StateInfo.DEFAULT_GUI
+                        )
                 ),
                 ImmutableTextureMap.builder()
                         .entry("texSampler", loadTexture(
@@ -156,14 +158,16 @@ public class GenericSourceTest {
                         .build()
         );
 
-        portalLogo = rosella.objectManager.createMaterial(
-                new PipelineCreateInfo(
-                        rosella.renderer.renderPass, // TODO: fix renderpasses being gross af
-                        guiShader,
-                        Topology.TRIANGLES,
-                        PolygonMode.FILL,
-                        VertexFormats.POSITION_COLOR3f_UV0,
-                        StateInfo.DEFAULT_GUI
+        portalLogo = new Material(
+                ((SimpleObjectManager) rosella.objectManager).pipelineManager.registerPipeline(
+                        new Pipeline(
+                                rosella.renderer.mainRenderPass, // TODO: fix renderpasses being gross af
+                                guiShader,
+                                Topology.TRIANGLES,
+                                PolygonMode.FILL,
+                                VertexFormats.POSITION_COLOR3f_UV0,
+                                StateInfo.DEFAULT_GUI
+                        )
                 ),
                 ImmutableTextureMap.builder()
                         .entry("texSampler", loadTexture(

@@ -14,6 +14,6 @@ public class GLXMixin {
 
     @Inject(method = "getOpenGLVersionString", at = @At("HEAD"), cancellable = true)
     private static void getVulkanInfoString(CallbackInfoReturnable<String> cir) {
-        cir.setReturnValue(Blaze4D.rosella.common.device == null ? "NO CONTEXT" :  GlStateManager._getString(7937) + " " + GlStateManager._getString(7938) + ", " + GlStateManager._getString(7936));
+        cir.setReturnValue(Blaze4D.rosella == null || Blaze4D.rosella.common.device == null ? "NO CONTEXT" :  GlStateManager._getString(7937) + " " + GlStateManager._getString(7938) + ", " + GlStateManager._getString(7936));
     }
 }

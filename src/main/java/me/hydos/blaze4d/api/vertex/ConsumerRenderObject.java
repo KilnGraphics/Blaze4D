@@ -1,6 +1,5 @@
 package me.hydos.blaze4d.api.vertex;
 
-import me.hydos.blaze4d.Blaze4D;
 import me.hydos.blaze4d.api.GlobalRenderSystem;
 import me.hydos.blaze4d.api.shader.MinecraftShaderProgram;
 import me.hydos.rosella.Rosella;
@@ -11,12 +10,13 @@ import me.hydos.rosella.render.Topology;
 import me.hydos.rosella.render.info.InstanceInfo;
 import me.hydos.rosella.render.info.RenderInfo;
 import me.hydos.rosella.render.material.Material;
-import me.hydos.rosella.render.pipeline.PipelineCreateInfo;
+import me.hydos.rosella.render.pipeline.Pipeline;
 import me.hydos.rosella.render.pipeline.state.StateInfo;
 import me.hydos.rosella.render.shader.ShaderProgram;
 import me.hydos.rosella.render.texture.TextureMap;
 import me.hydos.rosella.render.vertex.VertexFormat;
 import me.hydos.rosella.scene.object.Renderable;
+import me.hydos.rosella.scene.object.impl.SimpleObjectManager;
 
 import java.util.Objects;
 import java.util.concurrent.Future;
@@ -38,14 +38,16 @@ public class ConsumerRenderObject implements Renderable {
             Rosella rosella) {
 
         this.renderInfo = renderInfo;
-        Material material = Blaze4D.rosella.objectManager.createMaterial(
-                new PipelineCreateInfo(
-                        rosella.renderer.renderPass, // TODO: make render passes less jank, more info in rosella comments
-                        shaderProgram,
-                        topology,
-                        polygonMode,
-                        vertexFormat,
-                        stateInfo
+        Material material = new Material(
+                ((SimpleObjectManager) rosella.objectManager).pipelineManager.registerPipeline(
+                        new Pipeline(
+                                rosella.renderer.mainRenderPass, // TODO: make render passes less jank, more info in rosella comments
+                                shaderProgram,
+                                topology,
+                                polygonMode,
+                                vertexFormat,
+                                stateInfo
+                        )
                 ),
                 textures
         );

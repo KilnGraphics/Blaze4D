@@ -2,20 +2,15 @@ package me.hydos.rosella.render.pipeline;
 
 import java.nio.ByteBuffer;
 import java.nio.LongBuffer;
-import java.util.HashMap;
 import java.util.Map;
 
-import me.hydos.rosella.Rosella;
+import it.unimi.dsi.fastutil.objects.Object2ObjectOpenHashMap;
 import me.hydos.rosella.device.LegacyVulkanDevice;
-import me.hydos.rosella.render.PolygonMode;
+import me.hydos.rosella.memory.Memory;
+import me.hydos.rosella.memory.MemoryCloseable;
 import me.hydos.rosella.render.Topology;
-import me.hydos.rosella.render.material.Material;
-import me.hydos.rosella.render.pipeline.state.StateInfo;
 import me.hydos.rosella.render.renderer.Renderer;
-import me.hydos.rosella.render.shader.ShaderProgram;
-import me.hydos.rosella.render.swapchain.RenderPass;
 import me.hydos.rosella.render.swapchain.Swapchain;
-import me.hydos.rosella.render.vertex.VertexFormat;
 import me.hydos.rosella.vkobjects.VkCommon;
 import org.jetbrains.annotations.NotNull;
 import org.lwjgl.system.MemoryStack;
@@ -40,45 +35,47 @@ import static me.hydos.rosella.util.VkUtils.ok;
 // TODO: figure out how to deal with renderpasses and abstraction so they can still be referenced after recreation
 // EX: a pipeline wants to use the main renderpass, but the main renderpass has been replaced due to a
 // swapchain recreation.
-public class PipelineManager {
+public class PipelineManager implements MemoryCloseable {
     private final VkCommon common;
     private final Renderer renderer;
 
-    private final Map<PipelineCreateInfo, PipelineInfo> pipelines = new HashMap<>();
+    private final Map<Pipeline, Pipeline> pipelines = new Object2ObjectOpenHashMap<>();
 
     public PipelineManager(VkCommon common, Renderer renderer) {
         this.common = common;
         this.renderer = renderer;
     }
 
-    public PipelineInfo getOrCreatePipeline(PipelineCreateInfo createInfo) {
-        return pipelines.computeIfAbsent(createInfo, _createInfo -> createPipeline(
-                common.device,
-                renderer.swapchain,
-                _createInfo.renderPass(),
-                _createInfo.shaderProgram(),
-                _createInfo.topology(),
-                _createInfo.polygonMode(),
-                _createInfo.vertexFormat(),
-                _createInfo.stateInfo()
-        ));
+    public Pipeline registerPipeline(Pipeline pipeline) {
+        // deduplicates pipelines and avoids excess initialization
+        return pipelines.computeIfAbsent(pipeline, newPipeline -> initializePipeline(common.device, renderer.swapchain, newPipeline));
     }
 
-    public void invalidatePipelines(VkCommon common) {
-        pipelines.forEach((pipelineCreateInfo, pipelineInfo) -> pipelineInfo.free(common.device, common.memory));
+    public void rebuildPipelines() {
+        for (Pipeline pipeline : pipelines.keySet()) {
+            pipeline.free(common.device, common.memory);
+            initializePipeline(common.device, renderer.swapchain, pipeline);
+        }
+    }
+
+    @Override
+    public void free(LegacyVulkanDevice device, Memory memory) {
+        for (Pipeline pipeline : pipelines.keySet()) {
+            pipeline.free(device, memory);
+        }
         pipelines.clear();
     }
 
     /**
-     * Creates a new pipeline
+     * Initializes an existing pipeline with the creation data stored inside it.
      */
-    private PipelineInfo createPipeline(LegacyVulkanDevice device, Swapchain swapchain, RenderPass renderPass,  ShaderProgram shaderProgram, Topology topology, PolygonMode polygonMode, VertexFormat vertexFormat, StateInfo stateInfo) {
+    private Pipeline initializePipeline(LegacyVulkanDevice device, Swapchain swapchain, Pipeline pipeline) {
         long pipelineLayout;
         long graphicsPipeline;
 
         try (MemoryStack stack = MemoryStack.stackPush()) {
-            long vertShaderModule = shaderProgram.getVertShaderModule();
-            long fragShaderModule = shaderProgram.getFragShaderModule();
+            long vertShaderModule = pipeline.getShaderProgram().getVertShaderModule();
+            long fragShaderModule = pipeline.getShaderProgram().getFragShaderModule();
 
             ByteBuffer entryPoint = stack.UTF8("main");
             VkPipelineShaderStageCreateInfo.Buffer shaderStages = VkPipelineShaderStageCreateInfo.callocStack(2, stack);
@@ -95,35 +92,35 @@ public class PipelineManager {
                     .module(fragShaderModule)
                     .pName(entryPoint);
 
-            VkPipelineVertexInputStateCreateInfo vertexInputInfo = vertexFormat.getPipelineVertexInputStateCreateInfo();
+            VkPipelineVertexInputStateCreateInfo vertexInputInfo = pipeline.getVertexFormat().getPipelineVertexInputStateCreateInfo();
 
-            VkPipelineInputAssemblyStateCreateInfo inputAssembly = getPipelineInputAssemblyStateCreateInfo(topology);
+            VkPipelineInputAssemblyStateCreateInfo inputAssembly = getPipelineInputAssemblyStateCreateInfo(pipeline.getTopology());
 
             VkViewport.Buffer viewport = getViewport(swapchain);
 
-            VkRect2D.Buffer scissor = stateInfo.isScissorEnabled() ? stateInfo.getExtent() : getDefaultScissor(swapchain);
+            VkRect2D.Buffer scissor = pipeline.getStateInfo().isScissorEnabled() ? pipeline.getStateInfo().getExtent() : getDefaultScissor(swapchain);
 
             VkPipelineViewportStateCreateInfo viewportState = VkPipelineViewportStateCreateInfo.callocStack(stack)
                     .sType(VK10.VK_STRUCTURE_TYPE_PIPELINE_VIEWPORT_STATE_CREATE_INFO)
                     .pViewports(viewport)
                     .pScissors(scissor);
 
-            VkPipelineRasterizationStateCreateInfo rasterizer = stateInfo.getRasterizationStateCreateInfo(polygonMode.getVkId());
+            VkPipelineRasterizationStateCreateInfo rasterizer = pipeline.getStateInfo().getRasterizationStateCreateInfo(pipeline.getPolygonMode().getVkId());
 
             VkPipelineMultisampleStateCreateInfo multisampling = VkPipelineMultisampleStateCreateInfo.callocStack()
                     .sType(VK10.VK_STRUCTURE_TYPE_PIPELINE_MULTISAMPLE_STATE_CREATE_INFO)
                     .sampleShadingEnable(false)
                     .rasterizationSamples(VK10.VK_SAMPLE_COUNT_1_BIT);
 
-            VkPipelineDepthStencilStateCreateInfo depthStencil = stateInfo.getPipelineDepthStencilStateCreateInfo();
+            VkPipelineDepthStencilStateCreateInfo depthStencil = pipeline.getStateInfo().getPipelineDepthStencilStateCreateInfo();
 
-            VkPipelineColorBlendAttachmentState.Buffer colourBlendAttachment = stateInfo.getPipelineColorBlendAttachmentStates();
+            VkPipelineColorBlendAttachmentState.Buffer colourBlendAttachment = pipeline.getStateInfo().getPipelineColorBlendAttachmentStates();
 
-            VkPipelineColorBlendStateCreateInfo colourBlending = stateInfo.getPipelineColorBlendStateCreateInfo(colourBlendAttachment);
+            VkPipelineColorBlendStateCreateInfo colourBlending = pipeline.getStateInfo().getPipelineColorBlendStateCreateInfo(colourBlendAttachment);
 
             VkPipelineLayoutCreateInfo pipelineLayoutInfo = VkPipelineLayoutCreateInfo.callocStack(stack)
                     .sType(VK10.VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO)
-                    .pSetLayouts(stack.longs(shaderProgram.getRaw().getDescriptorSetLayout()));
+                    .pSetLayouts(stack.longs(pipeline.getShaderProgram().getRaw().getDescriptorSetLayout()));
 
             LongBuffer pPipelineLayout = stack.longs(VK10.VK_NULL_HANDLE);
             ok(VK10.vkCreatePipelineLayout(device.rawDevice, pipelineLayoutInfo, null, pPipelineLayout));
@@ -140,7 +137,7 @@ public class PipelineManager {
                     .pDepthStencilState(depthStencil)
                     .pColorBlendState(colourBlending)
                     .layout(pipelineLayout)
-                    .renderPass(renderPass.getRenderPass())
+                    .renderPass(pipeline.getRenderPass().getRawRenderPass())
                     .subpass(0)
                     .basePipelineHandle(VK10.VK_NULL_HANDLE)
                     .basePipelineIndex(-1);
@@ -153,11 +150,13 @@ public class PipelineManager {
             VK10.vkDestroyShaderModule(device.rawDevice, vertShaderModule, null);
             VK10.vkDestroyShaderModule(device.rawDevice, fragShaderModule, null);
 
-            return new PipelineInfo(pipelineLayout, graphicsPipeline);
+            pipeline.setRawInfo(pipelineLayout, graphicsPipeline);
+
+            return pipeline;
         }
     }
-
     // TODO: Fix once Topology is rewritten in java
+
     private VkPipelineInputAssemblyStateCreateInfo getPipelineInputAssemblyStateCreateInfo(Topology topology) {
         MemoryStack stack = MemoryStack.stackGet();
         return VkPipelineInputAssemblyStateCreateInfo.callocStack(stack)
@@ -165,8 +164,8 @@ public class PipelineManager {
                 .topology(topology.vkType)
                 .primitiveRestartEnable(false);
     }
-
     // TODO: Fix once Swapchain is rewritten in java
+
     @NotNull
     private VkRect2D.Buffer getDefaultScissor(Swapchain swapchain) {
         MemoryStack stack = MemoryStack.stackGet();
@@ -174,8 +173,8 @@ public class PipelineManager {
                 .offset(VkOffset2D.callocStack(stack).set(0, 0))
                 .extent(swapchain.getSwapChainExtent());
     }
-
     // TODO: Fix once Swapchain is rewritten in java
+
     @NotNull
     private VkViewport.Buffer getViewport(Swapchain swapchain) {
         MemoryStack stack = MemoryStack.stackGet();

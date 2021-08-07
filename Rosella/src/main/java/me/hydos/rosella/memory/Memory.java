@@ -5,7 +5,7 @@ import it.unimi.dsi.fastutil.longs.LongSet;
 import it.unimi.dsi.fastutil.longs.LongSets;
 import me.hydos.rosella.Rosella;
 import me.hydos.rosella.device.LegacyVulkanDevice;
-import me.hydos.rosella.render.pipeline.PipelineInfo;
+import me.hydos.rosella.render.pipeline.Pipeline;
 import me.hydos.rosella.render.renderer.Renderer;
 import me.hydos.rosella.render.texture.TextureImage;
 import me.hydos.rosella.util.VkUtils;
@@ -249,10 +249,10 @@ public abstract class Memory {
         });
     }
 
-    public void freePipeline(PipelineInfo pipeline) {
+    public void freePipeline(Pipeline pipeline) {
 //        deallocatorThreadPool.execute(() -> {
-            VK10.vkDestroyPipeline(common.device.rawDevice, pipeline.graphicsPipeline(), null);
-            VK10.vkDestroyPipelineLayout(common.device.rawDevice, pipeline.pipelineLayout(), null);
+            VK10.vkDestroyPipeline(common.device.rawDevice, pipeline.getGraphicsPipeline(), null);
+            VK10.vkDestroyPipelineLayout(common.device.rawDevice, pipeline.getPipelineLayout(), null);
 //        });
     }
 

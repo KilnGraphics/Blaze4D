@@ -18,7 +18,7 @@ public class Blaze4D implements ClientModInitializer {
     public static GlfwWindow window;
 
     public static void finishSetup() {
-        rosella.renderer.rebuildCommandBuffers(rosella.renderer.renderPass, (SimpleObjectManager) rosella.objectManager);
+        rosella.renderer.rebuildCommandBuffers(rosella.renderer.mainRenderPass, (SimpleObjectManager) rosella.objectManager);
     }
 
     @Override

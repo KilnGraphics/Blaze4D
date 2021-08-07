@@ -1,5 +1,7 @@
 package me.hydos.rosella.logging;
 
+import me.hydos.rosella.debug.MessageSeverity;
+
 /**
  * Interface used for handling the messages sent back from the driver
  */
@@ -12,7 +14,7 @@ public interface DebugLogger {
      * @param severity Severity can either be "VERBOSE", "INFO", "WARNING", or "ERROR"
      * @return Only VK_TRUE and VK_FALSE is allowed to be returned. anything else will be undocumented behaviour.
      */
-    int logValidation(String message, String severity);
+    int logValidation(String message, MessageSeverity severity);
 
     /**
      * Called when the driver logs a performance warning.
@@ -21,7 +23,7 @@ public interface DebugLogger {
      * @param severity Severity can either be "VERBOSE", "INFO", "WARNING", or "ERROR"
      * @return Only VK_TRUE and VK_FALSE is allowed to be returned. anything else will be undocumented behaviour.
      */
-    int logPerformance(String message, String severity);
+    int logPerformance(String message, MessageSeverity severity);
 
     /**
      * Called when the driver logs a general message.
@@ -30,7 +32,7 @@ public interface DebugLogger {
      * @param severity Severity can either be "VERBOSE", "INFO", "WARNING", or "ERROR"
      * @return Only VK_TRUE and VK_FALSE is allowed to be returned. anything else will be undocumented behaviour.
      */
-    int logGeneral(String message, String severity);
+    int logGeneral(String message, MessageSeverity severity);
 
     /**
      * Called when the driver logs a message we failed to parse.
@@ -39,5 +41,5 @@ public interface DebugLogger {
      * @param severity Severity can either be "VERBOSE", "INFO", "WARNING", or "ERROR"
      * @return Only VK_TRUE and VK_FALSE is allowed to be returned. anything else will be undocumented behaviour.
      */
-    int logUnknown(String message, String severity);
+    int logUnknown(String message, MessageSeverity severity);
 }

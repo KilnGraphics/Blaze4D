@@ -91,7 +91,7 @@ public class VkUtils {
     public static VkRenderPassBeginInfo createRenderPassInfo(RenderPass renderPass) {
         return VkRenderPassBeginInfo.callocStack()
                 .sType(VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO)
-                .renderPass(renderPass.getRenderPass());
+                .renderPass(renderPass.getRawRenderPass());
     }
 
     public static VkRect2D createRenderArea(int x, int y, Swapchain swapchain) {
