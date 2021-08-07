@@ -45,6 +45,8 @@ import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.CompletableFuture;
 
+import static org.lwjgl.vulkan.VK10.VK_FRONT_FACE_COUNTER_CLOCKWISE;
+
 /**
  * Used to make bits of the code easier to manage.
  */
@@ -82,6 +84,7 @@ public class GlobalRenderSystem {
             VK10.VK_BLEND_FACTOR_ONE, VK10.VK_BLEND_FACTOR_ZERO, VK10.VK_BLEND_FACTOR_ONE, VK10.VK_BLEND_FACTOR_ZERO,
             VK10.VK_BLEND_OP_ADD,
             true,
+            VK_FRONT_FACE_COUNTER_CLOCKWISE,
             false,
             VK10.VK_COMPARE_OP_LESS,
             false,

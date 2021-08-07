@@ -1,7 +1,7 @@
 package me.hydos.rosella.render.shader
 
 import me.hydos.rosella.Rosella
-import me.hydos.rosella.device.VulkanDevice
+import me.hydos.rosella.device.LegacyVulkanDevice
 import me.hydos.rosella.render.util.compileShaderFile
 import me.hydos.rosella.util.VkUtils.ok
 import me.hydos.rosella.ubo.DescriptorManager
@@ -30,7 +30,7 @@ class ShaderProgram(val raw: RawShaderProgram, val rosella: Rosella, maxObjects:
     /**
      * Create a Vulkan shader module. used during pipeline creation.
      */
-    private fun createShader(spirvCode: ByteBuffer, device: VulkanDevice): Long {
+    private fun createShader(spirvCode: ByteBuffer, device: LegacyVulkanDevice): Long {
         MemoryStack.stackPush().use { stack ->
             val createInfo = VkShaderModuleCreateInfo.callocStack(stack)
                 .sType(VK10.VK_STRUCTURE_TYPE_SHADER_MODULE_CREATE_INFO)

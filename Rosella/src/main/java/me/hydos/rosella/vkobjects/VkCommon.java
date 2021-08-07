@@ -1,6 +1,6 @@
 package me.hydos.rosella.vkobjects;
 
-import me.hydos.rosella.device.VulkanDevice;
+import me.hydos.rosella.device.LegacyVulkanDevice;
 import me.hydos.rosella.device.VulkanQueues;
 import me.hydos.rosella.display.Display;
 import me.hydos.rosella.memory.Memory;
@@ -29,7 +29,7 @@ public class VkCommon {
     /**
      * The instance of vulkan and the debug logger.
      */
-    public VulkanInstance vkInstance;
+    public LegacyVulkanInstance vkInstance;
 
     /**
      * The surface of what we are displaying to. In general it will be a GLFW window surface.
@@ -39,7 +39,7 @@ public class VkCommon {
     /**
      * The logical and physical device. used in most Vulkan calls.
      */
-    public VulkanDevice device;
+    public LegacyVulkanDevice device;
 
     /**
      * The Presentation and Graphics queue.

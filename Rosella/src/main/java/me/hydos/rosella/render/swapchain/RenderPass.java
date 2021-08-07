@@ -1,6 +1,6 @@
 package me.hydos.rosella.render.swapchain;
 
-import me.hydos.rosella.device.VulkanDevice;
+import me.hydos.rosella.device.LegacyVulkanDevice;
 import me.hydos.rosella.render.renderer.Renderer;
 import org.lwjgl.system.MemoryStack;
 import org.lwjgl.vulkan.*;
@@ -17,7 +17,7 @@ public class RenderPass {
 
     // TODO: have a create function that can be called on swapchain recreation or whatever
     // TODO: add subpass support
-    public RenderPass(VulkanDevice device, Swapchain swapchain, Renderer renderer) {
+    public RenderPass(LegacyVulkanDevice device, Swapchain swapchain, Renderer renderer) {
         try (MemoryStack stack = MemoryStack.stackPush()) {
             VkAttachmentDescription.Buffer attachments = VkAttachmentDescription.callocStack(2, stack);
             VkAttachmentReference.Buffer attachmentRefs = VkAttachmentReference.callocStack(2, stack);

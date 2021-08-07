@@ -4,7 +4,7 @@ import it.unimi.dsi.fastutil.ints.Int2ObjectOpenHashMap;
 import it.unimi.dsi.fastutil.longs.LongArrayList;
 import it.unimi.dsi.fastutil.objects.ObjectArrayList;
 import me.hydos.rosella.Rosella;
-import me.hydos.rosella.device.VulkanDevice;
+import me.hydos.rosella.device.LegacyVulkanDevice;
 import me.hydos.rosella.device.VulkanQueues;
 import me.hydos.rosella.display.Display;
 import me.hydos.rosella.render.info.InstanceInfo;
@@ -70,7 +70,7 @@ public class Renderer {
         this.rosella = rosella;
         this.common = rosella.common;
 
-        this.queues = new VulkanQueues(common);
+        this.queues = common.queues;
         this.depthBuffer = new DepthBuffer();
 
         VkUtils.createCommandPool(common.device, this, common.surface);
@@ -105,7 +105,7 @@ public class Renderer {
         createSyncObjects();
     }
 
-    public VkCommandBuffer beginCmdBuffer(PointerBuffer pCommandBuffer, VulkanDevice device) {
+    public VkCommandBuffer beginCmdBuffer(PointerBuffer pCommandBuffer, LegacyVulkanDevice device) {
         try (MemoryStack stack = MemoryStack.stackPush()) {
             VkCommandBufferAllocateInfo allocInfo = VkCommandBufferAllocateInfo.callocStack(stack)
                     .sType(VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO)
@@ -241,7 +241,7 @@ public class Renderer {
         swapchain.free(rosella.common.device.rawDevice);
     }
 
-    public void clearCommandBuffers(VulkanDevice device) {
+    public void clearCommandBuffers(LegacyVulkanDevice device) {
         if (commandBuffers != null) {
             try (MemoryStack stack = MemoryStack.stackPush()) {
                 vkFreeCommandBuffers(device.rawDevice, commandPool, stack.pointers(commandBuffers));

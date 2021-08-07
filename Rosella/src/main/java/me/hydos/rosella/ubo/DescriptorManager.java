@@ -1,6 +1,6 @@
 package me.hydos.rosella.ubo;
 
-import me.hydos.rosella.device.VulkanDevice;
+import me.hydos.rosella.device.LegacyVulkanDevice;
 import me.hydos.rosella.memory.Memory;
 import me.hydos.rosella.render.descriptorsets.DescriptorSets;
 import me.hydos.rosella.render.shader.ShaderProgram;
@@ -18,7 +18,7 @@ public class DescriptorManager {
     private static final Logger LOGGER = LogManager.getLogger("DescriptorManager");
     private final ShaderProgram program;
     private final Swapchain swapchain;
-    private final VulkanDevice device;
+    private final LegacyVulkanDevice device;
     private final Memory memory;
     private final int maxObjects;
     private int activeDescriptorCount;
@@ -29,7 +29,7 @@ public class DescriptorManager {
      * @param maxObjects the max amount of DescriptorSet's
      * @param program    the {@link ShaderProgram} to base it off
      */
-    public DescriptorManager(int maxObjects, ShaderProgram program, Swapchain swapchain, VulkanDevice device, Memory memory) {
+    public DescriptorManager(int maxObjects, ShaderProgram program, Swapchain swapchain, LegacyVulkanDevice device, Memory memory) {
         this.maxObjects = maxObjects;
         this.program = program;
         this.swapchain = swapchain;
@@ -40,7 +40,7 @@ public class DescriptorManager {
     /**
      * Allocates a new {@link DescriptorSets}. This should only be called when no free {@link DescriptorSets}'s are available
      *
-     * @param textures the {@link TextureMap} to use with the {@link DescriptorSets}
+     * @param textures the {@link TextureMap[]} to use with the {@link DescriptorSets}
      * @param ubo      the {@link Ubo} to use with the {@link DescriptorSets}
      */
     public void createNewDescriptor(TextureMap textures, Ubo ubo) {

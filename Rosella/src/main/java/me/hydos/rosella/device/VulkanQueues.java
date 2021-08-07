@@ -16,19 +16,8 @@ public class VulkanQueues {
     public final VulkanQueue graphicsQueue;
     public final VulkanQueue presentQueue;
 
-    public VulkanQueues(VkCommon common) {
-        try (MemoryStack stack = MemoryStack.stackPush()) {
-            PointerBuffer pQueues = stack.pointers(VK_NULL_HANDLE);
-            vkGetDeviceQueue(common.device.rawDevice, common.device.indices.graphicsFamily, 0, pQueues);
-            this.graphicsQueue = new VulkanQueue(new VkQueue((pQueues.get(0)), common.device.rawDevice), common.device.indices.graphicsFamily);
-
-            // Need to make sure that if they are the same queue they are the same object and share the lock
-            if(!common.device.indices.presentFamily.equals(common.device.indices.graphicsFamily)) {
-                vkGetDeviceQueue(common.device.rawDevice, common.device.indices.presentFamily, 0, pQueues);
-                this.presentQueue = new VulkanQueue(new VkQueue((pQueues.get(0)), common.device.rawDevice), common.device.indices.presentFamily);
-            } else {
-                this.presentQueue = this.graphicsQueue;
-            }
-        }
+    public VulkanQueues(VulkanQueue graphicsQueue, VulkanQueue presentQueue) {
+        this.graphicsQueue = graphicsQueue;
+        this.presentQueue = presentQueue;
     }
 }

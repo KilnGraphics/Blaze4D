@@ -3,7 +3,7 @@ package me.hydos.rosella.render.shader
 import it.unimi.dsi.fastutil.Hash.VERY_FAST_LOAD_FACTOR
 import it.unimi.dsi.fastutil.objects.ObjectOpenHashSet
 import it.unimi.dsi.fastutil.objects.ReferenceOpenHashSet
-import me.hydos.rosella.device.VulkanDevice
+import me.hydos.rosella.device.LegacyVulkanDevice
 import me.hydos.rosella.memory.Memory
 import me.hydos.rosella.render.descriptorsets.DescriptorSets
 import me.hydos.rosella.render.renderer.Renderer
@@ -20,12 +20,12 @@ import org.lwjgl.vulkan.*
 import org.lwjgl.vulkan.VK10.*
 
 open class RawShaderProgram(
-    var vertexShader: Resource?,
-    var fragmentShader: Resource?,
-    val device: VulkanDevice,
-    val memory: Memory,
-    var maxObjCount: Int,
-    private vararg var poolObjects: PoolObjectInfo
+        var vertexShader: Resource?,
+        var fragmentShader: Resource?,
+        val device: LegacyVulkanDevice,
+        val memory: Memory,
+        var maxObjCount: Int,
+        private vararg var poolObjects: PoolObjectInfo
 ) {
     var descriptorPool: Long = 0
     var descriptorSetLayout: Long = 0

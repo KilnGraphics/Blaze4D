@@ -1,5 +1,6 @@
 package me.hydos.rosella.render.texture;
 
+import it.unimi.dsi.fastutil.ints.*;
 import it.unimi.dsi.fastutil.ints.Int2ObjectMap;
 import it.unimi.dsi.fastutil.ints.Int2ObjectOpenHashMap;
 import it.unimi.dsi.fastutil.ints.IntArrayPriorityQueue;
@@ -82,7 +83,6 @@ public class TextureManager {
         textureMap.put(textureId, new Texture(imgFormat, width, height, textureImage, VK10.VK_NULL_HANDLE));
     }
 
-    // TODO: figure out how to use binding ids instead of names
     public void setTextureSampler(int textureId, String samplerName, SamplerCreateInfo samplerCreateInfo) {
         Map<String, TextureSampler> textureNoMap = samplerCache.computeIfAbsent(samplerCreateInfo, s -> new HashMap<>());
         TextureSampler textureSampler = textureNoMap.computeIfAbsent(samplerName, t -> new TextureSampler(samplerCreateInfo, common.device));

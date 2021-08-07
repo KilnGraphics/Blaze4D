@@ -2,12 +2,76 @@ package me.hydos.rosella.render.pipeline.state;
 
 import org.jetbrains.annotations.NotNull;
 import org.lwjgl.system.MemoryStack;
-import org.lwjgl.vulkan.*;
+import org.lwjgl.vulkan.VK10;
+import org.lwjgl.vulkan.VkExtent2D;
+import org.lwjgl.vulkan.VkOffset2D;
+import org.lwjgl.vulkan.VkPipelineColorBlendAttachmentState;
+import org.lwjgl.vulkan.VkPipelineColorBlendStateCreateInfo;
+import org.lwjgl.vulkan.VkPipelineDepthStencilStateCreateInfo;
+import org.lwjgl.vulkan.VkPipelineRasterizationStateCreateInfo;
+import org.lwjgl.vulkan.VkRect2D;
 
 import java.util.Objects;
 
+import static org.lwjgl.vulkan.VK10.VK_FRONT_FACE_CLOCKWISE;
+import static org.lwjgl.vulkan.VK10.VK_FRONT_FACE_COUNTER_CLOCKWISE;
+
 // TODO OPT: split this up into multiple things and allow for optional dynamic pipelines
 public class StateInfo {
+    public static final StateInfo DEFAULT_GUI = new StateInfo(
+            VK10.VK_COLOR_COMPONENT_R_BIT | VK10.VK_COLOR_COMPONENT_G_BIT | VK10.VK_COLOR_COMPONENT_B_BIT | VK10.VK_COLOR_COMPONENT_A_BIT,
+            true,
+            false,
+            0, 0, 0, 0,
+            false,
+            true,
+            VK10.VK_BLEND_FACTOR_ONE, VK10.VK_BLEND_FACTOR_ZERO, VK10.VK_BLEND_FACTOR_ONE, VK10.VK_BLEND_FACTOR_ZERO,
+            VK10.VK_BLEND_OP_ADD,
+            false,
+            VK_FRONT_FACE_COUNTER_CLOCKWISE,
+            false,
+            VK10.VK_COMPARE_OP_LESS,
+            false,
+            VK10.VK_LOGIC_OP_COPY,
+            1.0f
+    );
+
+    public static final StateInfo DEFAULT_3D = new StateInfo(
+            VK10.VK_COLOR_COMPONENT_R_BIT | VK10.VK_COLOR_COMPONENT_G_BIT | VK10.VK_COLOR_COMPONENT_B_BIT | VK10.VK_COLOR_COMPONENT_A_BIT,
+            true,
+            false,
+            0, 0, 0, 0,
+            false,
+            true,
+            VK10.VK_BLEND_FACTOR_ONE, VK10.VK_BLEND_FACTOR_ZERO, VK10.VK_BLEND_FACTOR_ONE, VK10.VK_BLEND_FACTOR_ZERO,
+            VK10.VK_BLEND_OP_ADD,
+            true,
+            VK_FRONT_FACE_COUNTER_CLOCKWISE,
+            true,
+            VK10.VK_COMPARE_OP_LESS,
+            false,
+            VK10.VK_LOGIC_OP_COPY,
+            1.0f
+    );
+
+    public static final StateInfo DEFAULT_3D_CULL_COUNTER_CLOCKWISE = new StateInfo(
+            VK10.VK_COLOR_COMPONENT_R_BIT | VK10.VK_COLOR_COMPONENT_G_BIT | VK10.VK_COLOR_COMPONENT_B_BIT | VK10.VK_COLOR_COMPONENT_A_BIT,
+            true,
+            false,
+            0, 0, 0, 0,
+            false,
+            true,
+            VK10.VK_BLEND_FACTOR_ONE, VK10.VK_BLEND_FACTOR_ZERO, VK10.VK_BLEND_FACTOR_ONE, VK10.VK_BLEND_FACTOR_ZERO,
+            VK10.VK_BLEND_OP_ADD,
+            true,
+            VK_FRONT_FACE_COUNTER_CLOCKWISE,
+            true,
+            VK10.VK_COMPARE_OP_LESS,
+            false,
+            VK10.VK_LOGIC_OP_COPY,
+            1.0f
+    );
+
     private int colorMask;
     private boolean depthMask;
 
@@ -27,6 +91,7 @@ public class StateInfo {
     private int blendOp;
 
     private boolean cullEnabled;
+    private int frontFace;
 
     private boolean depthTestEnabled;
     private int depthCompareOp;
@@ -36,7 +101,7 @@ public class StateInfo {
 
     private float lineWidth;
 
-    public StateInfo(int colorMask, boolean depthMask, boolean scissorEnabled, int scissorX, int scissorY, int scissorWidth, int scissorHeight, boolean stencilEnabled, boolean blendEnabled, int srcColorBlendFactor, int dstColorBlendFactor, int srcAlphaBlendFactor, int dstAlphaBlendFactor, int blendOp, boolean cullEnabled, boolean depthTestEnabled, int depthCompareOp, boolean colorLogicOpEnabled, int colorLogicOp, float lineWidth) {
+    public StateInfo(int colorMask, boolean depthMask, boolean scissorEnabled, int scissorX, int scissorY, int scissorWidth, int scissorHeight, boolean stencilEnabled, boolean blendEnabled, int srcColorBlendFactor, int dstColorBlendFactor, int srcAlphaBlendFactor, int dstAlphaBlendFactor, int blendOp, boolean cullEnabled, int frontFace, boolean depthTestEnabled, int depthCompareOp, boolean colorLogicOpEnabled, int colorLogicOp, float lineWidth) {
 
         this.colorMask = colorMask;
         this.depthMask = depthMask;
@@ -53,6 +118,7 @@ public class StateInfo {
         this.dstAlphaBlendFactor = dstAlphaBlendFactor;
         this.blendOp = blendOp;
         this.cullEnabled = cullEnabled;
+        this.frontFace = frontFace;
         this.depthTestEnabled = depthTestEnabled;
         this.depthCompareOp = depthCompareOp;
         this.colorLogicOpEnabled = colorLogicOpEnabled;
@@ -61,7 +127,7 @@ public class StateInfo {
     }
 
     public StateInfo(StateInfo info) {
-        this(info.colorMask, info.depthMask, info.scissorEnabled, info.scissorX, info.scissorY, info.scissorWidth, info.scissorHeight, info.stencilEnabled, info.blendEnabled, info.srcColorBlendFactor, info.dstColorBlendFactor, info.srcAlphaBlendFactor, info.dstAlphaBlendFactor, info.blendOp, info.cullEnabled, info.depthTestEnabled, info.depthCompareOp, info.colorLogicOpEnabled, info.colorLogicOp, info.lineWidth);
+        this(info.colorMask, info.depthMask, info.scissorEnabled, info.scissorX, info.scissorY, info.scissorWidth, info.scissorHeight, info.stencilEnabled, info.blendEnabled, info.srcColorBlendFactor, info.dstColorBlendFactor, info.srcAlphaBlendFactor, info.dstAlphaBlendFactor, info.blendOp, info.cullEnabled, info.frontFace, info.depthTestEnabled, info.depthCompareOp, info.colorLogicOpEnabled, info.colorLogicOp, info.lineWidth);
     }
 
     public StateInfo snapshot() {
@@ -228,6 +294,10 @@ public class StateInfo {
         return cullEnabled;
     }
 
+    public int getFrontFace() {
+        return frontFace;
+    }
+
     public boolean isDepthTestEnabled() {
         return depthTestEnabled;
     }
@@ -272,12 +342,12 @@ public class StateInfo {
     public VkPipelineRasterizationStateCreateInfo getRasterizationStateCreateInfo(int polygonMode) {
         return VkPipelineRasterizationStateCreateInfo.callocStack()
                 .sType(VK10.VK_STRUCTURE_TYPE_PIPELINE_RASTERIZATION_STATE_CREATE_INFO)
-                .depthClampEnable(false)
+                .depthClampEnable(true)
                 .rasterizerDiscardEnable(false)
                 .polygonMode(polygonMode)
                 .lineWidth(getLineWidth())
                 .cullMode(isCullEnabled() ? VK10.VK_CULL_MODE_BACK_BIT : VK10.VK_CULL_MODE_NONE)
-                .frontFace(VK10.VK_FRONT_FACE_COUNTER_CLOCKWISE) // TODO: try messing with this
+                .frontFace(getFrontFace()) // TODO: try messing with this
                 .depthBiasEnable(false);
     }
 
@@ -288,9 +358,9 @@ public class StateInfo {
                 .depthTestEnable(isDepthTestEnabled())
                 .depthWriteEnable(isDepthMask())
                 .depthCompareOp(getDepthCompareOp())
-//                .depthBoundsTestEnable(true)
-//                .minDepthBounds(-1.0f)
-//                .maxDepthBounds(1.0f)
+                .depthBoundsTestEnable(true)
+                .minDepthBounds(0f)
+                .maxDepthBounds(1.0f)
                 .stencilTestEnable(isStencilEnabled());
     }
 

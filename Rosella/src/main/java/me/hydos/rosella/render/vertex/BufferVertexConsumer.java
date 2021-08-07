@@ -1,13 +1,5 @@
 package me.hydos.rosella.render.vertex;
 
-import me.hydos.rosella.device.VulkanDevice;
-import me.hydos.rosella.memory.Memory;
-
-import java.nio.ByteBuffer;
-import java.util.Collections;
-import java.util.List;
-import java.util.Objects;
-
 // FIXME redo this whole class honestly
 //public final class BufferVertexConsumer {
 //    private final VertexFormat format;

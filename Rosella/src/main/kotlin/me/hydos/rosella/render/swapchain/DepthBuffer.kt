@@ -1,6 +1,6 @@
 package me.hydos.rosella.render.swapchain
 
-import me.hydos.rosella.device.VulkanDevice
+import me.hydos.rosella.device.LegacyVulkanDevice
 import me.hydos.rosella.memory.Memory
 import me.hydos.rosella.memory.MemoryCloseable
 import me.hydos.rosella.render.renderer.Renderer
@@ -19,7 +19,7 @@ class DepthBuffer: MemoryCloseable {
 
     lateinit var depthImage: TextureImage
 
-    fun createDepthResources(device: VulkanDevice, memory: Memory, swapchain: Swapchain, renderer: Renderer) {
+    fun createDepthResources(device: LegacyVulkanDevice, memory: Memory, swapchain: Swapchain, renderer: Renderer) {
         val depthFormat = findDepthFormat(device)
         depthImage = VkUtils.createImage(
             memory,
@@ -45,7 +45,7 @@ class DepthBuffer: MemoryCloseable {
         )
     }
 
-    fun findDepthFormat(device: VulkanDevice): Int {
+    fun findDepthFormat(device: LegacyVulkanDevice): Int {
         return findSupportedFormat(
             MemoryStack.stackGet()
                 .ints(VK_FORMAT_D32_SFLOAT, VK_FORMAT_D32_SFLOAT_S8_UINT, VK_FORMAT_D24_UNORM_S8_UINT),
@@ -63,7 +63,7 @@ class DepthBuffer: MemoryCloseable {
         formatCandidates: IntBuffer,
         tiling: Int,
         features: Int,
-        device: VulkanDevice
+        device: LegacyVulkanDevice
     ): Int {
         MemoryStack.stackPush().use { stack ->
             val props = VkFormatProperties.callocStack(stack)
@@ -80,7 +80,7 @@ class DepthBuffer: MemoryCloseable {
         error("Failed to find supported format")
     }
 
-    override fun free(device: VulkanDevice, memory: Memory) {
+    override fun free(device: LegacyVulkanDevice, memory: Memory) {
         depthImage.free(device, memory)
     }
 }

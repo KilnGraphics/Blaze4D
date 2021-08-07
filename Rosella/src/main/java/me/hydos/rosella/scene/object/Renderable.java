@@ -1,8 +1,6 @@
 package me.hydos.rosella.scene.object;
 
 import me.hydos.rosella.Rosella;
-import me.hydos.rosella.device.VulkanDevice;
-import me.hydos.rosella.memory.Memory;
 import me.hydos.rosella.memory.MemoryCloseable;
 import me.hydos.rosella.render.info.InstanceInfo;
 import me.hydos.rosella.render.info.RenderInfo;

@@ -5,6 +5,7 @@ import me.hydos.rosella.vkobjects.VkCommon;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.concurrent.Callable;
 
 /**
  * Used to display to something. In general "something" will be a window though in some cases you may want to use extensions to
@@ -36,7 +37,7 @@ public abstract class Display {
     /**
      * This method will handle looping for you, meaning you will not have to call update() every frame manually.
      */
-    public abstract void startAutomaticLoop(Rosella rosella);
+    public abstract void startAutomaticLoop(Rosella rosella, Callable<Boolean> loopCallback);
 
     /**
      * Exit's the {@link Display}. should be called after {@link Rosella} exit's

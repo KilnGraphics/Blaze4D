@@ -223,11 +223,12 @@ public class GlStateManagerMixin {
         ci.setReturnValue(
                 Blaze4D.rosella == null ? "Device not initialized" :
                         switch (glStringId) {
-                            case GL.GL_VENDOR -> tryParseVendorId(Blaze4D.rosella.common.device.properties.vendorId);
-                            case GL.GL_EXTENSIONS -> Blaze4D.rosella.common.device.combinedExtensionsString;
-                            case GL.GL_RENDERER -> Blaze4D.rosella.common.device.properties.deviceName;
-                            case GL.GL_VERSION -> "Vulkan API " + Blaze4D.rosella.common.device.properties.apiVersion;
-                            default -> throw new IllegalStateException("Unexpected value: " + glStringId);
+//                            case GL.GL_VENDOR -> tryParseVendorId(Blaze4D.rosella.common.device.properties.vendorId);
+//                            case GL.GL_EXTENSIONS -> Blaze4D.rosella.common.device.combinedExtensionsString;
+//                            case GL.GL_RENDERER -> Blaze4D.rosella.common.device.properties.deviceName;
+//                            case GL.GL_VERSION -> "Vulkan API " + Blaze4D.rosella.common.device.properties.apiVersion;
+//                            default -> throw new IllegalStateException("Unexpected value: " + glStringId);
+                            default -> "FIXME: BROKEN. use new Device system";
                         }
         );
     }

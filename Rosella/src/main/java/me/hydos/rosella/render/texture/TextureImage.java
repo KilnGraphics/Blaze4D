@@ -1,6 +1,6 @@
 package me.hydos.rosella.render.texture;
 
-import me.hydos.rosella.device.VulkanDevice;
+import me.hydos.rosella.device.LegacyVulkanDevice;
 import me.hydos.rosella.memory.Memory;
 import me.hydos.rosella.memory.MemoryCloseable;
 
@@ -57,7 +57,7 @@ public class TextureImage implements MemoryCloseable {
     }
 
     @Override
-    public void free(VulkanDevice device, Memory memory) {
+    public void free(LegacyVulkanDevice device, Memory memory) {
         memory.freeImage(this);
     }
 }

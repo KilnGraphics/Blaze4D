@@ -1,6 +1,6 @@
 package me.hydos.rosella.render.texture
 
-import me.hydos.rosella.device.VulkanDevice
+import me.hydos.rosella.device.LegacyVulkanDevice
 import org.lwjgl.system.MemoryStack
 import org.lwjgl.vulkan.VK10
 import org.lwjgl.vulkan.VkSamplerCreateInfo
@@ -8,7 +8,7 @@ import org.lwjgl.vulkan.VkSamplerCreateInfo
 /**
  * The creation info for creating a Texture Sampler
  */
-class TextureSampler(private val createInfo: SamplerCreateInfo, device: VulkanDevice) {
+class TextureSampler(private val createInfo: SamplerCreateInfo, device: LegacyVulkanDevice) {
     var pointer = 0L
 
     init {

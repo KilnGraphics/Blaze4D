@@ -1,17 +1,13 @@
 package me.hydos.rosella.scene.object;
 
 import me.hydos.rosella.Rosella;
-import me.hydos.rosella.render.PolygonMode;
-import me.hydos.rosella.render.Topology;
 import me.hydos.rosella.render.material.Material;
 import me.hydos.rosella.render.pipeline.PipelineCreateInfo;
-import me.hydos.rosella.render.pipeline.state.StateInfo;
 import me.hydos.rosella.render.renderer.Renderer;
 import me.hydos.rosella.render.shader.RawShaderProgram;
 import me.hydos.rosella.render.shader.ShaderProgram;
 import me.hydos.rosella.render.swapchain.RenderPass;
 import me.hydos.rosella.render.texture.TextureMap;
-import me.hydos.rosella.render.vertex.VertexFormat;
 
 /**
  * Allows for multiple ways for the engine to handle objects.

@@ -1,10 +1,8 @@
 package me.hydos.rosella.display;
 
 import me.hydos.rosella.Rosella;
-import me.hydos.rosella.scene.object.impl.SimpleObjectManager;
 import me.hydos.rosella.vkobjects.VkCommon;
 import org.lwjgl.PointerBuffer;
-import org.lwjgl.glfw.GLFW;
 import org.lwjgl.glfw.GLFWVidMode;
 import org.lwjgl.glfw.GLFWVulkan;
 import org.lwjgl.system.MemoryStack;
@@ -13,6 +11,7 @@ import java.nio.IntBuffer;
 import java.nio.LongBuffer;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.concurrent.Callable;
 
 import static me.hydos.rosella.util.VkUtils.ok;
 import static org.lwjgl.glfw.GLFW.*;
@@ -77,11 +76,14 @@ public class GlfwWindow extends Display {
     }
 
     @Override
-    public void startAutomaticLoop(Rosella rosella) {
-        while (!glfwWindowShouldClose(pWindow)) {
-//            rosella.renderer.rebuildCommandBuffers(rosella.renderer.renderPass, (SimpleObjectManager) rosella.objectManager);
-            update();
-            rosella.renderer.render();
+    public void startAutomaticLoop(Rosella rosella, Callable<Boolean> loopCallback) {
+        try {
+            while (!glfwWindowShouldClose(pWindow) && loopCallback.call()) {
+                update();
+                rosella.renderer.render();
+            }
+        } catch (Exception e) {
+            throw new RuntimeException("Error occurred in automatic loop.", e);
         }
     }
 

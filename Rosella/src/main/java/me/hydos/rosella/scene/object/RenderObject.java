@@ -1,7 +1,7 @@
 package me.hydos.rosella.scene.object;
 
 import me.hydos.rosella.Rosella;
-import me.hydos.rosella.device.VulkanDevice;
+import me.hydos.rosella.device.LegacyVulkanDevice;
 import me.hydos.rosella.memory.ManagedBuffer;
 import me.hydos.rosella.memory.Memory;
 import me.hydos.rosella.render.info.InstanceInfo;
@@ -43,6 +43,7 @@ public class RenderObject implements Renderable {
         loadModelInfo();
     }
 
+    @Deprecated
     public void loadModelInfo() {
         ModelLoader.SimpleModel model = ModelLoader.loadModel(modelId, Assimp.aiProcess_FlipUVs | Assimp.aiProcess_DropNormals);
         int vertexCount = model.getPositions().size();
@@ -88,7 +89,7 @@ public class RenderObject implements Renderable {
     }
 
     @Override
-    public void free(VulkanDevice device, Memory memory) {
+    public void free(LegacyVulkanDevice device, Memory memory) {
         instanceInfo.free(device, memory);
         try {
             renderInfo.get().free(device, memory);
