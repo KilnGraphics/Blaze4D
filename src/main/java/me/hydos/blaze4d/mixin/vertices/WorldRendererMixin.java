@@ -39,7 +39,7 @@ public class WorldRendererMixin {
      * @author burger
      */
     @Overwrite
-    private void renderChunkLayer(RenderType renderType, PoseStack modelViewStack, double xTransparent, double yTransparent, double zTransparent, Matrix4f projectionMatrix) {
+    public void renderChunkLayer(RenderType renderType, PoseStack modelViewStack, double xTransparent, double yTransparent, double zTransparent, Matrix4f projectionMatrix) {
 
         RenderSystem.assertThread(RenderSystem::isOnRenderThread);
         renderType.setupRenderState();
