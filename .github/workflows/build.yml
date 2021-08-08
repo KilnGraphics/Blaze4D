@@ -5,6 +5,7 @@ on:
 
 jobs:
   build:
+    if: "! contains(toJSON(github.event.commits.*.message), '[ci skip]')"
     strategy:
       matrix:
         java:
