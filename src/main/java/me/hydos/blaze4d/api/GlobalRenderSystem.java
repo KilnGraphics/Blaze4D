@@ -44,6 +44,7 @@ import java.util.Collections;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.CompletableFuture;
+import java.util.function.Function;
 
 import static org.lwjgl.vulkan.VK10.VK_FRONT_FACE_COUNTER_CLOCKWISE;
 
@@ -227,9 +228,9 @@ public class GlobalRenderSystem {
                 //       /         \       /
                 //      /             \   /
                 //    v2-----------------v3
-                indexCount = (int) (vertexCount * 1.5);
+                indexCount = vertexCount / 4 * 6;
                 indices = MemoryUtil.memAllocInt(indexCount);
-                for (int i = 0; i < vertexCount; i += 4) {
+                for (int i = 0; i < (vertexCount & ~3); i += 4) {
                     indices.put(i);
                     indices.put(i + 1);
                     indices.put(i + 2);
@@ -239,9 +240,9 @@ public class GlobalRenderSystem {
                 }
             }
             case LINES -> {
-                indexCount = (int) (vertexCount * 1.5);
+                indexCount = vertexCount / 4 * 6;
                 indices = MemoryUtil.memAllocInt(indexCount);
-                for (int i = 0; i < vertexCount; i += 4) {
+                for (int i = 0; i < (vertexCount & ~3); i += 4) {
                     indices.put(i);
                     indices.put(i + 1);
                     indices.put(i + 2);
