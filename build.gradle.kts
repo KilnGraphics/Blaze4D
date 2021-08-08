@@ -113,7 +113,7 @@ loom {
 	accessWidenerPath.set(file("src/main/resources/blaze4d.aw"))
 }
 
-loomQuiltflower {
+quiltflower {
 	quiltflowerVersion.set("1.5.0")
 }
 
