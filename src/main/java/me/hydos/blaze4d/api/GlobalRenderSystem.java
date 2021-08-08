@@ -212,9 +212,8 @@ public class GlobalRenderSystem {
         currentFrameObjects.add(renderObject);
     }
 
-    public static ObjectIntPair<ManagedBuffer<ByteBuffer>> createIndices(VertexFormat.Mode drawMode, int vertexCount) {
+    public static ManagedBuffer<ByteBuffer> createIndices(VertexFormat.Mode drawMode, int indexCount) {
         IntBuffer indices;
-        int indexCount;
 
         // TODO: try getting index buffer from minecraft (VertexBuffer and BufferBuilder)
         switch (drawMode) {
@@ -228,9 +227,8 @@ public class GlobalRenderSystem {
                 //       /         \       /
                 //      /             \   /
                 //    v2-----------------v3
-                indexCount = vertexCount / 4 * 6;
                 indices = MemoryUtil.memAllocInt(indexCount);
-                for (int i = 0; i < (vertexCount & ~3); i += 4) {
+                for (int i = 0; i < indexCount / 6 * 4; i += 4) {
                     indices.put(i);
                     indices.put(i + 1);
                     indices.put(i + 2);
@@ -240,9 +238,9 @@ public class GlobalRenderSystem {
                 }
             }
             case LINES -> {
-                indexCount = vertexCount / 4 * 6;
+                if (indexCount == 0) return null;
                 indices = MemoryUtil.memAllocInt(indexCount);
-                for (int i = 0; i < (vertexCount & ~3); i += 4) {
+                for (int i = 0; i < indexCount / 6 * 4; i += 4) {
                     indices.put(i);
                     indices.put(i + 1);
                     indices.put(i + 2);
@@ -252,16 +250,15 @@ public class GlobalRenderSystem {
                 }
             }
             default -> {
-                indexCount = vertexCount;
                 indices = MemoryUtil.memAllocInt(indexCount);
-                for (int i = 0; i < vertexCount; i++) {
+                for (int i = 0; i < indexCount; i++) {
                     indices.put(i);
                 }
             }
         }
 
         indices.rewind();
-        return new ObjectIntImmutablePair<>(new ManagedBuffer<>(MemoryUtil.memByteBuffer(indices), true), indexCount);
+        return new ManagedBuffer<>(MemoryUtil.memByteBuffer(indices), true);
     }
 
     public static void updateUniforms() {

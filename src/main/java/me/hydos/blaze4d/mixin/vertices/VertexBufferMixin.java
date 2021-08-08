@@ -41,17 +41,16 @@ public class VertexBufferMixin {
         BufferBuilder.DrawState providedDrawState = drawData.getFirst();
         ByteBuffer providedBuffer = drawData.getSecond();
 
-        if (providedDrawState.vertexCount() > 0) {
+        if (providedDrawState.vertexCount() > 0 && providedDrawState.indexCount() > 0) {
             if (!providedDrawState.indexOnly()) {
                 providedBuffer.limit(providedDrawState.vertexBufferSize());
                 BufferInfo vertexBuffer = Blaze4D.rosella.bufferManager.createVertexBuffer(new ManagedBuffer<>(providedBuffer, false));
 
-                ObjectIntPair<ManagedBuffer<ByteBuffer>> indexBufferSourcePair = GlobalRenderSystem.createIndices(providedDrawState.mode(), providedDrawState.vertexCount());
-                int indexCount = indexBufferSourcePair.valueInt();
-                BufferInfo indexBuffer = Blaze4D.rosella.bufferManager.createIndexBuffer(indexBufferSourcePair.key());
+                ManagedBuffer<ByteBuffer> rawIndexBuffer = GlobalRenderSystem.createIndices(providedDrawState.mode(), providedDrawState.indexCount());
+                BufferInfo indexBuffer = Blaze4D.rosella.bufferManager.createIndexBuffer(rawIndexBuffer);
 
                 drawState = providedDrawState;
-                currentRenderInfo = new RenderInfo(vertexBuffer, indexBuffer, indexCount);
+                currentRenderInfo = new RenderInfo(vertexBuffer, indexBuffer, providedDrawState.indexCount());
             }
         }
 

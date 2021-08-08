@@ -29,21 +29,19 @@ public class BufferRendererMixin {
 
         originalBuffer.clear();
 
-        int vertexCount = drawState.vertexCount();
-
         // TODO: why were these format checks here? (ported from old code) drawState.format() != com.mojang.blaze3d.vertex.DefaultVertexFormat.BLIT_SCREEN && drawState.format() != com.mojang.blaze3d.vertex.DefaultVertexFormat.POSITION
-        if (vertexCount > 0) {
+        if (drawState.vertexCount() > 0 && drawState.indexCount() > 0) {
             ByteBuffer copiedBuffer = MemoryUtil.memAlloc(drawState.vertexBufferSize());
             copiedBuffer.put(0, originalBuffer, 0, drawState.vertexBufferSize());
 
-            ObjectIntPair<ManagedBuffer<ByteBuffer>> indexBufferPair = GlobalRenderSystem.createIndices(drawState.mode(), drawState.vertexCount());
+            ManagedBuffer<ByteBuffer> rawIndexBuffer = GlobalRenderSystem.createIndices(drawState.mode(), drawState.indexCount());
 
             GlobalRenderSystem.updateUniforms();
 
             GlobalRenderSystem.uploadAsyncCreatableObject(
                     new ManagedBuffer<>(copiedBuffer, true),
-                    indexBufferPair.key(),
-                    indexBufferPair.valueInt(),
+                    rawIndexBuffer,
+                    drawState.indexCount(),
                     GlobalRenderSystem.activeShader,
                     ConversionUtils.mcDrawModeToRosellaTopology(drawState.mode()),
                     GlobalRenderSystem.DEFAULT_POLYGON_MODE,
