@@ -14,5 +14,4 @@ pluginManagement {
     }
 }
 
-include("Rosella")
-project("Rosella").projectDir = File(rootDir, "Rosella")
+includeBuild("Rosella")

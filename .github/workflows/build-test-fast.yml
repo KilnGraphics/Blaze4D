@@ -20,6 +20,8 @@ jobs:
     steps:
       - name: checkout repository
         uses: actions/checkout@v2
+        with:
+          submodules: recursive
       - name: validate gradle wrapper
         uses: gradle/wrapper-validation-action@v1
       - name: setup jdk ${{ matrix.java }}
@@ -36,7 +38,7 @@ jobs:
         id: test
         run: ./gradlew fastCITest
       - name: capture build artifacts
-        if: ${{ matrix.java == '16' }} 
+        if: ${{ matrix.java == '16' }}
         uses: actions/upload-artifact@v2
         with:
           name: Artifacts-${{ matrix.os }}
