@@ -111,6 +111,29 @@ java {
 
 loom {
 	accessWidenerPath.set(file("src/main/resources/blaze4d.aw"))
+
+	runs {
+		val client by this
+
+		create("clientWithValidation") {
+			inherit(client)
+			configName = "Minecraft Client with Validation Layers"
+			vmArgs.add("-Drosella:validation=true")
+		}
+
+		create("clientWithRenderdoc") {
+			inherit(client)
+			configName = "Minecraft Client with Renderdoc"
+			vmArgs.add("-Drosella:renderdoc=true")
+		}
+
+		create("clientWithValidationRenderdoc") {
+			inherit(client)
+			configName = "Minecraft Client with Validation Layers and Renderdoc"
+			vmArgs.add("-Drosella:validation=true")
+			vmArgs.add("-Drosella:renderdoc=true")
+		}
+	}
 }
 
 quiltflower {
