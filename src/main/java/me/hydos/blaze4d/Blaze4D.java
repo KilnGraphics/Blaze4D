@@ -1,6 +1,8 @@
 package me.hydos.blaze4d;
 
+import me.hydos.blaze4d.api.GlobalRenderSystem;
 import me.hydos.rosella.Rosella;
+import me.hydos.rosella.device.init.features.TriangleFan;
 import me.hydos.rosella.display.GlfwWindow;
 import me.hydos.rosella.scene.object.impl.SimpleObjectManager;
 import net.fabricmc.api.ClientModInitializer;
@@ -18,6 +20,7 @@ public class Blaze4D implements ClientModInitializer {
     public static GlfwWindow window;
 
     public static void finishSetup() {
+        GlobalRenderSystem.emulateTriangleFans = !rosella.vulkanDevice.isFeatureEnabled(TriangleFan.NAME);
         rosella.renderer.rebuildCommandBuffers(rosella.renderer.mainRenderPass, (SimpleObjectManager) rosella.objectManager);
     }
 

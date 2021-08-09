@@ -3,7 +3,6 @@ package me.hydos.blaze4d.mixin.vertices;
 import com.mojang.blaze3d.vertex.BufferBuilder;
 import com.mojang.blaze3d.vertex.BufferUploader;
 import com.mojang.datafixers.util.Pair;
-import it.unimi.dsi.fastutil.objects.ObjectIntPair;
 import me.hydos.blaze4d.Blaze4D;
 import me.hydos.blaze4d.api.GlobalRenderSystem;
 import me.hydos.blaze4d.api.util.ConversionUtils;
@@ -34,16 +33,16 @@ public class BufferRendererMixin {
             ByteBuffer copiedBuffer = MemoryUtil.memAlloc(drawState.vertexBufferSize());
             copiedBuffer.put(0, originalBuffer, 0, drawState.vertexBufferSize());
 
-            ManagedBuffer<ByteBuffer> rawIndexBuffer = GlobalRenderSystem.createIndices(drawState.mode(), drawState.indexCount());
+            GlobalRenderSystem.MinecraftIndexBuffer mcIndexBuffer = GlobalRenderSystem.createIndices(drawState.mode(), drawState.indexCount());
 
             GlobalRenderSystem.updateUniforms();
 
             GlobalRenderSystem.uploadAsyncCreatableObject(
                     new ManagedBuffer<>(copiedBuffer, true),
-                    rawIndexBuffer,
-                    drawState.indexCount(),
+                    mcIndexBuffer.rawBuffer(),
+                    mcIndexBuffer.newIndexCount(),
                     GlobalRenderSystem.activeShader,
-                    ConversionUtils.mcDrawModeToRosellaTopology(drawState.mode()),
+                    ConversionUtils.mcDrawModeToRosellaTopology(mcIndexBuffer.newMode()),
                     GlobalRenderSystem.DEFAULT_POLYGON_MODE,
                     ConversionUtils.FORMAT_CONVERSION_MAP.get(drawState.format().getElements()),
                     GlobalRenderSystem.currentStateInfo.snapshot(),

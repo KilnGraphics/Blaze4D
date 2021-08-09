@@ -10,8 +10,6 @@ import it.unimi.dsi.fastutil.objects.Object2IntMap;
 import it.unimi.dsi.fastutil.objects.Object2IntOpenHashMap;
 import it.unimi.dsi.fastutil.objects.Object2ObjectLinkedOpenHashMap;
 import it.unimi.dsi.fastutil.objects.Object2ObjectOpenHashMap;
-import it.unimi.dsi.fastutil.objects.ObjectIntImmutablePair;
-import it.unimi.dsi.fastutil.objects.ObjectIntPair;
 import me.hydos.blaze4d.Blaze4D;
 import me.hydos.blaze4d.api.shader.MinecraftUbo;
 import me.hydos.blaze4d.api.shader.ShaderContext;
@@ -44,7 +42,6 @@ import java.util.Collections;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.CompletableFuture;
-import java.util.function.Function;
 
 import static org.lwjgl.vulkan.VK10.VK_FRONT_FACE_COUNTER_CLOCKWISE;
 
@@ -55,6 +52,10 @@ public class GlobalRenderSystem {
 
     // Misc Constants
     public static final PolygonMode DEFAULT_POLYGON_MODE = PolygonMode.FILL;
+
+    // Supported Feature Fields
+    public static boolean emulateTriangleFans;
+    public static VertexFormat.Mode triFanEmulationMode = VertexFormat.Mode.TRIANGLES;
 
     // Shader Fields
     public static final Map<Integer, ShaderContext> SHADER_MAP = new Int2ObjectOpenHashMap<>();
@@ -212,12 +213,14 @@ public class GlobalRenderSystem {
         currentFrameObjects.add(renderObject);
     }
 
-    public static ManagedBuffer<ByteBuffer> createIndices(VertexFormat.Mode drawMode, int indexCount) {
+    public static MinecraftIndexBuffer createIndices(VertexFormat.Mode drawMode, int indexCount) {
         IntBuffer indices;
+        int newIndexCount = indexCount;
+        VertexFormat.Mode newMode = drawMode;
 
         // TODO: try getting index buffer from minecraft (VertexBuffer and BufferBuilder)
         switch (drawMode) {
-            case QUADS -> {
+            case QUADS:
                 // Convert Quads to Triangle Strips
                 //  0, 1, 2
                 //  0, 2, 3
@@ -236,9 +239,8 @@ public class GlobalRenderSystem {
                     indices.put(i + 3);
                     indices.put(i);
                 }
-            }
-            case LINES -> {
-                if (indexCount == 0) return null;
+                break;
+            case LINES:
                 indices = MemoryUtil.memAllocInt(indexCount);
                 for (int i = 0; i < indexCount / 6 * 4; i += 4) {
                     indices.put(i);
@@ -248,18 +250,38 @@ public class GlobalRenderSystem {
                     indices.put(i + 2);
                     indices.put(i + 1);
                 }
-            }
-            default -> {
+                break;
+            case TRIANGLE_FAN:
+                if (emulateTriangleFans) {
+                    newMode = triFanEmulationMode;
+                    if (newMode.equals(VertexFormat.Mode.TRIANGLES)) {
+                        newIndexCount = (indexCount - 2) * 3;
+                        indices = MemoryUtil.memAllocInt(newIndexCount);
+                        for (int i = 2; i < indexCount; i++) {
+                            indices.put(0);
+                            indices.put(i - 1);
+                            indices.put(i);
+                        }
+                    } else if (newMode.equals(VertexFormat.Mode.TRIANGLE_STRIP)) {
+                        throw new UnsupportedOperationException();
+                    } else {
+                        throw new UnsupportedOperationException("Triangle fan emulation mode invalid");
+                    }
+                    break;
+                }
+            default:
                 indices = MemoryUtil.memAllocInt(indexCount);
                 for (int i = 0; i < indexCount; i++) {
                     indices.put(i);
                 }
-            }
+                break;
         }
 
         indices.rewind();
-        return new ManagedBuffer<>(MemoryUtil.memByteBuffer(indices), true);
+        return new MinecraftIndexBuffer(new ManagedBuffer<>(MemoryUtil.memByteBuffer(indices), true), newIndexCount, newMode);
     }
+
+    public record MinecraftIndexBuffer(ManagedBuffer<ByteBuffer> rawBuffer, int newIndexCount, VertexFormat.Mode newMode) {}
 
     public static void updateUniforms() {
         updateUniforms(RenderSystem.getShader(), RenderSystem.getModelViewMatrix(), RenderSystem.getProjectionMatrix());

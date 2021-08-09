@@ -3,12 +3,12 @@ package me.hydos.blaze4d.mixin.vertices;
 import com.mojang.blaze3d.vertex.BufferBuilder;
 import com.mojang.blaze3d.vertex.VertexBuffer;
 import com.mojang.datafixers.util.Pair;
-import it.unimi.dsi.fastutil.objects.ObjectIntPair;
 import me.hydos.blaze4d.Blaze4D;
 import me.hydos.blaze4d.api.GlobalRenderSystem;
 import me.hydos.blaze4d.api.util.ConversionUtils;
 import me.hydos.rosella.memory.BufferInfo;
 import me.hydos.rosella.memory.ManagedBuffer;
+import me.hydos.rosella.render.Topology;
 import me.hydos.rosella.render.info.RenderInfo;
 import net.minecraft.client.renderer.ShaderInstance;
 import org.spongepowered.asm.mixin.Mixin;
@@ -29,6 +29,10 @@ public class VertexBufferMixin {
     private RenderInfo currentRenderInfo;
     @Unique
     private BufferBuilder.DrawState drawState;
+    @Unique
+    private Topology convertedTopology;
+    @Unique
+    private me.hydos.rosella.render.vertex.VertexFormat convertedVertexFormat;
 
     /**
      * @author Blaze4D
@@ -46,11 +50,13 @@ public class VertexBufferMixin {
                 providedBuffer.limit(providedDrawState.vertexBufferSize());
                 BufferInfo vertexBuffer = Blaze4D.rosella.bufferManager.createVertexBuffer(new ManagedBuffer<>(providedBuffer, false));
 
-                ManagedBuffer<ByteBuffer> rawIndexBuffer = GlobalRenderSystem.createIndices(providedDrawState.mode(), providedDrawState.indexCount());
-                BufferInfo indexBuffer = Blaze4D.rosella.bufferManager.createIndexBuffer(rawIndexBuffer);
+                GlobalRenderSystem.MinecraftIndexBuffer mcIndexBuffer = GlobalRenderSystem.createIndices(providedDrawState.mode(), providedDrawState.indexCount());
+                BufferInfo indexBuffer = Blaze4D.rosella.bufferManager.createIndexBuffer(mcIndexBuffer.rawBuffer());
 
+                currentRenderInfo = new RenderInfo(vertexBuffer, indexBuffer, mcIndexBuffer.newIndexCount());
                 drawState = providedDrawState;
-                currentRenderInfo = new RenderInfo(vertexBuffer, indexBuffer, providedDrawState.indexCount());
+                convertedTopology = ConversionUtils.mcDrawModeToRosellaTopology(mcIndexBuffer.newMode());
+                convertedVertexFormat = ConversionUtils.FORMAT_CONVERSION_MAP.get(providedDrawState.format().getElements());
             }
         }
 
@@ -79,14 +85,13 @@ public class VertexBufferMixin {
 
     @Unique
     private void addBufferToRosella() {
-        // TODO: why were these format checks here? (ported from old code) drawState.format() != com.mojang.blaze3d.vertex.DefaultVertexFormat.BLIT_SCREEN && drawState.format() != com.mojang.blaze3d.vertex.DefaultVertexFormat.POSITION
         if (currentRenderInfo != null && drawState != null) {
             GlobalRenderSystem.uploadPreCreatedObject(
                     currentRenderInfo,
                     GlobalRenderSystem.activeShader,
-                    ConversionUtils.mcDrawModeToRosellaTopology(drawState.mode()),
+                    convertedTopology,
                     GlobalRenderSystem.DEFAULT_POLYGON_MODE,
-                    ConversionUtils.FORMAT_CONVERSION_MAP.get(drawState.format().getElements()),
+                    convertedVertexFormat,
                     GlobalRenderSystem.currentStateInfo.snapshot(),
                     GlobalRenderSystem.getCurrentTextureMap(),
                     Blaze4D.rosella
