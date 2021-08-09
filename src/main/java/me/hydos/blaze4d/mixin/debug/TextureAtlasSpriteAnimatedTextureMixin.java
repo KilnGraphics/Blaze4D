@@ -8,7 +8,7 @@ import org.spongepowered.asm.mixin.injection.Inject;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 
 @Mixin(TextureAtlasSprite.AnimatedTexture.class)
-public abstract class SpriteAnimationMixin implements Tickable, AutoCloseable {
+public abstract class TextureAtlasSpriteAnimatedTextureMixin implements Tickable, AutoCloseable {
 
     @Override
     public void tick() {

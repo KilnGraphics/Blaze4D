@@ -8,7 +8,7 @@
   "client": [
     "blaze3d.RenderSystemMixin",
     "buffers.GlStateManagerMixin",
-    "debug.SpriteAnimationMixin",
+    "debug.TextureAtlasSpriteAnimatedTextureMixin",
     "integration.FramebufferMixin",
     "integration.GameRendererMixin",
     "integration.GlDebugMixin",
