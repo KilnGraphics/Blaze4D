@@ -2,6 +2,7 @@ import org.gradle.internal.os.OperatingSystem
 
 plugins {
 	id("fabric-loom") version "0.9-SNAPSHOT"
+	id("java-library")
 	id("io.github.juuxel.loom-quiltflower") version "1.3.0"
 	`maven-publish`
 }
@@ -80,14 +81,39 @@ dependencies {
 	include(implementation("com.oroarmor", "aftermath", "1.0.0-beta"))
 
 	include("org.joml", "joml", "1.10.1")
+	include("org.lz4", "lz4-java", "1.8.0")
+	api(platform("org.lwjgl:lwjgl-bom:$lwjglVersion"))
+
+	include("org.lwjgl", "lwjgl", lwjglVersion)
+	include("org.lwjgl", "lwjgl-jemalloc", lwjglVersion)
+	include("org.lwjgl", "lwjgl-openal", lwjglVersion)
+	include("org.lwjgl", "lwjgl-stb", lwjglVersion)
+	include("org.lwjgl", "lwjgl-tinyfd", lwjglVersion)
+	include("org.lwjgl", "lwjgl-assimp", lwjglVersion)
+	include("org.lwjgl", "lwjgl-glfw", lwjglVersion)
 	include("org.lwjgl", "lwjgl-shaderc", lwjglVersion)
+	include("org.lwjgl", "lwjgl-stb", lwjglVersion)
 	include("org.lwjgl", "lwjgl-vma", lwjglVersion)
 	include("org.lwjgl", "lwjgl-vulkan", lwjglVersion)
-	include("org.lwjgl", "lwjgl-shaderc", lwjglVersion, classifier = lwjglNatives)
-	include("org.lwjgl", "lwjgl-vma", lwjglVersion, classifier = lwjglNatives)
+	include("org.lwjgl", "lwjgl-vma", lwjglVersion)
+	include("org.lwjgl", "lwjgl-jemalloc", lwjglVersion)
+	include(runtimeOnly("org.lwjgl", "lwjgl-shaderc", classifier = lwjglNatives))
+	include(runtimeOnly("org.lwjgl", "lwjgl-vma", classifier = lwjglNatives))
+	include(runtimeOnly("org.lwjgl", "lwjgl", classifier = lwjglNatives))
+	include(runtimeOnly("org.lwjgl", "lwjgl-jemalloc", classifier = lwjglNatives))
+	include(runtimeOnly("org.lwjgl", "lwjgl-openal", classifier = lwjglNatives))
+	include(runtimeOnly("org.lwjgl", "lwjgl-stb", classifier = lwjglNatives))
+	include(runtimeOnly("org.lwjgl", "lwjgl-tinyfd", classifier = lwjglNatives))
+	include(runtimeOnly("org.lwjgl", "lwjgl-assimp", classifier = lwjglNatives))
+	include(runtimeOnly("org.lwjgl", "lwjgl-glfw", classifier = lwjglNatives))
+	include(runtimeOnly("org.lwjgl", "lwjgl-stb", classifier = lwjglNatives))
+	include(runtimeOnly("org.lwjgl", "lwjgl-vma", classifier = lwjglNatives))
+	include(runtimeOnly("org.lwjgl", "lwjgl-jemalloc", classifier = lwjglNatives))
+
+	include("it.unimi.dsi", "fastutil-core", "8.5.4")
 
 	if (lwjglNatives == "natives-macos" || lwjglNatives == "natives-macos-arm64") {
-		include("org.lwjgl", "lwjgl-vulkan", lwjglVersion, classifier = lwjglNatives)
+		include("org.lwjgl", "lwjgl-vulkan", classifier = lwjglNatives)
 	}
 
 	testImplementation("org.junit.jupiter", "junit-jupiter", "5.7.0")

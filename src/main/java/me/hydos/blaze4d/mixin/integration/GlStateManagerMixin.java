@@ -10,6 +10,7 @@ import me.hydos.rosella.scene.object.impl.SimpleObjectManager;
 import me.hydos.rosella.util.Color;
 import org.lwjgl.opengl.GL13;
 import org.lwjgl.vulkan.VK10;
+import org.lwjgl.vulkan.VkPhysicalDeviceProperties;
 import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.Overwrite;
 import org.spongepowered.asm.mixin.Unique;
@@ -220,15 +221,16 @@ public class GlStateManagerMixin {
 
     @Inject(method = "_getString", at = @At("HEAD"), cancellable = true)
     private static void getString(int glStringId, CallbackInfoReturnable<String> ci) {
+        final VkPhysicalDeviceProperties properties = VkPhysicalDeviceProperties.create();
+        VK10.vkGetPhysicalDeviceProperties(Blaze4D.rosella.common.device.newDevice.getDevice().getPhysicalDevice(), properties);
         ci.setReturnValue(
                 Blaze4D.rosella == null ? "Device not initialized" :
                         switch (glStringId) {
-//                            case GL.GL_VENDOR -> tryParseVendorId(Blaze4D.rosella.common.device.properties.vendorId);
-//                            case GL.GL_EXTENSIONS -> Blaze4D.rosella.common.device.combinedExtensionsString;
-//                            case GL.GL_RENDERER -> Blaze4D.rosella.common.device.properties.deviceName;
-//                            case GL.GL_VERSION -> "Vulkan API " + Blaze4D.rosella.common.device.properties.apiVersion;
-//                            default -> throw new IllegalStateException("Unexpected value: " + glStringId);
-                            default -> "FIXME: BROKEN. use new Device system";
+                            case GL.GL_VENDOR -> tryParseVendorId(properties.vendorID());
+                            case GL.GL_EXTENSIONS -> "TODO not implemented";
+                            case GL.GL_RENDERER -> properties.deviceNameString();
+                            case GL.GL_VERSION -> "Vulkan API " + parseVulkanVersion(properties.apiVersion());
+                            default -> throw new IllegalStateException("Unexpected value: " + glStringId);
                         }
         );
     }
@@ -244,6 +246,11 @@ public class GlStateManagerMixin {
             case 0x5143 -> "Qualcomm";
             default -> "Vendor unknown. Vendor ID: " + vendorId;
         };
+    }
+
+    @Unique
+    private static String parseVulkanVersion(int version) {
+        return VK10.VK_VERSION_MAJOR(version) + "." + VK10.VK_VERSION_MINOR(version) + "." + VK10.VK_VERSION_PATCH(version);
     }
 
     /**

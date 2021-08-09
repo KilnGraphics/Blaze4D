@@ -14,7 +14,7 @@ import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 @Mixin(TextureUtil.class)
 public class TextureUtilMixin {
 
-    @Inject(method = "prepareImage(Lcom/mojang/blaze3d/platform/NativeImage$InternalGlFormat;IIII)V", at = @At("HEAD"), remap = false, cancellable = true)
+    @Inject(method = "prepareImage(Lcom/mojang/blaze3d/platform/NativeImage$InternalGlFormat;IIII)V", at = @At("HEAD"), cancellable = true)
     private static void createRosellaTexture(NativeImage.InternalGlFormat internalFormat, int id, int maxLevel, int width, int height, CallbackInfo ci) {
         GlobalRenderSystem.boundTextureIds[GlobalRenderSystem.activeTextureSlot] = id;
         ((SimpleObjectManager) Blaze4D.rosella.objectManager).textureManager.createTexture(
