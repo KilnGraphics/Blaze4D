@@ -11,8 +11,8 @@ import org.apache.logging.log4j.message.StringFormatterMessageFactory;
 public class Blaze4D implements ClientModInitializer {
 
     public static final Logger LOGGER = LogManager.getLogger("Blaze4D", new StringFormatterMessageFactory());
-    public static final boolean VALIDATION_ENABLED = true;
-    public static final boolean RENDERDOC_ENABLED = false;
+    public static final boolean VALIDATION_ENABLED = Boolean.parseBoolean(System.getProperty("rosella:validation"));
+    public static final boolean RENDERDOC_ENABLED = Boolean.parseBoolean(System.getProperty("rosella:renderdoc"));
 
     public static Rosella rosella;
     public static GlfwWindow window;
@@ -23,12 +23,8 @@ public class Blaze4D implements ClientModInitializer {
 
     @Override
     public void onInitializeClient() {
-        try {
-            if (RENDERDOC_ENABLED) {
-                System.loadLibrary("renderdoc");
-            }
-        } catch (UnsatisfiedLinkError e) {
-            LOGGER.warn("Unable to find renderdoc on path.");
+        if (RENDERDOC_ENABLED) {
+            System.loadLibrary("renderdoc");
         }
     }
 }

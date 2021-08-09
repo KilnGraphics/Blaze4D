@@ -78,7 +78,7 @@ public abstract class GlUniformMixin extends AbstractUniform implements VulkanUn
         } else {
             matrix = ConversionUtils.mcToJomlMatrix(matrix4f);
         }
-        matrix.get(floatValues);
+        matrix.get(0, floatValues);
         markDirty();
     }
 
