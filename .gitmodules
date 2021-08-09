@@ -1,3 +1,4 @@
 [submodule "Rosella"]
 	path = Rosella
 	url = https://github.com/Blaze4D-MC/Rosella.git
+	branch = master

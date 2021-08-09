@@ -121,10 +121,10 @@ public abstract class WindowMixin {
 
         try {
             AftermathHandler.initialize(Thread.currentThread());
-        } catch (Exception exception) {
+        } catch (Throwable throwable) {
             // We don't really care if this doesn't work, especially outside of development
             if (FabricLoader.getInstance().isDevelopmentEnvironment()) {
-                exception.printStackTrace();
+                throwable.printStackTrace();
             }
         }
     }
