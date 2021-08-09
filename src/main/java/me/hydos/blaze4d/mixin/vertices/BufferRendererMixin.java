@@ -1,5 +1,6 @@
 package me.hydos.blaze4d.mixin.vertices;
 
+import com.mojang.blaze3d.systems.RenderSystem;
 import com.mojang.blaze3d.vertex.BufferBuilder;
 import com.mojang.blaze3d.vertex.BufferUploader;
 import com.mojang.datafixers.util.Pair;
@@ -47,6 +48,7 @@ public class BufferRendererMixin {
                     ConversionUtils.FORMAT_CONVERSION_MAP.get(drawState.format().getElements()),
                     GlobalRenderSystem.currentStateInfo.snapshot(),
                     GlobalRenderSystem.getCurrentTextureMap(),
+                    GlobalRenderSystem.getShaderUbo(RenderSystem.getShader()),
                     Blaze4D.rosella
             );
         }

@@ -1,6 +1,5 @@
 package me.hydos.blaze4d.api.vertex;
 
-import me.hydos.blaze4d.api.GlobalRenderSystem;
 import me.hydos.blaze4d.api.shader.MinecraftShaderProgram;
 import me.hydos.rosella.Rosella;
 import me.hydos.rosella.device.LegacyVulkanDevice;
@@ -18,6 +17,7 @@ import me.hydos.rosella.render.vertex.VertexFormat;
 import me.hydos.rosella.scene.object.Renderable;
 import me.hydos.rosella.scene.object.impl.SimpleObjectManager;
 
+import java.nio.ByteBuffer;
 import java.util.Objects;
 import java.util.concurrent.Future;
 
@@ -35,6 +35,7 @@ public class ConsumerRenderObject implements Renderable {
             VertexFormat vertexFormat,
             StateInfo stateInfo,
             TextureMap textures,
+            ByteBuffer rawUboData,
             Rosella rosella) {
 
         this.renderInfo = renderInfo;
@@ -51,7 +52,7 @@ public class ConsumerRenderObject implements Renderable {
                 ),
                 textures
         );
-        this.instanceInfo = new InstanceInfo(((MinecraftShaderProgram) shaderProgram.getRaw()).createMinecraftUbo(rosella.common.memory, shaderProgram.getRaw().getDescriptorPool(), GlobalRenderSystem.getShaderUbo()), material);
+        this.instanceInfo = new InstanceInfo(((MinecraftShaderProgram) shaderProgram.getRaw()).createMinecraftUbo(rosella.common.memory, shaderProgram.getRaw().getDescriptorPool(), rawUboData), material);
     }
 
     //======================

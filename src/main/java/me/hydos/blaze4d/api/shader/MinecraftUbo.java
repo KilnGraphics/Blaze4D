@@ -47,19 +47,19 @@ public class MinecraftUbo extends Ubo {
     private DescriptorSets descSets;
     private final List<BufferInfo> uboFrames = new ArrayList<>();
     private final Long2ObjectMap<PointerBuffer> mappedAllocations = new Long2ObjectOpenHashMap<>();
-    private ByteBuffer data; // TODO: when do we free this?
+    private ByteBuffer data;
 
-    public MinecraftUbo(Memory memory, long rawDescriptorPool, ByteBuffer shaderUbo) {
+    public MinecraftUbo(Memory memory, long rawDescriptorPool, ByteBuffer rawUboData) {
         this.memory = memory;
         this.descSets = new DescriptorSets(rawDescriptorPool);
-        this.totalSize = shaderUbo.capacity();
-        this.data = shaderUbo;
+        this.totalSize = rawUboData.capacity();
+        this.data = rawUboData;
     }
 
     @Override
     public void create(Swapchain swapChain) {
         try (MemoryStack stack = MemoryStack.stackPush()) {
-            this.free();
+            this.freeUboFrames();
             for (int i = 0; i < swapChain.getSwapChainImages().size(); i++) {
                 LongBuffer pBuffer = stack.mallocLong(1);
                 uboFrames.add(
@@ -94,8 +94,7 @@ public class MinecraftUbo extends Ubo {
         MemoryUtil.memCopy(data, mainBuffer);
     }
 
-    @Override
-    public void free() {
+    public void freeUboFrames() {
         for (BufferInfo uboImg : uboFrames) {
             uboImg.free(Blaze4D.rosella.common.device, memory);
             memory.unmap(uboImg.allocation());
@@ -107,6 +106,13 @@ public class MinecraftUbo extends Ubo {
 
         mappedAllocations.clear();
         uboFrames.clear();
+    }
+
+    @Override
+    public void free() {
+        freeUboFrames();
+        MemoryUtil.memFree(data);
+        data = null;
     }
 
     @NotNull

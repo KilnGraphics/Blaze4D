@@ -2,7 +2,6 @@ package me.hydos.blaze4d.mixin.shader;
 
 import com.mojang.blaze3d.preprocessor.GlslPreprocessor;
 import com.mojang.blaze3d.shaders.Program;
-import com.mojang.blaze3d.shaders.Uniform;
 import com.mojang.blaze3d.vertex.VertexFormat;
 import it.unimi.dsi.fastutil.Pair;
 import it.unimi.dsi.fastutil.objects.ObjectIntImmutablePair;
@@ -22,7 +21,6 @@ import java.io.ByteArrayInputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.util.List;
-import java.util.stream.Collectors;
 
 @Mixin(ShaderInstance.class)
 public class ShaderMixin {
@@ -35,7 +33,7 @@ public class ShaderMixin {
     @ModifyArg(method = "getOrCreate", at = @At(value = "INVOKE", target = "Lcom/mojang/blaze3d/shaders/Program;compileShader(Lcom/mojang/blaze3d/shaders/Program$Type;Ljava/lang/String;Ljava/io/InputStream;Ljava/lang/String;Lcom/mojang/blaze3d/preprocessor/GlslPreprocessor;)Lcom/mojang/blaze3d/shaders/Program;"), index = 2)
     private static InputStream no(Program.Type type, String name, InputStream stream, String domain, GlslPreprocessor loader) throws IOException {
         String originalSource = new String(stream.readAllBytes());
-        Rosella.LOGGER.info("Processing shader " + name + type.getExtension());
+        Rosella.LOGGER.debug("Processing shader " + name + type.getExtension());
         ObjectIntPair<List<String>> conversionData = VanillaShaderProcessor.process(
                 List.of(originalSource),
                 GlobalRenderSystem.blaze4d$capturedShaderProgram.blaze4d$getUniforms().stream().map(uniform -> (Pair<String, Integer>) new ObjectIntImmutablePair<>(uniform.getName(), uniform.getType())).toList(),

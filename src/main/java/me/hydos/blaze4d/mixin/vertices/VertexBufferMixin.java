@@ -1,5 +1,6 @@
 package me.hydos.blaze4d.mixin.vertices;
 
+import com.mojang.blaze3d.systems.RenderSystem;
 import com.mojang.blaze3d.vertex.BufferBuilder;
 import com.mojang.blaze3d.vertex.VertexBuffer;
 import com.mojang.datafixers.util.Pair;
@@ -10,6 +11,9 @@ import me.hydos.rosella.memory.BufferInfo;
 import me.hydos.rosella.memory.ManagedBuffer;
 import me.hydos.rosella.render.Topology;
 import me.hydos.rosella.render.info.RenderInfo;
+import me.hydos.rosella.render.shader.RawShaderProgram;
+import me.hydos.rosella.render.shader.ShaderProgram;
+import me.hydos.rosella.scene.object.impl.SimpleObjectManager;
 import net.minecraft.client.renderer.ShaderInstance;
 import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.Overwrite;
@@ -71,7 +75,7 @@ public class VertexBufferMixin {
     @Overwrite
     public void _drawWithShader(com.mojang.math.Matrix4f mcModelViewMatrix, com.mojang.math.Matrix4f mcProjectionMatrix, ShaderInstance shader) {
         GlobalRenderSystem.updateUniforms(shader, mcModelViewMatrix, mcProjectionMatrix);
-        addBufferToRosella();
+        addBufferToRosella(shader);
     }
 
     /**
@@ -80,20 +84,28 @@ public class VertexBufferMixin {
      */
     @Overwrite
     public void drawChunkLayer() {
-        addBufferToRosella();
+        addBufferToRosella(GlobalRenderSystem.activeShader, GlobalRenderSystem.getShaderUbo(RenderSystem.getShader()));
     }
 
     @Unique
-    private void addBufferToRosella() {
+    private void addBufferToRosella(ShaderInstance mcShader) {
+        RawShaderProgram rawProgram = GlobalRenderSystem.SHADER_PROGRAM_MAP.get(mcShader.getId());
+        ShaderProgram rosellaShaderProgram = ((SimpleObjectManager) Blaze4D.rosella.objectManager).shaderManager.getOrCreateShader(rawProgram);
+        addBufferToRosella(rosellaShaderProgram, GlobalRenderSystem.getShaderUbo(mcShader));
+    }
+
+    @Unique
+    private void addBufferToRosella(ShaderProgram rosellaShaderProgram, ByteBuffer rawUboData) {
         if (currentRenderInfo != null && drawState != null) {
             GlobalRenderSystem.uploadPreCreatedObject(
                     currentRenderInfo,
-                    GlobalRenderSystem.activeShader,
+                    rosellaShaderProgram,
                     convertedTopology,
                     GlobalRenderSystem.DEFAULT_POLYGON_MODE,
                     convertedVertexFormat,
                     GlobalRenderSystem.currentStateInfo.snapshot(),
                     GlobalRenderSystem.getCurrentTextureMap(),
+                    rawUboData,
                     Blaze4D.rosella
             );
         }

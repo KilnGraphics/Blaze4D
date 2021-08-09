@@ -39,6 +39,7 @@ import org.lwjgl.vulkan.VK10;
 import java.nio.ByteBuffer;
 import java.nio.IntBuffer;
 import java.util.Collections;
+import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.CompletableFuture;
@@ -172,6 +173,7 @@ public class GlobalRenderSystem {
             me.hydos.rosella.render.vertex.VertexFormat format,
             StateInfo stateInfo,
             TextureMap textures,
+            ByteBuffer rawUboData,
             Rosella rosella) {
 
         if (shader == null) return;
@@ -183,6 +185,7 @@ public class GlobalRenderSystem {
                 format,
                 stateInfo,
                 textures,
+                rawUboData,
                 rosella
         );
         currentFrameObjects.add(renderObject);
@@ -196,6 +199,7 @@ public class GlobalRenderSystem {
             me.hydos.rosella.render.vertex.VertexFormat format,
             StateInfo stateInfo,
             TextureMap textures,
+            ByteBuffer rawUboData,
             Rosella rosella) {
 
         if (shader == null) return;
@@ -207,6 +211,7 @@ public class GlobalRenderSystem {
                 format,
                 stateInfo,
                 textures,
+                rawUboData,
                 rosella
         );
 
@@ -340,9 +345,10 @@ public class GlobalRenderSystem {
         RenderSystem.setupShaderLights(shader);
     }
 
-    public static ByteBuffer getShaderUbo() {
+    public static ByteBuffer getShaderUbo(ShaderInstance shader) {
+        List<Uniform> uniformList = ((ShaderAccessor) shader).blaze4d$getUniforms();
         int totalSize = Mth.roundToward(
-                ((ShaderAccessor) RenderSystem.getShader()).blaze4d$getUniforms().stream()
+                uniformList.stream()
                         .mapToInt(Uniform::getType)
                         .map(MinecraftUbo.UNIFORM_OFFSETS::get)
                         .reduce(0, Integer::sum),
@@ -351,7 +357,7 @@ public class GlobalRenderSystem {
         ByteBuffer mainBuffer = MemoryUtil.memAlloc(totalSize);
         long writeLocation = MemoryUtil.memAddress(mainBuffer);
         int writeOffset = 0;
-        for (Uniform uniform : ((ShaderAccessor) RenderSystem.getShader()).blaze4d$getUniforms()) {
+        for (Uniform uniform : uniformList) {
             writeOffset = ((VulkanUniform) uniform).alignOffset(writeOffset);
             ((VulkanUniform) uniform).writeLocation(writeLocation + writeOffset);
             uniform.upload();

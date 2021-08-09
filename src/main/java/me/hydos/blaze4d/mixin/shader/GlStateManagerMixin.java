@@ -1,10 +1,5 @@
 package me.hydos.blaze4d.mixin.shader;
 
-import java.nio.FloatBuffer;
-import java.nio.IntBuffer;
-import java.nio.charset.StandardCharsets;
-import java.util.List;
-
 import com.mojang.blaze3d.platform.GlStateManager;
 import com.mojang.blaze3d.systems.RenderSystem;
 import me.hydos.blaze4d.Blaze4D;
@@ -12,7 +7,6 @@ import me.hydos.blaze4d.api.GlobalRenderSystem;
 import me.hydos.blaze4d.api.shader.MinecraftShaderProgram;
 import me.hydos.blaze4d.api.shader.ShaderContext;
 import me.hydos.blaze4d.api.util.ByteArrayResource;
-import me.hydos.rosella.render.resource.Identifier;
 import me.hydos.rosella.render.resource.Resource;
 import me.hydos.rosella.render.shader.RawShaderProgram;
 import me.hydos.rosella.render.shader.ShaderType;
@@ -20,6 +14,11 @@ import me.hydos.rosella.scene.object.impl.SimpleObjectManager;
 import org.lwjgl.opengl.GL20;
 import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.Overwrite;
+
+import java.nio.FloatBuffer;
+import java.nio.IntBuffer;
+import java.nio.charset.StandardCharsets;
+import java.util.List;
 
 /**
  * This Mixin handles the interactions between Minecraft shaders and GL programs and passes it onto rosella
@@ -143,7 +142,7 @@ public class GlStateManagerMixin {
     @Overwrite
     public static void glLinkProgram(int program) {
         RenderSystem.assertThread(RenderSystem::isOnRenderThread);
-        Identifier id = GlobalRenderSystem.generateId(program);
+//        Identifier id = GlobalRenderSystem.generateId(program);
         Blaze4D.rosella.objectManager.addShader(GlobalRenderSystem.SHADER_PROGRAM_MAP.get(program));
     }
 
