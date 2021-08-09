@@ -55,7 +55,7 @@ public class GlobalRenderSystem {
 
     // Supported Feature Fields
     public static boolean emulateTriangleFans;
-    public static VertexFormat.Mode triFanEmulationMode = VertexFormat.Mode.TRIANGLES;
+    public static VertexFormat.Mode triFanEmulationMode = VertexFormat.Mode.TRIANGLE_STRIP;
 
     // Shader Fields
     public static final Map<Integer, ShaderContext> SHADER_MAP = new Int2ObjectOpenHashMap<>();
@@ -254,18 +254,25 @@ public class GlobalRenderSystem {
             case TRIANGLE_FAN:
                 if (emulateTriangleFans) {
                     newMode = triFanEmulationMode;
-                    if (newMode.equals(VertexFormat.Mode.TRIANGLES)) {
-                        newIndexCount = (indexCount - 2) * 3;
-                        indices = MemoryUtil.memAllocInt(newIndexCount);
-                        for (int i = 2; i < indexCount; i++) {
-                            indices.put(0);
-                            indices.put(i - 1);
-                            indices.put(i);
+                    switch (newMode) {
+                        case TRIANGLES -> {
+                            newIndexCount = (indexCount - 2) * 3;
+                            indices = MemoryUtil.memAllocInt(newIndexCount);
+                            for (int i = 2; i < indexCount; i++) {
+                                indices.put(0);
+                                indices.put(i - 1);
+                                indices.put(i);
+                            }
                         }
-                    } else if (newMode.equals(VertexFormat.Mode.TRIANGLE_STRIP)) {
-                        throw new UnsupportedOperationException();
-                    } else {
-                        throw new UnsupportedOperationException("Triangle fan emulation mode invalid");
+                        case TRIANGLE_STRIP -> {
+                            newIndexCount = (indexCount - 1) * 2;
+                            indices = MemoryUtil.memAllocInt(newIndexCount);
+                            for (int i = 1; i < indexCount; i++) {
+                                indices.put(0);
+                                indices.put(i);
+                            }
+                        }
+                        default -> throw new UnsupportedOperationException("Triangle fan emulation mode invalid");
                     }
                     break;
                 }
