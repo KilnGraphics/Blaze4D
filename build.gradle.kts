@@ -113,7 +113,7 @@ dependencies {
 	include("it.unimi.dsi", "fastutil-core", "8.5.4")
 
 	if (lwjglNatives == "natives-macos" || lwjglNatives == "natives-macos-arm64") {
-		include("org.lwjgl", "lwjgl-vulkan", classifier = lwjglNatives)
+		include(runtimeOnly("org.lwjgl", "lwjgl-vulkan", classifier = lwjglNatives))
 	}
 
 	testImplementation("org.junit.jupiter", "junit-jupiter", "5.7.0")
