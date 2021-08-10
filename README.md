@@ -7,7 +7,8 @@ Support for Blaze4D **WILL NOT** be given as the mod is in its **Early Developme
 Blaze4D is compatible with Sodium.
 
 ## Community
-We have a [Discord server](https://discord.gg/H93wJePuWf) where you can track development progress, ask questions, or just hang out in.
+We have a [Discord server](https://discord.gg/H93wJePuWf) where you can track development progress, ask questions, or just hang out in. 
+The discord server is very cool Join it or 🔫
 
 ## Building
 1. Clone the repository (https://github.com/Blaze4D-MC/Blaze4D.git)
