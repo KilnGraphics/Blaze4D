@@ -2,7 +2,7 @@ package me.hydos.blaze4d.api.vertex;
 
 import me.hydos.blaze4d.api.shader.MinecraftShaderProgram;
 import me.hydos.rosella.Rosella;
-import me.hydos.rosella.device.LegacyVulkanDevice;
+import me.hydos.rosella.device.VulkanDevice;
 import me.hydos.rosella.memory.Memory;
 import me.hydos.rosella.render.PolygonMode;
 import me.hydos.rosella.render.Topology;
@@ -65,7 +65,7 @@ public class ConsumerRenderObject implements Renderable {
     }
 
     @Override
-    public void free(LegacyVulkanDevice device, Memory memory) {
+    public void free(VulkanDevice device, Memory memory) {
         instanceInfo.free(device, memory);
         // we don't want to free the RenderInfo here because they can exist across frames
     }

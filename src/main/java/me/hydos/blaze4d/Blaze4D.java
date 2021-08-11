@@ -20,7 +20,7 @@ public class Blaze4D implements ClientModInitializer {
     public static GlfwWindow window;
 
     public static void finishSetup() {
-        GlobalRenderSystem.emulateTriangleFans = !rosella.vulkanDevice.isFeatureEnabled(TriangleFan.NAME);
+        GlobalRenderSystem.emulateTriangleFans = !rosella.common.device.isFeatureEnabled(TriangleFan.NAME);
         rosella.renderer.rebuildCommandBuffers(rosella.renderer.mainRenderPass, (SimpleObjectManager) rosella.objectManager);
     }
 

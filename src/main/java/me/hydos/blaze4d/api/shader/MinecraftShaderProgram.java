@@ -1,11 +1,8 @@
 package me.hydos.blaze4d.api.shader;
 
 import com.mojang.blaze3d.shaders.Uniform;
-import it.unimi.dsi.fastutil.ints.Int2IntMap;
-import it.unimi.dsi.fastutil.ints.Int2IntMaps;
-import it.unimi.dsi.fastutil.ints.Int2IntOpenHashMap;
 import it.unimi.dsi.fastutil.objects.Object2IntMap;
-import me.hydos.rosella.device.LegacyVulkanDevice;
+import me.hydos.rosella.device.VulkanDevice;
 import me.hydos.rosella.memory.Memory;
 import me.hydos.rosella.render.resource.Resource;
 import me.hydos.rosella.render.shader.RawShaderProgram;
@@ -21,7 +18,7 @@ public class MinecraftShaderProgram extends RawShaderProgram {
     private final List<Uniform> uniforms;
     private final Object2IntMap<String> samplers;
 
-    public MinecraftShaderProgram(@Nullable Resource vertexShader, @Nullable Resource fragmentShader, @NotNull LegacyVulkanDevice device, @NotNull Memory memory, int maxObjCount, List<Uniform> uniforms, Object2IntMap<String> samplers) {
+    public MinecraftShaderProgram(@Nullable Resource vertexShader, @Nullable Resource fragmentShader, @NotNull VulkanDevice device, @NotNull Memory memory, int maxObjCount, List<Uniform> uniforms, Object2IntMap<String> samplers) {
         super(vertexShader, fragmentShader, device, memory, maxObjCount, createPoolTypes(samplers));
         this.uniforms = uniforms;
         this.samplers = samplers;

@@ -9,7 +9,10 @@ import me.hydos.blaze4d.api.util.ConversionUtils;
 import me.hydos.rosella.scene.object.impl.SimpleObjectManager;
 import me.hydos.rosella.util.Color;
 import org.lwjgl.opengl.GL13;
+import org.lwjgl.system.MemoryStack;
 import org.lwjgl.vulkan.VK10;
+import org.lwjgl.vulkan.VkExtensionProperties;
+import org.lwjgl.vulkan.VkPhysicalDevice;
 import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.Overwrite;
 import org.spongepowered.asm.mixin.Unique;
@@ -17,6 +20,13 @@ import org.spongepowered.asm.mixin.injection.At;
 import org.spongepowered.asm.mixin.injection.Inject;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfoReturnable;
+
+import java.nio.IntBuffer;
+import java.util.Set;
+import java.util.stream.Collectors;
+
+import static me.hydos.rosella.util.VkUtils.ok;
+import static org.lwjgl.vulkan.VK10.vkEnumerateDeviceExtensionProperties;
 
 @Mixin(value = GlStateManager.class, remap = false)
 public class GlStateManagerMixin {
@@ -223,14 +233,35 @@ public class GlStateManagerMixin {
         ci.setReturnValue(
                 Blaze4D.rosella == null ? "Device not initialized" :
                         switch (glStringId) {
-//                            case GL.GL_VENDOR -> tryParseVendorId(Blaze4D.rosella.common.device.properties.vendorId);
-//                            case GL.GL_EXTENSIONS -> Blaze4D.rosella.common.device.combinedExtensionsString;
-//                            case GL.GL_RENDERER -> Blaze4D.rosella.common.device.properties.deviceName;
-//                            case GL.GL_VERSION -> "Vulkan API " + Blaze4D.rosella.common.device.properties.apiVersion;
-//                            default -> throw new IllegalStateException("Unexpected value: " + glStringId);
-                            default -> "FIXME: BROKEN. use new Device system";
+                            case GL.GL_VENDOR -> tryParseVendorId(Blaze4D.rosella.common.device.getProperties().vendorID());
+                            case GL.GL_EXTENSIONS -> getAllExtensionsString(Blaze4D.rosella.common.device.getRawDevice().getPhysicalDevice());
+                            case GL.GL_RENDERER -> Blaze4D.rosella.common.device.getProperties().deviceNameString();
+                            case GL.GL_VERSION -> "Vulkan API " + createVersionString(Blaze4D.rosella.common.device.getRawDevice().getCapabilities().apiVersion);
+                            default -> throw new IllegalStateException("Unexpected value: " + glStringId);
                         }
         );
+    }
+
+    @Unique
+    private static String allExtensionsString;
+
+    @Unique
+    /**
+     * @param device the device to check
+     * @return all the supported extensions of the device as a set of strings.
+     */
+    private static String getAllExtensionsString(VkPhysicalDevice device) {
+        if (allExtensionsString == null) {
+            try (MemoryStack stack = MemoryStack.stackPush()) {
+                IntBuffer extensionCount = stack.ints(0);
+                VkExtensionProperties.Buffer availableExtensions = VkExtensionProperties.callocStack(extensionCount.get(0), stack);
+                ok(vkEnumerateDeviceExtensionProperties(device, (CharSequence) null, extensionCount, availableExtensions));
+                allExtensionsString = availableExtensions.stream()
+                        .map(VkExtensionProperties::extensionNameString)
+                        .collect(Collectors.joining(" "));
+            }
+        }
+        return allExtensionsString;
     }
 
     @Unique
@@ -244,6 +275,13 @@ public class GlStateManagerMixin {
             case 0x5143 -> "Qualcomm";
             default -> "Vendor unknown. Vendor ID: " + vendorId;
         };
+    }
+
+    private static String createVersionString(int apiVersion) {
+        int major = VK10.VK_VERSION_MAJOR(apiVersion);
+        int minor = VK10.VK_VERSION_MINOR(apiVersion);
+        int patch = VK10.VK_VERSION_PATCH(apiVersion);
+        return major + "." + minor + "." + patch;
     }
 
     /**
