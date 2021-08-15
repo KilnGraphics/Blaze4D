@@ -31,7 +31,6 @@ public class ConsumerRenderObject implements Renderable {
             Future<RenderInfo> renderInfo,
             ShaderProgram shaderProgram,
             Topology topology,
-            PolygonMode polygonMode,
             VertexFormat vertexFormat,
             StateInfo stateInfo,
             TextureMap textures,
@@ -45,7 +44,6 @@ public class ConsumerRenderObject implements Renderable {
                                 rosella.renderer.mainRenderPass, // TODO: make render passes less jank, more info in rosella comments
                                 shaderProgram,
                                 topology,
-                                polygonMode,
                                 vertexFormat,
                                 stateInfo
                         )

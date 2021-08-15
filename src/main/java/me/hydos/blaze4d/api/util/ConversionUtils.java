@@ -5,6 +5,7 @@ import com.mojang.blaze3d.shaders.Program;
 import com.mojang.blaze3d.vertex.DefaultVertexFormat;
 import com.mojang.blaze3d.vertex.VertexFormat;
 import com.mojang.blaze3d.vertex.VertexFormatElement;
+import me.hydos.rosella.render.PolygonMode;
 import me.hydos.rosella.render.Topology;
 import me.hydos.rosella.render.shader.ShaderType;
 import me.hydos.rosella.render.texture.ImageFormat;
@@ -186,6 +187,15 @@ public abstract class ConversionUtils {
             case DEBUG_LINES -> Topology.LINE_LIST;
             case DEBUG_LINE_STRIP -> Topology.LINE_STRIP;
             default -> throw new RuntimeException("Minecraft draw mode " + mcDrawMode + " is invalid or does not have a rosella equivalent");
+        };
+    }
+
+    public static PolygonMode glToRosellaPolygonMode(int glPolygonMode) {
+        return switch (glPolygonMode) {
+            case GL11.GL_FILL -> PolygonMode.FILL;
+            case GL11.GL_LINE -> PolygonMode.LINE;
+            case GL11.GL_POINT -> PolygonMode.POINT;
+            default -> throw new RuntimeException("GL polygon mode " + glPolygonMode + " is invalid or does not have a rosella equivalent");
         };
     }
 }

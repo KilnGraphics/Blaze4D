@@ -44,7 +44,6 @@ public class BufferRendererMixin {
                     mcIndexBuffer.newIndexCount(),
                     GlobalRenderSystem.activeShader,
                     ConversionUtils.mcDrawModeToRosellaTopology(mcIndexBuffer.newMode()),
-                    GlobalRenderSystem.DEFAULT_POLYGON_MODE,
                     ConversionUtils.FORMAT_CONVERSION_MAP.get(drawState.format().getElements()),
                     GlobalRenderSystem.currentStateInfo.snapshot(),
                     GlobalRenderSystem.getCurrentTextureMap(),

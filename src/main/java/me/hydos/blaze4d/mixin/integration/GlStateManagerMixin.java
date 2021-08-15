@@ -37,10 +37,6 @@ public class GlStateManagerMixin {
             "_texImage2D",
             "_clear",
             "_glBindFramebuffer",
-            "_polygonOffset",
-            "_polygonMode",
-            "_enablePolygonOffset",
-            "_disablePolygonOffset",
             "_viewport"
     }, at = @At("HEAD"), cancellable = true)
     private static void unimplementedGlCalls(CallbackInfo ci) {
@@ -126,6 +122,18 @@ public class GlStateManagerMixin {
     @Inject(method = "_disableBlend", at = @At("HEAD"), cancellable = true)
     private static void disableBlend(CallbackInfo ci) {
         GlobalRenderSystem.currentStateInfo.setBlendEnabled(false);
+        ci.cancel();
+    }
+
+    @Inject(method = "_enablePolygonOffset", at = @At("HEAD"), cancellable = true)
+    private static void enablePolygonOffset(CallbackInfo ci) {
+        GlobalRenderSystem.currentStateInfo.setDepthBiasEnabled(true);
+        ci.cancel();
+    }
+
+    @Inject(method = "_disablePolygonOffset", at = @At("HEAD"), cancellable = true)
+    private static void disablePolygonOffset(CallbackInfo ci) {
+        GlobalRenderSystem.currentStateInfo.setDepthBiasEnabled(false);
         ci.cancel();
     }
 
@@ -225,6 +233,21 @@ public class GlStateManagerMixin {
     @Inject(method = "_clearDepth", at = @At("HEAD"), cancellable = true)
     private static void clearDepth(double depth, CallbackInfo ci) {
         Blaze4D.rosella.renderer.lazilyClearDepth((float) depth);
+        ci.cancel();
+    }
+
+    @Inject(method = "_polygonMode", at = @At("HEAD"), cancellable = true)
+    private static void polygonMode(int face, int mode, CallbackInfo ci) {
+        // TODO: figure out how to have separate polygon modes for front and back
+        GlobalRenderSystem.currentStateInfo.setPolygonMode(ConversionUtils.glToRosellaPolygonMode(mode));
+        ci.cancel();
+    }
+
+    @Inject(method = "_polygonOffset", at = @At("HEAD"), cancellable = true)
+    private static void polygonOffset(float factor, float units, CallbackInfo ci) {
+        // TODO: figure out clamp and don't make it constant, figure out difference between LINE, POINT, and FILL offset gl stuff
+        GlobalRenderSystem.currentStateInfo.setDepthBiasConstantFactor(units);
+        GlobalRenderSystem.currentStateInfo.setDepthBiasSlopeFactor(factor);
         ci.cancel();
     }
 
