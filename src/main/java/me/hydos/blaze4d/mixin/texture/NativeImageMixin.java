@@ -1,5 +1,6 @@
 package me.hydos.blaze4d.mixin.texture;
 
+import com.mojang.blaze3d.platform.NativeImage;
 import me.hydos.blaze4d.Blaze4D;
 import me.hydos.blaze4d.api.GlobalRenderSystem;
 import me.hydos.blaze4d.api.util.ConversionUtils;
@@ -7,14 +8,11 @@ import me.hydos.rosella.render.texture.*;
 import me.hydos.rosella.scene.object.impl.SimpleObjectManager;
 import org.jetbrains.annotations.NotNull;
 import org.lwjgl.system.MemoryUtil;
-import org.spongepowered.asm.mixin.Final;
-import org.spongepowered.asm.mixin.Mixin;
-import org.spongepowered.asm.mixin.Shadow;
-import org.spongepowered.asm.mixin.Unique;
+import org.spongepowered.asm.mixin.*;
 import org.spongepowered.asm.mixin.injection.At;
 import org.spongepowered.asm.mixin.injection.Inject;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
-import com.mojang.blaze3d.platform.NativeImage;
+
 import java.nio.ByteBuffer;
 
 @Mixin(NativeImage.class)
@@ -99,5 +97,13 @@ public abstract class NativeImageMixin implements UploadableImage {
     @Override
     public ByteBuffer getPixels() {
         return MemoryUtil.memByteBuffer(pixels, getSize());
+    }
+
+    /**
+     * @author ramidzkh
+     * @reason Don't die screenshotting
+     */
+    @Overwrite
+    public void downloadTexture(int lod, boolean captureAlpha) {
     }
 }
