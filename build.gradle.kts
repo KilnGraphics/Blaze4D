@@ -75,6 +75,7 @@ dependencies {
 		parchment("org.parchmentmc.data:parchment-1.17.1:2021.07.26-nightly-SNAPSHOT@zip")
 	})
 	modImplementation("net.fabricmc", "fabric-loader", properties["loader_version"].toString())
+	modImplementation("net.fabricmc", "fabric-language-kotlin", "1.6.4+kotlin.1.5.30")
 
 	include(implementation("me.hydos", "rosella"))
 	include(implementation("com.oroarmor", "aftermath", "1.0.0-beta"))
@@ -83,8 +84,27 @@ dependencies {
 	include("org.lwjgl", "lwjgl-shaderc", lwjglVersion)
 	include("org.lwjgl", "lwjgl-vma", lwjglVersion)
 	include("org.lwjgl", "lwjgl-vulkan", lwjglVersion)
+	include("org.lwjgl", "lwjgl-xxhash", lwjglVersion)
 	include("org.lwjgl", "lwjgl-shaderc", lwjglVersion, classifier = lwjglNatives)
 	include("org.lwjgl", "lwjgl-vma", lwjglVersion, classifier = lwjglNatives)
+	include("org.lwjgl", "lwjgl-xxhash", lwjglVersion, classifier = lwjglNatives)
+
+	// Upgrade Minecraft's LWJGL
+	include("org.lwjgl", "lwjgl", lwjglVersion)
+	include("org.lwjgl", "lwjgl-glfw", lwjglVersion)
+	include("org.lwjgl", "lwjgl-jemalloc", lwjglVersion)
+	include("org.lwjgl", "lwjgl-openal", lwjglVersion)
+	include("org.lwjgl", "lwjgl-opengl", lwjglVersion)
+	include("org.lwjgl", "lwjgl-stb", lwjglVersion)
+	include("org.lwjgl", "lwjgl-tinyfd", lwjglVersion)
+
+	include("org.lwjgl", "lwjgl", lwjglVersion, classifier = lwjglNatives)
+	include("org.lwjgl", "lwjgl-glfw", lwjglVersion, classifier = lwjglNatives)
+	include("org.lwjgl", "lwjgl-jemalloc", lwjglVersion, classifier = lwjglNatives)
+	include("org.lwjgl", "lwjgl-openal", lwjglVersion, classifier = lwjglNatives)
+	include("org.lwjgl", "lwjgl-opengl", lwjglVersion, classifier = lwjglNatives)
+	include("org.lwjgl", "lwjgl-stb", lwjglVersion, classifier = lwjglNatives)
+	include("org.lwjgl", "lwjgl-tinyfd", lwjglVersion, classifier = lwjglNatives)
 
 	if (lwjglNatives == "natives-macos" || lwjglNatives == "natives-macos-arm64") {
 		include("org.lwjgl", "lwjgl-vulkan", lwjglVersion, classifier = lwjglNatives)
