@@ -4,6 +4,7 @@ import net.fabricmc.loader.api.entrypoint.PreLaunchEntrypoint;
 import org.lwjgl.system.Configuration;
 import org.lwjgl.system.Platform;
 import org.lwjgl.system.jemalloc.JEmalloc;
+import oshi.SystemInfo;
 
 public class Blaze4DPreLaunch implements PreLaunchEntrypoint {
     public static final boolean DEBUG_MEMORY_ENABLED = false;
@@ -18,6 +19,10 @@ public class Blaze4DPreLaunch implements PreLaunchEntrypoint {
         if (Platform.get().equals(Platform.WINDOWS) && JEmalloc.JEMALLOC_VERSION_MAJOR == 5 &&
                 (JEmalloc.JEMALLOC_VERSION_MINOR >= 0 && JEmalloc.JEMALLOC_VERSION_MINOR < 2) || (JEmalloc.JEMALLOC_VERSION_MINOR == 2 && JEmalloc.JEMALLOC_VERSION_BUGFIX < 1)) {
             Configuration.MEMORY_ALLOCATOR.set("system");
+        }
+
+        if (new SystemInfo().getHardware().getProcessor().getProcessorIdentifier().getName().contains("AMD")) {
+            System.setProperty("rosella:xxhash_with_seed", "true");
         }
     }
 }
