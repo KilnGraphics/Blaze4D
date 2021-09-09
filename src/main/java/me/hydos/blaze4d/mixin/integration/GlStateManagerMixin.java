@@ -277,7 +277,7 @@ public class GlStateManagerMixin {
         if (allExtensionsString == null) {
             try (MemoryStack stack = MemoryStack.stackPush()) {
                 IntBuffer extensionCount = stack.ints(0);
-                VkExtensionProperties.Buffer availableExtensions = VkExtensionProperties.callocStack(extensionCount.get(0), stack);
+                VkExtensionProperties.Buffer availableExtensions = VkExtensionProperties.calloc(extensionCount.get(0), stack);
                 ok(vkEnumerateDeviceExtensionProperties(device, (CharSequence) null, extensionCount, availableExtensions));
                 allExtensionsString = availableExtensions.stream()
                         .map(VkExtensionProperties::extensionNameString)

@@ -1,8 +1,9 @@
 ![blaze](https://user-images.githubusercontent.com/68126718/125143247-71be4580-e0f0-11eb-88bc-070eb2838435.png)
 
 ## Information 
-Blaze4D is a Fabric mod that changes Minecraft's rendering engine to use the Vulkan Graphics Library, it is currently in Early Development and is **NOT** intended for use by the general public.  
-Support for Blaze4D **WILL NOT** be given as the mod is in its **Early Development** stages.
+Blaze4D is a Fabric mod that changes Minecraft's rendering engine to use the Vulkan Graphics Library, it is currently in
+Early Development and is **NOT** intended for use by the faint-hearted. Support for Blaze4D can be found in the #support
+Discord channel.
 
 Note: Sodium, Iris or Canvas probably don't work yet, so don't bother trying. We're trying to add support for them ourselves
 
