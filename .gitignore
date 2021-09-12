@@ -39,6 +39,3 @@ run/
 *.cap
 
 .class
-
-gradle.properties
-.gitignore
