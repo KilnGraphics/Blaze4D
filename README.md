@@ -7,10 +7,11 @@ Discord channel.
 
 ## Things that don't work
 - Sodium, Iris or Canvas probably don't work yet, so don't bother trying. We're trying to add support for them ourselves
-- Fancy graphics
-- MacOS doesn't work
+- Fabulous graphics
+- MacOS
 - F2 screenshots freeze your game
 - AMD gpus
+- Some AMD cpus
 - Mip levels
 
 ## Community
