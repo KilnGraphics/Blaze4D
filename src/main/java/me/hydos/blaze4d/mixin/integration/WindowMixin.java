@@ -152,7 +152,7 @@ public abstract class WindowMixin {
     @Inject(method = "close", at = @At("HEAD"), cancellable = true)
     private void freeRosella(CallbackInfo ci) {
         Callbacks.glfwFreeCallbacks(this.window);
-        this.defaultErrorCallback.close();
+//        this.defaultErrorCallback.close();
 
         if (Blaze4D.rosella != null) {
             Blaze4D.rosella.free();

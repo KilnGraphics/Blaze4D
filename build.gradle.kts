@@ -1,7 +1,7 @@
 import org.gradle.internal.os.OperatingSystem
 
 plugins {
-	id("fabric-loom") version "0.9-SNAPSHOT"
+	id("fabric-loom") version "0.10-SNAPSHOT"
 	id("io.github.juuxel.loom-quiltflower") version "1.3.0"
 	`maven-publish`
 }
