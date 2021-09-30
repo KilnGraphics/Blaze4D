@@ -2,10 +2,10 @@ package me.hydos.blaze4d.api.shader;
 
 import com.mojang.blaze3d.shaders.Uniform;
 import it.unimi.dsi.fastutil.objects.Object2IntMap;
-import me.hydos.rosella.device.VulkanDevice;
-import me.hydos.rosella.memory.Memory;
-import me.hydos.rosella.render.resource.Resource;
-import me.hydos.rosella.render.shader.RawShaderProgram;
+import graphics.kiln.rosella.device.VulkanDevice;
+import graphics.kiln.rosella.memory.Memory;
+import graphics.kiln.rosella.render.resource.Resource;
+import graphics.kiln.rosella.render.shader.RawShaderProgram;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 

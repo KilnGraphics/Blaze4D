@@ -3,11 +3,10 @@ package me.hydos.blaze4d.mixin.integration;
 import com.mojang.blaze3d.platform.GlStateManager;
 import com.mojang.blaze3d.systems.RenderSystem;
 import com.sun.jna.platform.win32.GL;
+import graphics.kiln.rosella.util.Color;
 import me.hydos.blaze4d.Blaze4D;
 import me.hydos.blaze4d.api.GlobalRenderSystem;
 import me.hydos.blaze4d.api.util.ConversionUtils;
-import me.hydos.rosella.scene.object.impl.SimpleObjectManager;
-import me.hydos.rosella.util.Color;
 import org.lwjgl.opengl.GL13;
 import org.lwjgl.system.MemoryStack;
 import org.lwjgl.vulkan.VK10;
@@ -22,10 +21,9 @@ import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfoReturnable;
 
 import java.nio.IntBuffer;
-import java.util.Set;
 import java.util.stream.Collectors;
 
-import static me.hydos.rosella.util.VkUtils.ok;
+import static graphics.kiln.rosella.util.VkUtils.ok;
 import static org.lwjgl.vulkan.VK10.vkEnumerateDeviceExtensionProperties;
 
 @Mixin(value = GlStateManager.class, remap = false)
@@ -199,19 +197,19 @@ public class GlStateManagerMixin {
 
     @Inject(method = "_genTexture", at = @At("HEAD"), cancellable = true)
     private static void genTexture(CallbackInfoReturnable<Integer> cir) {
-        cir.setReturnValue(((SimpleObjectManager) Blaze4D.rosella.objectManager).textureManager.generateTextureId());
+        cir.setReturnValue(Blaze4D.rosella.common.textureManager.generateTextureId());
     }
 
     @Inject(method = "_deleteTexture", at = @At("HEAD"), cancellable = true)
     private static void deleteTexture(int texture, CallbackInfo ci) {
-        ((SimpleObjectManager) Blaze4D.rosella.objectManager).textureManager.deleteTexture(texture);
+        Blaze4D.rosella.common.textureManager.deleteTexture(texture);
         ci.cancel();
     }
 
     @Inject(method = "_genTextures", at = @At("HEAD"), cancellable = true)
     private static void genTextures(int[] is, CallbackInfo ci) {
         for (int i = 0; i < is.length; i++) {
-            is[i] = ((SimpleObjectManager) Blaze4D.rosella.objectManager).textureManager.generateTextureId();
+            is[i] = Blaze4D.rosella.common.textureManager.generateTextureId();
         }
         ci.cancel();
     }
@@ -219,7 +217,7 @@ public class GlStateManagerMixin {
     @Inject(method = "_deleteTextures", at = @At("HEAD"), cancellable = true)
     private static void deleteTextures(int[] is, CallbackInfo ci) {
         for (int textureId : is) {
-            ((SimpleObjectManager) Blaze4D.rosella.objectManager).textureManager.deleteTexture(textureId);
+            Blaze4D.rosella.common.textureManager.deleteTexture(textureId);
         }
         ci.cancel();
     }

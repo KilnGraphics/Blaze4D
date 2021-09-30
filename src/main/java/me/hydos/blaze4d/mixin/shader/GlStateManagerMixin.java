@@ -2,15 +2,14 @@ package me.hydos.blaze4d.mixin.shader;
 
 import com.mojang.blaze3d.platform.GlStateManager;
 import com.mojang.blaze3d.systems.RenderSystem;
+import graphics.kiln.rosella.render.resource.Resource;
+import graphics.kiln.rosella.render.shader.RawShaderProgram;
+import graphics.kiln.rosella.render.shader.ShaderType;
 import me.hydos.blaze4d.Blaze4D;
 import me.hydos.blaze4d.api.GlobalRenderSystem;
 import me.hydos.blaze4d.api.shader.MinecraftShaderProgram;
 import me.hydos.blaze4d.api.shader.ShaderContext;
 import me.hydos.blaze4d.api.util.ByteArrayResource;
-import me.hydos.rosella.render.resource.Resource;
-import me.hydos.rosella.render.shader.RawShaderProgram;
-import me.hydos.rosella.render.shader.ShaderType;
-import me.hydos.rosella.scene.object.impl.SimpleObjectManager;
 import org.lwjgl.opengl.GL20;
 import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.Overwrite;
@@ -109,7 +108,7 @@ public class GlStateManagerMixin {
         GlobalRenderSystem.processedSamplers.clear();
         GlobalRenderSystem.currentSamplerBinding = 1;
         GlobalRenderSystem.SHADER_PROGRAM_MAP.put(GlobalRenderSystem.nextShaderProgramId, program);
-        Blaze4D.rosella.renderer.rebuildCommandBuffers(Blaze4D.rosella.renderer.mainRenderPass, (SimpleObjectManager) Blaze4D.rosella.objectManager);
+        Blaze4D.rosella.renderer.rebuildCommandBuffers(Blaze4D.rosella.renderer.mainRenderPass, Blaze4D.rosella.common.fboManager.getActiveFbo());
         return GlobalRenderSystem.nextShaderProgramId++;
     }
 
@@ -143,7 +142,7 @@ public class GlStateManagerMixin {
     public static void glLinkProgram(int program) {
         RenderSystem.assertThread(RenderSystem::isOnRenderThread);
 //        Identifier id = GlobalRenderSystem.generateId(program);
-        Blaze4D.rosella.objectManager.addShader(GlobalRenderSystem.SHADER_PROGRAM_MAP.get(program));
+        Blaze4D.rosella.baseObjectManager.addShader(GlobalRenderSystem.SHADER_PROGRAM_MAP.get(program));
     }
 
     /**
@@ -200,7 +199,7 @@ public class GlStateManagerMixin {
      * Converts a list of lines of shader source code into a {@link Resource} which can be loaded by Rosella
      *
      * @param shaderSrc the source of the shader
-     * @return a readable resource for {@link me.hydos.rosella.Rosella}
+     * @return a readable resource for {@link graphics.kiln.rosella.Rosella}
      */
     private static Resource shaderSrcToResource(List<String> shaderSrc) {
         byte[] shaderBytes = String.join("\n", shaderSrc).getBytes(StandardCharsets.UTF_8);

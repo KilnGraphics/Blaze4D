@@ -1,10 +1,10 @@
 package me.hydos.blaze4d;
 
+import graphics.kiln.rosella.init.features.TriangleFan;
 import me.hydos.blaze4d.api.GlobalRenderSystem;
-import me.hydos.rosella.Rosella;
-import me.hydos.rosella.device.init.features.TriangleFan;
-import me.hydos.rosella.display.GlfwWindow;
-import me.hydos.rosella.scene.object.impl.SimpleObjectManager;
+import graphics.kiln.rosella.Rosella;
+import graphics.kiln.rosella.display.GlfwWindow;
+import graphics.kiln.rosella.scene.object.impl.SimpleObjectManager;
 import net.fabricmc.api.ClientModInitializer;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -21,7 +21,7 @@ public class Blaze4D implements ClientModInitializer {
 
     public static void finishSetup() {
         GlobalRenderSystem.emulateTriangleFans = !rosella.common.device.isFeatureEnabled(TriangleFan.NAME);
-        rosella.renderer.rebuildCommandBuffers(rosella.renderer.mainRenderPass, (SimpleObjectManager) rosella.objectManager);
+        rosella.renderer.rebuildCommandBuffers(rosella.renderer.mainRenderPass, rosella.common.fboManager.getActiveFbo());
     }
 
     @Override

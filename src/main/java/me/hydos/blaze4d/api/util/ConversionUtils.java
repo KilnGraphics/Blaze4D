@@ -5,11 +5,11 @@ import com.mojang.blaze3d.shaders.Program;
 import com.mojang.blaze3d.vertex.DefaultVertexFormat;
 import com.mojang.blaze3d.vertex.VertexFormat;
 import com.mojang.blaze3d.vertex.VertexFormatElement;
-import me.hydos.rosella.render.PolygonMode;
-import me.hydos.rosella.render.Topology;
-import me.hydos.rosella.render.shader.ShaderType;
-import me.hydos.rosella.render.texture.ImageFormat;
-import me.hydos.rosella.render.vertex.VertexFormatElements;
+import graphics.kiln.rosella.render.PolygonMode;
+import graphics.kiln.rosella.render.Topology;
+import graphics.kiln.rosella.render.shader.ShaderType;
+import graphics.kiln.rosella.render.texture.ImageFormat;
+import graphics.kiln.rosella.render.vertex.VertexFormatElements;
 import org.joml.Matrix4f;
 import org.joml.Matrix4fc;
 import org.lwjgl.opengl.GL11;
@@ -114,7 +114,7 @@ public abstract class ConversionUtils {
         };
     }
 
-    public static final Map<com.mojang.blaze3d.vertex.VertexFormatElement, me.hydos.rosella.render.vertex.VertexFormatElement> ELEMENT_CONVERSION_MAP = Map.of(
+    public static final Map<com.mojang.blaze3d.vertex.VertexFormatElement, graphics.kiln.rosella.render.vertex.VertexFormatElement> ELEMENT_CONVERSION_MAP = Map.of(
             DefaultVertexFormat.ELEMENT_POSITION, VertexFormatElements.POSITION,
             DefaultVertexFormat.ELEMENT_COLOR, VertexFormatElements.COLOR4ub,
             DefaultVertexFormat.ELEMENT_UV2, VertexFormatElements.UVs,
@@ -129,20 +129,20 @@ public abstract class ConversionUtils {
     // for some reason the default VertexFormat implementation has equals and hashcode not order dependant,
     // so we have to get the underlying element map and do it ourselves. this is still faster than manually
     // constructing a new one from the elements every time.
-    public static final Map<ImmutableList<VertexFormatElement>, me.hydos.rosella.render.vertex.VertexFormat> FORMAT_CONVERSION_MAP = Map.ofEntries(
-            Map.entry(DefaultVertexFormat.BLOCK.getElements(), me.hydos.rosella.render.vertex.VertexFormats.POSITION_COLOR4_UV0_UV2_NORMAL),
-            Map.entry(DefaultVertexFormat.NEW_ENTITY.getElements(), me.hydos.rosella.render.vertex.VertexFormats.POSITION_COLOR4_UV0_UV1_UV2_NORMAL),
-            Map.entry(DefaultVertexFormat.PARTICLE.getElements(), me.hydos.rosella.render.vertex.VertexFormats.POSITION_UV0_COLOR4_UV2),
-            Map.entry(DefaultVertexFormat.POSITION.getElements(), me.hydos.rosella.render.vertex.VertexFormats.POSITION),
-            Map.entry(DefaultVertexFormat.POSITION_COLOR.getElements(), me.hydos.rosella.render.vertex.VertexFormats.POSITION_COLOR4),
-            Map.entry(DefaultVertexFormat.POSITION_COLOR_NORMAL.getElements(), me.hydos.rosella.render.vertex.VertexFormats.POSITION_COLOR4_NORMAL),
-            Map.entry(DefaultVertexFormat.POSITION_COLOR_LIGHTMAP.getElements(), me.hydos.rosella.render.vertex.VertexFormats.POSITION_COLOR4_UV2),
-            Map.entry(DefaultVertexFormat.POSITION_TEX.getElements(), me.hydos.rosella.render.vertex.VertexFormats.POSITION_UV0),
-            Map.entry(DefaultVertexFormat.POSITION_COLOR_TEX.getElements(), me.hydos.rosella.render.vertex.VertexFormats.POSITION_COLOR4_UV0),
-            Map.entry(DefaultVertexFormat.POSITION_TEX_COLOR.getElements(), me.hydos.rosella.render.vertex.VertexFormats.POSITION_UV0_COLOR4),
-            Map.entry(DefaultVertexFormat.POSITION_COLOR_TEX_LIGHTMAP.getElements(), me.hydos.rosella.render.vertex.VertexFormats.POSITION_COLOR4_UV0_UV2),
-            Map.entry(DefaultVertexFormat.POSITION_TEX_LIGHTMAP_COLOR.getElements(), me.hydos.rosella.render.vertex.VertexFormats.POSITION_UV0_UV2_COLOR4),
-            Map.entry(DefaultVertexFormat.POSITION_TEX_COLOR_NORMAL.getElements(), me.hydos.rosella.render.vertex.VertexFormats.POSITION_UV0_COLOR4_NORMAL)
+    public static final Map<ImmutableList<VertexFormatElement>, graphics.kiln.rosella.render.vertex.VertexFormat> FORMAT_CONVERSION_MAP = Map.ofEntries(
+            Map.entry(DefaultVertexFormat.BLOCK.getElements(), graphics.kiln.rosella.render.vertex.VertexFormats.POSITION_COLOR4_UV0_UV2_NORMAL),
+            Map.entry(DefaultVertexFormat.NEW_ENTITY.getElements(), graphics.kiln.rosella.render.vertex.VertexFormats.POSITION_COLOR4_UV0_UV1_UV2_NORMAL),
+            Map.entry(DefaultVertexFormat.PARTICLE.getElements(), graphics.kiln.rosella.render.vertex.VertexFormats.POSITION_UV0_COLOR4_UV2),
+            Map.entry(DefaultVertexFormat.POSITION.getElements(), graphics.kiln.rosella.render.vertex.VertexFormats.POSITION),
+            Map.entry(DefaultVertexFormat.POSITION_COLOR.getElements(), graphics.kiln.rosella.render.vertex.VertexFormats.POSITION_COLOR4),
+            Map.entry(DefaultVertexFormat.POSITION_COLOR_NORMAL.getElements(), graphics.kiln.rosella.render.vertex.VertexFormats.POSITION_COLOR4_NORMAL),
+            Map.entry(DefaultVertexFormat.POSITION_COLOR_LIGHTMAP.getElements(), graphics.kiln.rosella.render.vertex.VertexFormats.POSITION_COLOR4_UV2),
+            Map.entry(DefaultVertexFormat.POSITION_TEX.getElements(), graphics.kiln.rosella.render.vertex.VertexFormats.POSITION_UV0),
+            Map.entry(DefaultVertexFormat.POSITION_COLOR_TEX.getElements(), graphics.kiln.rosella.render.vertex.VertexFormats.POSITION_COLOR4_UV0),
+            Map.entry(DefaultVertexFormat.POSITION_TEX_COLOR.getElements(), graphics.kiln.rosella.render.vertex.VertexFormats.POSITION_UV0_COLOR4),
+            Map.entry(DefaultVertexFormat.POSITION_COLOR_TEX_LIGHTMAP.getElements(), graphics.kiln.rosella.render.vertex.VertexFormats.POSITION_COLOR4_UV0_UV2),
+            Map.entry(DefaultVertexFormat.POSITION_TEX_LIGHTMAP_COLOR.getElements(), graphics.kiln.rosella.render.vertex.VertexFormats.POSITION_UV0_UV2_COLOR4),
+            Map.entry(DefaultVertexFormat.POSITION_TEX_COLOR_NORMAL.getElements(), graphics.kiln.rosella.render.vertex.VertexFormats.POSITION_UV0_COLOR4_NORMAL)
     );
 
     public static ShaderType mcToRosellaShaderType(Program.Type mcType) {

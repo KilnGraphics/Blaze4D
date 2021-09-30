@@ -1,11 +1,10 @@
 package me.hydos.blaze4d.mixin.texture;
 
 import com.mojang.blaze3d.platform.NativeImage;
+import graphics.kiln.rosella.render.texture.*;
 import me.hydos.blaze4d.Blaze4D;
 import me.hydos.blaze4d.api.GlobalRenderSystem;
 import me.hydos.blaze4d.api.util.ConversionUtils;
-import me.hydos.rosella.render.texture.*;
-import me.hydos.rosella.scene.object.impl.SimpleObjectManager;
 import org.jetbrains.annotations.NotNull;
 import org.lwjgl.system.MemoryUtil;
 import org.spongepowered.asm.mixin.*;
@@ -45,7 +44,7 @@ public abstract class NativeImageMixin implements UploadableImage {
 
     @Inject(method = "_upload", at = @At("HEAD"), cancellable = true)
     private void uploadToRosella(int level, int offsetX, int offsetY, int unpackSkipPixels, int unpackSkipRows, int width, int height, boolean blur, boolean clamp, boolean mipmap, boolean close, CallbackInfo ci) {
-        TextureManager textureManager = ((SimpleObjectManager) Blaze4D.rosella.objectManager).textureManager;
+        TextureManager textureManager = Blaze4D.rosella.common.textureManager;
         textureManager.setTextureSampler(
                 GlobalRenderSystem.boundTextureIds[GlobalRenderSystem.activeTextureSlot],
                 GlobalRenderSystem.getSamplerNameForSlot(GlobalRenderSystem.activeTextureSlot),

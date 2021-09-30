@@ -1,16 +1,17 @@
 package me.hydos.blaze4d.api.shader;
 
+import graphics.kiln.rosella.device.VulkanDevice;
+import graphics.kiln.rosella.ubo.Ubo;
 import it.unimi.dsi.fastutil.ints.Int2IntMap;
 import it.unimi.dsi.fastutil.ints.Int2IntMaps;
 import it.unimi.dsi.fastutil.ints.Int2IntOpenHashMap;
 import it.unimi.dsi.fastutil.longs.Long2ObjectMap;
 import it.unimi.dsi.fastutil.longs.Long2ObjectOpenHashMap;
 import me.hydos.blaze4d.Blaze4D;
-import me.hydos.rosella.memory.BufferInfo;
-import me.hydos.rosella.memory.Memory;
-import me.hydos.rosella.render.descriptorsets.DescriptorSets;
-import me.hydos.rosella.render.shader.ubo.Ubo;
-import me.hydos.rosella.render.swapchain.Swapchain;
+import graphics.kiln.rosella.memory.BufferInfo;
+import graphics.kiln.rosella.memory.Memory;
+import graphics.kiln.rosella.render.descriptorsets.DescriptorSets;
+import graphics.kiln.rosella.render.swapchain.Swapchain;
 import org.jetbrains.annotations.NotNull;
 import org.lwjgl.PointerBuffer;
 import org.lwjgl.system.MemoryStack;
@@ -119,7 +120,7 @@ public class MinecraftUbo extends Ubo {
     }
 
     @Override
-    public void free() {
+    public void free(VulkanDevice device, Memory memory) {
         freeUboFrames();
         MemoryUtil.memFree(data);
         data = null;

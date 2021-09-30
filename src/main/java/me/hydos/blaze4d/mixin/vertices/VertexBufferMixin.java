@@ -4,16 +4,15 @@ import com.mojang.blaze3d.systems.RenderSystem;
 import com.mojang.blaze3d.vertex.BufferBuilder;
 import com.mojang.blaze3d.vertex.VertexBuffer;
 import com.mojang.datafixers.util.Pair;
+import graphics.kiln.rosella.memory.BufferInfo;
+import graphics.kiln.rosella.memory.ManagedBuffer;
+import graphics.kiln.rosella.render.Topology;
+import graphics.kiln.rosella.render.info.RenderInfo;
+import graphics.kiln.rosella.render.shader.RawShaderProgram;
+import graphics.kiln.rosella.render.shader.ShaderProgram;
 import me.hydos.blaze4d.Blaze4D;
 import me.hydos.blaze4d.api.GlobalRenderSystem;
 import me.hydos.blaze4d.api.util.ConversionUtils;
-import me.hydos.rosella.memory.BufferInfo;
-import me.hydos.rosella.memory.ManagedBuffer;
-import me.hydos.rosella.render.Topology;
-import me.hydos.rosella.render.info.RenderInfo;
-import me.hydos.rosella.render.shader.RawShaderProgram;
-import me.hydos.rosella.render.shader.ShaderProgram;
-import me.hydos.rosella.scene.object.impl.SimpleObjectManager;
 import net.minecraft.client.renderer.ShaderInstance;
 import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.Overwrite;
@@ -36,7 +35,7 @@ public class VertexBufferMixin {
     @Unique
     private Topology convertedTopology;
     @Unique
-    private me.hydos.rosella.render.vertex.VertexFormat convertedVertexFormat;
+    private graphics.kiln.rosella.render.vertex.VertexFormat convertedVertexFormat;
 
     /**
      * @author Blaze4D
@@ -90,7 +89,7 @@ public class VertexBufferMixin {
     @Unique
     private void addBufferToRosella(ShaderInstance mcShader) {
         RawShaderProgram rawProgram = GlobalRenderSystem.SHADER_PROGRAM_MAP.get(mcShader.getId());
-        ShaderProgram rosellaShaderProgram = ((SimpleObjectManager) Blaze4D.rosella.objectManager).shaderManager.getOrCreateShader(rawProgram);
+        ShaderProgram rosellaShaderProgram = Blaze4D.rosella.common.shaderManager.getOrCreateShader(rawProgram);
         addBufferToRosella(rosellaShaderProgram, GlobalRenderSystem.getShaderUbo(mcShader));
     }
 

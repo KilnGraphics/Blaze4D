@@ -1,9 +1,9 @@
 package me.hydos.blaze4d.api.util;
 
-import me.hydos.rosella.render.resource.Global;
-import me.hydos.rosella.render.resource.Identifier;
-import me.hydos.rosella.render.resource.Resource;
-import me.hydos.rosella.render.resource.ResourceLoader;
+import graphics.kiln.rosella.render.resource.Global;
+import graphics.kiln.rosella.render.resource.Identifier;
+import graphics.kiln.rosella.render.resource.Resource;
+import graphics.kiln.rosella.render.resource.ResourceLoader;
 import org.jetbrains.annotations.NotNull;
 
 import java.io.ByteArrayInputStream;

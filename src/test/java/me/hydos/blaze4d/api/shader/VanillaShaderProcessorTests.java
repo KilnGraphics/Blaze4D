@@ -1,7 +1,7 @@
 package me.hydos.blaze4d.api.shader;
 
 import it.unimi.dsi.fastutil.objects.Object2IntOpenHashMap;
-import me.hydos.rosella.render.shader.ShaderType;
+import graphics.kiln.rosella.render.shader.ShaderType;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.Test;
 

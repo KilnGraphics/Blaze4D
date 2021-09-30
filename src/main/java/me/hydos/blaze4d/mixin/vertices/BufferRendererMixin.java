@@ -7,7 +7,7 @@ import com.mojang.datafixers.util.Pair;
 import me.hydos.blaze4d.Blaze4D;
 import me.hydos.blaze4d.api.GlobalRenderSystem;
 import me.hydos.blaze4d.api.util.ConversionUtils;
-import me.hydos.rosella.memory.ManagedBuffer;
+import graphics.kiln.rosella.memory.ManagedBuffer;
 import org.lwjgl.system.MemoryUtil;
 import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.Overwrite;

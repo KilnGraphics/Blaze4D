@@ -86,14 +86,15 @@ dependencies {
 	include(implementation("kiln.graphics", "rosella", "1.1.0"))
 	include(implementation("com.oroarmor", "aftermath", "1.0.0-beta"))
 
-	include("org.joml", "joml", "1.10.1")
-	include("org.lwjgl", "lwjgl-shaderc", lwjglVersion)
-	include("org.lwjgl", "lwjgl-vma", lwjglVersion)
-	include("org.lwjgl", "lwjgl-vulkan", lwjglVersion)
-	include("org.lwjgl", "lwjgl-xxhash", lwjglVersion)
-	include("org.lwjgl", "lwjgl-shaderc", lwjglVersion, classifier = lwjglNatives)
-	include("org.lwjgl", "lwjgl-vma", lwjglVersion, classifier = lwjglNatives)
-	include("org.lwjgl", "lwjgl-xxhash", lwjglVersion, classifier = lwjglNatives)
+	include(implementation("org.joml", "joml", "1.10.1"))
+	include(implementation("org.lwjgl", "lwjgl", lwjglVersion))
+	include(implementation("org.lwjgl", "lwjgl-shaderc", lwjglVersion))
+	include(implementation("org.lwjgl", "lwjgl-vma", lwjglVersion))
+	include(implementation("org.lwjgl", "lwjgl-vulkan", lwjglVersion))
+	include(implementation("org.lwjgl", "lwjgl-xxhash", lwjglVersion))
+	include(implementation("org.lwjgl", "lwjgl-shaderc", lwjglVersion, classifier = lwjglNatives))
+	include(implementation("org.lwjgl", "lwjgl-vma", lwjglVersion, classifier = lwjglNatives))
+	include(implementation("org.lwjgl", "lwjgl-xxhash", lwjglVersion, classifier = lwjglNatives))
 
 	// Upgrade Minecraft's LWJGL
 	include("org.lwjgl", "lwjgl", lwjglVersion)

@@ -3,8 +3,8 @@ package me.hydos.blaze4d.mixin.shader;
 import com.mojang.blaze3d.systems.RenderSystem;
 import me.hydos.blaze4d.Blaze4D;
 import me.hydos.blaze4d.api.GlobalRenderSystem;
-import me.hydos.rosella.render.shader.RawShaderProgram;
-import me.hydos.rosella.scene.object.impl.SimpleObjectManager;
+import graphics.kiln.rosella.render.shader.RawShaderProgram;
+import graphics.kiln.rosella.scene.object.impl.SimpleObjectManager;
 import net.minecraft.client.renderer.ShaderInstance;
 import org.jetbrains.annotations.Nullable;
 import org.spongepowered.asm.mixin.Mixin;
@@ -32,6 +32,6 @@ public abstract class RenderSystemMixin {
         }
         RenderSystemMixin.shader = result;
         RawShaderProgram rawProgram = GlobalRenderSystem.SHADER_PROGRAM_MAP.get(RenderSystemMixin.shader.getId());
-        GlobalRenderSystem.activeShader = ((SimpleObjectManager) Blaze4D.rosella.objectManager).shaderManager.getOrCreateShader(rawProgram);
+        GlobalRenderSystem.activeShader = Blaze4D.rosella.common.shaderManager.getOrCreateShader(rawProgram);
     }
 }

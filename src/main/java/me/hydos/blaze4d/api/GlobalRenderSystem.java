@@ -16,20 +16,20 @@ import me.hydos.blaze4d.api.shader.ShaderContext;
 import me.hydos.blaze4d.api.shader.VulkanUniform;
 import me.hydos.blaze4d.api.vertex.ConsumerRenderObject;
 import me.hydos.blaze4d.mixin.shader.ShaderAccessor;
-import me.hydos.rosella.Rosella;
-import me.hydos.rosella.memory.ManagedBuffer;
-import me.hydos.rosella.render.PolygonMode;
-import me.hydos.rosella.render.Topology;
-import me.hydos.rosella.render.info.RenderInfo;
-import me.hydos.rosella.render.pipeline.state.StateInfo;
-import me.hydos.rosella.render.resource.Identifier;
-import me.hydos.rosella.render.shader.RawShaderProgram;
-import me.hydos.rosella.render.shader.ShaderProgram;
-import me.hydos.rosella.render.texture.ImmutableTextureMap;
-import me.hydos.rosella.render.texture.Texture;
-import me.hydos.rosella.render.texture.TextureManager;
-import me.hydos.rosella.render.texture.TextureMap;
-import me.hydos.rosella.scene.object.impl.SimpleObjectManager;
+import graphics.kiln.rosella.Rosella;
+import graphics.kiln.rosella.memory.ManagedBuffer;
+import graphics.kiln.rosella.render.PolygonMode;
+import graphics.kiln.rosella.render.Topology;
+import graphics.kiln.rosella.render.info.RenderInfo;
+import graphics.kiln.rosella.render.pipeline.state.StateInfo;
+import graphics.kiln.rosella.render.resource.Identifier;
+import graphics.kiln.rosella.render.shader.RawShaderProgram;
+import graphics.kiln.rosella.render.shader.ShaderProgram;
+import graphics.kiln.rosella.render.texture.ImmutableTextureMap;
+import graphics.kiln.rosella.render.texture.Texture;
+import graphics.kiln.rosella.render.texture.TextureManager;
+import graphics.kiln.rosella.render.texture.TextureMap;
+import graphics.kiln.rosella.scene.object.impl.SimpleObjectManager;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.renderer.ShaderInstance;
 import net.minecraft.util.Mth;
@@ -131,12 +131,12 @@ public class GlobalRenderSystem {
     public static void render() {
         Blaze4D.rosella.common.device.waitForIdle();
 
-        ((SimpleObjectManager) Blaze4D.rosella.objectManager).renderObjects.clear();
+        Blaze4D.rosella.baseObjectManager.renderObjects.clear();
         for (ConsumerRenderObject renderObject : currentFrameObjects) {
-            Blaze4D.rosella.objectManager.addObject(renderObject);
+            Blaze4D.rosella.baseObjectManager.addObject(renderObject);
         }
 
-        Blaze4D.rosella.renderer.rebuildCommandBuffers(Blaze4D.rosella.renderer.mainRenderPass, (SimpleObjectManager) Blaze4D.rosella.objectManager);
+        Blaze4D.rosella.renderer.rebuildCommandBuffers(Blaze4D.rosella.renderer.mainRenderPass, Blaze4D.rosella.common.fboManager.getActiveFbo());
 
         Blaze4D.window.update();
         Blaze4D.rosella.renderer.render();
@@ -160,7 +160,7 @@ public class GlobalRenderSystem {
         for (int i = 0; i < MAX_TEXTURES; i++) {
             int texId = boundTextureIds[i];
             if (texId != TextureManager.BLANK_TEXTURE_ID) {
-                map.put(getSamplerNameForSlot(i), ((SimpleObjectManager) Blaze4D.rosella.objectManager).textureManager.getTexture(texId));
+                map.put(getSamplerNameForSlot(i), Blaze4D.rosella.common.textureManager.getTexture(texId));
             }
         }
         map.put("DiffuseSampler", TextureManager.BLANK_TEXTURE); // TODO: this should be the current framebuffer
@@ -173,7 +173,7 @@ public class GlobalRenderSystem {
             int indexCount,
             ShaderProgram shader,
             Topology topology,
-            me.hydos.rosella.render.vertex.VertexFormat format,
+            graphics.kiln.rosella.render.vertex.VertexFormat format,
             StateInfo stateInfo,
             TextureMap textures,
             ByteBuffer rawUboData,
@@ -198,7 +198,7 @@ public class GlobalRenderSystem {
             ShaderProgram shader,
             Topology topology,
             PolygonMode polygonMode,
-            me.hydos.rosella.render.vertex.VertexFormat format,
+            graphics.kiln.rosella.render.vertex.VertexFormat format,
             StateInfo stateInfo,
             TextureMap textures,
             ByteBuffer rawUboData,
