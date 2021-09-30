@@ -57,15 +57,21 @@ allprojects {
 repositories {
 	mavenCentral()
 
+    maven {
+        name = "hydos's maven"
+        url = uri("http://150.242.33.216/snapshots")
+        isAllowInsecureProtocol = true
+    }
+
 	maven {
 		name = "Sonatype Snapshots"
 		url = uri("https://oss.sonatype.org/content/repositories/snapshots/")
 	}
 
-	maven {
-		name = "ldtteam"
-		url = uri("https://ldtteam.jfrog.io/artifactory/parchmentmc-snapshots/")
-	}
+    maven {
+        name = "ldtteam"
+        url = uri("https://ldtteam.jfrog.io/artifactory/parchmentmc-snapshots/")
+    }
 }
 
 dependencies {
@@ -77,7 +83,7 @@ dependencies {
 	modImplementation("net.fabricmc", "fabric-loader", properties["loader_version"].toString())
 	modImplementation("net.fabricmc", "fabric-language-kotlin", "1.6.4+kotlin.1.5.30")
 
-	include(implementation("me.hydos", "rosella"))
+	include(implementation("kiln.graphics", "rosella", "1.1.0"))
 	include(implementation("com.oroarmor", "aftermath", "1.0.0-beta"))
 
 	include("org.joml", "joml", "1.10.1")

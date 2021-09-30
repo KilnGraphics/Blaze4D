@@ -13,5 +13,3 @@ pluginManagement {
         }
     }
 }
-
-includeBuild("Rosella")
