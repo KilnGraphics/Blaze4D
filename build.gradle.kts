@@ -97,27 +97,37 @@ dependencies {
 	include(implementation("org.lwjgl", "lwjgl-xxhash", lwjglVersion, classifier = lwjglNatives))
 
 	// Upgrade Minecraft's LWJGL
-	include("org.lwjgl", "lwjgl", lwjglVersion)
-	include("org.lwjgl", "lwjgl-glfw", lwjglVersion)
-	include("org.lwjgl", "lwjgl-jemalloc", lwjglVersion)
-	include("org.lwjgl", "lwjgl-openal", lwjglVersion)
-	include("org.lwjgl", "lwjgl-opengl", lwjglVersion)
-	include("org.lwjgl", "lwjgl-stb", lwjglVersion)
-	include("org.lwjgl", "lwjgl-tinyfd", lwjglVersion)
-
-	include("org.lwjgl", "lwjgl", lwjglVersion, classifier = lwjglNatives)
-	include("org.lwjgl", "lwjgl-glfw", lwjglVersion, classifier = lwjglNatives)
-	include("org.lwjgl", "lwjgl-jemalloc", lwjglVersion, classifier = lwjglNatives)
-	include("org.lwjgl", "lwjgl-openal", lwjglVersion, classifier = lwjglNatives)
-	include("org.lwjgl", "lwjgl-opengl", lwjglVersion, classifier = lwjglNatives)
-	include("org.lwjgl", "lwjgl-stb", lwjglVersion, classifier = lwjglNatives)
-	include("org.lwjgl", "lwjgl-tinyfd", lwjglVersion, classifier = lwjglNatives)
+	include(implementation("org.lwjgl", "lwjgl", lwjglVersion))
+	include(implementation("org.lwjgl", "lwjgl-glfw", lwjglVersion))
+	include(implementation("org.lwjgl", "lwjgl-jemalloc", lwjglVersion))
+	include(implementation("org.lwjgl", "lwjgl-openal", lwjglVersion))
+	include(implementation("org.lwjgl", "lwjgl-opengl", lwjglVersion))
+	include(implementation("org.lwjgl", "lwjgl-stb", lwjglVersion))
+	include(implementation("org.lwjgl", "lwjgl-tinyfd", lwjglVersion))
+	include(implementation("org.lwjgl", "lwjgl", lwjglVersion, classifier = lwjglNatives))
+	include(implementation("org.lwjgl", "lwjgl-glfw", lwjglVersion, classifier = lwjglNatives))
+	include(implementation("org.lwjgl", "lwjgl-jemalloc", lwjglVersion, classifier = lwjglNatives))
+	include(implementation("org.lwjgl", "lwjgl-openal", lwjglVersion, classifier = lwjglNatives))
+	include(implementation("org.lwjgl", "lwjgl-opengl", lwjglVersion, classifier = lwjglNatives))
+	include(implementation("org.lwjgl", "lwjgl-stb", lwjglVersion, classifier = lwjglNatives))
+	include(implementation("org.lwjgl", "lwjgl-tinyfd", lwjglVersion, classifier = lwjglNatives))
 
 	if (lwjglNatives == "natives-macos" || lwjglNatives == "natives-macos-arm64") {
 		include("org.lwjgl", "lwjgl-vulkan", lwjglVersion, classifier = lwjglNatives)
 	}
 
 	testImplementation("org.junit.jupiter", "junit-jupiter", "5.7.0")
+}
+
+configurations.all {
+    resolutionStrategy {
+        dependencySubstitution {
+            substitute(module("org.lwjgl:lwjgl:3.2.2")).with(module("org.lwjgl:lwjgl:3.3.0-SNAPSHOT"))
+            substitute(module("org.lwjgl:lwjg-glfw:3.2.2")).with(module("org.lwjgl:lwjgl-glfw:3.3.0-SNAPSHOT"))
+        }
+        force("org.lwjgl:lwjgl:3.3.0-SNAPSHOT")
+        force("org.lwjgl:lwjgl-glfw:3.3.0-SNAPSHOT")
+    }
 }
 
 tasks.test {
