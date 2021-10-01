@@ -145,12 +145,13 @@ public class GlobalRenderSystem {
     public static void postDraw() {
         // if we decide to have 1 bufferManager per framebuffer, do this after the framebuffer is presented
         // if we decide to have 1 bufferManager total, do this after we know ALL framebuffers have been presented
-//        Blaze4D.rosella.bufferManager.postDraw();
-//        for (ConsumerRenderObject consumerRenderObject : currentFrameObjects) {
-//            consumerRenderObject.free(Blaze4D.rosella.common.device, Blaze4D.rosella.common.memory);
-//        }
+        Blaze4D.rosella.bufferManager.postDraw();
+        for (ConsumerRenderObject consumerRenderObject : currentFrameObjects) {
+            consumerRenderObject.free(Blaze4D.rosella.common.device, Blaze4D.rosella.common.memory);
+        }
 
         currentFrameObjects.clear();
+        Blaze4D.rosella.common.fboManager.getPresentingFbo().objectManager.renderObjects.clear(); // Oops
     }
 
     public static String getSamplerNameForSlot(int slot) {

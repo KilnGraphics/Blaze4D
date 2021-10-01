@@ -2,6 +2,7 @@ package me.hydos.blaze4d.mixin.blaze3d;
 
 import com.mojang.blaze3d.systems.RenderSystem;
 import com.mojang.blaze3d.vertex.Tesselator;
+import me.hydos.blaze4d.api.GlobalRenderSystem;
 import org.lwjgl.glfw.GLFW;
 import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.Overwrite;
@@ -19,8 +20,7 @@ public class RenderSystemMixin {
 
     @Inject(method = "isOnRenderThread", at = @At("HEAD"), cancellable = true)
     private static void myEngineIsMultithreadedAndSafe(CallbackInfoReturnable<Boolean> cir) {
-        cir.setReturnValue(true);
-        // TODO: if something crashes, point out this was here
+//        cir.setReturnValue(true);
     }
 
     /**
@@ -32,5 +32,6 @@ public class RenderSystemMixin {
         RenderSystem.replayQueue();
         Tesselator.getInstance().getBuilder().clear();
         GLFW.glfwPollEvents();
+        GlobalRenderSystem.postDraw();
     }
 }
