@@ -1,48 +1,34 @@
-package me.hydos.blaze4d.mixin.vertices;
+package graphics.kiln.blaze4d.impl;
 
-import com.mojang.blaze3d.systems.RenderSystem;
 import com.mojang.blaze3d.vertex.BufferBuilder;
-import com.mojang.blaze3d.vertex.VertexBuffer;
 import com.mojang.datafixers.util.Pair;
+import graphics.kiln.blaze4d.api.render.VertexBufferWrapper;
+import graphics.kiln.rosella.Rosella;
 import graphics.kiln.rosella.memory.BufferInfo;
 import graphics.kiln.rosella.memory.ManagedBuffer;
 import graphics.kiln.rosella.render.Topology;
 import graphics.kiln.rosella.render.info.RenderInfo;
-import graphics.kiln.rosella.render.shader.RawShaderProgram;
 import graphics.kiln.rosella.render.shader.ShaderProgram;
 import me.hydos.blaze4d.Blaze4D;
 import me.hydos.blaze4d.api.GlobalRenderSystem;
 import me.hydos.blaze4d.api.util.ConversionUtils;
-import net.minecraft.client.renderer.ShaderInstance;
-import org.spongepowered.asm.mixin.Mixin;
-import org.spongepowered.asm.mixin.Overwrite;
-import org.spongepowered.asm.mixin.Unique;
-import org.spongepowered.asm.mixin.injection.At;
-import org.spongepowered.asm.mixin.injection.Inject;
-import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 
 import java.nio.ByteBuffer;
 
-/**
- * Turns out, Minecraft uses this class for world rendering. when a part of the world is to be rendered, the buffer will be cleared and replaced with just the sky. this will then be uploaded to a {@link VertexBuffer} and then cleared again for the rest of the game to render.
- */
-@Mixin(VertexBuffer.class)
-public class VertexBufferMixin {
-    @Unique
+public class BasicVertexBufferWrapper implements VertexBufferWrapper {
+
+    private final Rosella rosella;
     private RenderInfo currentRenderInfo;
-    @Unique
     private BufferBuilder.DrawState drawState;
-    @Unique
     private Topology convertedTopology;
-    @Unique
     private graphics.kiln.rosella.render.vertex.VertexFormat convertedVertexFormat;
 
-    /**
-     * @author Blaze4D
-     * @reason To render
-     */
-    @Overwrite
-    private void upload_(BufferBuilder bufferBuilder) {
+    public BasicVertexBufferWrapper(Rosella rosella) {
+        this.rosella = rosella;
+    }
+
+    @Override
+    public void create(BufferBuilder bufferBuilder) {
         Pair<BufferBuilder.DrawState, ByteBuffer> drawData = bufferBuilder.popNextBuffer();
         // We have to manipulate some stuff with the ByteBuffer before we store it
         BufferBuilder.DrawState providedDrawState = drawData.getFirst();
@@ -67,52 +53,25 @@ public class VertexBufferMixin {
         providedBuffer.position(0);
     }
 
-    /**
-     * @author Blaze4D
-     * @reason To render the sky
-     */
-    @Overwrite
-    public void _drawWithShader(com.mojang.math.Matrix4f mcModelViewMatrix, com.mojang.math.Matrix4f mcProjectionMatrix, ShaderInstance shader) {
-        GlobalRenderSystem.updateUniforms(shader, mcModelViewMatrix, mcProjectionMatrix);
-        addBufferToRosella(shader);
-    }
-
-    /**
-     * @author Blaze4D
-     * @reason To render the world
-     */
-    @Overwrite
-    public void drawChunkLayer() {
-        addBufferToRosella(GlobalRenderSystem.activeShader, GlobalRenderSystem.getShaderUbo(RenderSystem.getShader()));
-    }
-
-    @Unique
-    private void addBufferToRosella(ShaderInstance mcShader) {
-        RawShaderProgram rawProgram = GlobalRenderSystem.SHADER_PROGRAM_MAP.get(mcShader.getId());
-        ShaderProgram rosellaShaderProgram = Blaze4D.rosella.common.shaderManager.getOrCreateShader(rawProgram);
-        addBufferToRosella(rosellaShaderProgram, GlobalRenderSystem.getShaderUbo(mcShader));
-    }
-
-    @Unique
-    private void addBufferToRosella(ShaderProgram rosellaShaderProgram, ByteBuffer rawUboData) {
+    @Override
+    public void render(ShaderProgram shaderProgram, ByteBuffer uboData) {
         if (currentRenderInfo != null && drawState != null) {
             GlobalRenderSystem.uploadPreCreatedObject(
                     currentRenderInfo,
-                    rosellaShaderProgram,
+                    shaderProgram,
                     convertedTopology,
                     GlobalRenderSystem.DEFAULT_POLYGON_MODE,
                     convertedVertexFormat,
                     GlobalRenderSystem.currentStateInfo.snapshot(),
                     GlobalRenderSystem.getCurrentTextureMap(),
-                    rawUboData,
+                    uboData,
                     Blaze4D.rosella
             );
         }
     }
 
-    @Inject(method = "close", at = @At("HEAD"), cancellable = true)
-    private void close(CallbackInfo ci) {
+    @Override
+    public void clean() {
         if (currentRenderInfo != null) currentRenderInfo.free(Blaze4D.rosella.common.device, Blaze4D.rosella.common.memory);
-        ci.cancel();
     }
 }

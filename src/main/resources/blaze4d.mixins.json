@@ -1,37 +1,13 @@
 {
   "required": true,
   "minVersion": "0.8",
-  "package": "me.hydos.blaze4d.mixin",
+  "package": "graphics.kiln.blaze4d.mixin",
   "compatibilityLevel": "JAVA_16",
   "plugin": "me.hydos.blaze4d.internal.Blaze4DMixinPlugin",
   "mixins": [
   ],
   "client": [
-    "blaze3d.RenderSystemMixin",
-    "buffers.GlStateManagerMixin",
-    "debug.Sprite$AnimationMixin",
-    "integration.FramebufferMixin",
-    "integration.GlDebugMixin",
-    "integration.GlStateManagerMixin",
-    "integration.GLXMixin",
-    "integration.MinecraftClientMixin",
-    "integration.VideoWarningManagerMixin",
-    "integration.WindowFramebufferMixin",
-    "integration.WindowMixin",
-    "shader.GlStateManagerMixin",
-    "shader.GlUniformMixin",
-    "shader.RenderSystemMixin",
-    "shader.ShaderAccessor",
-    "shader.ShaderMixin",
-    "texture.LightmapTextureManagerMixin",
-    "texture.NativeImageMixin",
-    "texture.RenderSystemMixin",
-    "texture.TextureManagerMixin",
-    "texture.TextureUtilMixin_Development",
-    "texture.TextureUtilMixin_Runtime",
-    "vertices.BufferRendererMixin",
-    "vertices.VertexBufferMixin",
-    "vertices.WorldRendererMixin"
+    "render.VertexBufferMixin"
   ],
   "injectors": {
     "defaultRequire": 1

@@ -27,7 +27,8 @@
     ]
   },
   "mixins": [
-    "blaze4d.mixins.json"
+    "blaze4d.mixins.json",
+    "blaze4d-old.mixins.json"
   ],
   "accessWidener": "blaze4d.aw",
   "depends": {
