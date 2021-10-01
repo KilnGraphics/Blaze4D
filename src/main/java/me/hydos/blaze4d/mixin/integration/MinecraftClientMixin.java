@@ -13,4 +13,9 @@ public class MinecraftClientMixin {
     private void renderFrame(boolean tick, CallbackInfo ci) {
         GlobalRenderSystem.render();
     }
+
+    @Inject(method = "runTick", at = @At(value = "INVOKE", target = "Lcom/mojang/blaze3d/platform/Window;updateDisplay()V"))
+    private void postRenderFrame(boolean renderLevel, CallbackInfo ci) {
+//        GlobalRenderSystem.postDraw();
+    }
 }

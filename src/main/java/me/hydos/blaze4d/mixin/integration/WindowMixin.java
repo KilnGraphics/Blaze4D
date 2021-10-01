@@ -2,19 +2,17 @@ package me.hydos.blaze4d.mixin.integration;
 
 import com.mojang.blaze3d.platform.DisplayData;
 import com.mojang.blaze3d.platform.ScreenManager;
-import com.mojang.blaze3d.platform.VideoMode;
 import com.mojang.blaze3d.platform.WindowEventHandler;
 import com.oroarmor.aftermath.Aftermath;
-import me.hydos.blaze4d.AftermathHandler;
-import me.hydos.blaze4d.Blaze4D;
 import graphics.kiln.rosella.Rosella;
 import graphics.kiln.rosella.display.GlfwWindow;
+import me.hydos.blaze4d.AftermathHandler;
+import me.hydos.blaze4d.Blaze4D;
+import net.fabricmc.loader.api.FabricLoader;
 import org.apache.logging.log4j.Logger;
 import org.lwjgl.glfw.Callbacks;
 import org.lwjgl.glfw.GLFW;
-import org.lwjgl.glfw.GLFWErrorCallback;
 import org.lwjgl.glfw.GLFWImage;
-import org.lwjgl.opengl.GL;
 import org.lwjgl.opengl.GLCapabilities;
 import org.lwjgl.system.MemoryStack;
 import org.lwjgl.system.MemoryUtil;
@@ -32,9 +30,6 @@ import org.spongepowered.asm.mixin.injection.callback.LocalCapture;
 import java.io.InputStream;
 import java.nio.ByteBuffer;
 import java.nio.IntBuffer;
-import java.util.Optional;
-
-import net.fabricmc.loader.api.FabricLoader;
 
 @Mixin(com.mojang.blaze3d.platform.Window.class)
 public abstract class WindowMixin {
@@ -43,58 +38,10 @@ public abstract class WindowMixin {
     @Final
     private static Logger LOGGER;
 
-    @Shadow
-    private Optional<VideoMode> preferredFullscreenVideoMode;
-
-    @Shadow
-    private int windowedX;
-
-    @Shadow
-    private int windowedY;
-
-    @Shadow
-    private int x;
-
-    @Shadow
-    private int y;
-
     @Mutable
     @Shadow
     @Final
     private long window;
-
-    @Shadow
-    private int width;
-
-    @Shadow
-    private int height;
-
-    @Shadow
-    private boolean fullscreen;
-
-    @Shadow
-    private int framebufferWidth;
-
-    @Shadow
-    private int framebufferHeight;
-
-    @Shadow
-    protected abstract void setMode();
-
-    @Shadow
-    protected abstract void onMove(long window, int x, int y);
-
-    @Shadow
-    protected abstract void onFocus(long window, boolean focused);
-
-    @Shadow
-    protected abstract void onEnter(long window, boolean entered);
-
-    @Shadow protected abstract void onResize(long window, int width, int height);
-
-    @Shadow protected abstract void onFramebufferResize(long window, int width, int height);
-
-    @Shadow @Final private GLFWErrorCallback defaultErrorCallback;
 
     @Inject(method = "bootCrash", at = @At("HEAD"), cancellable = true)
     private static void silenceGl(int error, long description, CallbackInfo ci) {

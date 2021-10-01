@@ -130,25 +130,28 @@ public class GlobalRenderSystem {
      */
     public static void render() {
         Blaze4D.rosella.common.device.waitForIdle();
-
         Blaze4D.rosella.baseObjectManager.renderObjects.clear();
+
         for (ConsumerRenderObject renderObject : currentFrameObjects) {
-            Blaze4D.rosella.baseObjectManager.addObject(renderObject);
+            Blaze4D.rosella.common.fboManager.getPresentingFbo().objectManager.addObject(renderObject);
         }
 
-        Blaze4D.rosella.renderer.rebuildCommandBuffers(Blaze4D.rosella.renderer.mainRenderPass, Blaze4D.rosella.common.fboManager.getActiveFbo());
+        Blaze4D.rosella.renderer.rebuildCommandBuffers(Blaze4D.rosella.renderer.mainRenderPass);
 
         Blaze4D.window.update();
         Blaze4D.rosella.renderer.render();
-        // FIXME: move postDraw to somewhere else
+    }
+
+    public static void postDraw() {
         // if we decide to have 1 bufferManager per framebuffer, do this after the framebuffer is presented
         // if we decide to have 1 bufferManager total, do this after we know ALL framebuffers have been presented
         Blaze4D.rosella.bufferManager.postDraw();
-
         for (ConsumerRenderObject consumerRenderObject : currentFrameObjects) {
             consumerRenderObject.free(Blaze4D.rosella.common.device, Blaze4D.rosella.common.memory);
         }
+
         currentFrameObjects.clear();
+        Blaze4D.rosella.common.fboManager.getPresentingFbo().objectManager.renderObjects.clear(); // Oops
     }
 
     public static String getSamplerNameForSlot(int slot) {
@@ -294,7 +297,9 @@ public class GlobalRenderSystem {
         return new MinecraftIndexBuffer(new ManagedBuffer<>(MemoryUtil.memByteBuffer(indices), true), newIndexCount, newMode);
     }
 
-    public record MinecraftIndexBuffer(ManagedBuffer<ByteBuffer> rawBuffer, int newIndexCount, VertexFormat.Mode newMode) {}
+    public record MinecraftIndexBuffer(ManagedBuffer<ByteBuffer> rawBuffer, int newIndexCount,
+                                       VertexFormat.Mode newMode) {
+    }
 
     public static void updateUniforms() {
         updateUniforms(RenderSystem.getShader(), RenderSystem.getModelViewMatrix(), RenderSystem.getProjectionMatrix());
@@ -336,7 +341,7 @@ public class GlobalRenderSystem {
 
         if (shader.SCREEN_SIZE != null) {
             Window window = Minecraft.getInstance().getWindow();
-            shader.SCREEN_SIZE.set((float)window.getWidth(), (float)window.getHeight());
+            shader.SCREEN_SIZE.set((float) window.getWidth(), (float) window.getHeight());
         }
 
         if (shader.LINE_WIDTH != null) {

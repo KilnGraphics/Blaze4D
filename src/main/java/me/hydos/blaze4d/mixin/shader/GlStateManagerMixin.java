@@ -108,7 +108,7 @@ public class GlStateManagerMixin {
         GlobalRenderSystem.processedSamplers.clear();
         GlobalRenderSystem.currentSamplerBinding = 1;
         GlobalRenderSystem.SHADER_PROGRAM_MAP.put(GlobalRenderSystem.nextShaderProgramId, program);
-        Blaze4D.rosella.renderer.rebuildCommandBuffers(Blaze4D.rosella.renderer.mainRenderPass, Blaze4D.rosella.common.fboManager.getActiveFbo());
+        Blaze4D.rosella.renderer.rebuildCommandBuffers(Blaze4D.rosella.renderer.mainRenderPass);
         return GlobalRenderSystem.nextShaderProgramId++;
     }
 

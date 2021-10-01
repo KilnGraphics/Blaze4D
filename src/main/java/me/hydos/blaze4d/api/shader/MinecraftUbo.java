@@ -45,7 +45,6 @@ public class MinecraftUbo extends Ubo {
 
     private final Memory memory;
     private final int totalSize;
-    private boolean dirty;
     private DescriptorSets descSets;
     private final List<BufferInfo> uboFrames = new ArrayList<>();
     private final Long2ObjectMap<PointerBuffer> mappedAllocations = new Long2ObjectOpenHashMap<>();
@@ -56,11 +55,6 @@ public class MinecraftUbo extends Ubo {
         this.descSets = new DescriptorSets(rawDescriptorPool);
         this.totalSize = rawUboData.capacity();
         this.data = rawUboData;
-    }
-
-    public void markDirty(ByteBuffer data) {
-        dirty = true;
-        this.data = data;
     }
 
     @Override
@@ -91,18 +85,14 @@ public class MinecraftUbo extends Ubo {
     public void update(int currentImg, @NotNull Swapchain swapChain) {
         if (uboFrames.isEmpty()) return;
 
-        if (dirty) {
-            PointerBuffer pLocation = mappedAllocations.computeIfAbsent(uboFrames.get(currentImg).allocation(), allocation -> {
-                PointerBuffer newPointer = MemoryUtil.memAllocPointer(1);
-                memory.map(allocation, true, newPointer);
-                return newPointer;
-            });
+        PointerBuffer pLocation = mappedAllocations.computeIfAbsent(uboFrames.get(currentImg).allocation(), allocation -> {
+            PointerBuffer newPointer = MemoryUtil.memAllocPointer(1);
+            memory.map(allocation, true, newPointer);
+            return newPointer;
+        });
 
-            ByteBuffer mainBuffer = pLocation.getByteBuffer(0, getSize());
-            MemoryUtil.memCopy(data, mainBuffer);
-
-            dirty = false;
-        }
+        ByteBuffer mainBuffer = pLocation.getByteBuffer(0, getSize());
+        MemoryUtil.memCopy(data, mainBuffer);
     }
 
     public void freeUboFrames() {
