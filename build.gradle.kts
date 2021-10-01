@@ -59,8 +59,7 @@ repositories {
 
     maven {
         name = "hydos's maven"
-        url = uri("http://150.242.33.216/snapshots")
-        isAllowInsecureProtocol = true
+        url = uri("https://maven.hydos.cf/snapshots")
     }
 
 	maven {
