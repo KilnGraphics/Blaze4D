@@ -130,24 +130,24 @@ public class GlobalRenderSystem {
      */
     public static void render() {
         Blaze4D.rosella.common.device.waitForIdle();
-
         Blaze4D.rosella.baseObjectManager.renderObjects.clear();
+
         for (ConsumerRenderObject renderObject : currentFrameObjects) {
-            Blaze4D.rosella.baseObjectManager.addObject(renderObject);
+            Blaze4D.rosella.common.fboManager.getPresentingFbo().objectManager.addObject(renderObject);
         }
 
-        Blaze4D.rosella.renderer.rebuildCommandBuffers(Blaze4D.rosella.renderer.mainRenderPass, Blaze4D.rosella.common.fboManager.getActiveFbo());
+        Blaze4D.rosella.renderer.rebuildCommandBuffers(Blaze4D.rosella.renderer.mainRenderPass);
 
         Blaze4D.window.update();
         Blaze4D.rosella.renderer.render();
         // FIXME: move postDraw to somewhere else
         // if we decide to have 1 bufferManager per framebuffer, do this after the framebuffer is presented
         // if we decide to have 1 bufferManager total, do this after we know ALL framebuffers have been presented
-        Blaze4D.rosella.bufferManager.postDraw();
+//        Blaze4D.rosella.bufferManager.postDraw();
 
-        for (ConsumerRenderObject consumerRenderObject : currentFrameObjects) {
-            consumerRenderObject.free(Blaze4D.rosella.common.device, Blaze4D.rosella.common.memory);
-        }
+//        for (ConsumerRenderObject consumerRenderObject : currentFrameObjects) {
+//            consumerRenderObject.free(Blaze4D.rosella.common.device, Blaze4D.rosella.common.memory);
+//        } FIXME TODO DEBUGGING HELP
         currentFrameObjects.clear();
     }
 
