@@ -15,7 +15,7 @@ public class RenderSystemMixin {
 
     @Inject(method = "maxSupportedTextureSize", at = @At("HEAD"), cancellable = true)
     private static void setMaxSupportedTextureSize(CallbackInfoReturnable<Integer> cir) {
-        cir.setReturnValue(99999999);
+        cir.setReturnValue(1024 * 1000);
     }
 
     /**
