@@ -18,11 +18,6 @@ public class RenderSystemMixin {
         cir.setReturnValue(99999999);
     }
 
-    @Inject(method = "isOnRenderThread", at = @At("HEAD"), cancellable = true)
-    private static void myEngineIsMultithreadedAndSafe(CallbackInfoReturnable<Boolean> cir) {
-//        cir.setReturnValue(true);
-    }
-
     /**
      * @author Blaze4D
      * @reason Removal Of GL Specific Code
