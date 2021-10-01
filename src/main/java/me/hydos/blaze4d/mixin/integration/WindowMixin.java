@@ -77,7 +77,7 @@ public abstract class WindowMixin {
     }
 
     @Inject(method = "onFramebufferResize", at = @At(value = "INVOKE", target = "Lcom/mojang/blaze3d/platform/WindowEventHandler;resizeDisplay()V"))
-    private void noticeRenderer(long window, int width, int height, CallbackInfo ci) {
+    private void hintRendererForRecreation(long window, int width, int height, CallbackInfo ci) {
         Blaze4D.rosella.renderer.queueRecreateSwapchain();
     }
 
