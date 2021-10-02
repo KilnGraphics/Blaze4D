@@ -4,7 +4,7 @@ import com.mojang.blaze3d.shaders.AbstractUniform;
 import com.mojang.blaze3d.shaders.Uniform;
 import com.mojang.math.Matrix4f;
 import graphics.kiln.blaze4d.impl.ubo.VulkanUniform;
-import me.hydos.blaze4d.api.util.ConversionUtils;
+import graphics.kiln.blaze4d.util.ConversionUtils;
 import net.minecraft.util.Mth;
 import org.lwjgl.system.MemoryUtil;
 import org.spongepowered.asm.mixin.Final;

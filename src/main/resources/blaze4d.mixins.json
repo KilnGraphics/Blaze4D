@@ -9,7 +9,27 @@
   "client": [
     "render.VertexBufferMixin",
     "render.BufferUploaderMixin",
-    "ubo.GlUniformMixin"
+    "render.WorldRendererMixin",
+    "render.RenderSystemMixin",
+    "shader.GlStateManagerMixin",
+    "shader.RenderSystemMixin",
+    "shader.ShaderAccessor",
+    "shader.ShaderMixin",
+    "ubo.GlUniformMixin",
+    "texture.LightmapTextureManagerMixin",
+    "texture.NativeImageMixin",
+    "texture.RenderSystemMixin",
+    "texture.TextureManagerMixin",
+    "texture.TextureUtilMixin_Development",
+    "texture.TextureUtilMixin_Runtime",
+    "integration.GlStateManagerMixin",
+    "integration.FramebufferMixin",
+    "integration.GlDebugMixin",
+    "integration.GLXMixin",
+    "integration.MinecraftClientMixin",
+    "integration.VideoWarningManagerMixin",
+    "integration.WindowFramebufferMixin",
+    "integration.WindowMixin"
   ],
   "injectors": {
     "defaultRequire": 1

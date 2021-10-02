@@ -1,6 +1,6 @@
 package graphics.kiln.blaze4d.api.object;
 
-import me.hydos.blaze4d.api.shader.MinecraftShaderProgram;
+import graphics.kiln.blaze4d.impl.shader.MinecraftShaderProgram;
 import graphics.kiln.rosella.Rosella;
 import graphics.kiln.rosella.device.VulkanDevice;
 import graphics.kiln.rosella.memory.Memory;

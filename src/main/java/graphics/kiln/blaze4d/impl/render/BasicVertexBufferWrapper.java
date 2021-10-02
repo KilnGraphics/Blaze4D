@@ -10,7 +10,7 @@ import graphics.kiln.rosella.memory.ManagedBuffer;
 import graphics.kiln.rosella.render.Topology;
 import graphics.kiln.rosella.render.info.RenderInfo;
 import graphics.kiln.rosella.render.shader.ShaderProgram;
-import me.hydos.blaze4d.api.util.ConversionUtils;
+import graphics.kiln.blaze4d.util.ConversionUtils;
 
 import java.nio.ByteBuffer;
 
