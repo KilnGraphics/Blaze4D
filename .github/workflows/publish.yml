@@ -1,9 +1,12 @@
 name: Publish to hydos Maven
 on:
-  - workflow_dispatch
+  push:
+    branches:
+      - master
 
 jobs:
   publish:
+    if: "! contains(toJSON(github.event.commits.*.message), '[ci skip]')"
     runs-on: ubuntu-latest
     steps:
       - name: Checkout repository
@@ -14,8 +17,6 @@ jobs:
         uses: actions/setup-java@v1
         with:
           java-version: 16
-      - name: Build
-        run: ./gradlew build
       - name: Publish
         run: ./gradlew publishAllPublicationsToHydosRepository
         env:
