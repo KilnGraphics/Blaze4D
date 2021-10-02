@@ -2,7 +2,7 @@ package graphics.kiln.blaze4d.util;
 
 import com.mojang.blaze3d.platform.NativeImage;
 import graphics.kiln.blaze4d.Blaze4D;
-import me.hydos.blaze4d.api.GlobalRenderSystem;
+import graphics.kiln.blaze4d.impl.GlobalRenderSystem;
 import me.hydos.blaze4d.api.util.ConversionUtils;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 

@@ -1,16 +1,15 @@
-package graphics.kiln.blaze4d.impl;
+package graphics.kiln.blaze4d.impl.render;
 
 import com.mojang.blaze3d.vertex.BufferBuilder;
 import com.mojang.datafixers.util.Pair;
 import graphics.kiln.blaze4d.api.render.VertexBufferWrapper;
+import graphics.kiln.blaze4d.impl.GlobalRenderSystem;
 import graphics.kiln.rosella.Rosella;
 import graphics.kiln.rosella.memory.BufferInfo;
 import graphics.kiln.rosella.memory.ManagedBuffer;
 import graphics.kiln.rosella.render.Topology;
 import graphics.kiln.rosella.render.info.RenderInfo;
 import graphics.kiln.rosella.render.shader.ShaderProgram;
-import graphics.kiln.blaze4d.Blaze4D;
-import me.hydos.blaze4d.api.GlobalRenderSystem;
 import me.hydos.blaze4d.api.util.ConversionUtils;
 
 import java.nio.ByteBuffer;
@@ -37,10 +36,10 @@ public class BasicVertexBufferWrapper implements VertexBufferWrapper {
         if (providedDrawState.vertexCount() > 0 && providedDrawState.indexCount() > 0) {
             if (!providedDrawState.indexOnly()) {
                 providedBuffer.limit(providedDrawState.vertexBufferSize());
-                BufferInfo vertexBuffer = Blaze4D.rosella.bufferManager.createVertexBuffer(new ManagedBuffer<>(providedBuffer, false));
+                BufferInfo vertexBuffer = rosella.bufferManager.createVertexBuffer(new ManagedBuffer<>(providedBuffer, false));
 
                 GlobalRenderSystem.MinecraftIndexBuffer mcIndexBuffer = GlobalRenderSystem.createIndices(providedDrawState.mode(), providedDrawState.indexCount());
-                BufferInfo indexBuffer = Blaze4D.rosella.bufferManager.createIndexBuffer(mcIndexBuffer.rawBuffer());
+                BufferInfo indexBuffer = rosella.bufferManager.createIndexBuffer(mcIndexBuffer.rawBuffer());
 
                 currentRenderInfo = new RenderInfo(vertexBuffer, indexBuffer, mcIndexBuffer.newIndexCount());
                 drawState = providedDrawState;
@@ -65,13 +64,13 @@ public class BasicVertexBufferWrapper implements VertexBufferWrapper {
                     GlobalRenderSystem.currentStateInfo.snapshot(),
                     GlobalRenderSystem.getCurrentTextureMap(),
                     uboData,
-                    Blaze4D.rosella
+                    rosella
             );
         }
     }
 
     @Override
     public void clean() {
-        if (currentRenderInfo != null) currentRenderInfo.free(Blaze4D.rosella.common.device, Blaze4D.rosella.common.memory);
+        if (currentRenderInfo != null) currentRenderInfo.free(rosella.common.device, rosella.common.memory);
     }
 }

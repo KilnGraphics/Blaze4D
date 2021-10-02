@@ -1,4 +1,4 @@
-package me.hydos.blaze4d.api;
+package graphics.kiln.blaze4d.impl;
 
 import com.mojang.blaze3d.platform.Window;
 import com.mojang.blaze3d.shaders.Uniform;
@@ -13,8 +13,8 @@ import it.unimi.dsi.fastutil.objects.Object2ObjectOpenHashMap;
 import graphics.kiln.blaze4d.Blaze4D;
 import me.hydos.blaze4d.api.shader.MinecraftUbo;
 import me.hydos.blaze4d.api.shader.ShaderContext;
-import me.hydos.blaze4d.api.shader.VulkanUniform;
-import me.hydos.blaze4d.api.vertex.ConsumerRenderObject;
+import graphics.kiln.blaze4d.impl.ubo.VulkanUniform;
+import graphics.kiln.blaze4d.api.object.ConsumerRenderObject;
 import me.hydos.blaze4d.mixin.shader.ShaderAccessor;
 import graphics.kiln.rosella.Rosella;
 import graphics.kiln.rosella.memory.ManagedBuffer;
@@ -47,7 +47,9 @@ import static org.lwjgl.vulkan.VK10.VK_FRONT_FACE_COUNTER_CLOCKWISE;
 
 /**
  * Used to make bits of the code easier to manage.
+ * @deprecated Needs to be removed and seperated out into their own api bits.
  */
+@Deprecated
 public class GlobalRenderSystem {
 
     // Misc Constants

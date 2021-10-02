@@ -2,7 +2,7 @@ package me.hydos.blaze4d.mixin.shader;
 
 import com.mojang.blaze3d.systems.RenderSystem;
 import graphics.kiln.blaze4d.Blaze4D;
-import me.hydos.blaze4d.api.GlobalRenderSystem;
+import graphics.kiln.blaze4d.impl.GlobalRenderSystem;
 import graphics.kiln.rosella.render.shader.RawShaderProgram;
 import net.minecraft.client.renderer.ShaderInstance;
 import org.jetbrains.annotations.Nullable;

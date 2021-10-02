@@ -4,7 +4,7 @@ import graphics.kiln.rosella.Rosella;
 import graphics.kiln.rosella.display.GlfwWindow;
 import graphics.kiln.rosella.init.features.TriangleFan;
 import graphics.kiln.rosella.render.fbo.FrameBufferObject;
-import me.hydos.blaze4d.api.GlobalRenderSystem;
+import graphics.kiln.blaze4d.impl.GlobalRenderSystem;
 import net.fabricmc.api.ClientModInitializer;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;

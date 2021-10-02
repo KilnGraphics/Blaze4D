@@ -1,9 +1,9 @@
-package me.hydos.blaze4d.mixin.shader;
+package graphics.kiln.blaze4d.mixin.ubo;
 
 import com.mojang.blaze3d.shaders.AbstractUniform;
 import com.mojang.blaze3d.shaders.Uniform;
 import com.mojang.math.Matrix4f;
-import me.hydos.blaze4d.api.shader.VulkanUniform;
+import graphics.kiln.blaze4d.impl.ubo.VulkanUniform;
 import me.hydos.blaze4d.api.util.ConversionUtils;
 import net.minecraft.util.Mth;
 import org.lwjgl.system.MemoryUtil;
@@ -18,6 +18,9 @@ import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 import java.nio.FloatBuffer;
 import java.nio.IntBuffer;
 
+/**
+ * Used to implement {@link VulkanUniform}, Do some conversion things, Uploading data, and fixing the Projection Matrix.
+ */
 @Mixin(Uniform.class)
 public abstract class GlUniformMixin extends AbstractUniform implements VulkanUniform {
     @Unique
@@ -74,7 +77,7 @@ public abstract class GlUniformMixin extends AbstractUniform implements VulkanUn
     public void set(Matrix4f matrix4f) {
         org.joml.Matrix4f matrix;
         if (this.name.equals("ProjMat")) {
-             matrix = ConversionUtils.mcToJomlProjectionMatrix(matrix4f);
+            matrix = ConversionUtils.mcToJomlProjectionMatrix(matrix4f);
         } else {
             matrix = ConversionUtils.mcToJomlMatrix(matrix4f);
         }

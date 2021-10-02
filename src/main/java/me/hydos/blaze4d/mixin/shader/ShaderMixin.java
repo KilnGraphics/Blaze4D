@@ -4,7 +4,7 @@ import com.mojang.blaze3d.preprocessor.GlslPreprocessor;
 import com.mojang.blaze3d.shaders.Program;
 import com.mojang.blaze3d.shaders.Uniform;
 import com.mojang.blaze3d.vertex.VertexFormat;
-import me.hydos.blaze4d.api.GlobalRenderSystem;
+import graphics.kiln.blaze4d.impl.GlobalRenderSystem;
 import me.hydos.blaze4d.api.shader.VanillaShaderProcessor;
 import graphics.kiln.rosella.Rosella;
 import net.minecraft.client.renderer.ShaderInstance;

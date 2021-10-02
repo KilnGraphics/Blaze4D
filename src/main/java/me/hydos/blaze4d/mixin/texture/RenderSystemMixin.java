@@ -1,7 +1,7 @@
 package me.hydos.blaze4d.mixin.texture;
 
 import com.mojang.blaze3d.systems.RenderSystem;
-import me.hydos.blaze4d.api.GlobalRenderSystem;
+import graphics.kiln.blaze4d.impl.GlobalRenderSystem;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.renderer.texture.AbstractTexture;
 import net.minecraft.client.renderer.texture.TextureManager;

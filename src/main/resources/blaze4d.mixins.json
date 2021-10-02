@@ -8,7 +8,8 @@
   ],
   "client": [
     "render.VertexBufferMixin",
-    "render.BufferUploaderMixin"
+    "render.BufferUploaderMixin",
+    "ubo.GlUniformMixin"
   ],
   "injectors": {
     "defaultRequire": 1

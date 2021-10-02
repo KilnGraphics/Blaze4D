@@ -5,7 +5,7 @@ import com.mojang.blaze3d.systems.RenderSystem;
 import com.sun.jna.platform.win32.GL;
 import graphics.kiln.rosella.util.Color;
 import graphics.kiln.blaze4d.Blaze4D;
-import me.hydos.blaze4d.api.GlobalRenderSystem;
+import graphics.kiln.blaze4d.impl.GlobalRenderSystem;
 import me.hydos.blaze4d.api.util.ConversionUtils;
 import org.lwjgl.opengl.GL13;
 import org.lwjgl.system.MemoryStack;

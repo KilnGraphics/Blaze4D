@@ -2,7 +2,7 @@ package graphics.kiln.blaze4d.mixin.render;
 
 import com.mojang.blaze3d.vertex.BufferBuilder;
 import com.mojang.blaze3d.vertex.BufferUploader;
-import graphics.kiln.blaze4d.impl.BasicImmediateBufferWrapper;
+import graphics.kiln.blaze4d.impl.render.BasicImmediateBufferWrapper;
 import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.Overwrite;
 

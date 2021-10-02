@@ -1,12 +1,12 @@
-package graphics.kiln.blaze4d.impl;
+package graphics.kiln.blaze4d.impl.render;
 
 import com.mojang.blaze3d.systems.RenderSystem;
 import com.mojang.blaze3d.vertex.BufferBuilder;
 import com.mojang.datafixers.util.Pair;
 import graphics.kiln.blaze4d.api.render.ImmediateBufferWrapper;
+import graphics.kiln.blaze4d.impl.GlobalRenderSystem;
 import graphics.kiln.rosella.memory.ManagedBuffer;
 import graphics.kiln.blaze4d.Blaze4D;
-import me.hydos.blaze4d.api.GlobalRenderSystem;
 import me.hydos.blaze4d.api.util.ConversionUtils;
 import org.lwjgl.system.MemoryUtil;
 

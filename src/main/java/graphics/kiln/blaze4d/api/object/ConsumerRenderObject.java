@@ -1,10 +1,9 @@
-package me.hydos.blaze4d.api.vertex;
+package graphics.kiln.blaze4d.api.object;
 
 import me.hydos.blaze4d.api.shader.MinecraftShaderProgram;
 import graphics.kiln.rosella.Rosella;
 import graphics.kiln.rosella.device.VulkanDevice;
 import graphics.kiln.rosella.memory.Memory;
-import graphics.kiln.rosella.render.PolygonMode;
 import graphics.kiln.rosella.render.Topology;
 import graphics.kiln.rosella.render.info.InstanceInfo;
 import graphics.kiln.rosella.render.info.RenderInfo;
@@ -15,28 +14,22 @@ import graphics.kiln.rosella.render.shader.ShaderProgram;
 import graphics.kiln.rosella.render.texture.TextureMap;
 import graphics.kiln.rosella.render.vertex.VertexFormat;
 import graphics.kiln.rosella.scene.object.Renderable;
-import graphics.kiln.rosella.scene.object.impl.SimpleObjectManager;
 
 import java.nio.ByteBuffer;
 import java.util.Objects;
 import java.util.concurrent.Future;
 
+/**
+ * Basic implementation of a {@link Renderable} object.
+ * TODO: builder maybe?
+ */
 public class ConsumerRenderObject implements Renderable {
 
     // Render Implementation Fields
     private final Future<RenderInfo> renderInfo;
     private final InstanceInfo instanceInfo;
 
-    public ConsumerRenderObject(
-            Future<RenderInfo> renderInfo,
-            ShaderProgram shaderProgram,
-            Topology topology,
-            VertexFormat vertexFormat,
-            StateInfo stateInfo,
-            TextureMap textures,
-            ByteBuffer rawUboData,
-            Rosella rosella) {
-
+    public ConsumerRenderObject(Future<RenderInfo> renderInfo, ShaderProgram shaderProgram, Topology topology, VertexFormat vertexFormat, StateInfo stateInfo, TextureMap textures, ByteBuffer rawUboData, Rosella rosella) {
         this.renderInfo = renderInfo;
         Material material = new Material(
                 rosella.common.pipelineManager.registerPipeline(
@@ -59,7 +52,6 @@ public class ConsumerRenderObject implements Renderable {
 
     @Override
     public void onAddedToScene(Rosella rosella) {
-        // WE DO NOT NEED TO HARD REBUILD HERE
     }
 
     @Override

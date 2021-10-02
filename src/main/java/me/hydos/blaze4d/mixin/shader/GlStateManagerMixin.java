@@ -6,7 +6,7 @@ import graphics.kiln.rosella.render.resource.Resource;
 import graphics.kiln.rosella.render.shader.RawShaderProgram;
 import graphics.kiln.rosella.render.shader.ShaderType;
 import graphics.kiln.blaze4d.Blaze4D;
-import me.hydos.blaze4d.api.GlobalRenderSystem;
+import graphics.kiln.blaze4d.impl.GlobalRenderSystem;
 import me.hydos.blaze4d.api.shader.MinecraftShaderProgram;
 import me.hydos.blaze4d.api.shader.ShaderContext;
 import me.hydos.blaze4d.api.util.ByteArrayResource;
