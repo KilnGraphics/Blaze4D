@@ -6,60 +6,33 @@ plugins {
 	`maven-publish`
 }
 
-group = "me.hydos"
+group = "graphics.kiln"
 version = "1.0.0-SNAPSHOT"
 
 val lwjglVersion = "3.3.0-SNAPSHOT"
-val lwjglNatives = getCurrentNatives(OperatingSystem.current())
-
-fun getCurrentNatives(system: OperatingSystem): String {
-	when {
-		system.isLinux -> {
-			System.getProperty("os.arch").let {
-				return when {
-					it.startsWith("arm") || it.startsWith("aarch64") -> {
-						val arch = when {
-							it.contains("64") || it.startsWith("armv8") -> {
-								"arm64"
-							}
-							else -> {
-								"arm32"
-							}
-						}
-
-						"natives-linux-$arch"
-					}
-					else -> {
-						"natives-linux"
-					}
-				}
-			}
-		}
-		system.isMacOsX -> {
-			return when {
-				System.getProperty("os.arch").startsWith("aarch64") -> "natives-macos-arm64"
-				else -> "natives-macos"
-			}
-		}
-		system.isWindows -> {
-			return "natives-windows"
-		}
+val lwjglNatives = when (OperatingSystem.current()) {
+	OperatingSystem.LINUX -> System.getProperty("os.arch").let {
+		if (it.startsWith("arm") || it.startsWith("aarch64"))
+			"natives-linux-${if (it.contains("64") || it.startsWith("armv8")) "arm64" else "arm32"}"
+		else
+			"natives-linux"
 	}
-
-	error("Unrecognized or unsupported Operating system. Please set \"lwjglNatives\" manually")
-}
-
-allprojects {
-	extra["lwjgl.version"] = lwjglVersion
-	extra["lwjgl.natives"] = lwjglNatives
+	OperatingSystem.MAC_OS -> "natives-macos"
+	OperatingSystem.WINDOWS -> System.getProperty("os.arch").let {
+		if (it.contains("64"))
+			"natives-windows${if (it.startsWith("aarch64")) "-arm64" else ""}"
+		else
+			"natives-windows-x86"
+	}
+	else -> throw Error("Unrecognized or unsupported Operating system. Please set \"lwjglNatives\" manually")
 }
 
 repositories {
 	mavenCentral()
 
     maven {
-        name = "hydos's maven"
-        url = uri("https://maven.hydos.cf/releases")
+        name = "hydos"
+        url = uri("https://maven.hydos.cf/snapshots/")
     }
 
 	maven {
@@ -82,7 +55,7 @@ dependencies {
 	modImplementation("net.fabricmc", "fabric-loader", properties["loader_version"].toString())
 	modImplementation("net.fabricmc", "fabric-language-kotlin", "1.6.4+kotlin.1.5.30")
 
-	include(implementation("kiln.graphics", "rosella", "1.1.1"))
+	include(implementation("graphics.kiln", "rosella", "1.2.0-SNAPSHOT"))
 	include(implementation("com.oroarmor", "aftermath", "1.0.0-beta"))
 
 	include(implementation("org.joml", "joml", "1.10.1"))
@@ -121,17 +94,13 @@ dependencies {
 configurations.all {
     resolutionStrategy {
         dependencySubstitution {
-            substitute(module("org.lwjgl:lwjgl:3.2.2")).with(module("org.lwjgl:lwjgl:3.3.0-SNAPSHOT"))
-            substitute(module("org.lwjgl:lwjg-glfw:3.2.2")).with(module("org.lwjgl:lwjgl-glfw:3.3.0-SNAPSHOT"))
+            substitute(module("org.lwjgl:lwjgl:3.2.2")).with(module("org.lwjgl:lwjgl:$lwjglVersion"))
+            substitute(module("org.lwjgl:lwjg-glfw:3.2.2")).with(module("org.lwjgl:lwjgl-glfw:$lwjglVersion"))
         }
-        force("org.lwjgl:lwjgl:3.3.0-SNAPSHOT")
-        force("org.lwjgl:lwjgl-glfw:3.3.0-SNAPSHOT")
-    }
-}
 
-tasks.test {
-	useJUnitPlatform {
-	}
+        force("org.lwjgl:lwjgl:$lwjglVersion")
+        force("org.lwjgl:lwjgl-glfw:$lwjglVersion")
+    }
 }
 
 base {
@@ -177,6 +146,10 @@ quiltflower {
 }
 
 tasks {
+	test {
+		useJUnitPlatform()
+	}
+
 	withType<JavaCompile> {
 		options.encoding = "UTF-8"
 		options.release.set(16)
@@ -198,9 +171,54 @@ tasks {
 publishing {
 	publications {
 		create<MavenPublication>("mod") {
-			artifact(tasks.remapJar)
-			artifact(tasks.remapSourcesJar) {
-				classifier = "sources"
+			from(components["java"])
+
+			pom {
+				name.set("Rosella")
+				packaging = "jar"
+
+				description.set("A Minecraft mod to use Vulkan through the Rosella engine")
+				url.set("https://github.com/KilnGraphics/Blaze4D")
+
+				licenses {
+					license {
+						name.set("GNU Lesser General Public License v3.0")
+						url.set("https://www.gnu.org/licenses/lgpl-3.0.txt")
+					}
+				}
+
+				developers {
+					developer {
+						id.set("hYdos")
+						name.set("Hayden V")
+						email.set("haydenv06@gmail.com")
+						url.set("https://hydos.cf/")
+					}
+
+					developer {
+						id.set("OroArmor")
+						name.set("Eli Orona")
+						email.set("eliorona@live.com")
+						url.set("https://oroarmor.com/")
+					}
+
+					developer {
+						id.set("CodingRays")
+						url.set("https://github.com/CodingRays")
+					}
+
+					developer {
+						id.set("burgerdude")
+						name.set("Ryan G")
+						url.set("https://github.com/burgerguy")
+					}
+
+					developer {
+						id.set("ramidzkh")
+						email.set("ramidzkh@gmail.com")
+						url.set("https://github.com/ramidzkh")
+					}
+				}
 			}
 		}
 	}
@@ -211,6 +229,21 @@ publishing {
 			val snapshotsRepoUrl = uri("${buildDir}/repos/snapshots")
 			name = "Project"
 			url = if (version.toString().endsWith("SNAPSHOT")) snapshotsRepoUrl else releasesRepoUrl
+		}
+
+		maven {
+			val releasesRepoUrl = uri("https://maven.hydos.cf/releases")
+			val snapshotsRepoUrl = uri("https://maven.hydos.cf/snapshots")
+			name = "hydos"
+			url = if (version.toString().endsWith("SNAPSHOT")) snapshotsRepoUrl else releasesRepoUrl
+
+			val u = System.getenv("MAVEN_USERNAME") ?: return@maven
+			val p = System.getenv("MAVEN_PASSWORD") ?: return@maven
+
+			credentials {
+				username = u
+				password = p
+			}
 		}
 	}
 }

@@ -15,7 +15,7 @@
     "Sir Obsidian",
     "imperatorstorm"
   ],
-  "license": "MIT",
+  "license": "LGPL-3.0-or-later",
   "icon": "assets/blaze4d/icon.png",
   "environment": "*",
   "entrypoints": {
