@@ -1,4 +1,4 @@
-package me.hydos.blaze4d.internal;
+package graphics.kiln.blaze4d;
 
 import net.fabricmc.loader.api.FabricLoader;
 import org.objectweb.asm.tree.ClassNode;

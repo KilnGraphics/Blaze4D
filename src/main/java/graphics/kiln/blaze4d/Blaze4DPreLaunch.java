@@ -1,4 +1,4 @@
-package me.hydos.blaze4d;
+package graphics.kiln.blaze4d;
 
 import net.fabricmc.loader.api.entrypoint.PreLaunchEntrypoint;
 import org.lwjgl.system.Configuration;

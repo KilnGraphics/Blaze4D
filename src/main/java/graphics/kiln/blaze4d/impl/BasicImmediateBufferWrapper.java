@@ -1,35 +1,27 @@
-package me.hydos.blaze4d.mixin.vertices;
+package graphics.kiln.blaze4d.impl;
 
 import com.mojang.blaze3d.systems.RenderSystem;
 import com.mojang.blaze3d.vertex.BufferBuilder;
-import com.mojang.blaze3d.vertex.BufferUploader;
 import com.mojang.datafixers.util.Pair;
-import me.hydos.blaze4d.Blaze4D;
+import graphics.kiln.blaze4d.api.render.ImmediateBufferWrapper;
+import graphics.kiln.rosella.memory.ManagedBuffer;
+import graphics.kiln.blaze4d.Blaze4D;
 import me.hydos.blaze4d.api.GlobalRenderSystem;
 import me.hydos.blaze4d.api.util.ConversionUtils;
-import graphics.kiln.rosella.memory.ManagedBuffer;
 import org.lwjgl.system.MemoryUtil;
-import org.spongepowered.asm.mixin.Mixin;
-import org.spongepowered.asm.mixin.Overwrite;
 
 import java.nio.ByteBuffer;
 
-@Mixin(BufferUploader.class)
-public class BufferRendererMixin {
+public class BasicImmediateBufferWrapper implements ImmediateBufferWrapper {
 
-    /**
-     * @author Blaze4D
-     * @reason to draw
-     */
-    @Overwrite
-    public static void end(BufferBuilder bufferBuilder) {
-        Pair<BufferBuilder.DrawState, ByteBuffer> drawData = bufferBuilder.popNextBuffer();
+    @Override
+    public void render(BufferBuilder builder) {
+        Pair<BufferBuilder.DrawState, ByteBuffer> drawData = builder.popNextBuffer();
         BufferBuilder.DrawState drawState = drawData.getFirst();
         ByteBuffer originalBuffer = drawData.getSecond();
 
         originalBuffer.clear();
 
-        // TODO: why were these format checks here? (ported from old code) drawState.format() != com.mojang.blaze3d.vertex.DefaultVertexFormat.BLIT_SCREEN && drawState.format() != com.mojang.blaze3d.vertex.DefaultVertexFormat.POSITION
         if (drawState.vertexCount() > 0 && drawState.indexCount() > 0) {
             ByteBuffer copiedBuffer = MemoryUtil.memAlloc(drawState.vertexBufferSize());
             copiedBuffer.put(0, originalBuffer, 0, drawState.vertexBufferSize());
@@ -51,14 +43,5 @@ public class BufferRendererMixin {
                     Blaze4D.rosella
             );
         }
-    }
-
-    /**
-     * @author Blaze4D
-     * @reason to draw
-     */
-    @Overwrite
-    public static void _endInternal(BufferBuilder builder) {
-        end(builder);
     }
 }

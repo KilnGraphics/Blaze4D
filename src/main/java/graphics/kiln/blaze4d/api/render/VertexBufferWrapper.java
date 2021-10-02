@@ -1,7 +1,6 @@
 package graphics.kiln.blaze4d.api.render;
 
 import com.mojang.blaze3d.vertex.BufferBuilder;
-import com.mojang.blaze3d.vertex.VertexBuffer;
 import graphics.kiln.rosella.render.shader.ShaderProgram;
 
 import java.nio.ByteBuffer;
@@ -12,7 +11,8 @@ import java.nio.ByteBuffer;
 public interface VertexBufferWrapper {
 
     /**
-     * Called when the game requests for the buffer to be uploaded
+     * Called when Minecraft requests for the buffer to be uploaded
+     *
      * @param bufferBuilder the BufferBuilder for the VertexBuffer the game wants uploaded.
      */
     void create(BufferBuilder bufferBuilder);
@@ -22,5 +22,8 @@ public interface VertexBufferWrapper {
      */
     void render(ShaderProgram shaderProgram, ByteBuffer uboData);
 
+    /**
+     * Called when Minecraft is ready to close the {@link com.mojang.blaze3d.vertex.VertexBuffer}. You can assume past this point everything can be cleared
+     */
     void clean();
 }

@@ -2,7 +2,7 @@ package me.hydos.blaze4d.mixin.integration;
 
 import com.mojang.blaze3d.platform.GLX;
 import com.mojang.blaze3d.platform.GlStateManager;
-import me.hydos.blaze4d.Blaze4D;
+import graphics.kiln.blaze4d.Blaze4D;
 import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.injection.At;
 import org.spongepowered.asm.mixin.injection.Inject;

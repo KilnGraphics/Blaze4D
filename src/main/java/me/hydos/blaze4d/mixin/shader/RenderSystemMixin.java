@@ -1,10 +1,9 @@
 package me.hydos.blaze4d.mixin.shader;
 
 import com.mojang.blaze3d.systems.RenderSystem;
-import me.hydos.blaze4d.Blaze4D;
+import graphics.kiln.blaze4d.Blaze4D;
 import me.hydos.blaze4d.api.GlobalRenderSystem;
 import graphics.kiln.rosella.render.shader.RawShaderProgram;
-import graphics.kiln.rosella.scene.object.impl.SimpleObjectManager;
 import net.minecraft.client.renderer.ShaderInstance;
 import org.jetbrains.annotations.Nullable;
 import org.spongepowered.asm.mixin.Mixin;

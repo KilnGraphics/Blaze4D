@@ -1,14 +1,14 @@
-package me.hydos.blaze4d.internal;
+package graphics.kiln.blaze4d.util;
 
 import com.mojang.blaze3d.platform.NativeImage;
-import me.hydos.blaze4d.Blaze4D;
+import graphics.kiln.blaze4d.Blaze4D;
 import me.hydos.blaze4d.api.GlobalRenderSystem;
 import me.hydos.blaze4d.api.util.ConversionUtils;
-import graphics.kiln.rosella.scene.object.impl.SimpleObjectManager;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 
 // TODO: Remove once we can use Mixin 0.8.3 @Desc
-public class TextureUtilMoment {
+@Deprecated
+public class TextureUtils {
 
     public static void createRosellaTexture(NativeImage.InternalGlFormat internalFormat, int id, int maxLevel, int width, int height, CallbackInfo ci) {
         GlobalRenderSystem.boundTextureIds[GlobalRenderSystem.activeTextureSlot] = id;

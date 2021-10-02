@@ -3,7 +3,7 @@
   "minVersion": "0.8",
   "package": "me.hydos.blaze4d.mixin",
   "compatibilityLevel": "JAVA_16",
-  "plugin": "me.hydos.blaze4d.internal.Blaze4DMixinPlugin",
+  "plugin": "graphics.kiln.blaze4d.Blaze4DMixinPlugin",
   "mixins": [
   ],
   "client": [
@@ -29,7 +29,6 @@
     "texture.TextureManagerMixin",
     "texture.TextureUtilMixin_Development",
     "texture.TextureUtilMixin_Runtime",
-    "vertices.BufferRendererMixin",
     "vertices.WorldRendererMixin"
   ],
   "injectors": {

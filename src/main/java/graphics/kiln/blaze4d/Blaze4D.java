@@ -1,4 +1,4 @@
-package me.hydos.blaze4d;
+package graphics.kiln.blaze4d;
 
 import graphics.kiln.rosella.Rosella;
 import graphics.kiln.rosella.display.GlfwWindow;

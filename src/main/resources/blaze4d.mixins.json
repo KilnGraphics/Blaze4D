@@ -3,11 +3,12 @@
   "minVersion": "0.8",
   "package": "graphics.kiln.blaze4d.mixin",
   "compatibilityLevel": "JAVA_16",
-  "plugin": "me.hydos.blaze4d.internal.Blaze4DMixinPlugin",
+  "plugin": "graphics.kiln.blaze4d.Blaze4DMixinPlugin",
   "mixins": [
   ],
   "client": [
-    "render.VertexBufferMixin"
+    "render.VertexBufferMixin",
+    "render.BufferUploaderMixin"
   ],
   "injectors": {
     "defaultRequire": 1

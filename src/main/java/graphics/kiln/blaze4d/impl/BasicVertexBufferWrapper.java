@@ -9,7 +9,7 @@ import graphics.kiln.rosella.memory.ManagedBuffer;
 import graphics.kiln.rosella.render.Topology;
 import graphics.kiln.rosella.render.info.RenderInfo;
 import graphics.kiln.rosella.render.shader.ShaderProgram;
-import me.hydos.blaze4d.Blaze4D;
+import graphics.kiln.blaze4d.Blaze4D;
 import me.hydos.blaze4d.api.GlobalRenderSystem;
 import me.hydos.blaze4d.api.util.ConversionUtils;
 

@@ -2,7 +2,7 @@ package me.hydos.blaze4d.mixin.texture;
 
 import com.mojang.blaze3d.platform.NativeImage;
 import graphics.kiln.rosella.render.texture.*;
-import me.hydos.blaze4d.Blaze4D;
+import graphics.kiln.blaze4d.Blaze4D;
 import me.hydos.blaze4d.api.GlobalRenderSystem;
 import me.hydos.blaze4d.api.util.ConversionUtils;
 import org.jetbrains.annotations.NotNull;

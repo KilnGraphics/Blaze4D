@@ -5,7 +5,7 @@ import com.mojang.blaze3d.systems.RenderSystem;
 import graphics.kiln.rosella.render.resource.Resource;
 import graphics.kiln.rosella.render.shader.RawShaderProgram;
 import graphics.kiln.rosella.render.shader.ShaderType;
-import me.hydos.blaze4d.Blaze4D;
+import graphics.kiln.blaze4d.Blaze4D;
 import me.hydos.blaze4d.api.GlobalRenderSystem;
 import me.hydos.blaze4d.api.shader.MinecraftShaderProgram;
 import me.hydos.blaze4d.api.shader.ShaderContext;

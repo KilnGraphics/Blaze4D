@@ -6,7 +6,7 @@ import com.mojang.blaze3d.vertex.VertexBuffer;
 import graphics.kiln.blaze4d.impl.BasicVertexBufferWrapper;
 import graphics.kiln.rosella.render.shader.RawShaderProgram;
 import graphics.kiln.rosella.render.shader.ShaderProgram;
-import me.hydos.blaze4d.Blaze4D;
+import graphics.kiln.blaze4d.Blaze4D;
 import me.hydos.blaze4d.api.GlobalRenderSystem;
 import net.minecraft.client.renderer.ShaderInstance;
 import org.spongepowered.asm.mixin.Mixin;

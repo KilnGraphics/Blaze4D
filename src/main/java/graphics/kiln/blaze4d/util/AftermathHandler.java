@@ -1,4 +1,4 @@
-package me.hydos.blaze4d;
+package graphics.kiln.blaze4d.util;
 
 import java.io.FileOutputStream;
 import java.io.IOException;
@@ -12,6 +12,8 @@ import java.util.Arrays;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.stream.Collectors;
+
+import graphics.kiln.blaze4d.Blaze4D;
 import net.minecraft.client.Minecraft;
 import com.oroarmor.aftermath.Aftermath;
 import com.oroarmor.aftermath.AftermathCallbackCreationHelper;
