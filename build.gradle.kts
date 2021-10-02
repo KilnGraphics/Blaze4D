@@ -31,8 +31,8 @@ repositories {
 	mavenCentral()
 
     maven {
-        name = "hydos's maven"
-        url = uri("https://maven.hydos.cf/releases")
+        name = "hydos"
+        url = uri("https://maven.hydos.cf/snapshots/")
     }
 
 	maven {
@@ -55,7 +55,7 @@ dependencies {
 	modImplementation("net.fabricmc", "fabric-loader", properties["loader_version"].toString())
 	modImplementation("net.fabricmc", "fabric-language-kotlin", "1.6.4+kotlin.1.5.30")
 
-	include(implementation("kiln.graphics", "rosella", "1.1.1"))
+	include(implementation("graphics.kiln", "rosella", "1.2.0-SNAPSHOT"))
 	include(implementation("com.oroarmor", "aftermath", "1.0.0-beta"))
 
 	include(implementation("org.joml", "joml", "1.10.1"))
