@@ -27,6 +27,12 @@ val lwjglNatives = when (OperatingSystem.current()) {
 	else -> throw Error("Unrecognized or unsupported Operating system. Please set \"lwjglNatives\" manually")
 }
 
+// If we're building Rosella in-tree, look that project up here
+// The idea here is that you can clone a copy of Rosella into the project directly and settings.gradle.kts will
+// find it and load it as a subproject. With this we can make it easy to work on both at once, being able to
+// modify and debug across both projects without having to manually publish to maven local.
+val rosellaProject = subprojects.firstOrNull { it.path == ":rosella" }
+
 repositories {
 	mavenCentral()
 
@@ -55,7 +61,14 @@ dependencies {
 	modImplementation("net.fabricmc", "fabric-loader", properties["loader_version"].toString())
 	modImplementation("net.fabricmc", "fabric-language-kotlin", "1.6.4+kotlin.1.5.30")
 
-	include(implementation("graphics.kiln", "rosella", "1.2.0-SNAPSHOT"))
+	// If we're building Rosella as part of the project for debugging, use that
+	// Otherwise, fetch it from Maven
+	if (rosellaProject != null) {
+		implementation(rosellaProject)
+	} else {
+		include(implementation("graphics.kiln", "rosella", "1.2.0-SNAPSHOT"))
+	}
+
 	include(implementation("com.oroarmor", "aftermath", "1.0.0-beta"))
 
 	include(implementation("org.joml", "joml", "1.10.1"))

@@ -32,6 +32,9 @@ bin/
 
 run/
 
+# Ignore rosella if it's being modified at the same time
+/Rosella
+
 # random log files
 *.log
 
