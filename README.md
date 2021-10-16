@@ -14,6 +14,9 @@ We have a [Discord server](https://discord.gg/H93wJePuWf) where you can track de
 1. Clone the repository (https://github.com/Blaze4D-MC/Blaze4D.git)
 2. Run ``gradlew build`` in the project folder.
 
+Optionally, clone Rosella (https://github.com/KilnGraphics/Rosella) into the project folder, and
+it will be used instead of the copy from Maven.
+
 ## Contributing
 1. Clone the Repository
 
