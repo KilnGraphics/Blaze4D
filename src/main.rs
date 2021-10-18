@@ -12,7 +12,7 @@ fn main() {
     let window = RosellaWindow::new("Rosella Rust TM", f64::from(800), f64::from(600));
 
     let vk = Entry::new();
-    let application_name = CString::new("Rosella In Rust Test. Keep Malding");
+    let application_name = CString::new("Rosella In Rust Test.");
 
 /*    let surface_extensions = ash_window::enumerate_required_extensions(&window.handle).unwrap();
     let mut extension_names_raw = surface_extensions
