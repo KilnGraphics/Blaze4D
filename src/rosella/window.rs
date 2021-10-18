@@ -4,7 +4,7 @@ use winit::window::WindowBuilder;
 
 pub struct RosellaWindow {
     event_loop: EventLoop<()>,
-    window: winit::window::Window,
+    pub(crate) handle: winit::window::Window,
 }
 
 impl RosellaWindow {
@@ -21,7 +21,7 @@ impl RosellaWindow {
 
         RosellaWindow {
             event_loop,
-            window,
+            handle: window,
         }
     }
 }
