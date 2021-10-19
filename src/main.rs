@@ -1,3 +1,6 @@
+extern crate winit;
+extern crate ash_window;
+
 mod rosella;
 
 use std::ffi::CString;

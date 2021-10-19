@@ -7,5 +7,5 @@ edition = "2018"
 
 [dependencies]
 ash = { git = "https://github.com/hYdos/ash" }
-ash-window = "0.7.0"
-winit = "0.25.0"
+ash-window = { version = "0.7.0" }
+winit = { version = "0.25.0" }

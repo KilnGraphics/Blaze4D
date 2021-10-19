@@ -1,3 +1,3 @@
 pub mod window;
 pub mod rosella;
-mod instance;
+pub mod init;
