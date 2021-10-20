@@ -1,12 +1,14 @@
+use core::mem;
 use std::borrow::Borrow;
 use std::cmp::Ordering;
 use std::collections::HashMap;
 use std::hash::{Hash, Hasher};
-use std::iter::Map;
+use std::iter::{FromIterator, Map};
 use ash::{Entry, Instance};
 use ash::extensions::khr::Swapchain;
 use ash::prelude::VkResult;
-use ash::vk::{PhysicalDevice, PhysicalDeviceFeatures2, PhysicalDeviceProperties, PhysicalDeviceVulkan11Features, PhysicalDeviceVulkan12Features, API_VERSION_1_1, API_VERSION_1_2, ExtensionProperties, QueueFamilyProperties, Queue, SubmitInfo, Fence, BindSparseInfo, PresentInfoKHR};
+use ash::vk::{PhysicalDevice, PhysicalDeviceFeatures2, PhysicalDeviceProperties, PhysicalDeviceVulkan11Features, PhysicalDeviceVulkan12Features, API_VERSION_1_1, API_VERSION_1_2, ExtensionProperties, QueueFamilyProperties, Queue, SubmitInfo, Fence, BindSparseInfo, PresentInfoKHR, PhysicalDeviceType};
+use crate::rosella::utils::string_from_array;
 
 /// Utility class to quickly identify and compare entities while retaining a human readable name.
 ///
@@ -88,7 +90,7 @@ pub struct DeviceMeta {
     enabled_extensions: Vec<String>,
 }
 
-struct RosellaDevice {
+pub struct RosellaDevice {
     application_features: Vec<Box<dyn ApplicationFeature>>,
     required_features: Vec<Box<dyn ApplicationFeature>>,
     instance: VulkanInstance,
@@ -112,13 +114,12 @@ impl DeviceMeta {
         unsafe { feature_builder.vulkan_features.features = instance.get_physical_device_features(physical_device); }
         let mut queue_family_properties = vec![];
         unsafe { queue_family_properties = instance.get_physical_device_queue_family_properties(physical_device); }
-        let extension_properties = HashMap::new();
+        let mut extension_properties = HashMap::new();
         unsafe {
             for extension_property in instance.enumerate_device_extension_properties(physical_device).unwrap() {
-
+                extension_properties.insert(string_from_array(&extension_property.extension_name), extension_property);
             }
         }
-
 
         DeviceMeta {
             unsatisfied_requirements: vec![],
@@ -132,6 +133,33 @@ impl DeviceMeta {
             queue_requests: vec![],
             enabled_extensions: vec![],
         }
+    }
+
+    fn process_support(&mut self) {
+        self.unsatisfied_requirements.clear();
+        for feature in self.features.values() {
+            if !feature.is_supported(&self) {
+                self.unsatisfied_requirements.push(feature.get_feature_name())
+            }
+        }
+    }
+
+    /// return true if all required features are met by this device.
+    pub fn is_valid(&self) -> bool {
+        self.unsatisfied_requirements.is_empty()
+    }
+
+    pub fn get_performance_ranking(&self) -> i32 {
+        match self.properties.device_type {
+            PhysicalDeviceType::VIRTUAL_GPU => 1,
+            PhysicalDeviceType::INTEGRATED_GPU => 2,
+            PhysicalDeviceType::DISCRETE_GPU => 3,
+            _ => 0
+        }
+    }
+
+    pub fn create_device(&self) -> RosellaDevice {
+        todo!("create the device")
     }
 }
 
