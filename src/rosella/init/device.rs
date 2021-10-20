@@ -4,7 +4,9 @@ use std::collections::HashMap;
 use std::hash::{Hash, Hasher};
 use std::iter::Map;
 use ash::{Entry, Instance};
-use ash::vk::{PhysicalDevice, PhysicalDeviceFeatures2, PhysicalDeviceProperties, PhysicalDeviceVulkan11Features, PhysicalDeviceVulkan12Features, API_VERSION_1_1, API_VERSION_1_2, ExtensionProperties, QueueFamilyProperties};
+use ash::extensions::khr::Swapchain;
+use ash::prelude::VkResult;
+use ash::vk::{PhysicalDevice, PhysicalDeviceFeatures2, PhysicalDeviceProperties, PhysicalDeviceVulkan11Features, PhysicalDeviceVulkan12Features, API_VERSION_1_1, API_VERSION_1_2, ExtensionProperties, QueueFamilyProperties, Queue, SubmitInfo, Fence, BindSparseInfo, PresentInfoKHR};
 
 /// Utility class to quickly identify and compare entities while retaining a human readable name.
 ///
@@ -16,8 +18,15 @@ pub struct NamedID {
     id: u32,
 }
 
+pub struct VulkanQueue {
+    queue: Queue,
+    family: i32,
+}
+
 struct QueueRequest {
-    requested_family: i128
+    requested_family: i32,
+    assigned_index: i32,
+
 }
 
 /// A class that represents some collection of device features or capabilities.
@@ -72,14 +81,14 @@ pub struct DeviceMeta {
     physical_device: PhysicalDevice,
     properties: PhysicalDeviceProperties,
     extension_properties: HashMap<String, ExtensionProperties>,
-    queue_family_properties: QueueFamilyProperties, // TODO LOW_PRIORITY: look at QueueFamilyProperties2
+    queue_family_properties: Vec<QueueFamilyProperties>, // TODO LOW_PRIORITY: look at QueueFamilyProperties2
 
     building: bool,
     queue_requests: Vec<QueueRequest>,
     enabled_extensions: Vec<String>,
 }
 
-struct Device {
+struct RosellaDevice {
     application_features: Vec<Box<dyn ApplicationFeature>>,
     required_features: Vec<Box<dyn ApplicationFeature>>,
     instance: VulkanInstance,
@@ -99,7 +108,17 @@ impl DeviceMeta {
             instance.get_physical_device_properties(physical_device)
         };
 
-        let feature_builder = DeviceFeatureBuilder::new(device_properties.api_version);
+        let mut feature_builder = DeviceFeatureBuilder::new(device_properties.api_version);
+        unsafe { feature_builder.vulkan_features.features = instance.get_physical_device_features(physical_device); }
+        let mut queue_family_properties = vec![];
+        unsafe { queue_family_properties = instance.get_physical_device_queue_family_properties(physical_device); }
+        let extension_properties = HashMap::new();
+        unsafe {
+            for extension_property in instance.enumerate_device_extension_properties(physical_device).unwrap() {
+
+            }
+        }
+
 
         DeviceMeta {
             unsatisfied_requirements: vec![],
@@ -107,8 +126,8 @@ impl DeviceMeta {
             feature_builder,
             physical_device,
             properties: device_properties,
-            extension_properties: HashMap::new(),
-            queue_family_properties: Default::default(),
+            extension_properties,
+            queue_family_properties,
             building: false,
             queue_requests: vec![],
             enabled_extensions: vec![],
@@ -116,7 +135,7 @@ impl DeviceMeta {
     }
 }
 
-impl Device {}
+impl RosellaDevice {}
 
 /// Builds all information about features on the device and what is enabled.
 impl DeviceFeatureBuilder {
@@ -140,6 +159,20 @@ impl Drop for VulkanInstance {
         unsafe {
             self.instance.destroy_instance(None);
         }
+    }
+}
+
+impl VulkanQueue {
+    pub fn queue_submit(&self, device: ash::Device, submits: &[SubmitInfo], fence: Fence) -> VkResult<()> {
+        unsafe { return device.queue_submit(self.queue, submits, fence); }
+    }
+
+    pub fn queue_bind_sparse(&self, device: ash::Device, submits: &[BindSparseInfo], fence: Fence) -> VkResult<()> {
+        unsafe { return device.queue_bind_sparse(self.queue, submits, fence); }
+    }
+
+    pub fn queue_present_khr(&self, swapchain: Swapchain, present_info: &PresentInfoKHR) -> VkResult<bool> {
+        unsafe { return swapchain.queue_present(self.queue, present_info); }
     }
 }
 
