@@ -4,10 +4,11 @@ use std::cmp::Ordering;
 use std::collections::HashMap;
 use std::hash::{Hash, Hasher};
 use std::iter::{FromIterator, Map};
-use ash::{Entry, Instance};
+use std::os::raw::c_char;
+use ash::{Device, Entry, Instance};
 use ash::extensions::khr::Swapchain;
 use ash::prelude::VkResult;
-use ash::vk::{PhysicalDevice, PhysicalDeviceFeatures2, PhysicalDeviceProperties, PhysicalDeviceVulkan11Features, PhysicalDeviceVulkan12Features, API_VERSION_1_1, API_VERSION_1_2, ExtensionProperties, QueueFamilyProperties, Queue, SubmitInfo, Fence, BindSparseInfo, PresentInfoKHR, PhysicalDeviceType};
+use ash::vk::{PhysicalDevice, PhysicalDeviceFeatures2, PhysicalDeviceProperties, PhysicalDeviceVulkan11Features, PhysicalDeviceVulkan12Features, API_VERSION_1_1, API_VERSION_1_2, ExtensionProperties, QueueFamilyProperties, Queue, SubmitInfo, Fence, BindSparseInfo, PresentInfoKHR, PhysicalDeviceType, DeviceCreateInfo, DeviceQueueCreateInfo};
 use crate::rosella::utils::string_from_array;
 
 /// Utility class to quickly identify and compare entities while retaining a human readable name.
@@ -59,10 +60,10 @@ struct QueueRequest {
 pub trait ApplicationFeature {
     fn get_feature_name(&self) -> NamedID;
     fn is_supported(&self, meta: &DeviceMeta) -> bool;
-    fn enable(&self); //TODO: DeviceBuildConfigurator
+    fn enable(&self, meta: &DeviceMeta);
 }
 
-struct VulkanInstance {
+pub struct VulkanInstance {
     instance: Instance,
     version: u32,
 }
@@ -91,9 +92,7 @@ pub struct DeviceMeta {
 }
 
 pub struct RosellaDevice {
-    application_features: Vec<Box<dyn ApplicationFeature>>,
-    required_features: Vec<Box<dyn ApplicationFeature>>,
-    instance: VulkanInstance,
+    device: Device,
 }
 
 impl DeviceMeta {
@@ -158,8 +157,41 @@ impl DeviceMeta {
         }
     }
 
-    pub fn create_device(&self) -> RosellaDevice {
-        todo!("create the device")
+    pub fn create_device(&mut self, instance: Instance) -> RosellaDevice {
+        assert!(!self.building);
+        self.building = true;
+
+        for feature in self.features.values() {
+            if feature.is_supported(&self) {
+                feature.enable(&self);
+            }
+        }
+
+        let device_create_info = DeviceCreateInfo::builder()
+            .queue_create_infos(self.generate_queue_mappings())
+            .enabled_extension_names(self.generate_enabled_extension_names())
+            .push_next(&mut self.feature_builder.vulkan_features)
+            .build();
+
+        unsafe {
+            RosellaDevice {
+                device: instance.create_device(self.physical_device, &device_create_info, None).expect("Failed to create the VkDevice!")
+            }
+        }
+    }
+
+    fn generate_queue_mappings(&self) -> &[DeviceQueueCreateInfo] {
+        todo!("Generate Queue Mappings")
+    }
+
+    fn generate_enabled_extension_names(&self) -> &[*const c_char] {
+        todo!("Generate Enabled Extension Names")
+    }
+}
+
+impl Drop for RosellaDevice {
+    fn drop(&mut self) {
+        todo!("DROP")
     }
 }
 
