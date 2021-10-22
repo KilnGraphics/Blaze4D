@@ -1,6 +1,6 @@
 use core::mem;
 use std::borrow::Borrow;
-use std::cmp::Ordering;
+use std::cmp::{min, Ordering};
 use std::collections::HashMap;
 use std::hash::{Hash, Hasher};
 use std::iter::{FromIterator, Map};
@@ -8,7 +8,7 @@ use std::os::raw::c_char;
 use ash::{Device, Entry, Instance};
 use ash::extensions::khr::Swapchain;
 use ash::prelude::VkResult;
-use ash::vk::{PhysicalDevice, PhysicalDeviceFeatures2, PhysicalDeviceProperties, PhysicalDeviceVulkan11Features, PhysicalDeviceVulkan12Features, API_VERSION_1_1, API_VERSION_1_2, ExtensionProperties, QueueFamilyProperties, Queue, SubmitInfo, Fence, BindSparseInfo, PresentInfoKHR, PhysicalDeviceType, DeviceCreateInfo, DeviceQueueCreateInfo};
+use ash::vk::{PhysicalDevice, PhysicalDeviceFeatures2, PhysicalDeviceProperties, PhysicalDeviceVulkan11Features, PhysicalDeviceVulkan12Features, API_VERSION_1_1, API_VERSION_1_2, ExtensionProperties, QueueFamilyProperties, Queue, SubmitInfo, Fence, BindSparseInfo, PresentInfoKHR, PhysicalDeviceType, DeviceCreateInfo, DeviceQueueCreateInfo, StructureType};
 use crate::rosella::utils::string_from_array;
 
 /// Utility class to quickly identify and compare entities while retaining a human readable name.
@@ -168,8 +168,8 @@ impl DeviceMeta {
         }
 
         let device_create_info = DeviceCreateInfo::builder()
-            .queue_create_infos(self.generate_queue_mappings())
-            .enabled_extension_names(self.generate_enabled_extension_names())
+            .queue_create_infos(&self.generate_queue_mappings())
+            .enabled_extension_names(&self.generate_enabled_extension_names())
             .push_next(&mut self.feature_builder.vulkan_features)
             .build();
 
@@ -180,11 +180,39 @@ impl DeviceMeta {
         }
     }
 
-    fn generate_queue_mappings(&self) -> &[DeviceQueueCreateInfo] {
-        todo!("Generate Queue Mappings")
+    fn generate_queue_mappings(&mut self) -> Vec<DeviceQueueCreateInfo> {
+        let mut next_queue_indicies = vec![0; self.queue_family_properties.len()];
+
+        for mut request in self.queue_requests.iter_mut() {
+            let requested_family = request.requested_family as usize;
+            let index_requests = next_queue_indicies[requested_family];
+            let index: u32 = index_requests as u32;
+            next_queue_indicies[requested_family] += 1;
+
+            request.assigned_index = (index % self.queue_family_properties[requested_family].queue_count) as i32;
+        }
+
+        let family_count = next_queue_indicies.iter().filter(|&&x| x > 0).count();
+
+        let mut queue_create_infos = vec![DeviceQueueCreateInfo::default(); family_count];
+
+        for family in 0..next_queue_indicies.len() {
+            if next_queue_indicies[family] == 0 {
+                continue;
+            }
+
+            let priorities = vec![1.0 as f32; min(next_queue_indicies[family], self.queue_family_properties[family].queue_count as usize)];
+
+            let mut info = queue_create_infos[family];
+            info.s_type = StructureType::DEVICE_QUEUE_CREATE_INFO;
+            info.queue_family_index = family as u32;
+            info.p_queue_priorities = priorities.as_ptr();
+        }
+
+        queue_create_infos
     }
 
-    fn generate_enabled_extension_names(&self) -> &[*const c_char] {
+    fn generate_enabled_extension_names(&self) -> Vec<*const c_char> {
         todo!("Generate Enabled Extension Names")
     }
 }
