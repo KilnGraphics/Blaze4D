@@ -76,6 +76,11 @@ pub struct DeviceFeatureBuilder {
     vulkan_12_features: Option<PhysicalDeviceVulkan12Features>,
 }
 
+pub struct DeviceBuilder {
+    instance: Instance,
+    required_features: Vec<NamedID>,
+}
+
 pub struct DeviceMeta {
     unsatisfied_requirements: Vec<NamedID>,
     features: HashMap<NamedID, Box<dyn ApplicationFeature>>,
@@ -95,8 +100,24 @@ pub struct RosellaDevice {
     device: Device,
 }
 
+impl DeviceBuilder {
+    pub fn build(&mut self) -> RosellaDevice {
+        let mut devices: Vec<DeviceMeta> = vec![];
+        let raw_devices = unsafe { self.instance.enumerate_physical_devices() }.expect("Failed to find devices.");
+
+        for physical_device in raw_devices.iter() {
+            let mut meta = DeviceMeta::new(&self.instance, *physical_device, &mut self.required_features, vec![]);
+            meta.process_support();
+            devices.push(meta)
+        }
+
+        //TODO: Sorting
+        devices.get_mut(0).expect("No suitable devices where found.").create_device(&self.instance)
+    }
+}
+
 impl DeviceMeta {
-    pub fn new(instance: Instance, physical_device: PhysicalDevice, required_features: &mut Vec<NamedID>, application_features: Vec<Box<dyn ApplicationFeature>>) -> DeviceMeta {
+    pub fn new(instance: &Instance, physical_device: PhysicalDevice, required_features: &mut Vec<NamedID>, application_features: Vec<Box<dyn ApplicationFeature>>) -> DeviceMeta {
         let mut unsatisfied_requirements: Vec<NamedID> = vec![];
         unsatisfied_requirements.append(required_features);
 
@@ -157,7 +178,7 @@ impl DeviceMeta {
         }
     }
 
-    pub fn create_device(&mut self, instance: Instance) -> RosellaDevice {
+    pub fn create_device(&mut self, instance: &Instance) -> RosellaDevice {
         assert!(!self.building);
         self.building = true;
 
