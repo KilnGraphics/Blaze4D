@@ -181,27 +181,27 @@ impl DeviceMeta {
     }
 
     fn generate_queue_mappings(&mut self) -> Vec<DeviceQueueCreateInfo> {
-        let mut next_queue_indicies = vec![0; self.queue_family_properties.len()];
+        let mut next_queue_indices = vec![0; self.queue_family_properties.len()];
 
         for mut request in self.queue_requests.iter_mut() {
             let requested_family = request.requested_family as usize;
-            let index_requests = next_queue_indicies[requested_family];
+            let index_requests = next_queue_indices[requested_family];
             let index: u32 = index_requests as u32;
-            next_queue_indicies[requested_family] += 1;
+            next_queue_indices[requested_family] += 1;
 
             request.assigned_index = (index % self.queue_family_properties[requested_family].queue_count) as i32;
         }
 
-        let family_count = next_queue_indicies.iter().filter(|&&x| x > 0).count();
+        let family_count = next_queue_indices.iter().filter(|&&x| x > 0).count();
 
         let mut queue_create_infos = vec![DeviceQueueCreateInfo::default(); family_count];
 
-        for family in 0..next_queue_indicies.len() {
-            if next_queue_indicies[family] == 0 {
+        for family in 0..next_queue_indices.len() {
+            if next_queue_indices[family] == 0 {
                 continue;
             }
 
-            let priorities = vec![1.0 as f32; min(next_queue_indicies[family], self.queue_family_properties[family].queue_count as usize)];
+            let priorities = vec![1.0 as f32; min(next_queue_indices[family], self.queue_family_properties[family].queue_count as usize)];
 
             let mut info = queue_create_infos[family];
             info.s_type = StructureType::DEVICE_QUEUE_CREATE_INFO;
