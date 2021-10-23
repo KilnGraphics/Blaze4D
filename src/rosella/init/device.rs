@@ -5,10 +5,17 @@ use std::collections::HashMap;
 use std::hash::{Hash, Hasher};
 use std::iter::{FromIterator, Map};
 use std::os::raw::c_char;
-use ash::{Device, Entry, Instance};
+use std::sync::Arc;
+
 use ash::extensions::khr::Swapchain;
 use ash::prelude::VkResult;
-use ash::vk::{PhysicalDevice, PhysicalDeviceFeatures2, PhysicalDeviceProperties, PhysicalDeviceVulkan11Features, PhysicalDeviceVulkan12Features, API_VERSION_1_1, API_VERSION_1_2, ExtensionProperties, QueueFamilyProperties, Queue, SubmitInfo, Fence, BindSparseInfo, PresentInfoKHR, PhysicalDeviceType, DeviceCreateInfo, DeviceQueueCreateInfo, StructureType};
+use ash::vk::{
+    BindSparseInfo, DeviceCreateInfo, DeviceQueueCreateInfo, ExtensionProperties, Fence, PhysicalDevice, PhysicalDeviceFeatures2,
+    PhysicalDeviceProperties, PhysicalDeviceType, PhysicalDeviceVulkan11Features, PhysicalDeviceVulkan12Features, PresentInfoKHR, Queue,
+    QueueFamilyProperties, StructureType, SubmitInfo, API_VERSION_1_1, API_VERSION_1_2,
+};
+use ash::{Device, Entry, Instance};
+
 use crate::rosella::utils::{string_from_array, string_to_array};
 
 /// Utility class to quickly identify and compare entities while retaining a human readable name.
@@ -21,6 +28,7 @@ pub struct NamedID {
     id: u32,
 }
 
+#[derive(Clone, Debug)]
 pub struct VulkanQueue {
     queue: Queue,
     family: i32,
@@ -29,7 +37,7 @@ pub struct VulkanQueue {
 struct QueueRequest {
     requested_family: i32,
     assigned_index: i32,
-
+    queue: Arc<VulkanQueue>,
 }
 
 /// A class that represents some collection of device features or capabilities.
@@ -112,12 +120,20 @@ impl DeviceBuilder {
         }
 
         //TODO: Sorting
-        devices.get_mut(0).expect("No suitable devices where found.").create_device(&self.instance)
+        devices
+            .get_mut(0)
+            .expect("No suitable devices where found.")
+            .create_device(&self.instance)
     }
 }
 
 impl DeviceMeta {
-    pub fn new(instance: &Instance, physical_device: PhysicalDevice, required_features: &mut Vec<NamedID>, application_features: Vec<Box<dyn ApplicationFeature>>) -> DeviceMeta {
+    pub fn new(
+        instance: &Instance,
+        physical_device: PhysicalDevice,
+        required_features: &mut Vec<NamedID>,
+        application_features: Vec<Box<dyn ApplicationFeature>>,
+    ) -> DeviceMeta {
         let mut unsatisfied_requirements: Vec<NamedID> = vec![];
         unsatisfied_requirements.append(required_features);
 
@@ -126,14 +142,16 @@ impl DeviceMeta {
             features.insert(feature.get_feature_name(), feature);
         }
 
-        let device_properties = unsafe {
-            instance.get_physical_device_properties(physical_device)
-        };
+        let device_properties = unsafe { instance.get_physical_device_properties(physical_device) };
 
         let mut feature_builder = DeviceFeatureBuilder::new(device_properties.api_version);
-        unsafe { feature_builder.vulkan_features.features = instance.get_physical_device_features(physical_device); }
+        unsafe {
+            feature_builder.vulkan_features.features = instance.get_physical_device_features(physical_device);
+        }
         let mut queue_family_properties = vec![];
-        unsafe { queue_family_properties = instance.get_physical_device_queue_family_properties(physical_device); }
+        unsafe {
+            queue_family_properties = instance.get_physical_device_queue_family_properties(physical_device);
+        }
         let mut extension_properties = HashMap::new();
         unsafe {
             for extension_property in instance.enumerate_device_extension_properties(physical_device).unwrap() {
@@ -174,7 +192,7 @@ impl DeviceMeta {
             PhysicalDeviceType::VIRTUAL_GPU => 1,
             PhysicalDeviceType::INTEGRATED_GPU => 2,
             PhysicalDeviceType::DISCRETE_GPU => 3,
-            _ => 0
+            _ => 0,
         }
     }
 
@@ -194,11 +212,15 @@ impl DeviceMeta {
             .push_next(&mut self.feature_builder.vulkan_features)
             .build();
 
-        unsafe {
-            RosellaDevice {
-                device: instance.create_device(self.physical_device, &device_create_info, None).expect("Failed to create the VkDevice!")
-            }
-        }
+        let vk_device = unsafe {
+            instance
+                .create_device(self.physical_device, &device_create_info, None)
+                .expect("Failed to create the VkDevice!")
+        };
+
+        self.fulfill_queue_requests(&vk_device);
+
+        RosellaDevice { device: vk_device }
     }
 
     fn generate_queue_mappings(&mut self) -> Vec<DeviceQueueCreateInfo> {
@@ -222,7 +244,13 @@ impl DeviceMeta {
                 continue;
             }
 
-            let priorities = vec![1.0 as f32; min(next_queue_indices[family], self.queue_family_properties[family].queue_count as usize)];
+            let priorities = vec![
+                1.0 as f32;
+                min(
+                    next_queue_indices[family],
+                    self.queue_family_properties[family].queue_count as usize
+                )
+            ];
 
             let mut info = queue_create_infos[family];
             info.s_type = StructureType::DEVICE_QUEUE_CREATE_INFO;
@@ -246,6 +274,35 @@ impl DeviceMeta {
 
         return names;
     }
+
+    fn fulfill_queue_requests(&mut self, device: &Device) {
+        let queue_family_count: usize = self.queue_family_properties.len();
+        let max_queue_count: usize = self
+            .queue_family_properties
+            .iter()
+            .map(|queue_family_properties| queue_family_properties.queue_count)
+            .max()
+            .unwrap_or(0) as usize;
+
+        let mut requests: Vec<Vec<Option<Arc<VulkanQueue>>>> = vec![vec![None; max_queue_count as usize]; queue_family_count];
+
+        for request in self.queue_requests.iter_mut() {
+            let family = request.requested_family as usize;
+            let index = request.assigned_index as usize;
+
+            if requests[family][index].is_none() {
+                requests[family][index] = Some(Arc::new(VulkanQueue {
+                    queue: unsafe { device.get_device_queue(family as u32, index as u32) },
+                    family: family as i32,
+                }));
+            }
+
+            request.queue = requests[family][index]
+                .as_ref()
+                .expect(&format!("Queue exists for family: {} and index: {}", family, index))
+                .clone();
+        }
+    }
 }
 
 impl Drop for RosellaDevice {
@@ -263,11 +320,11 @@ impl DeviceFeatureBuilder {
             vulkan_features: PhysicalDeviceFeatures2::default(),
             vulkan_11_features: match vk_api_version {
                 API_VERSION_1_1 => Some(PhysicalDeviceVulkan11Features::default()),
-                _ => None
+                _ => None,
             },
             vulkan_12_features: match vk_api_version {
                 API_VERSION_1_2 => Some(PhysicalDeviceVulkan12Features::default()),
-                _ => None
+                _ => None,
             },
         }
     }
@@ -283,15 +340,21 @@ impl Drop for VulkanInstance {
 
 impl VulkanQueue {
     pub fn queue_submit(&self, device: ash::Device, submits: &[SubmitInfo], fence: Fence) -> VkResult<()> {
-        unsafe { return device.queue_submit(self.queue, submits, fence); }
+        unsafe {
+            return device.queue_submit(self.queue, submits, fence);
+        }
     }
 
     pub fn queue_bind_sparse(&self, device: ash::Device, submits: &[BindSparseInfo], fence: Fence) -> VkResult<()> {
-        unsafe { return device.queue_bind_sparse(self.queue, submits, fence); }
+        unsafe {
+            return device.queue_bind_sparse(self.queue, submits, fence);
+        }
     }
 
     pub fn queue_present_khr(&self, swapchain: Swapchain, present_info: &PresentInfoKHR) -> VkResult<bool> {
-        unsafe { return swapchain.queue_present(self.queue, present_info); }
+        unsafe {
+            return swapchain.queue_present(self.queue, present_info);
+        }
     }
 }
 
