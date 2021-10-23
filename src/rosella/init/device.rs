@@ -9,7 +9,7 @@ use ash::{Device, Entry, Instance};
 use ash::extensions::khr::Swapchain;
 use ash::prelude::VkResult;
 use ash::vk::{PhysicalDevice, PhysicalDeviceFeatures2, PhysicalDeviceProperties, PhysicalDeviceVulkan11Features, PhysicalDeviceVulkan12Features, API_VERSION_1_1, API_VERSION_1_2, ExtensionProperties, QueueFamilyProperties, Queue, SubmitInfo, Fence, BindSparseInfo, PresentInfoKHR, PhysicalDeviceType, DeviceCreateInfo, DeviceQueueCreateInfo, StructureType};
-use crate::rosella::utils::string_from_array;
+use crate::rosella::utils::{string_from_array, string_to_array};
 
 /// Utility class to quickly identify and compare entities while retaining a human readable name.
 ///
@@ -213,7 +213,17 @@ impl DeviceMeta {
     }
 
     fn generate_enabled_extension_names(&self) -> Vec<*const c_char> {
-        todo!("Generate Enabled Extension Names")
+        if self.enabled_extensions.is_empty() {
+            return Vec::new();
+        }
+
+        let mut names = Vec::with_capacity(self.enabled_extensions.capacity());
+
+        for name in self.enabled_extensions.iter() {
+            names.push(name.as_ptr() as *const c_char);
+        }
+
+        return names;
     }
 }
 
