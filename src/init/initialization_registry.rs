@@ -32,7 +32,7 @@ impl MarkedFeature {
 }
 
 impl InitializationRegistry {
-    fn new() -> Self {
+    pub fn new() -> Self {
         InitializationRegistry {
             min_required_version: API_VERSION_1_0,
             max_supported_version: API_VERSION_1_2,
@@ -45,19 +45,19 @@ impl InitializationRegistry {
         }
     }
 
-    fn add_required_instance_layer(&mut self, layer: String) {
+    pub fn add_required_instance_layer(&mut self, layer: String) {
         self.required_instance_layers.insert(layer);
     }
 
-    fn add_optional_instance_layer(&mut self, layer: String) {
+    pub fn add_optional_instance_layer(&mut self, layer: String) {
         self.optional_instance_layers.insert(layer);
     }
 
-    fn add_required_instance_extension(&mut self, extension: String) {
+    pub fn add_required_instance_extension(&mut self, extension: String) {
         self.required_instance_extensions.insert(extension);
     }
 
-    fn add_optional_instance_extension(&mut self, extension: String) {
+    pub fn add_optional_instance_extension(&mut self, extension: String) {
         self.optional_instance_extensions.insert(extension);
     }
 
@@ -109,7 +109,7 @@ impl InitializationRegistry {
         sorted
     }
 
-    fn add_feature(&self, id: &NamedID, sort: &mut TopologicalSort<NamedID>) {
+    pub fn add_feature(&self, id: &NamedID, sort: &mut TopologicalSort<NamedID>) {
         for dependency in self.features.get(id).unwrap().feature.get_dependencies() {
             sort.add_dependency(id.clone(), dependency);
         }
