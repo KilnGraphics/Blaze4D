@@ -9,9 +9,7 @@ use winit::dpi::LogicalSize;
 use winit::event_loop::EventLoop;
 use winit::window::WindowBuilder;
 
-use rosella::window::RosellaWindow;
-
-mod rosella;
+use rosella_rs::window::RosellaWindow;
 
 fn main() {
     let window = RosellaWindow::new("Rosella Rust TM", f64::from(800), f64::from(600));

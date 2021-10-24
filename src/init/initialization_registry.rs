@@ -3,7 +3,7 @@ use std::collections::{HashMap, HashSet};
 use ash::vk::{API_VERSION_1_0, API_VERSION_1_2};
 use topological_sort::TopologicalSort;
 
-use crate::rosella::init::device::{ApplicationFeature, NamedID};
+use crate::init::device::{ApplicationFeature, NamedID};
 
 ///
 /// A class used to collect any callbacks and settings that are used for device and instance initialization.

@@ -4,16 +4,16 @@ use std::hash::{Hash, Hasher};
 use std::os::raw::c_char;
 use std::sync::Arc;
 
-use ash::{Device, Instance};
 use ash::extensions::khr::Swapchain;
 use ash::prelude::VkResult;
 use ash::vk::{
-    API_VERSION_1_1, API_VERSION_1_2, BindSparseInfo, DeviceCreateInfo, DeviceQueueCreateInfo, ExtensionProperties, Fence,
-    PhysicalDevice, PhysicalDeviceFeatures2, PhysicalDeviceProperties, PhysicalDeviceType, PhysicalDeviceVulkan11Features, PhysicalDeviceVulkan12Features,
-    PresentInfoKHR, Queue, QueueFamilyProperties, StructureType, SubmitInfo,
+    BindSparseInfo, DeviceCreateInfo, DeviceQueueCreateInfo, ExtensionProperties, Fence, PhysicalDevice, PhysicalDeviceFeatures2,
+    PhysicalDeviceProperties, PhysicalDeviceType, PhysicalDeviceVulkan11Features, PhysicalDeviceVulkan12Features, PresentInfoKHR, Queue,
+    QueueFamilyProperties, StructureType, SubmitInfo, API_VERSION_1_1, API_VERSION_1_2,
 };
+use ash::{Device, Instance};
 
-use crate::rosella::utils::string_from_array;
+use crate::utils::string_from_array;
 
 /// Utility class to quickly identify and compare entities while retaining a human readable name.
 ///
@@ -146,10 +146,7 @@ impl DeviceMeta {
         unsafe {
             feature_builder.vulkan_features.features = instance.get_physical_device_features(physical_device);
         }
-        let mut queue_family_properties = vec![];
-        unsafe {
-            queue_family_properties = instance.get_physical_device_queue_family_properties(physical_device);
-        }
+        let mut queue_family_properties = unsafe { instance.get_physical_device_queue_family_properties(physical_device) };
         let mut extension_properties = HashMap::new();
         unsafe {
             for extension_property in instance.enumerate_device_extension_properties(physical_device).unwrap() {
@@ -247,7 +244,7 @@ impl DeviceMeta {
                 min(
                     next_queue_indices[family],
                     self.queue_family_properties[family].queue_count as usize,
-                ),
+                )
             ];
 
             let info = &mut queue_create_infos[family];
@@ -338,21 +335,15 @@ impl Drop for VulkanInstance {
 
 impl VulkanQueue {
     pub fn queue_submit(&self, device: ash::Device, submits: &[SubmitInfo], fence: Fence) -> VkResult<()> {
-        unsafe {
-            device.queue_submit(self.queue, submits, fence)
-        }
+        unsafe { device.queue_submit(self.queue, submits, fence) }
     }
 
     pub fn queue_bind_sparse(&self, device: ash::Device, submits: &[BindSparseInfo], fence: Fence) -> VkResult<()> {
-        unsafe {
-            device.queue_bind_sparse(self.queue, submits, fence)
-        }
+        unsafe { device.queue_bind_sparse(self.queue, submits, fence) }
     }
 
     pub fn queue_present_khr(&self, swapchain: Swapchain, present_info: &PresentInfoKHR) -> VkResult<bool> {
-        unsafe {
-            swapchain.queue_present(self.queue, present_info)
-        }
+        unsafe { swapchain.queue_present(self.queue, present_info) }
     }
 }
 
