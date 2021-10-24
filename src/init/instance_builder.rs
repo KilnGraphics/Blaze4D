@@ -57,9 +57,11 @@ impl InstanceBuilder {
             .enabled_layer_names(&layers_names_raw)
             .enabled_extension_names(&extension_names_raw)
             .build();
-            // .push_next(createDebugUtilsCallback(VK10.VK_NULL_HANDLE));
+        // .push_next(createDebugUtilsCallback(VK10.VK_NULL_HANDLE));
 
-        unsafe { self.vk.create_instance(&create_info, None).expect("Failed to create a Vulkan Instance.") }
+        let instance = unsafe { self.vk.create_instance(&create_info, None).expect("Failed to create a Vulkan Instance.") };
+        println!("VkInstance created!");
+        instance
     }
 }
 
