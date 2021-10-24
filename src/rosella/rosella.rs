@@ -1,3 +1,1 @@
-struct Rosella {
-
-}
+struct Rosella {}

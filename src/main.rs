@@ -1,15 +1,17 @@
-extern crate winit;
 extern crate ash_window;
-
-mod rosella;
+extern crate winit;
 
 use std::ffi::CString;
+
 use ash::Entry;
 use ash::extensions::ext::DebugUtils;
 use winit::dpi::LogicalSize;
 use winit::event_loop::EventLoop;
 use winit::window::WindowBuilder;
+
 use rosella::window::RosellaWindow;
+
+mod rosella;
 
 fn main() {
     let window = RosellaWindow::new("Rosella Rust TM", f64::from(800), f64::from(600));
@@ -17,7 +19,7 @@ fn main() {
     let vk = Entry::new();
     let application_name = CString::new("Rosella In Rust Test.");
 
-/*    let surface_extensions = ash_window::enumerate_required_extensions(&window.handle).unwrap();
+    /*    let surface_extensions = ash_window::enumerate_required_extensions(&window.handle).unwrap();
     let mut extension_names_raw = surface_extensions
         .iter()
         .map(|ext| ext.as_ptr())

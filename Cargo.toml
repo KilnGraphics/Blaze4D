@@ -1,5 +1,5 @@
 [package]
-name = "Rosella-RS"
+name = "rosella-rs"
 version = "0.1.0"
 edition = "2018"
 
@@ -9,3 +9,4 @@ edition = "2018"
 ash = { git = "https://github.com/hYdos/ash" }
 ash-window = { version = "0.7.0" }
 winit = { version = "0.25.0" }
+topological-sort = { version = "0.1.0" }

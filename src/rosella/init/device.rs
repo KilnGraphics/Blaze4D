@@ -1,22 +1,19 @@
-use core::mem;
-use std::borrow::Borrow;
 use std::cmp::{min, Ordering};
 use std::collections::{HashMap, HashSet};
 use std::hash::{Hash, Hasher};
-use std::iter::{FromIterator, Map};
 use std::os::raw::c_char;
 use std::sync::Arc;
 
+use ash::{Device, Instance};
 use ash::extensions::khr::Swapchain;
 use ash::prelude::VkResult;
 use ash::vk::{
-    BindSparseInfo, DeviceCreateInfo, DeviceQueueCreateInfo, ExtensionProperties, Fence, PhysicalDevice, PhysicalDeviceFeatures2,
-    PhysicalDeviceProperties, PhysicalDeviceType, PhysicalDeviceVulkan11Features, PhysicalDeviceVulkan12Features, PresentInfoKHR, Queue,
-    QueueFamilyProperties, StructureType, SubmitInfo, API_VERSION_1_1, API_VERSION_1_2,
+    API_VERSION_1_1, API_VERSION_1_2, BindSparseInfo, DeviceCreateInfo, DeviceQueueCreateInfo, ExtensionProperties, Fence,
+    PhysicalDevice, PhysicalDeviceFeatures2, PhysicalDeviceProperties, PhysicalDeviceType, PhysicalDeviceVulkan11Features, PhysicalDeviceVulkan12Features,
+    PresentInfoKHR, Queue, QueueFamilyProperties, StructureType, SubmitInfo,
 };
-use ash::{Device, Entry, Instance};
 
-use crate::rosella::utils::{string_from_array, string_to_array};
+use crate::rosella::utils::string_from_array;
 
 /// Utility class to quickly identify and compare entities while retaining a human readable name.
 ///
@@ -177,7 +174,7 @@ impl DeviceMeta {
     fn process_support(&mut self) {
         self.unsatisfied_requirements.clear();
         for feature in self.features.values() {
-            if !feature.is_supported(&self) {
+            if !feature.is_supported(self) {
                 self.unsatisfied_requirements.push(feature.get_feature_name())
             }
         }
@@ -202,8 +199,8 @@ impl DeviceMeta {
         self.building = true;
 
         for feature in self.features.values() {
-            if feature.is_supported(&self) {
-                feature.enable(&self);
+            if feature.is_supported(self) {
+                feature.enable(self);
             }
         }
 
@@ -246,14 +243,14 @@ impl DeviceMeta {
             }
 
             let priorities = vec![
-                1.0 as f32;
+                1.0;
                 min(
                     next_queue_indices[family],
-                    self.queue_family_properties[family].queue_count as usize
-                )
+                    self.queue_family_properties[family].queue_count as usize,
+                ),
             ];
 
-            let mut info = queue_create_infos[family];
+            let info = &mut queue_create_infos[family];
             info.s_type = StructureType::DEVICE_QUEUE_CREATE_INFO;
             info.queue_family_index = family as u32;
             info.p_queue_priorities = priorities.as_ptr();
@@ -273,7 +270,7 @@ impl DeviceMeta {
             names.push(name.as_ptr() as *const c_char);
         }
 
-        return names;
+        names
     }
 
     fn fulfill_queue_requests(&mut self, device: &Device) {
@@ -300,7 +297,7 @@ impl DeviceMeta {
 
             request.queue = requests[family][index]
                 .as_ref()
-                .expect(&format!("Queue exists for family: {} and index: {}", family, index))
+                .unwrap_or_else(|| panic!("Queue exists for family: {} and index: {}", family, index))
                 .clone();
         }
     }
@@ -342,19 +339,19 @@ impl Drop for VulkanInstance {
 impl VulkanQueue {
     pub fn queue_submit(&self, device: ash::Device, submits: &[SubmitInfo], fence: Fence) -> VkResult<()> {
         unsafe {
-            return device.queue_submit(self.queue, submits, fence);
+            device.queue_submit(self.queue, submits, fence)
         }
     }
 
     pub fn queue_bind_sparse(&self, device: ash::Device, submits: &[BindSparseInfo], fence: Fence) -> VkResult<()> {
         unsafe {
-            return device.queue_bind_sparse(self.queue, submits, fence);
+            device.queue_bind_sparse(self.queue, submits, fence)
         }
     }
 
     pub fn queue_present_khr(&self, swapchain: Swapchain, present_info: &PresentInfoKHR) -> VkResult<bool> {
         unsafe {
-            return swapchain.queue_present(self.queue, present_info);
+            swapchain.queue_present(self.queue, present_info)
         }
     }
 }
