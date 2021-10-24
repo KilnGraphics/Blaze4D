@@ -17,6 +17,8 @@ fn main() {
     let vk = Entry::new();
     let application_name = CString::new("Rosella In Rust Test.");
 
+    window.event_loop.run(|_,_,_| {});
+
     /*    let surface_extensions = ash_window::enumerate_required_extensions(&window.handle).unwrap();
     let mut extension_names_raw = surface_extensions
         .iter()

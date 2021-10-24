@@ -3,8 +3,8 @@ use winit::event_loop::EventLoop;
 use winit::window::WindowBuilder;
 
 pub struct RosellaWindow {
-    event_loop: EventLoop<()>,
-    pub(crate) handle: winit::window::Window,
+    pub event_loop: EventLoop<()>,
+    pub handle: winit::window::Window,
 }
 
 impl RosellaWindow {
