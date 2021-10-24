@@ -10,6 +10,7 @@ pub struct Rosella {}
 impl Rosella {
     pub fn new(registry: InitializationRegistry, window: &RosellaWindow, application_name: &str) -> Rosella {
         let instance_builder = InstanceBuilder::new(registry);
+        instance_builder.build(application_name, 0, window);
 
 /*        let vk = Entry::new();
         let app_name = CString::new(application_name);
