@@ -1,7 +1,7 @@
 use core::mem;
 use std::borrow::Borrow;
 use std::cmp::{min, Ordering};
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 use std::hash::{Hash, Hasher};
 use std::iter::{FromIterator, Map};
 use std::os::raw::c_char;
@@ -24,7 +24,7 @@ use crate::rosella::utils::{string_from_array, string_to_array};
 /// recommended to avoid creating new instances when not necessary. (Also reduces typing mistakes)
 #[derive(Clone, Debug)]
 pub struct NamedID {
-    name: String,
+    pub name: String,
     id: u32,
 }
 
@@ -69,6 +69,7 @@ pub trait ApplicationFeature {
     fn get_feature_name(&self) -> NamedID;
     fn is_supported(&self, meta: &DeviceMeta) -> bool;
     fn enable(&self, meta: &DeviceMeta);
+    fn get_dependencies(&self) -> HashSet<NamedID>;
 }
 
 pub struct VulkanInstance {
