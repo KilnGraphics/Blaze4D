@@ -6,6 +6,8 @@ use std::collections::HashSet;
 use ash::extensions::khr::Swapchain;
 use ash::vk::QueueFlags;
 use ash::Instance;
+use winit::event::{Event, WindowEvent};
+use winit::event_loop::ControlFlow;
 
 use rosella_rs::init::device::{ApplicationFeature, DeviceMeta};
 use rosella_rs::init::initialization_registry::InitializationRegistry;
@@ -82,9 +84,24 @@ fn setup_rosella(window: &RosellaWindow) -> Rosella {
 
 fn main() {
     let window = RosellaWindow::new("New New Rosella in Rust tm", f64::from(800), f64::from(600));
-    let rosella = Box::leak(Box::new(setup_rosella(&window)));
+    let mut rosella = Some(setup_rosella(&window));
 
-    window.event_loop.run(move |_, _, _| {
-        rosella.window_update();
+    window.event_loop.run(move |event, _, control_flow| {
+        *control_flow = ControlFlow::Wait;
+
+        match event {
+            Event::WindowEvent { event, ..} => match event {
+                WindowEvent::CloseRequested => *control_flow = ControlFlow::Exit,
+                _ => {}
+            },
+            Event::MainEventsCleared => {
+                let rosella = rosella.as_ref().unwrap();
+                // TODO: Notify rosella to render
+            }
+            Event::LoopDestroyed => {
+                assert!(std::mem::take(&mut rosella).is_none());
+            }
+            _ => (),
+        }
     });
 }
