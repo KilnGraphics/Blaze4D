@@ -13,7 +13,6 @@ use winit::event_loop::ControlFlow;
 use rosella_rs::init::device::{ApplicationFeature, DeviceMeta};
 use rosella_rs::init::initialization_registry::InitializationRegistry;
 use rosella_rs::rosella::Rosella;
-use rosella_rs::utils::string_from_c;
 use rosella_rs::window::{RosellaSurface, RosellaWindow};
 use rosella_rs::NamedID;
 
@@ -38,7 +37,7 @@ impl ApplicationFeature for QueueFeature {
         features.sampler_anisotropy = ash::vk::TRUE;
         features.depth_clamp = ash::vk::TRUE;
 
-        meta.enable_extension(string_from_c(Swapchain::name()));
+        meta.enable_extension(Swapchain::name().as_ptr());
 
         //TODO: this way of getting queue's gives us a disadvantage. Take advantage of Queue's as much as we can? I will experiment with this once We get "Multithreading capable" parts in. Coding rays feel free to take a look -hydos
         let mut queue_family_indices = QueueFamilyIndices {
@@ -98,13 +97,13 @@ fn main() {
                 WindowEvent::CloseRequested => *control_flow = ControlFlow::Exit,
                 WindowEvent::Resized(new_size) => {
                     let rosella = rosella.as_ref().unwrap();
-                    // TODO: Notify rosella to re-create the swapchain
+                    rosella.recreate_swapchain(new_size.width, new_size.height);
                 }
                 _ => {}
             },
             Event::MainEventsCleared => {
                 let rosella = rosella.as_ref().unwrap();
-                // TODO: Notify rosella the window is ready for an update
+                rosella.window_update();
             }
             Event::LoopDestroyed => {
                 assert!(std::mem::take(&mut rosella).is_none());

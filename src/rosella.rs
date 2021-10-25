@@ -42,4 +42,6 @@ impl Rosella {
     }
 
     pub fn window_update(&self) {}
+
+    pub fn recreate_swapchain(&self, width: u32, height: u32) {}
 }

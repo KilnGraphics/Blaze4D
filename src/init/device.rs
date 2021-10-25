@@ -91,7 +91,7 @@ pub struct DeviceMeta {
 
     building: bool,
     queue_requests: Vec<QueueRequest>,
-    enabled_extensions: Vec<String>,
+    enabled_extensions: Vec<*const c_char>,
 }
 
 pub struct RosellaDevice {
@@ -180,7 +180,7 @@ impl DeviceMeta {
         self.queue_requests.push(QueueRequest::new(family));
     }
 
-    pub fn enable_extension(&mut self, extension: String) {
+    pub fn enable_extension(&mut self, extension: *const c_char) {
         self.enabled_extensions.push(extension)
     }
 
@@ -196,7 +196,7 @@ impl DeviceMeta {
 
         let device_create_info = DeviceCreateInfo::builder()
             .queue_create_infos(&self.generate_queue_mappings())
-            .enabled_extension_names(&self.generate_enabled_extension_names())
+            .enabled_extension_names(&self.enabled_extensions)
             .push_next(&mut self.feature_builder.vulkan_features)
             .build();
 
@@ -242,20 +242,6 @@ impl DeviceMeta {
         }
 
         queue_create_infos
-    }
-
-    fn generate_enabled_extension_names(&self) -> Vec<*const c_char> {
-        if self.enabled_extensions.is_empty() {
-            return Vec::new();
-        }
-
-        let mut names = Vec::with_capacity(self.enabled_extensions.capacity());
-
-        for name in self.enabled_extensions.iter() {
-            names.push(name.as_ptr() as *const c_char);
-        }
-
-        names
     }
 
     fn fulfill_queue_requests(&mut self, device: &Device) {
