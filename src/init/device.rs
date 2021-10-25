@@ -11,6 +11,7 @@ use ash::vk::{
     QueueFamilyProperties, StructureType, SubmitInfo, API_VERSION_1_1, API_VERSION_1_2,
 };
 use ash::{Device, Instance};
+use crate::init::initialization_registry::InitializationRegistry;
 
 use crate::utils::string_from_array;
 use crate::window::RosellaSurface;
@@ -97,12 +98,12 @@ pub struct RosellaDevice {
 }
 
 impl DeviceBuilder {
-    pub fn build(&mut self, required_features: &mut HashSet<NamedID>, surface: &RosellaSurface) -> RosellaDevice {
+    pub fn build(&mut self, registry: &mut InitializationRegistry, surface: &RosellaSurface) -> RosellaDevice {
         let mut devices: Vec<DeviceMeta> = vec![];
         let raw_devices = unsafe { self.instance.enumerate_physical_devices() }.expect("Failed to find devices.");
 
         for physical_device in raw_devices.iter() {
-            let mut meta = DeviceMeta::new(&self.instance, *physical_device, required_features, vec![]);
+            let mut meta = DeviceMeta::new(&self.instance, *physical_device, registry.get_ordered_features().iter().map(|f| {Box::new(**f)}).collect());
             meta.process_support();
             devices.push(meta)
         }
@@ -119,7 +120,6 @@ impl DeviceMeta {
     pub fn new(
         instance: &Instance,
         physical_device: PhysicalDevice,
-        required_features: &mut HashSet<NamedID>,
         application_features: Vec<Box<dyn ApplicationFeature>>,
     ) -> DeviceMeta {
         let mut features = HashMap::new();

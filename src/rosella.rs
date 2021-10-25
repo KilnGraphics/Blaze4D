@@ -16,7 +16,7 @@ impl Rosella {
 
         let surface = RosellaSurface::new(&instance, &Entry::new(), window);
 
-        let device = DeviceBuilder { instance }.build(&mut registry.required_features, &surface);
+        let device = DeviceBuilder { instance }.build(&mut registry, &surface);
 
         let elapsed = now.elapsed();
         println!("Instance & Device Initialization took: {:.2?}", elapsed);

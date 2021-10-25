@@ -61,7 +61,7 @@ impl ApplicationFeature for QueueFeature {
                         .ash_surface
                         .get_physical_device_surface_support(meta.physical_device, i as u32, surface.khr_surface)
                 }
-                .unwrap()
+                    .unwrap()
                 {
                     queue_family_indices.present_family = i as i32;
                 }
@@ -79,6 +79,9 @@ impl ApplicationFeature for QueueFeature {
 fn setup_rosella(window: &RosellaWindow) -> Rosella {
     let mut registry = InitializationRegistry::new();
     registry.add_required_instance_layer("VK_LAYER_KHRONOS_validation".to_string());
+    let queue_feature = QueueFeature {};
+    registry.register_application_feature(Box::new(queue_feature));
+    registry.add_required_application_feature(QueueFeature {}.get_feature_name());
     Rosella::new(registry, window, "new_new_rosella_example_scene_1")
 }
 
@@ -96,7 +99,7 @@ fn main() {
             },
             Event::MainEventsCleared => {
                 let rosella = rosella.as_ref().unwrap();
-                // TODO: Notify rosella to render
+                // TODO: Notify rosella the window is ready for an update
             }
             Event::LoopDestroyed => {
                 assert!(std::mem::take(&mut rosella).is_none());
