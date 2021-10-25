@@ -1,10 +1,11 @@
 use std::cmp::{min, Ordering};
 use std::collections::{HashMap, HashSet};
+use std::collections::hash_map::DefaultHasher;
 use std::hash::{Hash, Hasher};
 use std::os::raw::c_char;
 use std::sync::Arc;
 
-use ash::extensions::khr::Swapchain;
+use ash::extensions::khr::{Swapchain};
 use ash::prelude::VkResult;
 use ash::vk::{
     BindSparseInfo, DeviceCreateInfo, DeviceQueueCreateInfo, ExtensionProperties, Fence, PhysicalDevice, PhysicalDeviceFeatures2,
@@ -14,6 +15,7 @@ use ash::vk::{
 use ash::{Device, Instance};
 
 use crate::utils::string_from_array;
+use crate::window::RosellaSurface;
 
 /// Utility class to quickly identify and compare entities while retaining a human readable name.
 ///
@@ -22,7 +24,7 @@ use crate::utils::string_from_array;
 #[derive(Clone, Debug)]
 pub struct NamedID {
     pub name: String,
-    id: u32,
+    pub(crate) id: u64,
 }
 
 #[derive(Clone, Debug)]
@@ -34,7 +36,7 @@ pub struct VulkanQueue {
 struct QueueRequest {
     requested_family: i32,
     assigned_index: i32,
-    queue: Arc<VulkanQueue>,
+    queue: Option<Arc<VulkanQueue>>,
 }
 
 /// A class that represents some collection of device features or capabilities.
@@ -65,7 +67,7 @@ struct QueueRequest {
 pub trait ApplicationFeature {
     fn get_feature_name(&self) -> NamedID;
     fn is_supported(&self, meta: &DeviceMeta) -> bool;
-    fn enable(&self, meta: &DeviceMeta);
+    fn enable(&self, meta: &mut DeviceMeta, instance: &Instance, surface: &RosellaSurface);
     fn get_dependencies(&self) -> HashSet<NamedID>;
 }
 
@@ -77,9 +79,9 @@ pub struct VulkanInstance {
 /// Builds all information about features on the device and what is enabled.
 /// TODO LOW_PRIORITY: add support for VK1.0 by not doing any of this on vk1.0. instead just create a simple VkPhysicalDeviceFeatures field
 pub struct DeviceFeatureBuilder {
-    vulkan_features: PhysicalDeviceFeatures2,
-    vulkan_11_features: Option<PhysicalDeviceVulkan11Features>,
-    vulkan_12_features: Option<PhysicalDeviceVulkan12Features>,
+    pub vulkan_features: PhysicalDeviceFeatures2,
+    pub vulkan_11_features: Option<PhysicalDeviceVulkan11Features>,
+    pub vulkan_12_features: Option<PhysicalDeviceVulkan12Features>,
 }
 
 pub struct DeviceBuilder {
@@ -89,9 +91,9 @@ pub struct DeviceBuilder {
 pub struct DeviceMeta {
     unsatisfied_requirements: Vec<NamedID>,
     features: HashMap<NamedID, Box<dyn ApplicationFeature>>,
-    feature_builder: DeviceFeatureBuilder,
+    pub feature_builder: DeviceFeatureBuilder,
 
-    physical_device: PhysicalDevice,
+    pub physical_device: PhysicalDevice,
     properties: PhysicalDeviceProperties,
     extension_properties: HashMap<String, ExtensionProperties>,
     queue_family_properties: Vec<QueueFamilyProperties>, // TODO LOW_PRIORITY: look at QueueFamilyProperties2
@@ -106,7 +108,7 @@ pub struct RosellaDevice {
 }
 
 impl DeviceBuilder {
-    pub fn build(&mut self, required_features: &mut HashSet<NamedID>) -> RosellaDevice {
+    pub fn build(&mut self, required_features: &mut HashSet<NamedID>, surface: &RosellaSurface) -> RosellaDevice {
         let mut devices: Vec<DeviceMeta> = vec![];
         let raw_devices = unsafe { self.instance.enumerate_physical_devices() }.expect("Failed to find devices.");
 
@@ -120,7 +122,7 @@ impl DeviceBuilder {
         devices
             .get_mut(0)
             .expect("No suitable devices where found.")
-            .create_device(&self.instance)
+            .create_device(&self.instance, surface)
     }
 }
 
@@ -187,13 +189,23 @@ impl DeviceMeta {
         }
     }
 
-    pub fn create_device(&mut self, instance: &Instance) -> RosellaDevice {
+    pub fn add_queue_request(&mut self, family: i32) {
+        assert!(self.building);
+
+        self.queue_requests.push(QueueRequest::new(family));
+    }
+
+    pub fn enable_extension(&mut self, extension: String) {
+        self.enabled_extensions.push(extension)
+    }
+
+    pub fn create_device(&mut self, instance: &Instance, surface: &RosellaSurface) -> RosellaDevice {
         assert!(!self.building);
         self.building = true;
 
-        for feature in self.features.values() {
+        for feature in std::mem::take(&mut self.features).values() {
             if feature.is_supported(self) {
-                feature.enable(self);
+                feature.enable(self, instance, surface);
             }
         }
 
@@ -235,13 +247,11 @@ impl DeviceMeta {
                 continue;
             }
 
-            let priorities = vec![
-                1.0;
-                min(
-                    next_queue_indices[family],
-                    self.queue_family_properties[family].queue_count as usize,
-                )
-            ];
+            let length = min(
+                next_queue_indices[family],
+                self.queue_family_properties[family].queue_count as usize,
+            );
+            let priorities = vec![1.0; length];
 
             let info = &mut queue_create_infos[family];
             info.s_type = StructureType::DEVICE_QUEUE_CREATE_INFO;
@@ -290,8 +300,7 @@ impl DeviceMeta {
 
             request.queue = requests[family][index]
                 .as_ref()
-                .unwrap_or_else(|| panic!("Queue exists for family: {} and index: {}", family, index))
-                .clone();
+                .cloned();
         }
     }
 }
@@ -329,6 +338,16 @@ impl Drop for VulkanInstance {
     }
 }
 
+impl QueueRequest {
+    pub fn new(family: i32) -> QueueRequest {
+        QueueRequest {
+            requested_family: family,
+            assigned_index: 0,
+            queue: None,
+        }
+    }
+}
+
 impl VulkanQueue {
     pub fn queue_submit(&self, device: ash::Device, submits: &[SubmitInfo], fence: Fence) -> VkResult<()> {
         unsafe { device.queue_submit(self.queue, submits, fence) }
@@ -340,6 +359,18 @@ impl VulkanQueue {
 
     pub fn queue_present_khr(&self, swapchain: Swapchain, present_info: &PresentInfoKHR) -> VkResult<bool> {
         unsafe { swapchain.queue_present(self.queue, present_info) }
+    }
+}
+
+impl NamedID {
+    pub fn new(name: String) -> NamedID {
+        let mut hasher = DefaultHasher::new();
+        name.hash(&mut hasher);
+        let id = hasher.finish();
+        NamedID {
+            name,
+            id,
+        }
     }
 }
 

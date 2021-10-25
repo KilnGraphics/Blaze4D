@@ -1,19 +1,22 @@
+use ash::Entry;
 use crate::init::device::DeviceBuilder;
 use crate::init::initialization_registry::InitializationRegistry;
 use crate::init::instance_builder::InstanceBuilder;
-use crate::window::RosellaWindow;
+use crate::window::{RosellaSurface, RosellaWindow};
 
 pub struct Rosella {}
 
 impl Rosella {
-    pub fn new(registry: InitializationRegistry, window: &RosellaWindow, application_name: &str) -> Rosella {
+    pub fn new(mut registry: InitializationRegistry, window: &RosellaWindow, application_name: &str) -> Rosella {
         let now = std::time::Instant::now();
-        let instance_builder = InstanceBuilder::new(registry);
-        let instance = instance_builder.build(application_name, 0, window);
+        let instance = InstanceBuilder::new(&registry).build(application_name, 0, window);
 
-        let device_builder = DeviceBuilder {
+        let surface = RosellaSurface::new(&instance, &Entry::new(), window);
+
+        let mut device_builder = DeviceBuilder {
             instance,
         };
+        device_builder.build(&mut registry.required_features, &surface);
 
         let elapsed = now.elapsed();
         println!("Instance & Device Initialization took: {:.2?}", elapsed);
@@ -37,5 +40,9 @@ impl Rosella {
                 }*/
 
         Rosella {}
+    }
+
+    pub fn window_update(&self) {
+
     }
 }

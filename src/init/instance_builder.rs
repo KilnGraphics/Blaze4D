@@ -5,14 +5,14 @@ use ash::vk::{ApplicationInfo, InstanceCreateInfo, make_api_version};
 use crate::init::initialization_registry::InitializationRegistry;
 use crate::window::RosellaWindow;
 
-pub struct InstanceBuilder {
-    registry: InitializationRegistry,
+pub struct InstanceBuilder<'a> {
+    registry: &'a InitializationRegistry,
     enable_debug_utils: bool,
     vk: Entry,
 }
 
-impl InstanceBuilder {
-    pub fn new(registry: InitializationRegistry) -> Self {
+impl<'a> InstanceBuilder<'a> {
+    pub fn new(registry: &'a InitializationRegistry) -> Self {
         InstanceBuilder {
             registry,
             enable_debug_utils: true,

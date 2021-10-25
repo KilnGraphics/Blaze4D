@@ -1,16 +1,81 @@
 extern crate ash_window;
 extern crate winit;
 
+use std::borrow::BorrowMut;
+use std::collections::HashSet;
+use ash::{Entry, Instance};
+use ash::extensions::khr::{Surface, Swapchain};
+use ash::vk::QueueFlags;
+use rosella_rs::init::device::{ApplicationFeature, DeviceMeta, NamedID};
 use rosella_rs::init::initialization_registry::InitializationRegistry;
+use rosella_rs::utils::string_from_c;
 use rosella_rs::rosella::Rosella;
 
-use rosella_rs::window::RosellaWindow;
+use rosella_rs::window::{RosellaSurface, RosellaWindow};
+
+struct QueueFamilyIndices {
+    graphics_family: i32,
+    present_family: i32,
+}
+
+struct QueueFeature;
+
+impl ApplicationFeature for QueueFeature {
+    fn get_feature_name(&self) -> NamedID {
+        NamedID::new("QueueFeature".to_string())
+    }
+
+    fn is_supported(&self, meta: &DeviceMeta) -> bool {
+        true
+    }
+
+    fn enable(&self, meta: &mut DeviceMeta, instance: &Instance, surface: &RosellaSurface) {
+        let mut features = meta.feature_builder.vulkan_features.features;
+        features.sampler_anisotropy = ash::vk::TRUE;
+        features.depth_clamp = ash::vk::TRUE;
+
+        meta.enable_extension(string_from_c(Swapchain::name()));
+
+        //TODO: this way of getting queue's gives us a disadvantage. Take advantage of Queue's as much as we can? I will experiment with this once We get "Multithreading capable" parts in. Coding rays feel free to take a look -hydos
+        let mut queue_family_indices = QueueFamilyIndices {
+            graphics_family: -1,
+            present_family: -1,
+        };
+
+        let families = unsafe { instance.get_physical_device_queue_family_properties(meta.physical_device) };
+        for i in 0..families.capacity() {
+            let family = families.get(i).expect("Managed to get broken value while looping over queue families.");
+            if queue_family_indices.graphics_family != -1 && queue_family_indices.present_family != -1 {
+                if family.queue_flags.contains(QueueFlags::GRAPHICS) {
+                    queue_family_indices.graphics_family = i as i32;
+                }
+                unsafe {
+                    if surface.ash_surface.get_physical_device_surface_support(meta.physical_device, i as u32, surface.khr_surface).unwrap() {
+                        queue_family_indices.present_family = i as i32;
+                    }
+                }
+            }
+        }
+        meta.add_queue_request(queue_family_indices.graphics_family);
+        meta.add_queue_request(queue_family_indices.present_family);
+    }
+
+    fn get_dependencies(&self) -> HashSet<NamedID> {
+        todo!()
+    }
+}
+
+fn setup_rosella(window: &RosellaWindow) -> Rosella {
+    let mut registry = InitializationRegistry::new();
+    registry.add_required_instance_layer("VK_LAYER_KHRONOS_validation".to_string());
+    Rosella::new(registry, &window, "new_new_rosella_example_scene_1")
+}
 
 fn main() {
     let window = RosellaWindow::new("New New Rosella in Rust tm", f64::from(800), f64::from(600));
-    let mut registry = InitializationRegistry::new();
-    registry.add_required_instance_layer("VK_LAYER_KHRONOS_validation".to_string());
-    let rosella = Rosella::new(registry, &window, "new_new_rosella_example_scene_1");
+    let rosella = Box::leak(Box::new(setup_rosella(&window)));
 
-    window.event_loop.run(|_, _, _| {});
+    window.event_loop.run(move |_, _, _| {
+        rosella.window_update();
+    });
 }
