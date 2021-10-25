@@ -1,4 +1,5 @@
 use std::collections::{HashMap, HashSet};
+use std::rc::Rc;
 
 use ash::vk::{API_VERSION_1_0, API_VERSION_1_2};
 use topological_sort::TopologicalSort;
@@ -23,11 +24,11 @@ pub struct InitializationRegistry {
 }
 
 pub struct MarkedFeature {
-    pub feature: Box<dyn ApplicationFeature>,
+    pub feature: Rc<dyn ApplicationFeature>,
 }
 
 impl MarkedFeature {
-    fn new(feature: Box<dyn ApplicationFeature>) -> Self {
+    fn new(feature: Rc<dyn ApplicationFeature>) -> Self {
         MarkedFeature { feature }
     }
 }
@@ -85,7 +86,7 @@ impl InitializationRegistry {
     ///
     /// Registers a application feature into this registry.
     ///
-    pub fn register_application_feature(&mut self, feature: Box<dyn ApplicationFeature>) -> Result<(), String> {
+    pub fn register_application_feature(&mut self, feature: Rc<dyn ApplicationFeature>) -> Result<(), String> {
         if self.features.contains_key(&feature.get_feature_name()) {
             return Err(format!("Feature {} is already registered", feature.get_feature_name().name));
         }
@@ -98,13 +99,14 @@ impl InitializationRegistry {
     /// Topologically sorts all features and returns them as a list.
     /// The list can be iterated from beginning to end to ensure all dependencies are always met.
     ///
-    pub fn get_ordered_features(&self) -> Vec<&dyn ApplicationFeature> {
+    pub fn get_ordered_features(&self) -> Vec<Rc<dyn ApplicationFeature>> {
         let mut sort = TopologicalSort::<NamedID>::new();
         self.features.keys().for_each(|feature| self.add_feature(feature, &mut sort));
 
         let mut sorted = Vec::new();
+
         while let Some(id) = sort.pop() {
-            sorted.push(self.features.get(&id).unwrap().feature.as_ref());
+            sorted.push(self.features.get(&id).unwrap().feature.clone());
         }
 
         sorted

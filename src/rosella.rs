@@ -10,13 +10,13 @@ pub struct Rosella {
 }
 
 impl Rosella {
-    pub fn new(mut registry: InitializationRegistry, window: &RosellaWindow, application_name: &str) -> Rosella {
+    pub fn new(registry: InitializationRegistry, window: &RosellaWindow, application_name: &str) -> Rosella {
         let now = std::time::Instant::now();
         let instance = create_instance(&registry, application_name, 0, window);
 
         let surface = RosellaSurface::new(&instance, &Entry::new(), window);
 
-        let device = DeviceBuilder { instance }.build(&mut registry, &surface);
+        let device = DeviceBuilder { instance }.build(registry, &surface);
 
         let elapsed = now.elapsed();
         println!("Instance & Device Initialization took: {:.2?}", elapsed);

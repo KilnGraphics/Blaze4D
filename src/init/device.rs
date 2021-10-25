@@ -1,8 +1,10 @@
 use std::cmp::min;
 use std::collections::{HashMap, HashSet};
 use std::os::raw::c_char;
+use std::rc::Rc;
 use std::sync::Arc;
 
+use crate::init::initialization_registry::InitializationRegistry;
 use ash::extensions::khr::Swapchain;
 use ash::prelude::VkResult;
 use ash::vk::{
@@ -11,7 +13,6 @@ use ash::vk::{
     QueueFamilyProperties, StructureType, SubmitInfo, API_VERSION_1_1, API_VERSION_1_2,
 };
 use ash::{Device, Instance};
-use crate::init::initialization_registry::InitializationRegistry;
 
 use crate::utils::string_from_array;
 use crate::window::RosellaSurface;
@@ -80,7 +81,7 @@ pub struct DeviceBuilder {
 
 pub struct DeviceMeta {
     unsatisfied_requirements: Vec<NamedID>,
-    features: HashMap<NamedID, Box<dyn ApplicationFeature>>,
+    features: HashMap<NamedID, Rc<dyn ApplicationFeature>>,
     pub feature_builder: DeviceFeatureBuilder,
 
     pub physical_device: PhysicalDevice,
@@ -98,12 +99,12 @@ pub struct RosellaDevice {
 }
 
 impl DeviceBuilder {
-    pub fn build(&mut self, registry: &mut InitializationRegistry, surface: &RosellaSurface) -> RosellaDevice {
+    pub fn build(&mut self, registry: InitializationRegistry, surface: &RosellaSurface) -> RosellaDevice {
         let mut devices: Vec<DeviceMeta> = vec![];
         let raw_devices = unsafe { self.instance.enumerate_physical_devices() }.expect("Failed to find devices.");
 
-        for physical_device in raw_devices.iter() {
-            let mut meta = DeviceMeta::new(&self.instance, *physical_device, registry.get_ordered_features().iter().map(|f| {Box::new(**f)}).collect());
+        for physical_device in raw_devices {
+            let mut meta = DeviceMeta::new(&self.instance, physical_device, registry.get_ordered_features());
             meta.process_support();
             devices.push(meta)
         }
@@ -117,12 +118,9 @@ impl DeviceBuilder {
 }
 
 impl DeviceMeta {
-    pub fn new(
-        instance: &Instance,
-        physical_device: PhysicalDevice,
-        application_features: Vec<Box<dyn ApplicationFeature>>,
-    ) -> DeviceMeta {
+    pub fn new(instance: &Instance, physical_device: PhysicalDevice, application_features: Vec<Rc<dyn ApplicationFeature>>) -> DeviceMeta {
         let mut features = HashMap::new();
+
         for feature in application_features {
             features.insert(feature.get_feature_name(), feature);
         }

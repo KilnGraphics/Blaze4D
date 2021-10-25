@@ -2,6 +2,7 @@ extern crate ash_window;
 extern crate winit;
 
 use std::collections::HashSet;
+use std::rc::Rc;
 
 use ash::extensions::khr::Swapchain;
 use ash::vk::QueueFlags;
@@ -61,7 +62,7 @@ impl ApplicationFeature for QueueFeature {
                         .ash_surface
                         .get_physical_device_surface_support(meta.physical_device, i as u32, surface.khr_surface)
                 }
-                    .unwrap()
+                .unwrap()
                 {
                     queue_family_indices.present_family = i as i32;
                 }
@@ -72,7 +73,7 @@ impl ApplicationFeature for QueueFeature {
     }
 
     fn get_dependencies(&self) -> HashSet<NamedID> {
-        todo!()
+        HashSet::new()
     }
 }
 
@@ -80,7 +81,7 @@ fn setup_rosella(window: &RosellaWindow) -> Rosella {
     let mut registry = InitializationRegistry::new();
     registry.add_required_instance_layer("VK_LAYER_KHRONOS_validation".to_string());
     let queue_feature = QueueFeature {};
-    registry.register_application_feature(Box::new(queue_feature));
+    registry.register_application_feature(Rc::new(queue_feature)).unwrap();
     registry.add_required_application_feature(QueueFeature {}.get_feature_name());
     Rosella::new(registry, window, "new_new_rosella_example_scene_1")
 }
@@ -93,8 +94,12 @@ fn main() {
         *control_flow = ControlFlow::Wait;
 
         match event {
-            Event::WindowEvent { event, ..} => match event {
+            Event::WindowEvent { event, .. } => match event {
                 WindowEvent::CloseRequested => *control_flow = ControlFlow::Exit,
+                WindowEvent::Resized(new_size) => {
+                    let rosella = rosella.as_ref().unwrap();
+                    // TODO: Notify rosella to re-create the swapchain
+                }
                 _ => {}
             },
             Event::MainEventsCleared => {
