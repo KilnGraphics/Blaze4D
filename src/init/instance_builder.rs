@@ -1,4 +1,4 @@
-use std::ffi::{CStr, CString};
+use std::ffi::{CString};
 use ash::{Entry, Instance};
 use ash::extensions::ext::DebugUtils;
 use ash::vk::{ApplicationInfo, InstanceCreateInfo, make_api_version};
@@ -60,7 +60,6 @@ impl InstanceBuilder {
         // .push_next(createDebugUtilsCallback(VK10.VK_NULL_HANDLE));
 
         let instance = unsafe { self.vk.create_instance(&create_info, None).expect("Failed to create a Vulkan Instance.") };
-        println!("VkInstance created!");
         instance
     }
 }

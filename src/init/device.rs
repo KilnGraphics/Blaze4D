@@ -83,8 +83,7 @@ pub struct DeviceFeatureBuilder {
 }
 
 pub struct DeviceBuilder {
-    instance: Instance,
-    required_features: Vec<NamedID>,
+    pub(crate) instance: Instance,
 }
 
 pub struct DeviceMeta {
@@ -107,12 +106,12 @@ pub struct RosellaDevice {
 }
 
 impl DeviceBuilder {
-    pub fn build(&mut self) -> RosellaDevice {
+    pub fn build(&mut self, required_features: &mut HashSet<NamedID>) -> RosellaDevice {
         let mut devices: Vec<DeviceMeta> = vec![];
         let raw_devices = unsafe { self.instance.enumerate_physical_devices() }.expect("Failed to find devices.");
 
         for physical_device in raw_devices.iter() {
-            let mut meta = DeviceMeta::new(&self.instance, *physical_device, &mut self.required_features, vec![]);
+            let mut meta = DeviceMeta::new(&self.instance, *physical_device, required_features, vec![]);
             meta.process_support();
             devices.push(meta)
         }
@@ -129,12 +128,9 @@ impl DeviceMeta {
     pub fn new(
         instance: &Instance,
         physical_device: PhysicalDevice,
-        required_features: &mut Vec<NamedID>,
+        required_features: &mut HashSet<NamedID>,
         application_features: Vec<Box<dyn ApplicationFeature>>,
     ) -> DeviceMeta {
-        let mut unsatisfied_requirements: Vec<NamedID> = vec![];
-        unsatisfied_requirements.append(required_features);
-
         let mut features = HashMap::new();
         for feature in application_features {
             features.insert(feature.get_feature_name(), feature);

@@ -1,13 +1,6 @@
 extern crate ash_window;
 extern crate winit;
 
-use std::ffi::CString;
-
-use ash::Entry;
-use ash::extensions::ext::DebugUtils;
-use winit::dpi::LogicalSize;
-use winit::event_loop::EventLoop;
-use winit::window::WindowBuilder;
 use rosella_rs::init::initialization_registry::InitializationRegistry;
 use rosella_rs::rosella::Rosella;
 
