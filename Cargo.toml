@@ -7,6 +7,6 @@ edition = "2018"
 
 [dependencies]
 ash = { git = "https://github.com/hYdos/ash" }
-ash-window = { git = "https://github.com/hYdos/ash"}
+ash-window = { git = "https://github.com/hYdos/ash" }
 winit = { version = "0.25.0" }
 topological-sort = { version = "0.1.0" }

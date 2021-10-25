@@ -3,7 +3,8 @@ use std::collections::{HashMap, HashSet};
 use ash::vk::{API_VERSION_1_0, API_VERSION_1_2};
 use topological_sort::TopologicalSort;
 
-use crate::init::device::{ApplicationFeature, NamedID};
+use crate::init::device::ApplicationFeature;
+use crate::NamedID;
 
 ///
 /// A class used to collect any callbacks and settings that are used for device and instance initialization.
@@ -115,5 +116,11 @@ impl InitializationRegistry {
         }
 
         sort.insert(id.clone());
+    }
+}
+
+impl Default for InitializationRegistry {
+    fn default() -> Self {
+        Self::new()
     }
 }

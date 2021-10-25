@@ -1,17 +1,18 @@
 extern crate ash_window;
 extern crate winit;
 
-use std::borrow::BorrowMut;
 use std::collections::HashSet;
-use ash::{Entry, Instance};
-use ash::extensions::khr::{Surface, Swapchain};
-use ash::vk::QueueFlags;
-use rosella_rs::init::device::{ApplicationFeature, DeviceMeta, NamedID};
-use rosella_rs::init::initialization_registry::InitializationRegistry;
-use rosella_rs::utils::string_from_c;
-use rosella_rs::rosella::Rosella;
 
+use ash::extensions::khr::Swapchain;
+use ash::vk::QueueFlags;
+use ash::Instance;
+
+use rosella_rs::init::device::{ApplicationFeature, DeviceMeta};
+use rosella_rs::init::initialization_registry::InitializationRegistry;
+use rosella_rs::rosella::Rosella;
+use rosella_rs::utils::string_from_c;
 use rosella_rs::window::{RosellaSurface, RosellaWindow};
+use rosella_rs::NamedID;
 
 struct QueueFamilyIndices {
     graphics_family: i32,
@@ -25,7 +26,7 @@ impl ApplicationFeature for QueueFeature {
         NamedID::new("QueueFeature".to_string())
     }
 
-    fn is_supported(&self, meta: &DeviceMeta) -> bool {
+    fn is_supported(&self, _: &DeviceMeta) -> bool {
         true
     }
 
@@ -44,15 +45,23 @@ impl ApplicationFeature for QueueFeature {
 
         let families = unsafe { instance.get_physical_device_queue_family_properties(meta.physical_device) };
         for i in 0..families.capacity() {
-            let family = families.get(i).expect("Managed to get broken value while looping over queue families.");
+            let family = families
+                .get(i)
+                .expect("Managed to get broken value while looping over queue families.");
+
             if queue_family_indices.graphics_family != -1 && queue_family_indices.present_family != -1 {
                 if family.queue_flags.contains(QueueFlags::GRAPHICS) {
                     queue_family_indices.graphics_family = i as i32;
                 }
-                unsafe {
-                    if surface.ash_surface.get_physical_device_surface_support(meta.physical_device, i as u32, surface.khr_surface).unwrap() {
-                        queue_family_indices.present_family = i as i32;
-                    }
+
+                if unsafe {
+                    surface
+                        .ash_surface
+                        .get_physical_device_surface_support(meta.physical_device, i as u32, surface.khr_surface)
+                }
+                .unwrap()
+                {
+                    queue_family_indices.present_family = i as i32;
                 }
             }
         }
@@ -68,7 +77,7 @@ impl ApplicationFeature for QueueFeature {
 fn setup_rosella(window: &RosellaWindow) -> Rosella {
     let mut registry = InitializationRegistry::new();
     registry.add_required_instance_layer("VK_LAYER_KHRONOS_validation".to_string());
-    Rosella::new(registry, &window, "new_new_rosella_example_scene_1")
+    Rosella::new(registry, window, "new_new_rosella_example_scene_1")
 }
 
 fn main() {

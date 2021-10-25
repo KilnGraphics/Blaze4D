@@ -1,11 +1,9 @@
-use std::cmp::{min, Ordering};
+use std::cmp::min;
 use std::collections::{HashMap, HashSet};
-use std::collections::hash_map::DefaultHasher;
-use std::hash::{Hash, Hasher};
 use std::os::raw::c_char;
 use std::sync::Arc;
 
-use ash::extensions::khr::{Swapchain};
+use ash::extensions::khr::Swapchain;
 use ash::prelude::VkResult;
 use ash::vk::{
     BindSparseInfo, DeviceCreateInfo, DeviceQueueCreateInfo, ExtensionProperties, Fence, PhysicalDevice, PhysicalDeviceFeatures2,
@@ -16,16 +14,7 @@ use ash::{Device, Instance};
 
 use crate::utils::string_from_array;
 use crate::window::RosellaSurface;
-
-/// Utility class to quickly identify and compare entities while retaining a human readable name.
-///
-/// comparing existing ID's is very fast so it is highly
-/// recommended to avoid creating new instances when not necessary. (Also reduces typing mistakes)
-#[derive(Clone, Debug)]
-pub struct NamedID {
-    pub name: String,
-    pub(crate) id: u64,
-}
+use crate::NamedID;
 
 #[derive(Clone, Debug)]
 pub struct VulkanQueue {
@@ -141,15 +130,13 @@ impl DeviceMeta {
         let device_properties = unsafe { instance.get_physical_device_properties(physical_device) };
 
         let mut feature_builder = DeviceFeatureBuilder::new(device_properties.api_version);
-        unsafe {
-            feature_builder.vulkan_features.features = instance.get_physical_device_features(physical_device);
-        }
-        let mut queue_family_properties = unsafe { instance.get_physical_device_queue_family_properties(physical_device) };
+        feature_builder.vulkan_features.features = unsafe { instance.get_physical_device_features(physical_device) };
+
+        let queue_family_properties = unsafe { instance.get_physical_device_queue_family_properties(physical_device) };
         let mut extension_properties = HashMap::new();
-        unsafe {
-            for extension_property in instance.enumerate_device_extension_properties(physical_device).unwrap() {
-                extension_properties.insert(string_from_array(&extension_property.extension_name), extension_property);
-            }
+
+        for extension_property in unsafe { instance.enumerate_device_extension_properties(physical_device) }.unwrap() {
+            extension_properties.insert(string_from_array(&extension_property.extension_name), extension_property);
         }
 
         DeviceMeta {
@@ -215,11 +202,8 @@ impl DeviceMeta {
             .push_next(&mut self.feature_builder.vulkan_features)
             .build();
 
-        let vk_device = unsafe {
-            instance
-                .create_device(self.physical_device, &device_create_info, None)
-                .expect("Failed to create the VkDevice!")
-        };
+        let vk_device =
+            unsafe { instance.create_device(self.physical_device, &device_create_info, None) }.expect("Failed to create the VkDevice!");
 
         self.fulfill_queue_requests(&vk_device);
 
@@ -298,9 +282,7 @@ impl DeviceMeta {
                 }));
             }
 
-            request.queue = requests[family][index]
-                .as_ref()
-                .cloned();
+            request.queue = requests[family][index].as_ref().cloned();
         }
     }
 }
@@ -359,43 +341,5 @@ impl VulkanQueue {
 
     pub fn queue_present_khr(&self, swapchain: Swapchain, present_info: &PresentInfoKHR) -> VkResult<bool> {
         unsafe { swapchain.queue_present(self.queue, present_info) }
-    }
-}
-
-impl NamedID {
-    pub fn new(name: String) -> NamedID {
-        let mut hasher = DefaultHasher::new();
-        name.hash(&mut hasher);
-        let id = hasher.finish();
-        NamedID {
-            name,
-            id,
-        }
-    }
-}
-
-impl PartialEq<Self> for NamedID {
-    fn eq(&self, other: &Self) -> bool {
-        self.id.eq(&other.id)
-    }
-}
-
-impl Eq for NamedID {}
-
-impl PartialOrd<Self> for NamedID {
-    fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
-        self.id.partial_cmp(&other.id)
-    }
-}
-
-impl Ord for NamedID {
-    fn cmp(&self, other: &Self) -> Ordering {
-        self.id.cmp(&other.id)
-    }
-}
-
-impl Hash for NamedID {
-    fn hash<H: Hasher>(&self, state: &mut H) {
-        self.id.hash(state)
     }
 }
