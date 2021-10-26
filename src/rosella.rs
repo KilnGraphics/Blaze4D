@@ -1,4 +1,5 @@
-use ash::Entry;
+use ash::{Entry, Instance};
+use crate::ALLOCATION_CALLBACKS;
 
 use crate::init::device::{create_device, RosellaDevice};
 use crate::init::initialization_registry::InitializationRegistry;
@@ -6,7 +7,8 @@ use crate::init::instance_builder::create_instance;
 use crate::window::{RosellaSurface, RosellaWindow};
 
 pub struct Rosella {
-    device: RosellaDevice,
+    pub device: RosellaDevice,
+    pub instance: Instance,
 }
 
 impl Rosella {
@@ -14,9 +16,9 @@ impl Rosella {
         let now = std::time::Instant::now();
         let instance = create_instance(&registry, application_name, 0, window);
 
-        let surface = RosellaSurface::new(&instance.instance, &Entry::new(), window);
+        let surface = RosellaSurface::new(&instance, &Entry::new(), window);
 
-        let device = create_device(&instance.instance, registry, &surface);
+        let device = create_device(&instance, registry, &surface);
 
         let elapsed = now.elapsed();
         println!("Instance & Device Initialization took: {:.2?}", elapsed);
@@ -38,10 +40,16 @@ impl Rosella {
                 .unwrap();
         }*/
 
-        Rosella { device }
+        Rosella { device, instance }
     }
 
     pub fn window_update(&self) {}
 
     pub fn recreate_swapchain(&self, width: u32, height: u32) {}
+}
+
+impl Drop for Rosella {
+    fn drop(&mut self) {
+        unsafe { self.instance.destroy_instance(ALLOCATION_CALLBACKS); }
+    }
 }

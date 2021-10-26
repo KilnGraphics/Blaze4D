@@ -62,11 +62,6 @@ pub trait ApplicationFeature {
     fn get_dependencies(&self) -> HashSet<NamedID>;
 }
 
-pub struct VulkanInstance {
-    pub(crate) instance: Instance,
-    pub(crate) version: u32,
-}
-
 /// Builds all information about features on the device and what is enabled.
 /// TODO LOW_PRIORITY: add support for VK1.0 by not doing any of this on vk1.0. instead just create a simple VkPhysicalDeviceFeatures field
 pub struct DeviceFeatureBuilder {
@@ -94,19 +89,19 @@ pub struct RosellaDevice {
     device: Device,
 }
 
-    pub fn create_device(instance: &Instance, registry: InitializationRegistry, surface: &RosellaSurface) -> RosellaDevice {
-        let mut devices: Vec<DeviceMeta> = vec![];
-        let raw_devices = unsafe { instance.enumerate_physical_devices() }.expect("Failed to find devices.");
+pub fn create_device(instance: &Instance, registry: InitializationRegistry, surface: &RosellaSurface) -> RosellaDevice {
+    let mut devices: Vec<DeviceMeta> = vec![];
+    let raw_devices = unsafe { instance.enumerate_physical_devices() }.expect("Failed to find devices.");
 
-        for physical_device in raw_devices {
-            let mut meta = DeviceMeta::new(instance, physical_device, registry.get_ordered_features());
-            meta.process_support();
-            devices.push(meta)
-        }
-
-        //TODO: Sorting
-        devices.remove(0).create_device(instance, surface)
+    for physical_device in raw_devices {
+        let mut meta = DeviceMeta::new(instance, physical_device, registry.get_ordered_features());
+        meta.process_support();
+        devices.push(meta)
     }
+
+    //TODO: Sorting
+    devices.remove(0).create_device(instance, surface)
+}
 
 
 impl DeviceMeta {
@@ -273,7 +268,9 @@ impl DeviceMeta {
 
 impl Drop for RosellaDevice {
     fn drop(&mut self) {
-        unsafe { self.device.destroy_device(None) }
+        unsafe {
+            self.device.destroy_device(None)
+        }
     }
 }
 
@@ -294,14 +291,6 @@ impl DeviceFeatureBuilder {
             } else {
                 None
             },
-        }
-    }
-}
-
-impl Drop for VulkanInstance {
-    fn drop(&mut self) {
-        unsafe {
-            self.instance.destroy_instance(ALLOCATION_CALLBACKS);
         }
     }
 }

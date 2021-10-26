@@ -4,7 +4,6 @@ use ash::extensions::ext::DebugUtils;
 use ash::vk::{make_api_version, ApplicationInfo, InstanceCreateInfo};
 use ash::{Entry, Instance};
 use crate::ALLOCATION_CALLBACKS;
-use crate::init::device::VulkanInstance;
 
 use crate::init::initialization_registry::InitializationRegistry;
 use crate::window::RosellaWindow;
@@ -14,7 +13,7 @@ pub fn create_instance(
     application_name: &str,
     application_version: u32,
     window: &RosellaWindow,
-) -> VulkanInstance {
+) -> Instance {
     let vk = Entry::new();
 
     let supported_version = vk
@@ -51,8 +50,5 @@ pub fn create_instance(
         .build();
     // .push_next(createDebugUtilsCallback(VK10.VK_NULL_HANDLE));
 
-    VulkanInstance {
-        instance: unsafe { vk.create_instance(&create_info, ALLOCATION_CALLBACKS) }.expect("Failed to create a Vulkan Instance."),
-        version: 0
-    }
+    unsafe { vk.create_instance(&create_info, ALLOCATION_CALLBACKS) }.expect("Failed to create a Vulkan Instance.")
 }
