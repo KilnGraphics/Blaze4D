@@ -46,7 +46,7 @@ impl ApplicationFeature for QueueFeature {
         };
 
         let families = unsafe { instance.get_physical_device_queue_family_properties(meta.physical_device) };
-        for i in 0..families.capacity() {
+        for i in 0..families.len() {
             let family = families
                 .get(i)
                 .expect("Managed to get broken value while looping over queue families.");
