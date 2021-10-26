@@ -287,7 +287,7 @@ impl DeviceMeta {
 
 impl Drop for RosellaDevice {
     fn drop(&mut self) {
-        todo!("DROP")
+        unsafe { self.device.destroy_device(None) }
     }
 }
 
