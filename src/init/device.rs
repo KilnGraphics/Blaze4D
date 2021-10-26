@@ -1,6 +1,5 @@
 use std::cmp::min;
 use std::collections::{HashMap, HashSet};
-use std::ffi::c_void;
 use std::os::raw::c_char;
 use std::rc::Rc;
 use std::sync::Arc;
@@ -8,9 +7,9 @@ use std::sync::Arc;
 use ash::extensions::khr::Swapchain;
 use ash::prelude::VkResult;
 use ash::vk::{
-    api_version_minor, BindSparseInfo, DeviceCreateInfo, DeviceQueueCreateInfo, ExtensionProperties, Fence, PhysicalDevice,
-    PhysicalDeviceFeatures2, PhysicalDeviceProperties, PhysicalDeviceType, PhysicalDeviceVulkan11Features, PhysicalDeviceVulkan12Features,
-    PresentInfoKHR, Queue, QueueFamilyProperties, SubmitInfo,
+    BindSparseInfo, DeviceCreateInfo, DeviceQueueCreateInfo, ExtensionProperties, Fence, PhysicalDevice, PhysicalDeviceFeatures2,
+    PhysicalDeviceProperties, PhysicalDeviceType, PhysicalDeviceVulkan11Features, PhysicalDeviceVulkan12Features, PresentInfoKHR, Queue,
+    QueueFamilyProperties, SubmitInfo, API_VERSION_1_1, API_VERSION_1_2,
 };
 use ash::{Device, Instance};
 
@@ -288,24 +287,18 @@ impl RosellaDevice {}
 /// Builds all information about features on the device and what is enabled.
 impl DeviceFeatureBuilder {
     pub fn new(vk_api_version: u32) -> DeviceFeatureBuilder {
-        let vulkan_features = PhysicalDeviceFeatures2::default();
-
-        let vulkan_11_features = if api_version_minor(vk_api_version) >= 1 {
-            Some(PhysicalDeviceVulkan11Features::default())
-        } else {
-            None
-        };
-
-        let vulkan_12_features = if api_version_minor(vk_api_version) >= 1 {
-            Some(PhysicalDeviceVulkan12Features::default())
-        } else {
-            None
-        };
-
         DeviceFeatureBuilder {
-            vulkan_features,
-            vulkan_11_features,
-            vulkan_12_features,
+            vulkan_features: PhysicalDeviceFeatures2::default(),
+            vulkan_11_features: if vk_api_version >= API_VERSION_1_1 {
+                Some(PhysicalDeviceVulkan11Features::default())
+            } else {
+                None
+            },
+            vulkan_12_features: if vk_api_version >= API_VERSION_1_2 {
+                Some(PhysicalDeviceVulkan12Features::default())
+            } else {
+                None
+            },
         }
     }
 }
