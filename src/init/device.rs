@@ -194,14 +194,14 @@ impl DeviceMeta {
             }
         }
 
+        let queue_mappings = self.generate_queue_mappings();
         let device_create_info = DeviceCreateInfo::builder()
-            .queue_create_infos(&self.generate_queue_mappings())
+            .queue_create_infos(&queue_mappings)
             .enabled_extension_names(&self.enabled_extensions)
-            .push_next(&mut self.feature_builder.vulkan_features)
-            .build();
+            .push_next(&mut self.feature_builder.vulkan_features);
 
-        let vk_device =
-            unsafe { instance.create_device(self.physical_device, &device_create_info, None) }.expect("Failed to create the VkDevice!");
+        let vk_device = unsafe { instance.create_device(self.physical_device, &device_create_info, None) }
+            .expect("Failed to create the VkDevice!");
 
         self.fulfill_queue_requests(&vk_device);
 
@@ -236,9 +236,9 @@ impl DeviceMeta {
             let priorities = vec![1.0; length];
 
             let info = &mut queue_create_infos[family];
-            info.s_type = StructureType::DEVICE_QUEUE_CREATE_INFO;
             info.queue_family_index = family as u32;
             info.p_queue_priorities = priorities.as_ptr();
+            info.queue_count = 2;
         }
 
         queue_create_infos

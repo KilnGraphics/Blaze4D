@@ -51,7 +51,7 @@ impl ApplicationFeature for QueueFeature {
                 .get(i)
                 .expect("Managed to get broken value while looping over queue families.");
 
-            if queue_family_indices.graphics_family != -1 && queue_family_indices.present_family != -1 {
+            if queue_family_indices.graphics_family == -1 || queue_family_indices.present_family == -1 {
                 if family.queue_flags.contains(QueueFlags::GRAPHICS) {
                     queue_family_indices.graphics_family = i as i32;
                 }
