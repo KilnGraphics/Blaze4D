@@ -195,23 +195,15 @@ impl DeviceMeta {
         let queue_mappings = self.generate_queue_mappings();
         let mut device_create_info = DeviceCreateInfo::builder()
             .queue_create_infos(&queue_mappings)
-            .enabled_extension_names(&self.enabled_extensions);
+            .enabled_extension_names(&self.enabled_extensions)
+            .push_next(&mut self.feature_builder.vulkan_features);
 
-        let mut v10 = self.feature_builder.vulkan_features;
-        let mut v11 = self.feature_builder.vulkan_11_features;
-        let mut v12 = self.feature_builder.vulkan_12_features;
-
-        if let Some(v12) = v12.as_mut() {
-            let mut v11 = v11.as_mut().unwrap();
-            v11.p_next = v12 as *mut _ as *mut c_void;
-            v10.p_next = v11 as *mut _ as *mut c_void;
-
-            device_create_info = device_create_info.push_next(v12);
-        } else if let Some(v11) = v11.as_mut() {
-            v10.p_next = v11 as *mut _ as *mut c_void;
+        if let Some(v11) = self.feature_builder.vulkan_11_features.as_mut() {
             device_create_info = device_create_info.push_next(v11);
-        } else {
-            device_create_info = device_create_info.push_next(&mut v10);
+        }
+
+        if let Some(v12) = self.feature_builder.vulkan_12_features.as_mut() {
+            device_create_info = device_create_info.push_next(v12);
         }
 
         let vk_device =
