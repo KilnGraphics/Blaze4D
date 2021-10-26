@@ -1,6 +1,6 @@
 use ash::Entry;
 
-use crate::init::device::{DeviceBuilder, RosellaDevice};
+use crate::init::device::{create_device, RosellaDevice};
 use crate::init::initialization_registry::InitializationRegistry;
 use crate::init::instance_builder::create_instance;
 use crate::window::{RosellaSurface, RosellaWindow};
@@ -14,9 +14,9 @@ impl Rosella {
         let now = std::time::Instant::now();
         let instance = create_instance(&registry, application_name, 0, window);
 
-        let surface = RosellaSurface::new(&instance, &Entry::new(), window);
+        let surface = RosellaSurface::new(&instance.instance, &Entry::new(), window);
 
-        let device = DeviceBuilder { instance }.build(registry, &surface);
+        let device = create_device(&instance.instance, registry, &surface);
 
         let elapsed = now.elapsed();
         println!("Instance & Device Initialization took: {:.2?}", elapsed);

@@ -63,8 +63,8 @@ pub trait ApplicationFeature {
 }
 
 pub struct VulkanInstance {
-    instance: Instance,
-    version: u32,
+    pub(crate) instance: Instance,
+    pub(crate) version: u32,
 }
 
 /// Builds all information about features on the device and what is enabled.
@@ -73,10 +73,6 @@ pub struct DeviceFeatureBuilder {
     pub vulkan_features: PhysicalDeviceFeatures2,
     pub vulkan_11_features: Option<PhysicalDeviceVulkan11Features>,
     pub vulkan_12_features: Option<PhysicalDeviceVulkan12Features>,
-}
-
-pub struct DeviceBuilder {
-    pub(crate) instance: Instance,
 }
 
 pub struct DeviceMeta {
@@ -98,21 +94,20 @@ pub struct RosellaDevice {
     device: Device,
 }
 
-impl DeviceBuilder {
-    pub fn build(&mut self, registry: InitializationRegistry, surface: &RosellaSurface) -> RosellaDevice {
+    pub fn create_device(instance: &Instance, registry: InitializationRegistry, surface: &RosellaSurface) -> RosellaDevice {
         let mut devices: Vec<DeviceMeta> = vec![];
-        let raw_devices = unsafe { self.instance.enumerate_physical_devices() }.expect("Failed to find devices.");
+        let raw_devices = unsafe { instance.enumerate_physical_devices() }.expect("Failed to find devices.");
 
         for physical_device in raw_devices {
-            let mut meta = DeviceMeta::new(&self.instance, physical_device, registry.get_ordered_features());
+            let mut meta = DeviceMeta::new(instance, physical_device, registry.get_ordered_features());
             meta.process_support();
             devices.push(meta)
         }
 
         //TODO: Sorting
-        devices.remove(0).create_device(&self.instance, surface)
+        devices.remove(0).create_device(instance, surface)
     }
-}
+
 
 impl DeviceMeta {
     pub fn new(instance: &Instance, physical_device: PhysicalDevice, application_features: Vec<Rc<dyn ApplicationFeature>>) -> DeviceMeta {
