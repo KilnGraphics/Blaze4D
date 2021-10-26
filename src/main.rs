@@ -106,7 +106,8 @@ fn main() {
                 rosella.window_update();
             }
             Event::LoopDestroyed => {
-                assert!(std::mem::take(&mut rosella).is_none());
+                // Indirectly drop Rosella
+                assert!(std::mem::take(&mut rosella).is_some());
             }
             _ => (),
         }

@@ -4,6 +4,7 @@ use ash::{Entry, Instance};
 use winit::dpi::LogicalSize;
 use winit::event_loop::EventLoop;
 use winit::window::WindowBuilder;
+use crate::ALLOCATION_CALLBACKS;
 
 /// Represents a ash surface and a KHR surface
 pub struct RosellaSurface {
@@ -20,7 +21,7 @@ impl RosellaSurface {
     pub fn new(instance: &Instance, vk: &Entry, window: &RosellaWindow) -> Self {
         RosellaSurface {
             ash_surface: Surface::new(vk, instance),
-            khr_surface: unsafe { ash_window::create_surface(vk, instance, &window.handle, None) }
+            khr_surface: unsafe { ash_window::create_surface(vk, instance, &window.handle, ALLOCATION_CALLBACKS) }
                 .expect("Failed to create window surface."),
         }
     }

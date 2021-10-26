@@ -34,7 +34,7 @@ impl Rosella {
 
         unsafe {
             let debug_call_back = debug_utils_loader
-                .create_debug_utils_messenger(&debug_info, None)
+                .create_debug_utils_messenger(&debug_info, ALLOCATION_CALLBACKS)
                 .unwrap();
         }*/
 

@@ -3,6 +3,7 @@ use std::ffi::CString;
 use ash::extensions::ext::DebugUtils;
 use ash::vk::{make_api_version, ApplicationInfo, InstanceCreateInfo};
 use ash::{Entry, Instance};
+use crate::ALLOCATION_CALLBACKS;
 
 use crate::init::initialization_registry::InitializationRegistry;
 use crate::window::RosellaWindow;
@@ -49,5 +50,5 @@ pub fn create_instance(
         .build();
     // .push_next(createDebugUtilsCallback(VK10.VK_NULL_HANDLE));
 
-    unsafe { vk.create_instance(&create_info, None) }.expect("Failed to create a Vulkan Instance.")
+    unsafe { vk.create_instance(&create_info, ALLOCATION_CALLBACKS) }.expect("Failed to create a Vulkan Instance.")
 }

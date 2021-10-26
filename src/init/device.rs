@@ -1,22 +1,23 @@
 use std::cmp::min;
 use std::collections::{HashMap, HashSet};
+use std::ffi::c_void;
 use std::os::raw::c_char;
 use std::rc::Rc;
 use std::sync::Arc;
 
-use crate::init::initialization_registry::InitializationRegistry;
 use ash::extensions::khr::Swapchain;
 use ash::prelude::VkResult;
 use ash::vk::{
-    BindSparseInfo, DeviceCreateInfo, DeviceQueueCreateInfo, ExtensionProperties, Fence, PhysicalDevice, PhysicalDeviceFeatures2,
-    PhysicalDeviceProperties, PhysicalDeviceType, PhysicalDeviceVulkan11Features, PhysicalDeviceVulkan12Features, PresentInfoKHR, Queue,
-    QueueFamilyProperties, StructureType, SubmitInfo, API_VERSION_1_1, API_VERSION_1_2,
+    api_version_minor, BindSparseInfo, DeviceCreateInfo, DeviceQueueCreateInfo, ExtensionProperties, Fence, PhysicalDevice,
+    PhysicalDeviceFeatures2, PhysicalDeviceProperties, PhysicalDeviceType, PhysicalDeviceVulkan11Features, PhysicalDeviceVulkan12Features,
+    PresentInfoKHR, Queue, QueueFamilyProperties, SubmitInfo,
 };
 use ash::{Device, Instance};
 
+use crate::init::initialization_registry::InitializationRegistry;
 use crate::utils::string_from_array;
 use crate::window::RosellaSurface;
-use crate::NamedID;
+use crate::{NamedID, ALLOCATION_CALLBACKS};
 
 #[derive(Clone, Debug)]
 pub struct VulkanQueue {
@@ -110,10 +111,7 @@ impl DeviceBuilder {
         }
 
         //TODO: Sorting
-        devices
-            .get_mut(0)
-            .expect("No suitable devices where found.")
-            .create_device(&self.instance, surface)
+        devices.remove(0).create_device(&self.instance, surface)
     }
 }
 
@@ -184,24 +182,40 @@ impl DeviceMeta {
         self.enabled_extensions.push(extension)
     }
 
-    pub fn create_device(&mut self, instance: &Instance, surface: &RosellaSurface) -> RosellaDevice {
+    pub fn create_device(mut self, instance: &Instance, surface: &RosellaSurface) -> RosellaDevice {
         assert!(!self.building);
         self.building = true;
 
         for feature in std::mem::take(&mut self.features).values() {
-            if feature.is_supported(self) {
-                feature.enable(self, instance, surface);
+            if feature.is_supported(&mut self) {
+                feature.enable(&mut self, instance, surface);
             }
         }
 
         let queue_mappings = self.generate_queue_mappings();
-        let device_create_info = DeviceCreateInfo::builder()
+        let mut device_create_info = DeviceCreateInfo::builder()
             .queue_create_infos(&queue_mappings)
-            .enabled_extension_names(&self.enabled_extensions)
-            .push_next(&mut self.feature_builder.vulkan_features);
+            .enabled_extension_names(&self.enabled_extensions);
 
-        let vk_device = unsafe { instance.create_device(self.physical_device, &device_create_info, None) }
-            .expect("Failed to create the VkDevice!");
+        let mut v10 = self.feature_builder.vulkan_features;
+        let mut v11 = self.feature_builder.vulkan_11_features;
+        let mut v12 = self.feature_builder.vulkan_12_features;
+
+        if let Some(v12) = v12.as_mut() {
+            let mut v11 = v11.as_mut().unwrap();
+            v11.p_next = v12 as *mut _ as *mut c_void;
+            v10.p_next = v11 as *mut _ as *mut c_void;
+
+            device_create_info = device_create_info.push_next(v12);
+        } else if let Some(v11) = v11.as_mut() {
+            v10.p_next = v11 as *mut _ as *mut c_void;
+            device_create_info = device_create_info.push_next(v11);
+        } else {
+            device_create_info = device_create_info.push_next(&mut v10);
+        }
+
+        let vk_device =
+            unsafe { instance.create_device(self.physical_device, &device_create_info, None) }.expect("Failed to create the VkDevice!");
 
         self.fulfill_queue_requests(&vk_device);
 
@@ -282,16 +296,24 @@ impl RosellaDevice {}
 /// Builds all information about features on the device and what is enabled.
 impl DeviceFeatureBuilder {
     pub fn new(vk_api_version: u32) -> DeviceFeatureBuilder {
+        let vulkan_features = PhysicalDeviceFeatures2::default();
+
+        let vulkan_11_features = if api_version_minor(vk_api_version) >= 1 {
+            Some(PhysicalDeviceVulkan11Features::default())
+        } else {
+            None
+        };
+
+        let vulkan_12_features = if api_version_minor(vk_api_version) >= 1 {
+            Some(PhysicalDeviceVulkan12Features::default())
+        } else {
+            None
+        };
+
         DeviceFeatureBuilder {
-            vulkan_features: PhysicalDeviceFeatures2::default(),
-            vulkan_11_features: match vk_api_version {
-                API_VERSION_1_1 => Some(PhysicalDeviceVulkan11Features::default()),
-                _ => None,
-            },
-            vulkan_12_features: match vk_api_version {
-                API_VERSION_1_2 => Some(PhysicalDeviceVulkan12Features::default()),
-                _ => None,
-            },
+            vulkan_features,
+            vulkan_11_features,
+            vulkan_12_features,
         }
     }
 }
@@ -299,7 +321,7 @@ impl DeviceFeatureBuilder {
 impl Drop for VulkanInstance {
     fn drop(&mut self) {
         unsafe {
-            self.instance.destroy_instance(None);
+            self.instance.destroy_instance(ALLOCATION_CALLBACKS);
         }
     }
 }
