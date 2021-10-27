@@ -1,5 +1,5 @@
-use ash::{Entry, Instance};
 use crate::ALLOCATION_CALLBACKS;
+use ash::{Entry, Instance};
 
 use crate::init::device::{create_device, RosellaDevice};
 use crate::init::initialization_registry::InitializationRegistry;
@@ -7,17 +7,17 @@ use crate::init::instance_builder::create_instance;
 use crate::window::{RosellaSurface, RosellaWindow};
 
 pub struct Rosella {
-    pub device: RosellaDevice,
     pub instance: Instance,
+    pub surface: RosellaSurface,
+    pub device: RosellaDevice,
 }
 
 impl Rosella {
     pub fn new(registry: InitializationRegistry, window: &RosellaWindow, application_name: &str) -> Rosella {
         let now = std::time::Instant::now();
+
         let instance = create_instance(&registry, application_name, 0, window);
-
         let surface = RosellaSurface::new(&instance, &Entry::new(), window);
-
         let device = create_device(&instance, registry, &surface);
 
         let elapsed = now.elapsed();
@@ -40,7 +40,7 @@ impl Rosella {
                 .unwrap();
         }*/
 
-        Rosella { device, instance }
+        Rosella { instance, surface, device }
     }
 
     pub fn window_update(&self) {}
@@ -52,6 +52,12 @@ impl Rosella {
 
 impl Drop for Rosella {
     fn drop(&mut self) {
-        unsafe { self.instance.destroy_instance(ALLOCATION_CALLBACKS); }
+        unsafe { self.device.destroy_device(ALLOCATION_CALLBACKS) };
+        unsafe {
+            self.surface
+                .ash_surface
+                .destroy_surface(self.surface.khr_surface, ALLOCATION_CALLBACKS)
+        };
+        unsafe { self.instance.destroy_instance(ALLOCATION_CALLBACKS) };
     }
 }

@@ -86,8 +86,8 @@ fn setup_rosella(window: &RosellaWindow) -> Rosella {
 }
 
 fn main() {
-    let window = RosellaWindow::new("New New Rosella in Rust tm", f64::from(800), f64::from(600));
-    let mut rosella = Some(setup_rosella(&window));
+    let window = RosellaWindow::new("New New Rosella in Rust tm", 1396.0, 752.0);
+    let mut rosella = setup_rosella(&window);
 
     window.event_loop.run(move |event, _, control_flow| {
         *control_flow = ControlFlow::Wait;
@@ -96,18 +96,12 @@ fn main() {
             Event::WindowEvent { event, .. } => match event {
                 WindowEvent::CloseRequested => *control_flow = ControlFlow::Exit,
                 WindowEvent::Resized(new_size) => {
-                    let rosella = rosella.as_ref().unwrap();
                     rosella.recreate_swapchain(new_size.width, new_size.height);
                 }
                 _ => {}
             },
             Event::MainEventsCleared => {
-                let rosella = rosella.as_ref().unwrap();
                 rosella.window_update();
-            }
-            Event::LoopDestroyed => {
-                // Indirectly drop Rosella
-                assert!(std::mem::take(&mut rosella).is_some());
             }
             _ => (),
         }

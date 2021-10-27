@@ -1,5 +1,6 @@
 use std::cmp::min;
 use std::collections::{HashMap, HashSet};
+use std::ops::Deref;
 use std::os::raw::c_char;
 use std::rc::Rc;
 use std::sync::Arc;
@@ -16,7 +17,7 @@ use ash::{Device, Instance};
 use crate::init::initialization_registry::InitializationRegistry;
 use crate::util::utils::string_from_array;
 use crate::window::RosellaSurface;
-use crate::NamedID;
+use crate::{NamedID, ALLOCATION_CALLBACKS};
 
 #[derive(Clone, Debug)]
 pub struct VulkanQueue {
@@ -260,9 +261,11 @@ impl DeviceMeta {
     }
 }
 
-impl Drop for RosellaDevice {
-    fn drop(&mut self) {
-        unsafe { self.device.destroy_device(None) }
+impl Deref for RosellaDevice {
+    type Target = Device;
+
+    fn deref(&self) -> &Self::Target {
+        &self.device
     }
 }
 

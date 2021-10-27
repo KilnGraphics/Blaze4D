@@ -1,9 +1,9 @@
 use std::ffi::CString;
 
+use crate::ALLOCATION_CALLBACKS;
 use ash::extensions::ext::DebugUtils;
 use ash::vk::{make_api_version, ApplicationInfo, InstanceCreateInfo};
 use ash::{Entry, Instance};
-use crate::ALLOCATION_CALLBACKS;
 
 use crate::init::initialization_registry::InitializationRegistry;
 use crate::window::RosellaWindow;
