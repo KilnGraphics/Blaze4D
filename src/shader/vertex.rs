@@ -55,9 +55,9 @@ impl VertexFormat {
         let binding = VertexInputBindingDescription::builder()
             .binding(0)
             .stride(offset)
-            .input_rate(VertexInputRate::VERTEX)
-            .build();
-        let bindings = vec![binding];
+            .input_rate(VertexInputRate::VERTEX);
+
+        let bindings = vec![binding.build()];
 
         let pipeline_create_info = PipelineVertexInputStateCreateInfo::builder()
             .vertex_attribute_descriptions(&*attributes)
