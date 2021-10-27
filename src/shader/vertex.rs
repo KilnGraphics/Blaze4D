@@ -1,6 +1,4 @@
-use ash::vk::{VertexInputAttributeDescription, VertexInputBindingDescription};
-
-const VK_PADDING_FORMAT: i32 = -1;
+use ash::vk::{Format, PipelineVertexInputStateCreateInfo, VertexInputAttributeDescription, VertexInputAttributeDescriptionBuilder, VertexInputBindingDescription, VertexInputRate};
 
 /// TODO: Documentation
 pub mod data_type {
@@ -17,30 +15,59 @@ pub mod data_type {
 
 /// A raw Element of a VertexFormat.
 pub struct VertexFormatElement {
-    vk_type: i32,
+    vk_type: Option<Format>,
     byte_length: usize,
 }
 
 /// The format in which vertex data is stored. For example if you where storing position and color per Vertex, You may store it as 2 vec3's
 pub struct VertexFormat {
     pub elements: Vec<VertexFormatElement>,
-    pub attributes: VertexInputAttributeDescription,
-    pub bindings: VertexInputBindingDescription,
+    pub vertex_stage_pipeline_info: PipelineVertexInputStateCreateInfo,
+    pub size: u32,
 }
 
 impl VertexFormat {
     pub fn new(elements: Vec<VertexFormatElement>) -> VertexFormat {
         let mut corrected_length = 0;
         for element in elements.iter() {
-            if element.vk_type != VK_PADDING_FORMAT {
+            if element.vk_type.is_some() {
                 corrected_length += 1;
             }
         }
 
+        let mut attributes: Vec<VertexInputAttributeDescription> = vec![];
+        let mut offset = 0;
+        let mut element_id = 0;
+        for element in elements.iter() {
+            // Check if the element is just padding.
+            if element.vk_type.is_some() {
+                let attribute = VertexInputAttributeDescription::builder()
+                    .binding(0)
+                    .location(element_id)
+                    .format(element.vk_type.unwrap())
+                    .offset(offset);
+                attributes.push(attribute.build()); // Build is done here so the compiler has a chance to warn about dropped items
+                element_id += 1;
+            }
+            offset += element.byte_length as u32;
+        }
+
+        let binding = VertexInputBindingDescription::builder()
+            .binding(0)
+            .stride(offset)
+            .input_rate(VertexInputRate::VERTEX)
+            .build();
+        let bindings = vec![binding];
+
+        let pipeline_create_info = PipelineVertexInputStateCreateInfo::builder()
+            .vertex_attribute_descriptions(&*attributes)
+            .vertex_binding_descriptions(&*bindings)
+            .build();
+
         VertexFormat {
             elements,
-            attributes: Default::default(), // TODO: finish
-            bindings: Default::default(),
+            vertex_stage_pipeline_info: pipeline_create_info,
+            size: offset,
         }
     }
 }

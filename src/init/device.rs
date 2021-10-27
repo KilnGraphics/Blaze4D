@@ -17,7 +17,7 @@ use ash::{Device, Instance};
 use crate::init::initialization_registry::InitializationRegistry;
 use crate::util::utils::string_from_array;
 use crate::window::RosellaSurface;
-use crate::{NamedID, ALLOCATION_CALLBACKS};
+use crate::NamedID;
 
 #[derive(Clone, Debug)]
 pub struct VulkanQueue {
