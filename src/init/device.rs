@@ -80,7 +80,6 @@ pub struct DeviceMeta {
     extension_properties: HashMap<String, ExtensionProperties>,
     queue_family_properties: Vec<QueueFamilyProperties>, // TODO LOW_PRIORITY: look at QueueFamilyProperties2
 
-    building: bool,
     queue_requests: Vec<QueueRequest>,
     enabled_extensions: Vec<*const c_char>,
 }
@@ -102,7 +101,6 @@ pub fn create_device(instance: &Instance, registry: InitializationRegistry, surf
     //TODO: Sorting
     devices.remove(0).create_device(instance, surface)
 }
-
 
 impl DeviceMeta {
     pub fn new(instance: &Instance, physical_device: PhysicalDevice, application_features: Vec<Rc<dyn ApplicationFeature>>) -> DeviceMeta {
@@ -132,7 +130,6 @@ impl DeviceMeta {
             properties: device_properties,
             extension_properties,
             queue_family_properties,
-            building: false,
             queue_requests: vec![],
             enabled_extensions: vec![],
         }
@@ -140,6 +137,7 @@ impl DeviceMeta {
 
     fn process_support(&mut self) {
         self.unsatisfied_requirements.clear();
+
         for feature in self.features.values() {
             if !feature.is_supported(self) {
                 self.unsatisfied_requirements.push(feature.get_feature_name())
@@ -162,8 +160,6 @@ impl DeviceMeta {
     }
 
     pub fn add_queue_request(&mut self, family: i32) {
-        assert!(self.building);
-
         self.queue_requests.push(QueueRequest::new(family));
     }
 
@@ -172,11 +168,8 @@ impl DeviceMeta {
     }
 
     pub fn create_device(mut self, instance: &Instance, surface: &RosellaSurface) -> RosellaDevice {
-        assert!(!self.building);
-        self.building = true;
-
         for feature in std::mem::take(&mut self.features).values() {
-            if feature.is_supported(&mut self) {
+            if feature.is_supported(&self) {
                 feature.enable(&mut self, instance, surface);
             }
         }
