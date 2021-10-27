@@ -106,14 +106,14 @@ impl InitializationRegistry {
         let mut sorted = Vec::new();
 
         while let Some(id) = sort.pop() {
-            sorted.push(self.features.get(&id).unwrap().feature.clone());
+            sorted.push(self.features[&id].feature.clone());
         }
 
         sorted
     }
 
     pub fn add_feature(&self, id: &NamedID, sort: &mut TopologicalSort<NamedID>) {
-        for dependency in self.features.get(id).unwrap().feature.get_dependencies() {
+        for dependency in self.features[id].feature.get_dependencies() {
             sort.add_dependency(id.clone(), dependency);
         }
 

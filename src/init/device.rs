@@ -16,7 +16,7 @@ use ash::{Device, Instance};
 use crate::init::initialization_registry::InitializationRegistry;
 use crate::util::utils::string_from_array;
 use crate::window::RosellaSurface;
-use crate::{NamedID};
+use crate::NamedID;
 
 #[derive(Clone, Debug)]
 pub struct VulkanQueue {
@@ -91,11 +91,12 @@ pub struct RosellaDevice {
 pub fn create_device(instance: &Instance, registry: InitializationRegistry, surface: &RosellaSurface) -> RosellaDevice {
     let mut devices: Vec<DeviceMeta> = vec![];
     let raw_devices = unsafe { instance.enumerate_physical_devices() }.expect("Failed to find devices.");
+    let application_features = registry.get_ordered_features();
 
     for physical_device in raw_devices {
-        let mut meta = DeviceMeta::new(instance, physical_device, registry.get_ordered_features());
+        let mut meta = DeviceMeta::new(instance, physical_device, application_features.clone());
         meta.process_support();
-        devices.push(meta)
+        devices.push(meta);
     }
 
     //TODO: Sorting
@@ -261,9 +262,7 @@ impl DeviceMeta {
 
 impl Drop for RosellaDevice {
     fn drop(&mut self) {
-        unsafe {
-            self.device.destroy_device(None)
-        }
+        unsafe { self.device.destroy_device(None) }
     }
 }
 
