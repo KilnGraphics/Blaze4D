@@ -45,7 +45,9 @@ impl Rosella {
 
     pub fn window_update(&self) {}
 
-    pub fn recreate_swapchain(&self, width: u32, height: u32) {}
+    pub fn recreate_swapchain(&self, width: u32, height: u32) {
+        println!("resize to {}x{}", width, height);
+    }
 }
 
 impl Drop for Rosella {

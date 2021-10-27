@@ -1,4 +1,3 @@
-use std::cmp::Ordering;
 use std::collections::hash_map::DefaultHasher;
 use std::hash::{Hash, Hasher};
 
@@ -6,7 +5,7 @@ use std::hash::{Hash, Hasher};
 ///
 /// comparing existing ID's is very fast so it is highly
 /// recommended to avoid creating new instances when not necessary. (Also reduces typing mistakes)
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, Eq)]
 pub struct NamedID {
     pub name: String,
     pub(crate) id: u64,
@@ -24,20 +23,6 @@ impl NamedID {
 impl PartialEq<Self> for NamedID {
     fn eq(&self, other: &Self) -> bool {
         self.id.eq(&other.id)
-    }
-}
-
-impl Eq for NamedID {}
-
-impl PartialOrd<Self> for NamedID {
-    fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
-        self.id.partial_cmp(&other.id)
-    }
-}
-
-impl Ord for NamedID {
-    fn cmp(&self, other: &Self) -> Ordering {
-        self.id.cmp(&other.id)
     }
 }
 
