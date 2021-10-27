@@ -52,12 +52,12 @@ impl Rosella {
 
 impl Drop for Rosella {
     fn drop(&mut self) {
-        unsafe { self.device.destroy_device(ALLOCATION_CALLBACKS) };
         unsafe {
+            self.device.destroy_device(ALLOCATION_CALLBACKS);
             self.surface
                 .ash_surface
-                .destroy_surface(self.surface.khr_surface, ALLOCATION_CALLBACKS)
-        };
-        unsafe { self.instance.destroy_instance(ALLOCATION_CALLBACKS) };
+                .destroy_surface(self.surface.khr_surface, ALLOCATION_CALLBACKS);
+            self.instance.destroy_instance(ALLOCATION_CALLBACKS);
+        }
     }
 }
