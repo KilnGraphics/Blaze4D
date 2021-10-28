@@ -22,8 +22,14 @@ pub struct GraphicsContext {
     pub vertex_format: VertexFormat,
 }
 
+
+pub struct ShaderStage {}
+
 /// Context relating to compute shaders. For example Inputs, Outputs, etc
-pub struct ComputeContext {}
+pub struct ComputeContext {
+    /// The stage at when the compute shader will be run.
+    pub state: ShaderStage,
+}
 
 /// Shaders & context needed to render a object.
 pub struct GraphicsShader {
@@ -66,7 +72,7 @@ impl GraphicsShader {
                 ALLOCATION_CALLBACKS,
             )
         }
-        .unwrap();
+            .unwrap();
 
         let fragment_shader = unsafe {
             device.create_shader_module(
@@ -79,7 +85,7 @@ impl GraphicsShader {
                 ALLOCATION_CALLBACKS,
             )
         }
-        .unwrap();
+            .unwrap();
 
         GraphicsShader {
             device,
