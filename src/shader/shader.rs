@@ -1,4 +1,5 @@
 use crate::init::device::RosellaDevice;
+use crate::shader::vertex::VertexFormat;
 use crate::ALLOCATION_CALLBACKS;
 use ash::vk::{ShaderModule, ShaderModuleCreateInfo};
 use ash::Entry;
@@ -17,6 +18,8 @@ pub struct GraphicsContext {
     pub mutable_uniforms: HashSet<Uniform>,
     /// Uniforms which stay mostly constant. For example the ProjectionMatrix wont change much and is a good candidate for this.
     pub push_uniforms: HashSet<Uniform>,
+    /// The format vertices supplied will be in.
+    pub vertex_format: VertexFormat,
 }
 
 /// Context relating to compute shaders. For example Inputs, Outputs, etc

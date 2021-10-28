@@ -1,4 +1,7 @@
-use ash::vk::{Format, PipelineVertexInputStateCreateInfo, VertexInputAttributeDescription, VertexInputAttributeDescriptionBuilder, VertexInputBindingDescription, VertexInputRate};
+use ash::vk::{
+    Format, PipelineVertexInputStateCreateInfo, VertexInputAttributeDescription, VertexInputAttributeDescriptionBuilder,
+    VertexInputBindingDescription, VertexInputRate,
+};
 
 /// TODO: Documentation
 pub mod data_type {
