@@ -3,6 +3,7 @@ pub use util::id::NamedID;
 pub mod init;
 pub mod rosella;
 pub mod shader;
+pub mod objects;
 pub mod util;
 pub mod window;
 
