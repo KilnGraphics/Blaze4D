@@ -343,3 +343,21 @@ impl ImageFormat {
     define_image_format!(G16_B16R16_2PLANE_422_UNORM, CompatibilityClass::PLANE2_16BIT_422, 3);
     define_image_format!(G16_B16_R16_3PLANE_444_UNORM, CompatibilityClass::PLANE3_16BIT_444, 3);
 }
+
+#[derive(Copy, Clone, Debug)]
+pub enum ImageSize {
+    Type1D { width: u32, mip_levels: u32, array_layers: u32 },
+    Type2D { width: u32, height: u32, mip_levels: u32, array_layers: u32 },
+    Type3D { width: u32, height: u32, depth: u32, mip_levels: u32 },
+}
+#[derive(Copy, Clone)]
+pub struct ImageSpec {
+    format: &'static ImageFormat,
+    size: ImageSize,
+}
+
+impl ImageSpec {
+    pub const fn new(size: ImageSize, format: &'static ImageFormat) -> Self {
+        ImageSpec{ format, size }
+    }
+}
