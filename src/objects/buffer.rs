@@ -1,0 +1,14 @@
+#[derive(Copy, Clone, Debug)]
+pub struct BufferSpec {
+    size: u64,
+}
+
+impl BufferSpec {
+    pub const fn new(size: u64) -> Self {
+        BufferSpec { size }
+    }
+
+    pub const fn get_size(&self) -> u64 {
+        self.size
+    }
+}
