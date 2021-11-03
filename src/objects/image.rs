@@ -350,6 +350,7 @@ pub enum ImageSize {
     Type2D { width: u32, height: u32, mip_levels: u32, array_layers: u32 },
     Type3D { width: u32, height: u32, depth: u32, mip_levels: u32 },
 }
+
 #[derive(Copy, Clone)]
 pub struct ImageSpec {
     format: &'static ImageFormat,
@@ -358,6 +359,6 @@ pub struct ImageSpec {
 
 impl ImageSpec {
     pub const fn new(size: ImageSize, format: &'static ImageFormat) -> Self {
-        ImageSpec{ format, size }
+        ImageSpec { format, size }
     }
 }
