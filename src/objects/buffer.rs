@@ -1,6 +1,6 @@
 #[derive(Copy, Clone, Debug)]
 pub struct BufferSpec {
-    size: u64,
+    pub size: u64,
 }
 
 impl BufferSpec {

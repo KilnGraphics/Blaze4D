@@ -466,9 +466,9 @@ impl ImageSize {
 
 #[derive(Copy, Clone)]
 pub struct ImageSpec {
-    format: &'static ImageFormat,
-    sample_count: ash::vk::SampleCountFlags,
-    size: ImageSize,
+    pub format: &'static ImageFormat,
+    pub sample_count: ash::vk::SampleCountFlags,
+    pub size: ImageSize,
 }
 
 impl ImageSpec {
