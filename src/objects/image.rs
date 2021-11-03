@@ -1,7 +1,4 @@
 use std::fmt::{Debug, Formatter};
-use std::hash::Hasher;
-use shaderc::ResourceKind::Image;
-use twox_hash::XxHash64;
 
 #[derive(Eq, Copy, Clone, Debug)]
 pub struct CompatibilityClass {
@@ -105,6 +102,7 @@ impl PartialEq for CompatibilityClass {
     }
 }
 
+#[derive(Copy, Clone, Eq)]
 pub struct ImageFormat {
     format: ash::vk::Format,
     compatibility_class: CompatibilityClass,
@@ -117,12 +115,20 @@ macro_rules! define_image_format {
 }
 
 impl ImageFormat {
-    pub const fn new(format: ash::vk::Format, compatibility_class: CompatibilityClass, channel_count: u32) -> Self {
+    pub const fn new(format: ash::vk::Format, compatibility_class: CompatibilityClass, _channel_count: u32) -> Self {
         ImageFormat { format, compatibility_class }
     }
 
     pub const fn get_format(&self) -> ash::vk::Format {
         self.format
+    }
+
+    pub const fn get_compatibility_class(&self) -> CompatibilityClass {
+        self.compatibility_class
+    }
+
+    pub fn is_compatible_with(&self, other: &ImageFormat) -> bool {
+        self.compatibility_class == other.compatibility_class
     }
 
     define_image_format!(R4G4_UNORM_PACK8, CompatibilityClass::BIT8, 2);
@@ -343,6 +349,18 @@ impl ImageFormat {
     define_image_format!(G16_B16_R16_3PLANE_422_UNORM, CompatibilityClass::PLANE3_16BIT_422, 3);
     define_image_format!(G16_B16R16_2PLANE_422_UNORM, CompatibilityClass::PLANE2_16BIT_422, 3);
     define_image_format!(G16_B16_R16_3PLANE_444_UNORM, CompatibilityClass::PLANE3_16BIT_444, 3);
+}
+
+impl PartialEq for ImageFormat {
+    fn eq(&self, other: &Self) -> bool {
+        self.format == other.format
+    }
+}
+
+impl Debug for ImageFormat {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("ImageFormat").field("format", &self.format).finish()
+    }
 }
 
 #[derive(Copy, Clone, Debug)]
