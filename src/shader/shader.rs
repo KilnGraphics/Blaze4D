@@ -66,26 +66,24 @@ impl GraphicsShader {
                 &ShaderModuleCreateInfo::builder().code(
                     compiler
                         .compile_into_spirv(&vertex_shader, ShaderKind::Vertex, "vertex.glsl", "main", Some(&options))
-                        .unwrap()
+                        .expect("Failed to compile the VertexShader.")
                         .as_binary(),
                 ),
                 ALLOCATION_CALLBACKS,
             )
-        }
-            .unwrap();
+        }.unwrap();
 
         let fragment_shader = unsafe {
             device.create_shader_module(
                 &ShaderModuleCreateInfo::builder().code(
                     compiler
                         .compile_into_spirv(&fragment_shader, ShaderKind::Fragment, "fragment.glsl", "main", Some(&options))
-                        .unwrap()
+                        .expect("Failed to compile the FragmentShader.")
                         .as_binary(),
                 ),
                 ALLOCATION_CALLBACKS,
             )
-        }
-            .unwrap();
+        }.unwrap();
 
         GraphicsShader {
             device,

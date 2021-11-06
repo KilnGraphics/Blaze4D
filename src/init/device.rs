@@ -7,11 +7,7 @@ use std::sync::Arc;
 
 use ash::extensions::khr::Swapchain;
 use ash::prelude::VkResult;
-use ash::vk::{
-    BindSparseInfo, DeviceCreateInfo, DeviceQueueCreateInfo, ExtensionProperties, Fence, PhysicalDevice, PhysicalDeviceFeatures2,
-    PhysicalDeviceProperties, PhysicalDeviceType, PhysicalDeviceVulkan11Features, PhysicalDeviceVulkan12Features, PresentInfoKHR, Queue,
-    QueueFamilyProperties, SubmitInfo, API_VERSION_1_1, API_VERSION_1_2,
-};
+use ash::vk::{BindSparseInfo, DeviceCreateInfo, DeviceQueueCreateInfo, ExtensionProperties, Fence, PhysicalDevice, PhysicalDeviceFeatures2, PhysicalDeviceProperties, PhysicalDeviceType, PhysicalDeviceVulkan11Features, PhysicalDeviceVulkan12Features, PresentInfoKHR, Queue, QueueFamilyProperties, SubmitInfo, API_VERSION_1_1, API_VERSION_1_2, DeviceQueueCreateInfoBuilder};
 use ash::{Device, Instance};
 
 use crate::init::initialization_registry::InitializationRegistry;
@@ -177,8 +173,10 @@ impl DeviceMeta {
         }
 
         let queue_mappings = self.generate_queue_mappings();
+        let mappings: Vec<DeviceQueueCreateInfo> = queue_mappings.iter().map(|x| { x.0 }).collect();
+        let mappings: Vec<DeviceQueueCreateInfo> = queue_mappings.iter().map(|x| { x.0 }).collect();
         let mut device_create_info = DeviceCreateInfo::builder()
-            .queue_create_infos(&queue_mappings)
+            .queue_create_infos(&mappings)
             .enabled_extension_names(&self.enabled_extensions)
             .push_next(&mut self.feature_builder.vulkan_features);
 
@@ -194,11 +192,12 @@ impl DeviceMeta {
             unsafe { instance.create_device(self.physical_device, &device_create_info, None) }.expect("Failed to create the VkDevice!");
 
         self.fulfill_queue_requests(&vk_device);
+        drop(queue_mappings);
 
         RosellaDevice { device: vk_device }
     }
 
-    fn generate_queue_mappings(&mut self) -> Vec<DeviceQueueCreateInfo> {
+    fn generate_queue_mappings(&mut self) -> Vec<(DeviceQueueCreateInfo, Option<Vec<f32>>)> {
         let mut next_queue_indices = vec![0; self.queue_family_properties.len()];
 
         for mut request in self.queue_requests.iter_mut() {
@@ -212,7 +211,7 @@ impl DeviceMeta {
 
         let family_count = next_queue_indices.iter().filter(|&&x| x > 0).count();
 
-        let mut queue_create_infos = vec![DeviceQueueCreateInfo::default(); family_count];
+        let mut queue_create_infos = vec![(DeviceQueueCreateInfo::default(), Option::<Vec<f32>>::None); family_count];
 
         for family in 0..next_queue_indices.len() {
             if next_queue_indices[family] == 0 {
@@ -225,10 +224,11 @@ impl DeviceMeta {
             );
             let priorities = vec![1.0; length];
 
-            let info = &mut queue_create_infos[family];
+            let (info, vec) = &mut queue_create_infos[family];
             info.queue_family_index = family as u32;
             info.p_queue_priorities = priorities.as_ptr();
-            info.queue_count = 2;
+            info.queue_count = length as u32;
+            *vec = Some(priorities); // Hacks to make sure that Rust doesn't make this memory crab when vulkan still needs it.
         }
 
         queue_create_infos

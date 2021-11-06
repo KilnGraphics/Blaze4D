@@ -1,3 +1,4 @@
+use std::rc::Rc;
 use crate::ALLOCATION_CALLBACKS;
 use ash::{Entry, Instance};
 
@@ -9,7 +10,7 @@ use crate::window::{RosellaSurface, RosellaWindow};
 pub struct Rosella {
     pub instance: Instance,
     pub surface: RosellaSurface,
-    pub device: RosellaDevice,
+    pub device: Rc<RosellaDevice>,
 }
 
 impl Rosella {
@@ -40,7 +41,7 @@ impl Rosella {
                 .unwrap();
         }*/
 
-        Rosella { instance, surface, device }
+        Rosella { instance, surface, device: Rc::new(device) }
     }
 
     pub fn window_update(&self) {}

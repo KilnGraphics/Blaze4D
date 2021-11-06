@@ -1,19 +1,52 @@
 use ash::vk::{
-    Format, PipelineVertexInputStateCreateInfo, VertexInputAttributeDescription, VertexInputAttributeDescriptionBuilder,
+    Format, PipelineVertexInputStateCreateInfo, VertexInputAttributeDescription,
     VertexInputBindingDescription, VertexInputRate,
 };
 
-/// TODO: Documentation
 pub mod data_type {
     use std::mem::size_of;
 
-    const UNSIGNED_BYTE: usize = size_of::<u8>();
-    const BYTE: usize = size_of::<i8>();
-    const UNSIGNED_SHORT: usize = size_of::<u16>();
-    const SHORT: usize = size_of::<i16>();
-    const UNSIGNED_INT: usize = size_of::<u32>();
-    const INT: usize = size_of::<i32>();
-    const FLOAT: usize = size_of::<f32>();
+    pub const UNSIGNED_BYTE: usize = size_of::<u8>();
+    pub const BYTE: usize = size_of::<i8>();
+    pub const UNSIGNED_SHORT: usize = size_of::<u16>();
+    pub const SHORT: usize = size_of::<i16>();
+    pub const UNSIGNED_INT: usize = size_of::<u32>();
+    pub const INT: usize = size_of::<i32>();
+    pub const FLOAT: usize = size_of::<f32>();
+}
+
+#[derive(Default)]
+pub struct VertexFormatBuilder {
+    elements: Vec<VertexFormatElement>,
+}
+
+impl VertexFormatBuilder {
+    pub fn new() -> VertexFormatBuilder {
+        VertexFormatBuilder {
+            elements: vec![]
+        }
+    }
+
+    pub fn element(mut self, data_type: usize, amount: i32) -> VertexFormatBuilder {
+        self.elements.push(VertexFormatElement {
+            vk_type: Some(match data_type {
+                data_type::FLOAT =>
+                    match amount {
+                        3 => Format::R32G32B32_SFLOAT,
+                        _ => panic!("Cannot Handle '{}' Floats", amount)
+                    }
+
+                _ => panic!("Cannot Handle DataType '{}'", data_type)
+            }),
+            byte_length: data_type * amount as usize,
+        });
+
+        self
+    }
+
+    pub fn build(mut self) -> VertexFormat {
+        VertexFormat::new(self.elements)
+    }
 }
 
 /// A raw Element of a VertexFormat.

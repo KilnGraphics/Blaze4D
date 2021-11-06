@@ -5,7 +5,7 @@ use std::collections::HashSet;
 use std::rc::Rc;
 
 use ash::extensions::khr::Swapchain;
-use ash::vk::QueueFlags;
+use ash::vk::{Format, QueueFlags};
 use ash::Instance;
 use winit::event::{Event, WindowEvent};
 use winit::event_loop::ControlFlow;
@@ -15,6 +15,9 @@ use rosella_rs::init::initialization_registry::InitializationRegistry;
 use rosella_rs::rosella::Rosella;
 use rosella_rs::window::{RosellaSurface, RosellaWindow};
 use rosella_rs::NamedID;
+use rosella_rs::shader::{GraphicsContext, GraphicsShader};
+use rosella_rs::shader::vertex::{VertexFormat, VertexFormatBuilder, VertexFormatElement};
+use rosella_rs::shader::vertex::data_type;
 
 struct QueueFamilyIndices {
     graphics_family: i32,
@@ -61,7 +64,7 @@ impl ApplicationFeature for QueueFeature {
                         .ash_surface
                         .get_physical_device_surface_support(meta.physical_device, i as u32, surface.khr_surface)
                 }
-                .unwrap()
+                    .unwrap()
                 {
                     queue_family_indices.present_family = i as i32;
                 }
@@ -88,6 +91,18 @@ fn setup_rosella(window: &RosellaWindow) -> Rosella {
 fn main() {
     let window = RosellaWindow::new("New New Rosella in Rust tm", 1396.0, 752.0);
     let mut rosella = setup_rosella(&window);
+
+    // Application Setup usually goes here. Anything in the window loop is either for closing or for looping.
+    let basic_vertex_format = VertexFormatBuilder::new()
+        .element(data_type::FLOAT, 3)
+        .build();
+
+    GraphicsShader::new(rosella.device.clone(), include_str!("test_resources/triangle.vert").to_string(), include_str!("test_resources/triangle.frag").to_string(), GraphicsContext {
+        mutable_uniforms: Default::default(),
+        push_uniforms: Default::default(),
+        vertex_format: basic_vertex_format,
+    });
+    println!("Successfully created shaders.");
 
     window.event_loop.run(move |event, _, control_flow| {
         *control_flow = ControlFlow::Wait;
