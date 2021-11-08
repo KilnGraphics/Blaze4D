@@ -21,11 +21,11 @@ We have a [Discord server](https://discord.gg/H93wJePuWf) where you can track de
 [Fabric Language Kotlin](https://modrinth.com/mod/fabric-language-kotlin)
 
 ## Building
-1. Clone the repository (https://github.com/Blaze4D-MC/Blaze4D.git). Make sure to use `--recursive` to also clone [Rosella]{https://github.com/Blaze4D-MC/Rosella}.
+1. Clone the repository (https://github.com/Blaze4D-MC/Blaze4D.git).
 2. Run ``gradlew build`` in the project folder.
 
 ## Contributing
-1. Clone the repository (https://github.com/Blaze4D-MC/Blaze4D.git). Make sure to use `--recursive` to also clone [Rosella]{https://github.com/Blaze4D-MC/Rosella}.
+1. Clone the repository (https://github.com/Blaze4D-MC/Blaze4D.git).
 2. Edit
 3. Pull Request
 
