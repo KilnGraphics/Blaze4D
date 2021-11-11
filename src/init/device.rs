@@ -3,7 +3,7 @@ use std::collections::{HashMap, HashSet};
 use std::ops::Deref;
 use std::os::raw::c_char;
 use std::rc::Rc;
-use std::sync::Arc;
+use std::sync::{Arc, LockResult, Mutex, MutexGuard};
 
 use ash::extensions::khr::Swapchain;
 use ash::prelude::VkResult;
@@ -17,7 +17,7 @@ use crate::NamedID;
 
 #[derive(Clone, Debug)]
 pub struct VulkanQueue {
-    queue: Queue,
+    queue: Mutex<Queue>,
     family: i32,
 }
 
@@ -251,7 +251,7 @@ impl DeviceMeta {
 
             if requests[family][index].is_none() {
                 requests[family][index] = Some(Arc::new(VulkanQueue {
-                    queue: unsafe { device.get_device_queue(family as u32, index as u32) },
+                    queue: Mutex::new(unsafe { device.get_device_queue(family as u32, index as u32) }),
                     family: family as i32,
                 }));
             }
@@ -301,15 +301,22 @@ impl QueueRequest {
 }
 
 impl VulkanQueue {
+    pub fn access_queue(&self) -> &Mutex<Queue> {
+        &self.queue
+    }
+
     pub fn queue_submit(&self, device: ash::Device, submits: &[SubmitInfo], fence: Fence) -> VkResult<()> {
-        unsafe { device.queue_submit(self.queue, submits, fence) }
+        let guard = self.queue.lock().unwrap();
+        unsafe { device.queue_submit(*guard, submits, fence) }
     }
 
     pub fn queue_bind_sparse(&self, device: ash::Device, submits: &[BindSparseInfo], fence: Fence) -> VkResult<()> {
-        unsafe { device.queue_bind_sparse(self.queue, submits, fence) }
+        let guard = self.queue.lock().unwrap();
+        unsafe { device.queue_bind_sparse(*guard, submits, fence) }
     }
 
     pub fn queue_present_khr(&self, swapchain: Swapchain, present_info: &PresentInfoKHR) -> VkResult<bool> {
-        unsafe { swapchain.queue_present(self.queue, present_info) }
+        let guard = self.queue.lock().unwrap();
+        unsafe { swapchain.queue_present(*guard, present_info) }
     }
 }
