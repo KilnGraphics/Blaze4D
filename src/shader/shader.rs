@@ -1,11 +1,12 @@
-use crate::init::device::RosellaDevice;
 use crate::shader::vertex::VertexFormat;
 use crate::ALLOCATION_CALLBACKS;
 use ash::vk::{ShaderModule, ShaderModuleCreateInfo};
-use ash::Entry;
+use ash::{Device, Entry};
 use shaderc::{CompileOptions, Compiler, ShaderKind, TargetEnv};
 use std::collections::HashSet;
 use std::rc::Rc;
+use std::sync::Arc;
+use crate::rosella::DeviceContext;
 
 #[derive(Debug, PartialEq, Eq, Hash)]
 pub struct Uniform {
@@ -33,7 +34,7 @@ pub struct ComputeContext {
 
 /// Shaders & context needed to render a object.
 pub struct GraphicsShader {
-    pub device: Rc<RosellaDevice>,
+    pub device: Arc<DeviceContext>,
     pub graphics_context: GraphicsContext,
     pub vertex_shader: ShaderModule,
     pub fragment_shader: ShaderModule,
@@ -48,7 +49,7 @@ pub struct ComputeShader {
 impl GraphicsShader {
     /// Creates a new GraphicsShader based on glsl shaders.
     pub fn new(
-        device: Rc<RosellaDevice>,
+        device: Arc<DeviceContext>,
         vertex_shader: String,
         fragment_shader: String,
         graphics_context: GraphicsContext,
@@ -62,7 +63,7 @@ impl GraphicsShader {
         );
 
         let vertex_shader = unsafe {
-            device.create_shader_module(
+            device.vk().create_shader_module(
                 &ShaderModuleCreateInfo::builder().code(
                     compiler
                         .compile_into_spirv(&vertex_shader, ShaderKind::Vertex, "vertex.glsl", "main", Some(&options))
@@ -74,7 +75,7 @@ impl GraphicsShader {
         }.unwrap();
 
         let fragment_shader = unsafe {
-            device.create_shader_module(
+            device.vk().create_shader_module(
                 &ShaderModuleCreateInfo::builder().code(
                     compiler
                         .compile_into_spirv(&fragment_shader, ShaderKind::Fragment, "fragment.glsl", "main", Some(&options))
@@ -100,8 +101,8 @@ impl GraphicsShader {
 impl Drop for GraphicsShader {
     fn drop(&mut self) {
         unsafe {
-            self.device.destroy_shader_module(self.vertex_shader, ALLOCATION_CALLBACKS);
-            self.device.destroy_shader_module(self.fragment_shader, ALLOCATION_CALLBACKS);
+            self.device.vk().destroy_shader_module(self.vertex_shader, ALLOCATION_CALLBACKS);
+            self.device.vk().destroy_shader_module(self.fragment_shader, ALLOCATION_CALLBACKS);
         }
     }
 }

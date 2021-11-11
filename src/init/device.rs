@@ -81,11 +81,7 @@ pub struct DeviceMeta {
     enabled_extensions: Vec<*const c_char>,
 }
 
-pub struct RosellaDevice {
-    device: Device,
-}
-
-pub fn create_device(instance: &Instance, registry: InitializationRegistry, surface: &RosellaSurface) -> RosellaDevice {
+pub fn create_device(instance: &Instance, registry: InitializationRegistry, surface: &RosellaSurface) -> Device {
     let mut devices: Vec<DeviceMeta> = vec![];
     let raw_devices = unsafe { instance.enumerate_physical_devices() }.expect("Failed to find devices.");
     let application_features = registry.get_ordered_features();
@@ -165,7 +161,7 @@ impl DeviceMeta {
         self.enabled_extensions.push(extension)
     }
 
-    pub fn create_device(mut self, instance: &Instance, surface: &RosellaSurface) -> RosellaDevice {
+    pub fn create_device(mut self, instance: &Instance, surface: &RosellaSurface) -> Device {
         for feature in std::mem::take(&mut self.features).values() {
             if feature.is_supported(&self) {
                 feature.enable(&mut self, instance, surface);
@@ -194,7 +190,7 @@ impl DeviceMeta {
         self.fulfill_queue_requests(&vk_device);
         drop(queue_mappings);
 
-        RosellaDevice { device: vk_device }
+        vk_device
     }
 
     fn generate_queue_mappings(&mut self) -> Vec<(DeviceQueueCreateInfo, Option<Vec<f32>>)> {
@@ -260,16 +256,6 @@ impl DeviceMeta {
         }
     }
 }
-
-impl Deref for RosellaDevice {
-    type Target = Device;
-
-    fn deref(&self) -> &Self::Target {
-        &self.device
-    }
-}
-
-impl RosellaDevice {}
 
 /// Builds all information about features on the device and what is enabled.
 impl DeviceFeatureBuilder {

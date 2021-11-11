@@ -1,25 +1,27 @@
 use std::rc::Rc;
+use std::sync::Arc;
 use crate::ALLOCATION_CALLBACKS;
 use ash::{Entry, Instance};
+use ash::vk;
 
-use crate::init::device::{create_device, RosellaDevice};
+use crate::init::device::{create_device};
 use crate::init::initialization_registry::InitializationRegistry;
 use crate::init::instance_builder::create_instance;
 use crate::window::{RosellaSurface, RosellaWindow};
 
 pub struct Rosella {
-    pub instance: Instance,
+    pub instance: Arc<InstanceContext>,
     pub surface: RosellaSurface,
-    pub device: Rc<RosellaDevice>,
+    pub device: Arc<DeviceContext>,
 }
 
 impl Rosella {
     pub fn new(registry: InitializationRegistry, window: &RosellaWindow, application_name: &str) -> Rosella {
         let now = std::time::Instant::now();
 
-        let instance = create_instance(&registry, application_name, 0, window);
-        let surface = RosellaSurface::new(&instance, &Entry::new(), window);
-        let device = create_device(&instance, registry, &surface);
+        let vk_instance = create_instance(&registry, application_name, 0, window);
+        let surface = RosellaSurface::new(&vk_instance, &Entry::new(), window);
+        let vk_device = create_device(&vk_instance, registry, &surface);
 
         let elapsed = now.elapsed();
         println!("Instance & Device Initialization took: {:.2?}", elapsed);
@@ -41,7 +43,10 @@ impl Rosella {
                 .unwrap();
         }*/
 
-        Rosella { instance, surface, device: Rc::new(device) }
+        let instance = Arc::new(InstanceContext::new(vk_instance));
+        let device = Arc::new(DeviceContext::new(instance.clone(), vk_device));
+
+        Rosella { instance, surface, device }
     }
 
     pub fn window_update(&self) {}
@@ -51,14 +56,47 @@ impl Rosella {
     }
 }
 
-impl Drop for Rosella {
+pub struct InstanceContext {
+    instance: ash::Instance,
+}
+
+impl InstanceContext {
+    fn new(instance: ash::Instance) -> Self {
+        Self{ instance }
+    }
+
+    pub fn vk(&self) -> &ash::Instance {
+        &self.instance
+    }
+}
+
+impl Drop for InstanceContext {
+    fn drop(&mut self) {
+        unsafe {
+            self.instance.destroy_instance(ALLOCATION_CALLBACKS);
+        }
+    }
+}
+
+pub struct DeviceContext {
+    instance: Arc<InstanceContext>,
+    device: ash::Device,
+}
+
+impl DeviceContext {
+    fn new(instance: Arc<InstanceContext>, device: ash::Device) -> Self {
+        Self{ instance, device }
+    }
+
+    pub fn vk(&self) -> &ash::Device {
+        &self.device
+    }
+}
+
+impl Drop for DeviceContext {
     fn drop(&mut self) {
         unsafe {
             self.device.destroy_device(ALLOCATION_CALLBACKS);
-            self.surface
-                .ash_surface
-                .destroy_surface(self.surface.khr_surface, ALLOCATION_CALLBACKS);
-            self.instance.destroy_instance(ALLOCATION_CALLBACKS);
         }
     }
 }
