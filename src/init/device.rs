@@ -15,7 +15,7 @@ use crate::util::utils::string_from_array;
 use crate::window::RosellaSurface;
 use crate::NamedID;
 
-#[derive(Clone, Debug)]
+#[derive(Debug)]
 pub struct VulkanQueue {
     queue: Mutex<Queue>,
     family: i32,
