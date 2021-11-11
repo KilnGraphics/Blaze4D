@@ -109,6 +109,14 @@ impl DeviceContext {
     pub fn vk(&self) -> &ash::Device {
         &self.device
     }
+
+    pub fn get_synchronization_2(&self) -> &ash::extensions::khr::Synchronization2 {
+        &self.synchronization_2
+    }
+
+    pub fn get_timeline_semaphore(&self) -> &ash::extensions::khr::TimelineSemaphore {
+        &self.timeline_semaphore
+    }
 }
 
 impl Drop for DeviceContext {
