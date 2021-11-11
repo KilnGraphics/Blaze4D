@@ -85,6 +85,7 @@ impl Drop for InstanceContext {
 }
 
 pub struct DeviceContext {
+    #[allow(unused)]
     instance: Arc<InstanceContext>,
     device: ash::Device,
     synchronization_2: ash::extensions::khr::Synchronization2,
