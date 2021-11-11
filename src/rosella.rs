@@ -19,9 +19,15 @@ impl Rosella {
     pub fn new(registry: InitializationRegistry, window: &RosellaWindow, application_name: &str) -> Rosella {
         let now = std::time::Instant::now();
 
-        let vk_instance = create_instance(&registry, application_name, 0, window);
-        let surface = RosellaSurface::new(&vk_instance, &Entry::new(), window);
-        let vk_device = create_device(&vk_instance, registry, &surface);
+        let ash_entry = ash::Entry::new();
+        let ash_instance = create_instance(&registry, application_name, 0, window, &ash_entry);
+
+        let instance = Arc::new(InstanceContext::new(ash_entry, ash_instance));
+
+        let surface = RosellaSurface::new(instance.vk(), &Entry::new(), window);
+        let ash_device = create_device(instance.vk(), registry, &surface);
+
+        let device = Arc::new(DeviceContext::new(instance.clone(), ash_device).unwrap());
 
         let elapsed = now.elapsed();
         println!("Instance & Device Initialization took: {:.2?}", elapsed);
@@ -43,9 +49,6 @@ impl Rosella {
                 .unwrap();
         }*/
 
-        let instance = Arc::new(InstanceContext::new(vk_instance));
-        let device = Arc::new(DeviceContext::new(instance.clone(), vk_device));
-
         Rosella { instance, surface, device }
     }
 
@@ -57,12 +60,17 @@ impl Rosella {
 }
 
 pub struct InstanceContext {
+    entry: ash::Entry,
     instance: ash::Instance,
 }
 
 impl InstanceContext {
-    fn new(instance: ash::Instance) -> Self {
-        Self{ instance }
+    fn new(entry: ash::Entry, instance: ash::Instance) -> Self {
+        Self{ entry, instance }
+    }
+
+    pub fn get_entry(&self) -> &ash::Entry {
+        &self.entry
     }
 
     pub fn vk(&self) -> &ash::Instance {
@@ -81,11 +89,21 @@ impl Drop for InstanceContext {
 pub struct DeviceContext {
     instance: Arc<InstanceContext>,
     device: ash::Device,
+    synchronization_2: ash::extensions::khr::Synchronization2,
+    timeline_semaphore: ash::extensions::khr::TimelineSemaphore,
 }
 
 impl DeviceContext {
-    fn new(instance: Arc<InstanceContext>, device: ash::Device) -> Self {
-        Self{ instance, device }
+    fn new(instance: Arc<InstanceContext>, device: ash::Device) -> Result<Self, &'static str> {
+        let synchronization_2 = ash::extensions::khr::Synchronization2::new(instance.vk(), &device);
+        let timeline_semaphore = ash::extensions::khr::TimelineSemaphore::new(instance.get_entry(), instance.vk());
+
+        Ok(Self{
+            instance,
+            device,
+            synchronization_2,
+            timeline_semaphore
+        })
     }
 
     pub fn vk(&self) -> &ash::Device {

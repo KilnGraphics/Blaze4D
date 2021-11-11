@@ -13,10 +13,9 @@ pub fn create_instance(
     application_name: &str,
     application_version: u32,
     window: &RosellaWindow,
+    entry: &ash::Entry,
 ) -> Instance {
-    let vk = Entry::new();
-
-    let supported_version = vk
+    let supported_version = entry
         .try_enumerate_instance_version()
         .ok()
         .flatten()
@@ -50,5 +49,5 @@ pub fn create_instance(
         .build();
     // .push_next(createDebugUtilsCallback(VK10.VK_NULL_HANDLE));
 
-    unsafe { vk.create_instance(&create_info, ALLOCATION_CALLBACKS) }.expect("Failed to create a Vulkan Instance.")
+    unsafe { entry.create_instance(&create_info, ALLOCATION_CALLBACKS) }.expect("Failed to create a Vulkan Instance.")
 }
