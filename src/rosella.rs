@@ -1,8 +1,6 @@
-use std::rc::Rc;
 use std::sync::Arc;
 use crate::ALLOCATION_CALLBACKS;
-use ash::{Entry, Instance};
-use ash::vk;
+use ash::{Entry};
 
 use crate::init::device::{create_device};
 use crate::init::initialization_registry::InitializationRegistry;

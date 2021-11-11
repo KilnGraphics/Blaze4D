@@ -1,13 +1,12 @@
 use std::cmp::min;
 use std::collections::{HashMap, HashSet};
-use std::ops::Deref;
 use std::os::raw::c_char;
 use std::rc::Rc;
-use std::sync::{Arc, LockResult, Mutex, MutexGuard};
+use std::sync::{Arc, Mutex};
 
 use ash::extensions::khr::Swapchain;
 use ash::prelude::VkResult;
-use ash::vk::{BindSparseInfo, DeviceCreateInfo, DeviceQueueCreateInfo, ExtensionProperties, Fence, PhysicalDevice, PhysicalDeviceFeatures2, PhysicalDeviceProperties, PhysicalDeviceType, PhysicalDeviceVulkan11Features, PhysicalDeviceVulkan12Features, PresentInfoKHR, Queue, QueueFamilyProperties, SubmitInfo, API_VERSION_1_1, API_VERSION_1_2, DeviceQueueCreateInfoBuilder};
+use ash::vk::{BindSparseInfo, DeviceCreateInfo, DeviceQueueCreateInfo, ExtensionProperties, Fence, PhysicalDevice, PhysicalDeviceFeatures2, PhysicalDeviceProperties, PhysicalDeviceType, PhysicalDeviceVulkan11Features, PhysicalDeviceVulkan12Features, PresentInfoKHR, Queue, QueueFamilyProperties, SubmitInfo, API_VERSION_1_1, API_VERSION_1_2};
 use ash::{Device, Instance};
 
 use crate::init::initialization_registry::InitializationRegistry;
@@ -169,7 +168,6 @@ impl DeviceMeta {
         }
 
         let queue_mappings = self.generate_queue_mappings();
-        let mappings: Vec<DeviceQueueCreateInfo> = queue_mappings.iter().map(|x| { x.0 }).collect();
         let mappings: Vec<DeviceQueueCreateInfo> = queue_mappings.iter().map(|x| { x.0 }).collect();
         let mut device_create_info = DeviceCreateInfo::builder()
             .queue_create_infos(&mappings)
