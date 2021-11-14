@@ -2,7 +2,7 @@ import org.gradle.internal.os.OperatingSystem
 
 plugins {
 	id("fabric-loom") version "0.10-SNAPSHOT"
-	id("io.github.juuxel.loom-quiltflower") version "1.3.0"
+	id("io.github.juuxel.loom-quiltflower-mini") version "1.1.0"
 	`maven-publish`
 }
 
@@ -48,7 +48,7 @@ repositories {
 
     maven {
         name = "ldtteam"
-        url = uri("https://ldtteam.jfrog.io/artifactory/parchmentmc-snapshots/")
+        url = uri("https://ldtteam.jfrog.io/artifactory/parchmentmc-public/")
     }
 }
 
@@ -56,7 +56,7 @@ dependencies {
 	minecraft("net.minecraft", "minecraft", properties["minecraft_version"].toString())
 	mappings(loom.layered {
 		officialMojangMappings()
-		parchment("org.parchmentmc.data:parchment-1.17.1:2021.07.26-nightly-SNAPSHOT@zip")
+		parchment("org.parchmentmc.data:parchment-1.17.1:2021.10.31@zip")
 	})
 	modImplementation("net.fabricmc", "fabric-loader", properties["loader_version"].toString())
 	modImplementation("net.fabricmc", "fabric-language-kotlin", "1.6.4+kotlin.1.5.30")
@@ -70,7 +70,7 @@ dependencies {
 	}
 
 	include(implementation("com.oroarmor", "aftermath", "1.0.0-beta"))
-
+	
 	include(implementation("org.joml", "joml", "1.10.1"))
 	include(implementation("org.lwjgl", "lwjgl", lwjglVersion))
 	include(implementation("org.lwjgl", "lwjgl-shaderc", lwjglVersion))
@@ -82,7 +82,6 @@ dependencies {
 	include(implementation("org.lwjgl", "lwjgl-xxhash", lwjglVersion, classifier = lwjglNatives))
 
 	// Upgrade Minecraft's LWJGL
-	include(implementation("org.lwjgl", "lwjgl", lwjglVersion))
 	include(implementation("org.lwjgl", "lwjgl-glfw", lwjglVersion))
 	include(implementation("org.lwjgl", "lwjgl-jemalloc", lwjglVersion))
 	include(implementation("org.lwjgl", "lwjgl-openal", lwjglVersion))
@@ -105,6 +104,7 @@ dependencies {
 }
 
 configurations.all {
+	resolutionStrategy.cacheChangingModulesFor(0, "seconds")
     resolutionStrategy {
         dependencySubstitution {
             substitute(module("org.lwjgl:lwjgl:3.2.2")).with(module("org.lwjgl:lwjgl:$lwjglVersion"))
@@ -155,7 +155,7 @@ loom {
 }
 
 quiltflower {
-	quiltflowerVersion.set("1.5.0")
+	addToRuntimeClasspath.set(true)
 }
 
 tasks {
