@@ -1,13 +1,12 @@
 use std::cmp::min;
 use std::collections::{HashMap, HashSet};
-use std::ops::Deref;
 use std::os::raw::c_char;
 use std::rc::Rc;
-use std::sync::Arc;
+use std::sync::{Arc, Mutex};
 
 use ash::extensions::khr::Swapchain;
 use ash::prelude::VkResult;
-use ash::vk::{BindSparseInfo, DeviceCreateInfo, DeviceQueueCreateInfo, ExtensionProperties, Fence, PhysicalDevice, PhysicalDeviceFeatures2, PhysicalDeviceProperties, PhysicalDeviceType, PhysicalDeviceVulkan11Features, PhysicalDeviceVulkan12Features, PresentInfoKHR, Queue, QueueFamilyProperties, SubmitInfo, API_VERSION_1_1, API_VERSION_1_2, DeviceQueueCreateInfoBuilder};
+use ash::vk::{BindSparseInfo, DeviceCreateInfo, DeviceQueueCreateInfo, ExtensionProperties, Fence, PhysicalDevice, PhysicalDeviceFeatures2, PhysicalDeviceProperties, PhysicalDeviceType, PhysicalDeviceVulkan11Features, PhysicalDeviceVulkan12Features, PresentInfoKHR, Queue, QueueFamilyProperties, SubmitInfo, API_VERSION_1_1, API_VERSION_1_2};
 use ash::{Device, Instance};
 
 use crate::init::initialization_registry::InitializationRegistry;
@@ -15,9 +14,9 @@ use crate::util::utils::string_from_array;
 use crate::window::RosellaSurface;
 use crate::NamedID;
 
-#[derive(Clone, Debug)]
+#[derive(Debug)]
 pub struct VulkanQueue {
-    queue: Queue,
+    queue: Mutex<Queue>,
     family: i32,
 }
 
@@ -81,11 +80,7 @@ pub struct DeviceMeta {
     enabled_extensions: Vec<*const c_char>,
 }
 
-pub struct RosellaDevice {
-    device: Device,
-}
-
-pub fn create_device(instance: &Instance, registry: InitializationRegistry, surface: &RosellaSurface) -> RosellaDevice {
+pub fn create_device(instance: &Instance, registry: InitializationRegistry, surface: &RosellaSurface) -> Device {
     let mut devices: Vec<DeviceMeta> = vec![];
     let raw_devices = unsafe { instance.enumerate_physical_devices() }.expect("Failed to find devices.");
     let application_features = registry.get_ordered_features();
@@ -165,7 +160,7 @@ impl DeviceMeta {
         self.enabled_extensions.push(extension)
     }
 
-    pub fn create_device(mut self, instance: &Instance, surface: &RosellaSurface) -> RosellaDevice {
+    pub fn create_device(mut self, instance: &Instance, surface: &RosellaSurface) -> Device {
         for feature in std::mem::take(&mut self.features).values() {
             if feature.is_supported(&self) {
                 feature.enable(&mut self, instance, surface);
@@ -173,7 +168,6 @@ impl DeviceMeta {
         }
 
         let queue_mappings = self.generate_queue_mappings();
-        let mappings: Vec<DeviceQueueCreateInfo> = queue_mappings.iter().map(|x| { x.0 }).collect();
         let mappings: Vec<DeviceQueueCreateInfo> = queue_mappings.iter().map(|x| { x.0 }).collect();
         let mut device_create_info = DeviceCreateInfo::builder()
             .queue_create_infos(&mappings)
@@ -194,7 +188,7 @@ impl DeviceMeta {
         self.fulfill_queue_requests(&vk_device);
         drop(queue_mappings);
 
-        RosellaDevice { device: vk_device }
+        vk_device
     }
 
     fn generate_queue_mappings(&mut self) -> Vec<(DeviceQueueCreateInfo, Option<Vec<f32>>)> {
@@ -251,7 +245,7 @@ impl DeviceMeta {
 
             if requests[family][index].is_none() {
                 requests[family][index] = Some(Arc::new(VulkanQueue {
-                    queue: unsafe { device.get_device_queue(family as u32, index as u32) },
+                    queue: Mutex::new(unsafe { device.get_device_queue(family as u32, index as u32) }),
                     family: family as i32,
                 }));
             }
@@ -260,16 +254,6 @@ impl DeviceMeta {
         }
     }
 }
-
-impl Deref for RosellaDevice {
-    type Target = Device;
-
-    fn deref(&self) -> &Self::Target {
-        &self.device
-    }
-}
-
-impl RosellaDevice {}
 
 /// Builds all information about features on the device and what is enabled.
 impl DeviceFeatureBuilder {
@@ -301,15 +285,22 @@ impl QueueRequest {
 }
 
 impl VulkanQueue {
+    pub fn access_queue(&self) -> &Mutex<Queue> {
+        &self.queue
+    }
+
     pub fn queue_submit(&self, device: ash::Device, submits: &[SubmitInfo], fence: Fence) -> VkResult<()> {
-        unsafe { device.queue_submit(self.queue, submits, fence) }
+        let guard = self.queue.lock().unwrap();
+        unsafe { device.queue_submit(*guard, submits, fence) }
     }
 
     pub fn queue_bind_sparse(&self, device: ash::Device, submits: &[BindSparseInfo], fence: Fence) -> VkResult<()> {
-        unsafe { device.queue_bind_sparse(self.queue, submits, fence) }
+        let guard = self.queue.lock().unwrap();
+        unsafe { device.queue_bind_sparse(*guard, submits, fence) }
     }
 
     pub fn queue_present_khr(&self, swapchain: Swapchain, present_info: &PresentInfoKHR) -> VkResult<bool> {
-        unsafe { swapchain.queue_present(self.queue, present_info) }
+        let guard = self.queue.lock().unwrap();
+        unsafe { swapchain.queue_present(*guard, present_info) }
     }
 }
