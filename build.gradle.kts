@@ -9,7 +9,7 @@ plugins {
 group = "graphics.kiln"
 version = "1.0.0-SNAPSHOT"
 
-val lwjglVersion = "3.3.0-SNAPSHOT"
+val lwjglVersion = "3.3.1-SNAPSHOT"
 val lwjglNatives = when (OperatingSystem.current()) {
 	OperatingSystem.LINUX -> System.getProperty("os.arch").let {
 		if (it.startsWith("arm") || it.startsWith("aarch64"))
