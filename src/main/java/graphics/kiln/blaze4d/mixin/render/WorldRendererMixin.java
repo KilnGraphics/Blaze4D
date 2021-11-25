@@ -1,5 +1,6 @@
 package graphics.kiln.blaze4d.mixin.render;
 
+import com.mojang.authlib.minecraft.client.MinecraftClient;
 import com.mojang.blaze3d.shaders.Uniform;
 import com.mojang.blaze3d.systems.RenderSystem;
 import com.mojang.blaze3d.vertex.PoseStack;
@@ -27,23 +28,17 @@ public class WorldRendererMixin {
 
     @Shadow private double zTransparentOld;
 
-    @Shadow @Final private Minecraft minecraft;
-
-    @Shadow @Final private ObjectArrayList<LevelRenderer.RenderChunkInfo> renderChunks;
-
-    @Shadow private ChunkRenderDispatcher chunkRenderDispatcher;
-
-    /**
+/*    *//**
      * This is one of three places where it actually renders a shader.
      * This one is different from the others because most of its setup process is still needed.
      * @author burger
-     */
+     *//*
     @Overwrite
     public void renderChunkLayer(RenderType renderType, PoseStack modelViewStack, double xTransparent, double yTransparent, double zTransparent, Matrix4f projectionMatrix) {
-        RenderSystem.assertThread(RenderSystem::isOnRenderThread);
+        RenderSystem.assertOnRenderThread();
         renderType.setupRenderState();
         if (renderType == RenderType.translucent()) {
-            this.minecraft.getProfiler().push("translucent_sort");
+            Minecraft.getInstance().getProfiler().push("translucent_sort");
             double g = xTransparent - this.xTransparentOld;
             double h = yTransparent - this.yTransparentOld;
             double i = zTransparent - this.zTransparentOld;
@@ -60,11 +55,11 @@ public class WorldRendererMixin {
                 }
             }
 
-            this.minecraft.getProfiler().pop();
+            Minecraft.getInstance().getProfiler().pop();
         }
 
-        this.minecraft.getProfiler().push("filterempty");
-        this.minecraft.getProfiler().popPush(() -> "render_" + renderType);
+        Minecraft.getInstance().getProfiler().push("filterempty");
+        Minecraft.getInstance().getProfiler().popPush(() -> "render_" + renderType);
         boolean bl = renderType != RenderType.translucent();
         ObjectListIterator<LevelRenderer.RenderChunkInfo> objectListIterator = this.renderChunks.listIterator(bl ? 0 : this.renderChunks.size());
 
@@ -97,7 +92,7 @@ public class WorldRendererMixin {
         }
 
         shader.clear();
-        this.minecraft.getProfiler().pop();
+        Minecraft.getInstance().getProfiler().pop();
         renderType.clearRenderState();
-    }
+    }*/
 }

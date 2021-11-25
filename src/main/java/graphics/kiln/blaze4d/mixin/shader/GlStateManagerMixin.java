@@ -35,7 +35,7 @@ public class GlStateManagerMixin {
      */
     @Overwrite
     public static int glCreateShader(int type) {
-        RenderSystem.assertThread(RenderSystem::isOnRenderThread);
+        RenderSystem.assertOnRenderThread();
         // Check last shader's type to see if they belong in the same shader
         // TODO: maybe support more shader types in the future?
         ShaderType rosellaType = type == GL20.GL_VERTEX_SHADER ? ShaderType.VERTEX_SHADER : ShaderType.FRAGMENT_SHADER;
@@ -53,7 +53,7 @@ public class GlStateManagerMixin {
      */
     @Overwrite
     public static void glShaderSource(int shader, List<String> shaderLines) {
-        RenderSystem.assertThread(RenderSystem::isOnRenderThread);
+        RenderSystem.assertOnRenderThread();
         ShaderContext context = GlobalRenderSystem.SHADER_MAP.get(shader);
         if (context == null) {
             throw new RuntimeException("Failed to get ShaderContext. (No shader was found with id " + shader + ")");
@@ -69,7 +69,7 @@ public class GlStateManagerMixin {
      */
     @Overwrite
     public static String glGetShaderInfoLog(int shader, int maxLength) {
-        RenderSystem.assertThread(RenderSystem::isOnRenderThread);
+        RenderSystem.assertOnRenderThread();
         return "Internal Blaze4D Error";
     }
 
@@ -82,7 +82,7 @@ public class GlStateManagerMixin {
      */
     @Overwrite
     public static int glGetShaderi(int shader, int pname) {
-        RenderSystem.assertThread(RenderSystem::isOnRenderThread);
+        RenderSystem.assertOnRenderThread();
         return GL20.GL_TRUE;
     }
 
@@ -96,7 +96,7 @@ public class GlStateManagerMixin {
      */
     @Overwrite
     public static int glCreateProgram() {
-        RenderSystem.assertThread(RenderSystem::isOnRenderThread);
+        RenderSystem.assertOnRenderThread();
         MinecraftShaderProgram program = new MinecraftShaderProgram(
                 null,
                 null,
@@ -118,7 +118,7 @@ public class GlStateManagerMixin {
      */
     @Overwrite
     public static void glAttachShader(int programId, int shaderId) {
-        RenderSystem.assertThread(RenderSystem::isOnRenderThread);
+        RenderSystem.assertOnRenderThread();
         ShaderContext shader = GlobalRenderSystem.SHADER_MAP.get(shaderId);
         RawShaderProgram program = GlobalRenderSystem.SHADER_PROGRAM_MAP.get(programId);
         if (program == null) {
@@ -140,7 +140,7 @@ public class GlStateManagerMixin {
      */
     @Overwrite
     public static void glLinkProgram(int program) {
-        RenderSystem.assertThread(RenderSystem::isOnRenderThread);
+        RenderSystem.assertOnRenderThread();
 //        Identifier id = GlobalRenderSystem.generateId(program);
         Blaze4D.rosella.baseObjectManager.addShader(GlobalRenderSystem.SHADER_PROGRAM_MAP.get(program));
     }
@@ -153,7 +153,7 @@ public class GlStateManagerMixin {
      */
     @Overwrite
     public static void _glBindAttribLocation(int program, int index, CharSequence name) {
-        RenderSystem.assertThread(RenderSystem::isOnRenderThread);
+        RenderSystem.assertOnRenderThread();
     }
 
     /**
@@ -165,7 +165,7 @@ public class GlStateManagerMixin {
      */
     @Overwrite
     public static int glGetProgrami(int program, int pname) {
-        RenderSystem.assertThread(RenderSystem::isOnRenderThread);
+        RenderSystem.assertOnRenderThread();
         switch (pname) {
             case GL20.GL_LINK_STATUS, GL20.GL_COMPILE_STATUS -> {
                 // Since we throw exceptions instead of failing quietly, assume everything is OK
@@ -185,7 +185,7 @@ public class GlStateManagerMixin {
      */
     @Overwrite
     public static String glGetProgramInfoLog(int program, int maxLength) {
-        RenderSystem.assertThread(RenderSystem::isOnRenderThread);
+        RenderSystem.assertOnRenderThread();
         String lastError = GlobalRenderSystem.programErrorLog;
         GlobalRenderSystem.programErrorLog = "";
         return lastError;

@@ -46,7 +46,7 @@ public class GlStateManagerMixin {
      */
     @Overwrite
     public static void _glBindBuffer(int target, int buffer) {
-        RenderSystem.assertThread(RenderSystem::isOnRenderThreadOrInit);
+        RenderSystem.assertOnGameThreadOrInit();
     }
 
     /**
@@ -55,7 +55,7 @@ public class GlStateManagerMixin {
      */
     @Overwrite
     public static int _glGenBuffers() {
-        RenderSystem.assertThread(RenderSystem::isOnRenderThreadOrInit);
+        RenderSystem.assertOnGameThreadOrInit();
         return NEXT_BUFFER_ID++;
     }
 
@@ -65,7 +65,7 @@ public class GlStateManagerMixin {
      */
     @Overwrite
     public static void _glBufferData(int target, long size, int usage) {
-        RenderSystem.assertThread(RenderSystem::isOnRenderThreadOrInit);
+        RenderSystem.assertOnGameThreadOrInit();
         BUFFER_MAP.put(target, ByteBuffer.allocate((int) size));
     }
 
@@ -76,7 +76,7 @@ public class GlStateManagerMixin {
     @Overwrite
     @Nullable
     public static ByteBuffer _glMapBuffer(int target, int access) {
-        RenderSystem.assertThread(RenderSystem::isOnRenderThreadOrInit);
+        RenderSystem.assertOnGameThreadOrInit();
         ByteBuffer buffer = ByteBuffer.allocate(80092);
         BUFFER_MAP.put(target, buffer);
         return buffer;
@@ -88,7 +88,7 @@ public class GlStateManagerMixin {
      */
     @Overwrite
     public static void _glUnmapBuffer(int target) {
-        RenderSystem.assertThread(RenderSystem::isOnRenderThreadOrInit);
+        RenderSystem.assertOnGameThreadOrInit();
         BUFFER_MAP.remove(target).clear();
     }
 
@@ -377,7 +377,7 @@ public class GlStateManagerMixin {
      */
     @Overwrite
     public static void _clearColor(float red, float green, float blue, float alpha) {
-        RenderSystem.assertThread(RenderSystem::isOnRenderThreadOrInit);
+        RenderSystem.assertOnGameThreadOrInit();
         Blaze4D.rosella.renderer.lazilyClearColor(new Color(red, green, blue, alpha));
     }
 

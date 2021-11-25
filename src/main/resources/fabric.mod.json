@@ -32,7 +32,7 @@
   "accessWidener": "blaze4d.aw",
   "depends": {
     "fabricloader": ">=0.11.3",
-    "minecraft": "1.17.x",
+    "minecraft": "1.18.x",
     "fabric-language-kotlin": ">=1.6.4"
   },
   "breaks": {
