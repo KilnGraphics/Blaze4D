@@ -12,3 +12,9 @@ impl BufferSpec {
         self.size
     }
 }
+
+#[derive(Copy, Clone, Debug)]
+pub struct BufferRange {
+    pub offset: u64,
+    pub length: u64,
+}
