@@ -2,7 +2,7 @@ pub mod format;
 pub mod image;
 pub mod buffer;
 pub mod id;
-pub mod pool;
+pub mod manager;
 
 pub use format::Format;
 
