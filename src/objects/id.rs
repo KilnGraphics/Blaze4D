@@ -1,5 +1,6 @@
 use std::fmt::{Debug, Formatter};
 use std::hash::{Hash, Hasher};
+use std::num::NonZeroU64;
 use std::sync::atomic::{AtomicU64, Ordering};
 
 pub struct ObjectType;
@@ -33,7 +34,7 @@ impl ObjectType {
 #[derive(Copy, Clone, PartialEq, Eq, PartialOrd, Ord)]
 pub struct ObjectId<const TYPE: u8> {
     local: u64,
-    global: u64,
+    global: NonZeroU64,
 }
 
 impl<const TYPE: u8> ObjectId<TYPE> {
@@ -54,7 +55,9 @@ impl<const TYPE: u8> ObjectId<TYPE> {
         let local = (local_id << Self::LOCAL_ID_OFFSET) | ((object_type as u64) << Self::TYPE_OFFSET);
         let global = global_id;
 
-        ObjectId{ local, global }
+        unsafe { // Need to wait for const unwrap
+            ObjectId { local, global: NonZeroU64::new_unchecked(global) }
+        }
     }
 
     pub const fn get_local_id(&self) -> u64 {
@@ -66,7 +69,7 @@ impl<const TYPE: u8> ObjectId<TYPE> {
     }
 
     pub const fn get_global_id(&self) -> u64 {
-        self.global
+        self.global.get()
     }
 
     pub const fn as_generic(&self) -> ObjectId<{ ObjectType::GENERIC }> {

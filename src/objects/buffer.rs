@@ -1,3 +1,8 @@
+
+use super::memory;
+
+use ash::vk;
+
 #[derive(Copy, Clone, Debug)]
 pub struct BufferSpec {
     pub size: u64,
@@ -17,4 +22,16 @@ impl BufferSpec {
 pub struct BufferRange {
     pub offset: u64,
     pub length: u64,
+}
+
+#[non_exhaustive]
+pub struct BufferCreateMeta {
+    pub size: u64,
+    pub usage_flags: vk::BufferUsageFlags,
+}
+
+impl BufferCreateMeta {
+    pub fn new_simple(size: u64, usage_flags: vk::BufferUsageFlags) -> Self {
+        BufferCreateMeta{ size, usage_flags }
+    }
 }

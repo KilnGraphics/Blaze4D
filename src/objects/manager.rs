@@ -4,8 +4,32 @@ use std::sync::{Arc, LockResult, Mutex, MutexGuard, PoisonError};
 
 use ash::vk;
 
+use super::memory;
 use super::id;
 
+#[non_exhaustive]
+pub enum ObjectCreateMeta {
+    Buffer(super::buffer::BufferCreateMeta, memory::AllocationCreateMeta)
+}
+
+pub struct ObjectCreateRequest {
+    meta: ObjectCreateMeta,
+    id: Option<id::GenericId>,
+}
+
+impl ObjectCreateRequest {
+    pub fn new(meta: ObjectCreateMeta) -> Self {
+        Self{ meta, id: None }
+    }
+
+    pub fn resolve(&mut self, id: id::GenericId) {
+        self.id = Some(id)
+    }
+
+    pub fn get_id(&self) -> Option<id::GenericId> {
+        self.id
+    }
+}
 
 struct ObjectManagerImpl {
     instance: Arc<crate::rosella::InstanceContext>,
@@ -44,6 +68,10 @@ impl ObjectManager {
 
     pub fn create_synchronization_group(&self) -> SynchronizationGroup {
         SynchronizationGroup::new(self.clone(), self.0.create_timeline_semaphore())
+    }
+
+    pub fn create_object_set(&self, objects: &mut [ObjectCreateRequest]) -> ObjectSet {
+        todo!()
     }
 
     fn destroy_semaphore(&self, semaphore: vk::Semaphore) {
