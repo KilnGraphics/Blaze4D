@@ -5,12 +5,14 @@ use ash::{Entry};
 use crate::init::device::{create_device};
 use crate::init::initialization_registry::InitializationRegistry;
 use crate::init::instance_builder::create_instance;
+use crate::objects::manager::ObjectManager;
 use crate::window::{RosellaSurface, RosellaWindow};
 
 pub struct Rosella {
     pub instance: Arc<InstanceContext>,
     pub surface: RosellaSurface,
     pub device: Arc<DeviceContext>,
+    pub object_manager: ObjectManager,
 }
 
 impl Rosella {
@@ -47,7 +49,12 @@ impl Rosella {
                 .unwrap();
         }*/
 
-        Rosella { instance, surface, device }
+        Rosella {
+            instance: instance.clone(),
+            surface,
+            device: device.clone(),
+            object_manager: ObjectManager::new(instance, device)
+        }
     }
 
     pub fn window_update(&self) {}
