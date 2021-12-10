@@ -1,3 +1,26 @@
+//! Management of vulkan objects.
+//!
+//! Contains structs and enums to manage creation, access to and destruction of vulkan objects.
+//!
+//! Access to objects is controlled using synchronization groups. All objects belonging to a
+//! synchronization group are accessed as one unit protected by a single timeline semaphore. This
+//! means 2 objects belonging to the same synchronization group cannot be accessed concurrently but
+//! only sequentially. Note that this
+//!
+//! Allocation and destruction of objects is managed through object sets. A objects set is a
+//! collection of objects that have the same lifetime. All objects are created when creating the set
+//! and all objects are destroyed only when the entire set is destroyed. All objects of a set
+//! belong to the same synchronization group.
+//!
+//! Both synchronization groups as well as objects sets are managed by smart pointers eliminating
+//! the need for manual lifetime management. Object sets keep a reference to their synchronization
+//! group internally meaning that if a synchronization group is needed only for a single objects set
+//! it suffices to keep the object set alive to also ensure the synchronization group stays alive.
+//!
+//! Multiple object sets can be accessed in a sequentially consistent manner by using object set
+//! groups. This is required to prevent deadlock situations when trying to access multiple sets for
+//! the same operation.
+
 use std::any::Any;
 use std::cmp::Ordering;
 use std::sync::{Arc, LockResult, Mutex, MutexGuard, PoisonError};
@@ -7,30 +30,43 @@ use ash::vk;
 use super::memory;
 use super::id;
 
+/// Contains all the information (type, flags, allocation requirements etc.) about how an object
+/// should be created.
 #[non_exhaustive]
 pub enum ObjectCreateMeta {
     Buffer(super::buffer::BufferCreateMeta, memory::AllocationCreateMeta)
 }
 
+/// Wrapper type that is passed to the create function. The create function will store the assigned
+/// id of the object in this type which can the later be retrieved by the calling code.
 pub struct ObjectCreateRequest {
     meta: ObjectCreateMeta,
     id: Option<id::GenericId>,
 }
 
 impl ObjectCreateRequest {
+    /// Creates a new request without a resolved id.
     pub fn new(meta: ObjectCreateMeta) -> Self {
         Self{ meta, id: None }
     }
 
+    /// Returns the stored create metadata.
+    pub fn get_meta(&self) -> &ObjectCreateMeta {
+        &self.meta
+    }
+
+    /// Updates the stored id.
     pub fn resolve(&mut self, id: id::GenericId) {
         self.id = Some(id)
     }
 
+    /// Retrieves the currently stored id.
     pub fn get_id(&self) -> Option<id::GenericId> {
         self.id
     }
 }
 
+// Internal implementation of the object manager
 struct ObjectManagerImpl {
     instance: Arc<crate::rosella::InstanceContext>,
     device: Arc<crate::rosella::DeviceContext>,
@@ -59,21 +95,32 @@ impl ObjectManagerImpl {
     }
 }
 
+/// Public object manager api.
+///
+/// This is a smart pointer reference to an internal struct.
 struct ObjectManager(Arc<ObjectManagerImpl>);
 
 impl ObjectManager {
+    /// Creates a new ObjectManager
     pub fn new(instance: Arc<crate::rosella::InstanceContext>, device: Arc<crate::rosella::DeviceContext>) -> Self {
         Self(Arc::new(ObjectManagerImpl::new(instance, device)))
     }
 
+    /// Creates a new synchronization group managed by this object manager
     pub fn create_synchronization_group(&self) -> SynchronizationGroup {
         SynchronizationGroup::new(self.clone(), self.0.create_timeline_semaphore())
     }
 
-    pub fn create_object_set(&self, objects: &mut [ObjectCreateRequest]) -> ObjectSet {
+    /// Creates a new object set managed by this object manager
+    ///
+    /// The synchronization group *can* be from a different object manager however no validation is
+    /// performed with respect to any vulkan requirements. (For example ensuring that both control
+    /// the same device).
+    pub fn create_object_set(&self, objects: &mut [ObjectCreateRequest], synchronization_group: SynchronizationGroup) -> ObjectSet {
         todo!()
     }
 
+    // Internal function that destroys a semaphore created for a synchronization group
     fn destroy_semaphore(&self, semaphore: vk::Semaphore) {
         self.0.destroy_semaphore(semaphore)
     }
@@ -85,12 +132,13 @@ impl Clone for ObjectManager {
     }
 }
 
-
+// Internal struct containing the semaphore payload and metadata
 struct SyncData {
     semaphore: vk::Semaphore,
     last_access: u64,
 }
 
+// Internal implementation of the synchronization group
 struct SynchronizationGroupImpl {
     group_id: u64,
     sync_data: Mutex<SyncData>,
@@ -129,11 +177,20 @@ impl PartialOrd for SynchronizationGroupImpl {
     }
 }
 
+/// Public synchronization group api.
+///
+/// This is a smart pointer reference to an internal struct.
 pub struct SynchronizationGroup(Arc<SynchronizationGroupImpl>);
 
 impl SynchronizationGroup {
     fn new(manager: ObjectManager, semaphore: vk::Semaphore) -> Self {
         Self(Arc::new(SynchronizationGroupImpl::new(manager, semaphore)))
+    }
+}
+
+impl Clone for SynchronizationGroup {
+    fn clone(&self) -> Self {
+        Self( self.0.clone() )
     }
 }
 
@@ -161,7 +218,17 @@ impl ObjectSetImpl {
 unsafe impl Sync for ObjectSetImpl {
 }
 
+
+/// Public object set api.
+///
+/// This is a smart pointer reference to an internal struct.
 pub struct ObjectSet(Arc<ObjectSetImpl>);
 
 impl ObjectSet {
+}
+
+impl Clone for ObjectSet {
+    fn clone(&self) -> Self {
+        Self( self.0.clone() )
+    }
 }

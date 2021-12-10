@@ -25,6 +25,11 @@ pub struct BufferRange {
 }
 
 #[non_exhaustive]
+pub struct BufferMeta {
+
+}
+
+#[non_exhaustive]
 pub struct BufferCreateMeta {
     pub size: u64,
     pub usage_flags: vk::BufferUsageFlags,
