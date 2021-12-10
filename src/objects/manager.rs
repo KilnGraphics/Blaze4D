@@ -21,11 +21,9 @@
 //! synchronization group sets. This is required to prevent deadlock situations when trying to
 //! access multiple sets for the same operation.
 
-use std::any::Any;
 use std::cmp::Ordering;
 use std::hash::{Hash, Hasher};
-use std::str::SplitN;
-use std::sync::{Arc, LockResult, Mutex, MutexGuard, PoisonError};
+use std::sync::{Arc, LockResult, Mutex, MutexGuard};
 
 use ash::vk;
 use ash::vk::Handle;
