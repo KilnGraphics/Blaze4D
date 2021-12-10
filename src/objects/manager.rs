@@ -17,9 +17,9 @@
 //! group internally meaning that if a synchronization group is needed only for a single objects set
 //! it suffices to keep the object set alive to also ensure the synchronization group stays alive.
 //!
-//! Multiple object sets can be accessed in a sequentially consistent manner by using object set
-//! groups. This is required to prevent deadlock situations when trying to access multiple sets for
-//! the same operation.
+//! Multiple object sets can be accessed in a sequentially consistent manner by using
+//! synchronization group sets. This is required to prevent deadlock situations when trying to
+//! access multiple sets for the same operation.
 
 use std::any::Any;
 use std::cmp::Ordering;
@@ -150,6 +150,20 @@ struct SyncData {
     last_access: u64,
 }
 
+impl SyncData {
+    fn enqueue_access(&mut self, step_count: u64) -> AccessInfo {
+        let begin_access = self.last_access;
+        let end_access = begin_access + step_count;
+        self.last_access = end_access;
+
+        AccessInfo{
+            semaphore: self.semaphore,
+            begin_access,
+            end_access,
+        }
+    }
+}
+
 // Internal implementation of the synchronization group
 struct SynchronizationGroupImpl {
     group_id: u64,
@@ -208,12 +222,20 @@ impl SynchronizationGroup {
         Self(Arc::new(SynchronizationGroupImpl::new(manager, semaphore)))
     }
 
+    /// Returns the object manager managing this synchronization group
     pub fn get_manager(&self) -> &ObjectManager {
         &self.0.manager
     }
 
+    /// Enqueues an access to the resources protected by this group.
+    ///
+    /// `step_count` is the number of steps added to the semaphore payload.
+    ///
+    /// If access to multiple groups is needed simultaneously; accesses **must not** be queued
+    /// individually but by using a synchronization group set. Not doing so may result in a
+    /// deadlock when waiting for the semaphores.
     pub fn enqueue_access(&self, step_count: u64) -> AccessInfo {
-        todo!()
+        self.0.lock().unwrap().enqueue_access(step_count)
     }
 }
 
@@ -328,6 +350,7 @@ impl ObjectSetImpl {
     }
 }
 
+// Needed because the SynchronizationSet mutex also protects the ObjectSet
 unsafe impl Sync for ObjectSetImpl {
 }
 
@@ -367,6 +390,11 @@ pub struct ObjectSet(Arc<ObjectSetImpl>);
 impl ObjectSet {
     fn new(synchronization_group: SynchronizationGroup, objects: Box<[ObjectData]>, allocations: Box<[memory::AllocationMeta]>) -> Self {
         Self(Arc::new(ObjectSetImpl::new(synchronization_group, objects, allocations)))
+    }
+
+    /// Returns the synchronization group that controls access to this object set.
+    pub fn get_synchronization_group(&self) -> &SynchronizationGroup {
+        &self.0.group
     }
 
     /// Returns the handle of an object that is part of this object set.
