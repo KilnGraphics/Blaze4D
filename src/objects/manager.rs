@@ -23,6 +23,7 @@
 
 use std::any::Any;
 use std::cmp::Ordering;
+use std::hash::{Hash, Hasher};
 use std::str::SplitN;
 use std::sync::{Arc, LockResult, Mutex, MutexGuard, PoisonError};
 
@@ -266,6 +267,12 @@ impl Ord for SynchronizationGroup {
     }
 }
 
+impl Hash for SynchronizationGroup {
+    fn hash<H: Hasher>(&self, state: &mut H) {
+        state.write_u64(self.0.get_group_id())
+    }
+}
+
 /// Stores information for a single accesses queued up in a synchronization group.
 pub struct AccessInfo {
     /// The timeline semaphore protecting the group.
@@ -449,5 +456,44 @@ impl PartialOrd for ObjectSet {
 impl Ord for ObjectSet {
     fn cmp(&self, other: &Self) -> Ordering {
         self.0.cmp(&other.0)
+    }
+}
+
+impl Hash for ObjectSet {
+    fn hash<H: Hasher>(&self, state: &mut H) {
+        state.write_u64(self.0.set_id)
+    }
+}
+
+pub struct SynchronizationGroupSet {
+    groups: Box<[SynchronizationGroup]>,
+}
+
+impl SynchronizationGroupSet {
+    pub fn new(groups: &std::collections::BTreeSet<SynchronizationGroup>) -> Self {
+        // BTreeSet is required to guarantee the groups are sorted
+
+        let collected : Vec<_> = groups.into_iter().map(|group| group.clone()).collect();
+        Self{ groups: collected.into_boxed_slice() }
+    }
+
+    pub fn enqueue_access(&self, step_counts: &[u64]) -> Box<[AccessInfo]> {
+        if self.groups.len() != step_counts.len() {
+            panic!("Step counts length mismatch")
+        }
+
+        let mut guards = Vec::with_capacity(self.groups.len());
+
+        for group in self.groups.iter() {
+            guards.push(group.0.lock().unwrap())
+        }
+
+        let mut accesses = Vec::with_capacity(self.groups.len());
+
+        for (i, mut guard) in guards.into_iter().enumerate() {
+            accesses.push(guard.enqueue_access(*step_counts.get(i).unwrap()));
+        }
+
+        accesses.into_boxed_slice()
     }
 }
