@@ -1,3 +1,4 @@
+use core::panicking::panic;
 use std::fmt::{Debug, Formatter};
 use std::hash::{Hash, Hasher};
 use std::num::NonZeroU64;
@@ -49,12 +50,15 @@ impl<const TYPE: u8> ObjectId<TYPE> {
 
     const fn make(local_id: u64, global_id: u64, object_type: u8) -> Self {
         if local_id > Self::LOCAL_ID_MAX {
-            // panic!("Local id out of range"); TODO enable this when its no longer unstable
+            panic!("Local id out of range");
         }
 
         let local = (local_id << Self::LOCAL_ID_OFFSET) | ((object_type as u64) << Self::TYPE_OFFSET);
         let global = global_id;
 
+        if global == 0 {
+            panic!("Global id must be non zero")
+        }
         unsafe { // Need to wait for const unwrap
             ObjectId { local, global: NonZeroU64::new_unchecked(global) }
         }
