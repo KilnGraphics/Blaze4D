@@ -23,6 +23,7 @@
 
 use std::any::Any;
 use std::cmp::Ordering;
+use std::str::SplitN;
 use std::sync::{Arc, LockResult, Mutex, MutexGuard, PoisonError};
 
 use ash::vk;
@@ -37,8 +38,9 @@ pub enum ObjectCreateMeta {
     Buffer(super::buffer::BufferCreateMeta, memory::AllocationCreateMeta)
 }
 
-/// Wrapper type that is passed to the create function. The create function will store the assigned
-/// id of the object in this type which can the later be retrieved by the calling code.
+/// Wrapper type that is passed to the object set create function. The create function will store
+/// the assigned id of the object in this type which can then later be retrieved by the calling
+/// code.
 pub struct ObjectCreateRequest {
     meta: ObjectCreateMeta,
     id: Option<id::GenericId>,
@@ -77,10 +79,10 @@ impl ObjectManagerImpl {
         Self{ instance, device }
     }
 
-    fn create_timeline_semaphore(&self) -> vk::Semaphore {
+    fn create_timeline_semaphore(&self, initial_value: u64) -> vk::Semaphore {
         let mut timeline_info = vk::SemaphoreTypeCreateInfo::builder()
             .semaphore_type(vk::SemaphoreType::TIMELINE)
-            .initial_value(0);
+            .initial_value(initial_value);
         let info = vk::SemaphoreCreateInfo::builder().push_next(&mut timeline_info);
 
         unsafe {
@@ -108,7 +110,7 @@ impl ObjectManager {
 
     /// Creates a new synchronization group managed by this object manager
     pub fn create_synchronization_group(&self) -> SynchronizationGroup {
-        SynchronizationGroup::new(self.clone(), self.0.create_timeline_semaphore())
+        SynchronizationGroup::new(self.clone(), self.0.create_timeline_semaphore(0u64))
     }
 
     /// Creates a new object set managed by this object manager
@@ -171,9 +173,18 @@ impl PartialEq for SynchronizationGroupImpl {
     }
 }
 
+impl Eq for SynchronizationGroupImpl {
+}
+
 impl PartialOrd for SynchronizationGroupImpl {
     fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
         self.group_id.partial_cmp(&other.group_id)
+    }
+}
+
+impl Ord for SynchronizationGroupImpl {
+    fn cmp(&self, other: &Self) -> Ordering {
+        self.group_id.cmp(&other.group_id)
     }
 }
 
@@ -200,14 +211,25 @@ impl PartialEq for SynchronizationGroup {
     }
 }
 
+impl Eq for SynchronizationGroup {
+}
+
 impl PartialOrd for SynchronizationGroup {
     fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
         self.0.partial_cmp(&other.0)
     }
 }
 
+impl Ord for SynchronizationGroup {
+    fn cmp(&self, other: &Self) -> Ordering {
+        self.0.cmp(&other.0)
+    }
+}
+
+// Internal implementation of the object set
 struct ObjectSetImpl {
     group: SynchronizationGroup,
+    set_id: u64,
     objects: Box<[()]>,
 }
 
@@ -216,6 +238,27 @@ impl ObjectSetImpl {
 }
 
 unsafe impl Sync for ObjectSetImpl {
+}
+
+impl PartialEq for ObjectSetImpl {
+    fn eq(&self, other: &Self) -> bool {
+        self.set_id.eq(&other.set_id)
+    }
+}
+
+impl Eq for ObjectSetImpl {
+}
+
+impl PartialOrd for ObjectSetImpl {
+    fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
+        self.set_id.partial_cmp(&other.set_id)
+    }
+}
+
+impl Ord for ObjectSetImpl {
+    fn cmp(&self, other: &Self) -> Ordering {
+        self.set_id.cmp(&other.set_id)
+    }
 }
 
 
@@ -230,5 +273,26 @@ impl ObjectSet {
 impl Clone for ObjectSet {
     fn clone(&self) -> Self {
         Self( self.0.clone() )
+    }
+}
+
+impl PartialEq for ObjectSet {
+    fn eq(&self, other: &Self) -> bool {
+        self.0.eq(&other.0)
+    }
+}
+
+impl Eq for ObjectSet {
+}
+
+impl PartialOrd for ObjectSet {
+    fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
+        self.0.partial_cmp(&other.0)
+    }
+}
+
+impl Ord for ObjectSet {
+    fn cmp(&self, other: &Self) -> Ordering {
+        self.0.cmp(&other.0)
     }
 }
