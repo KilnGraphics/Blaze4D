@@ -100,7 +100,7 @@ impl ObjectManagerImpl {
 /// Public object manager api.
 ///
 /// This is a smart pointer reference to an internal struct.
-struct ObjectManager(Arc<ObjectManagerImpl>);
+pub struct ObjectManager(Arc<ObjectManagerImpl>);
 
 impl ObjectManager {
     /// Creates a new ObjectManager
@@ -125,6 +125,9 @@ impl ObjectManager {
     // Internal function that destroys a semaphore created for a synchronization group
     fn destroy_semaphore(&self, semaphore: vk::Semaphore) {
         self.0.destroy_semaphore(semaphore)
+    }
+
+    fn destroy_objects(&self, objects: &[ObjectData], allocations: &[memory::AllocationMeta]) {
     }
 }
 
@@ -197,6 +200,10 @@ impl SynchronizationGroup {
     fn new(manager: ObjectManager, semaphore: vk::Semaphore) -> Self {
         Self(Arc::new(SynchronizationGroupImpl::new(manager, semaphore)))
     }
+
+    pub fn get_manager(&self) -> &ObjectManager {
+        &self.0.manager
+    }
 }
 
 impl Clone for SynchronizationGroup {
@@ -226,18 +233,40 @@ impl Ord for SynchronizationGroup {
     }
 }
 
+enum ObjectData {
+    Buffer{
+        handle: vk::Buffer,
+        meta: super::buffer::BufferMeta,
+    },
+
+}
+
 // Internal implementation of the object set
 struct ObjectSetImpl {
     group: SynchronizationGroup,
     set_id: u64,
-    objects: Box<[()]>,
+    objects: Box<[ObjectData]>,
+    allocations: Box<[memory::AllocationMeta]>,
 }
 
 impl ObjectSetImpl {
-
+    fn new(synchronization_group: SynchronizationGroup, objects: Box<[ObjectData]>, allocations: Box<[memory::AllocationMeta]>) -> Self {
+        Self{
+            group: synchronization_group,
+            set_id: id::make_global_id(),
+            objects,
+            allocations
+        }
+    }
 }
 
 unsafe impl Sync for ObjectSetImpl {
+}
+
+impl Drop for ObjectSetImpl {
+    fn drop(&mut self) {
+        self.group.get_manager().destroy_objects(self.objects.as_ref(), self.allocations.as_ref())
+    }
 }
 
 impl PartialEq for ObjectSetImpl {
