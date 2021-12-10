@@ -1,4 +1,3 @@
-use core::panicking::panic;
 use std::fmt::{Debug, Formatter};
 use std::hash::{Hash, Hasher};
 use std::num::NonZeroU64;
@@ -57,7 +56,7 @@ impl<const TYPE: u8> ObjectId<TYPE> {
         let global = global_id;
 
         if global == 0 {
-            panic!("Global id must be non zero")
+            panic!("Global id must be non zero");
         }
         unsafe { // Need to wait for const unwrap
             ObjectId { local, global: NonZeroU64::new_unchecked(global) }
