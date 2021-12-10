@@ -27,6 +27,7 @@ use std::str::SplitN;
 use std::sync::{Arc, LockResult, Mutex, MutexGuard, PoisonError};
 
 use ash::vk;
+use ash::vk::Handle;
 
 use super::memory;
 use super::id;
@@ -95,6 +96,10 @@ impl ObjectManagerImpl {
             self.device.vk().destroy_semaphore(semaphore, None)
         }
     }
+
+    fn destroy_objects(&self, objects: &[ObjectData], allocations: &[memory::AllocationMeta]) {
+        todo!()
+    }
 }
 
 /// Public object manager api.
@@ -127,7 +132,9 @@ impl ObjectManager {
         self.0.destroy_semaphore(semaphore)
     }
 
+    // Internal function that destroys objects and allocations created for a object set
     fn destroy_objects(&self, objects: &[ObjectData], allocations: &[memory::AllocationMeta]) {
+        self.0.destroy_objects(objects, allocations)
     }
 }
 
@@ -204,6 +211,10 @@ impl SynchronizationGroup {
     pub fn get_manager(&self) -> &ObjectManager {
         &self.0.manager
     }
+
+    pub fn enqueue_access(&self, step_count: u64) -> AccessInfo {
+
+    }
 }
 
 impl Clone for SynchronizationGroup {
@@ -233,12 +244,36 @@ impl Ord for SynchronizationGroup {
     }
 }
 
+/// Stores information for a single accesses queued up in a synchronization group.
+pub struct AccessInfo {
+    /// The timeline semaphore protecting the group.
+    pub semaphore: vk::Semaphore,
+
+    /// The value of the semaphore when the access may begin execution.
+    pub begin_access: u64,
+
+    /// The value the semaphore must have to signal the end of the access.
+    pub end_access: u64,
+}
+
+#[non_exhaustive]
 enum ObjectData {
     Buffer{
         handle: vk::Buffer,
         meta: super::buffer::BufferMeta,
     },
+    Image {
+        handle: vk::Image,
+    }
+}
 
+impl ObjectData {
+    fn get_raw_handle(&self) -> u64 {
+        match self {
+            ObjectData::Buffer { handle, .. } => handle.as_raw(),
+            ObjectData::Image { handle, .. } => handle.as_raw(),
+        }
+    }
 }
 
 // Internal implementation of the object set
@@ -256,6 +291,39 @@ impl ObjectSetImpl {
             set_id: id::make_global_id(),
             objects,
             allocations
+        }
+    }
+
+    fn get_raw_handle(&self, id: id::GenericId) -> Option<u64> {
+        if id.get_global_id() != self.set_id {
+            return None;
+        }
+
+        // Invalid local id but matching global is a serious error
+        Some(self.objects.get(id.get_local_id() as usize).unwrap().get_raw_handle())
+    }
+
+    fn get_buffer_handle(&self, id: id::BufferId) -> Option<vk::Buffer> {
+        if id.get_global_id() != self.set_id {
+            return None;
+        }
+
+        // Invalid local id but matching global is a serious error
+        match self.objects.get(id.get_local_id() as usize).unwrap() {
+            ObjectData::Buffer { handle, .. } => Some(*handle),
+            _ => panic!("Object type mismatch"),
+        }
+    }
+
+    fn get_image_handle(&self, id: id::ImageId) -> Option<vk::Image> {
+        if id.get_global_id() != self.set_id {
+            return None;
+        }
+
+        // Invalid local id but matching global is a serious error
+        match self.objects.get(id.get_local_id() as usize).unwrap() {
+            ObjectData::Image { handle, .. } => Some(*handle),
+            _ => panic!("Object type mismatch"),
         }
     }
 }
@@ -297,6 +365,36 @@ impl Ord for ObjectSetImpl {
 pub struct ObjectSet(Arc<ObjectSetImpl>);
 
 impl ObjectSet {
+    fn new(synchronization_group: SynchronizationGroup, objects: Box<[ObjectData]>, allocations: Box<[memory::AllocationMeta]>) -> Self {
+        Self(Arc::new(ObjectSetImpl::new(synchronization_group, objects, allocations)))
+    }
+
+    /// Returns the handle of an object that is part of this object set.
+    ///
+    /// If the id is not part of the object set (i.e. the global id does not match) None will be
+    /// returned. If the id is invalid (matching global id but local id is invalid) the function
+    /// panics.
+    pub fn get_raw_handle(&self, id: id::GenericId) -> Option<u64> {
+        self.0.get_raw_handle(id)
+    }
+
+    /// Returns the handle of a buffer that is part of this object set.
+    ///
+    /// If the id is not part of the object set (i.e. the global id does not match) None will be
+    /// returned. If the id is invalid (matching global id but local id is invalid or object type
+    /// is not a buffer) the function panics.
+    pub fn get_buffer_handle(&self, id: id::BufferId) -> Option<vk::Buffer> {
+        self.0.get_buffer_handle(id)
+    }
+
+    /// Returns the handle of a image that is part of this object set.
+    ///
+    /// If the id is not part of the object set (i.e. the global id does not match) None will be
+    /// returned. If the id is invalid (matching global id but local id is invalid or object type
+    /// is not a image) the function panics.
+    pub fn get_image_handle(&self, id: id::ImageId) -> Option<vk::Image> {
+        self.0.get_image_handle(id)
+    }
 }
 
 impl Clone for ObjectSet {
