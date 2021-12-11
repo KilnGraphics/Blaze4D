@@ -3,6 +3,7 @@ use std::collections::hash_map::DefaultHasher;
 use std::fmt::{Debug, Formatter};
 use std::hash::{Hash, Hasher};
 use std::num::NonZeroU64;
+use std::sync::Arc;
 
 /// Packed struct providing a 47bit field, a 16 bit field and a always set 1bit niche.
 #[derive(Copy, Clone, Ord, PartialOrd, Eq, PartialEq, Hash)]
@@ -243,7 +244,7 @@ impl IncrementingGenerator {
 /// recommended to avoid creating new instances when not necessary. (Also reduces typing mistakes)
 #[derive(Clone, Debug)]
 pub struct NamedUUID {
-    name: String,
+    name: Arc<String>,
     id: LocalId,
 }
 
@@ -256,11 +257,11 @@ impl NamedUUID {
         name.hash(&mut hasher);
         let hash = hasher.finish();
 
-        NamedUUID { name, id: LocalId::from_hash(hash) }
+        NamedUUID { name: Arc::new(name), id: LocalId::from_hash(hash) }
     }
 
     pub fn get_name(&self) -> &String {
-        &self.name
+        self.name.as_ref()
     }
 
     pub fn get_uuid(&self) -> UUID {
