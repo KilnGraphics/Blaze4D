@@ -35,7 +35,11 @@ use super::id;
 /// should be created.
 #[non_exhaustive]
 pub enum ObjectCreateMeta {
-    Buffer(super::buffer::BufferCreateMeta, AllocationCreateMeta)
+    Buffer(super::buffer::BufferCreateMeta, AllocationCreateMeta),
+    BufferView(super::buffer::BufferViewCreateMeta, usize),
+    Image(super::image::ImageCreateMeta, AllocationCreateMeta),
+    ImageView(super::image::ImageViewCreateMeta, usize),
+    Event(),
 }
 
 /// Contains information about how memory should be allocated for an object.
@@ -69,6 +73,11 @@ impl ObjectCreateRequest {
     /// Retrieves the currently stored id.
     pub fn get_id(&self) -> Option<id::GenericId> {
         self.id
+    }
+
+    /// Retrieves the currently stored id as an id of specified type.
+    pub fn get_id_typed<const TYPE: u8>(&self) -> Option<id::ObjectId<TYPE>> {
+        self.id.map(|id| id.downcast::<TYPE>()).flatten()
     }
 }
 

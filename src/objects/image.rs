@@ -1,5 +1,7 @@
 use std::fmt::Debug;
 
+use ash::vk;
+
 #[derive(Copy, Clone, Debug)]
 pub enum ImageSize {
     Type1D { width: u32, mip_levels: u32, array_layers: u32 },
@@ -137,4 +139,19 @@ pub struct ImageSubresourceRange {
     pub mip_level_count: u32,
     pub base_array_layer: u32,
     pub array_layer_count: u32,
+}
+
+#[non_exhaustive]
+pub struct ImageMeta {
+
+}
+
+#[non_exhaustive]
+pub struct ImageCreateMeta {
+    pub spec: ImageSpec,
+    pub usage_flags: vk::ImageUsageFlags,
+}
+
+pub struct ImageViewCreateMeta {
+
 }

@@ -37,3 +37,8 @@ impl BufferCreateMeta {
         BufferCreateMeta{ size, usage_flags }
     }
 }
+
+#[non_exhaustive]
+pub struct BufferViewCreateMeta {
+
+}
