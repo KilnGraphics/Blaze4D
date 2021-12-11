@@ -1,7 +1,5 @@
 use std::fmt::{Debug, Formatter};
 use std::hash::{Hash, Hasher};
-use std::num::NonZeroU64;
-use std::sync::atomic::{AtomicU64, Ordering};
 use crate::util::id::{GlobalId, LocalId, UUID};
 
 pub struct ObjectType;
@@ -41,7 +39,6 @@ impl<const TYPE: u8> ObjectId<TYPE> {
     pub const INDEX_MAX: u64 = (1u64 << Self::INDEX_BITS) - 1u64;
     const INDEX_MASK: u64 = Self::INDEX_MAX << Self::INDEX_OFFSET;
 
-    const TYPE_BITS: u32 = 8u32;
     const TYPE_OFFSET: u32 = Self::INDEX_OFFSET + Self::INDEX_BITS;
     const TYPE_MASK: u64 = (u8::MAX as u64) << Self::TYPE_OFFSET;
 
