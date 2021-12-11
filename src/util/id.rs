@@ -1,3 +1,9 @@
+/// Utilities for globally unique identifiers.
+///
+/// A UUID is made up of 2 parts. A global id and a local id. The global id acts as a identifier for
+/// local address spaces allowing systems to create their own generation methods for local ids while
+/// retaining global uniqueness.
+
 use std::cmp::Ordering;
 use std::collections::hash_map::DefaultHasher;
 use std::fmt::{Debug, Formatter};
@@ -149,6 +155,22 @@ impl Debug for GlobalId {
 /// Local ids are split into a 47bit field called big and a 16bit field called little. The remaining
 /// bit is a always set niche bit. An extra utility function is provided to create a local id from
 /// a 64bit hash value.
+///
+/// # Examples
+///
+/// ```
+/// use rosella_rs::util::id::LocalId;
+///
+/// // Creates a new local id with a big value of 1 and a little value of 0
+/// let id = LocalId::new(1u64, 0u16);
+///
+/// let same_id = id.clone();
+/// assert_eq!(id, same_id);
+///
+/// // Local ids may not be globally unique
+/// let still_same_id = LocalId::new(1u64, 0u16);
+/// assert_eq!(id, still_same_id);
+/// ```
 #[derive(Copy, Clone, Eq, PartialEq, Ord, PartialOrd, Hash)]
 pub struct LocalId(NonZeroU47U16);
 
@@ -186,7 +208,7 @@ impl Debug for LocalId {
 
 /// A universally unique identified.
 ///
-/// A uuid is made up of a global, local id pair.
+/// A uuid is made up of a global id, local id pair.
 #[derive(Copy, Clone, Eq, PartialEq, Ord, PartialOrd, Hash, Debug)]
 pub struct UUID {
     pub global: GlobalId,
@@ -194,12 +216,39 @@ pub struct UUID {
 }
 
 /// A utility struct providing a simple incrementing counter local id generator.
+///
+/// The generator will create its own global id. The big value of local ids will be used for the
+/// incrementing counter while the little value is available for users to use as they see fit.
+///
+/// # Examples
+/// ```
+/// use rosella_rs::util::id::*;
+///
+/// // Create a new generator
+/// let generator = IncrementingGenerator::new();
+///
+/// // A new uuid
+/// let some_uuid = generator.next();
+///
+/// // The global id of the generator will be used for uuids
+/// assert_eq!(generator.get_global_id(), some_uuid.global);
+///
+/// // Some other uuid
+/// let other_uuid = generator.next();
+/// assert_ne!(some_uuid, other_uuid);
+///
+/// // The little field of the local id can be used by the calling code
+/// let little = 234u16;
+/// let uuid_with_little = generator.next_with_little(little);
+/// assert_eq!(uuid_with_little.local.get_little(), little);
+/// ```
 pub struct IncrementingGenerator {
     global: GlobalId,
     next: std::sync::atomic::AtomicU64,
 }
 
 impl IncrementingGenerator {
+    /// Creates a new generator with a new global id and a local id starting at 0.
     pub fn new() -> Self {
         Self {
             global: GlobalId::new(),
@@ -207,10 +256,12 @@ impl IncrementingGenerator {
         }
     }
 
+    /// Returns the global id of the generator.
     pub fn get_global_id(&self) -> GlobalId {
         self.global
     }
 
+    /// Creates a new uuid with the little field set to 0.
     pub fn next(&self) -> Option<UUID> {
         let local = self.next.fetch_add(1u64, std::sync::atomic::Ordering::Relaxed);
 
@@ -224,6 +275,7 @@ impl IncrementingGenerator {
         })
     }
 
+    /// Creates a new uuid with the little field set to a custom value.
     pub fn next_with_little(&self, little: u16) -> Option<UUID> {
         let local = self.next.fetch_add(1u64, std::sync::atomic::Ordering::Relaxed);
 
@@ -238,10 +290,11 @@ impl IncrementingGenerator {
     }
 }
 
-/// Quickly identify and compare entities while retaining a human readable name.
+/// A UUID generated from a string.
 ///
-/// comparing existing ID's is very fast so it is highly
-/// recommended to avoid creating new instances when not necessary. (Also reduces typing mistakes)
+/// NamedUUIDs use a predefined global id with the local id being calculated as the hash of a
+/// string. The name is stored along side the UUID for easy debugging or printing. The name is
+/// stored by Arc enabling fast Copying of the struct.
 #[derive(Clone, Debug)]
 pub struct NamedUUID {
     name: Arc<String>,
@@ -260,10 +313,12 @@ impl NamedUUID {
         NamedUUID { name: Arc::new(name), id: LocalId::from_hash(hash) }
     }
 
+    /// Returns the string that generated the UUID
     pub fn get_name(&self) -> &String {
         self.name.as_ref()
     }
 
+    /// Returns the uuid
     pub fn get_uuid(&self) -> UUID {
         UUID {
             global: Self::GLOBAL_ID,
@@ -271,14 +326,17 @@ impl NamedUUID {
         }
     }
 
+    /// Returns the global id
     pub fn get_global_id(&self) -> GlobalId {
         Self::GLOBAL_ID
     }
 
+    /// Returns the local id
     pub fn get_local_id(&self) -> LocalId {
         self.id
     }
 }
+
 impl PartialEq for NamedUUID {
     fn eq(&self, other: &Self) -> bool {
         self.id.eq(&other.id)
