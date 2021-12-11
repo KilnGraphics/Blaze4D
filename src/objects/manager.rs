@@ -5,7 +5,7 @@
 //! Access to objects is controlled using synchronization groups. All objects belonging to a
 //! synchronization group are accessed as one unit protected by a single timeline semaphore. This
 //! means 2 objects belonging to the same synchronization group cannot be accessed concurrently but
-//! only sequentially. Note that this
+//! only sequentially.
 //!
 //! Allocation and destruction of objects is managed through object sets. A objects set is a
 //! collection of objects that have the same lifetime. All objects are created when creating the set
@@ -35,7 +35,11 @@ use super::id;
 /// should be created.
 #[non_exhaustive]
 pub enum ObjectCreateMeta {
-    Buffer(super::buffer::BufferCreateMeta, memory::AllocationCreateMeta)
+    Buffer(super::buffer::BufferCreateMeta, AllocationCreateMeta)
+}
+
+/// Contains information about how memory should be allocated for an object.
+pub struct AllocationCreateMeta {
 }
 
 /// Wrapper type that is passed to the object set create function. The create function will store
@@ -52,7 +56,7 @@ impl ObjectCreateRequest {
         Self{ meta, id: None }
     }
 
-    /// Returns the stored create metadata.
+    /// Returns the create metadata.
     pub fn get_meta(&self) -> &ObjectCreateMeta {
         &self.meta
     }
@@ -96,7 +100,7 @@ impl ObjectManagerImpl {
         }
     }
 
-    fn destroy_objects(&self, objects: &[ObjectData], allocations: &[memory::AllocationMeta]) {
+    fn destroy_objects(&self, objects: &[ObjectData], allocations: &[AllocationMeta]) {
         todo!()
     }
 }
@@ -132,7 +136,7 @@ impl ObjectManager {
     }
 
     // Internal function that destroys objects and allocations created for a object set
-    fn destroy_objects(&self, objects: &[ObjectData], allocations: &[memory::AllocationMeta]) {
+    fn destroy_objects(&self, objects: &[ObjectData], allocations: &[AllocationMeta]) {
         self.0.destroy_objects(objects, allocations)
     }
 }
@@ -141,6 +145,13 @@ impl Clone for ObjectManager {
     fn clone(&self) -> Self {
         Self( self.0.clone() )
     }
+}
+
+/// Internal struct containing information about a memory allocation.
+///
+/// These structs dont have to have a 1 to 1 mapping to objects. A allocation can back multiple
+/// objects or a object can be backed by multiple allocations.
+struct AllocationMeta {
 }
 
 // Internal struct containing the semaphore payload and metadata
@@ -308,11 +319,11 @@ struct ObjectSetImpl {
     group: SynchronizationGroup,
     set_id: u64,
     objects: Box<[ObjectData]>,
-    allocations: Box<[memory::AllocationMeta]>,
+    allocations: Box<[AllocationMeta]>,
 }
 
 impl ObjectSetImpl {
-    fn new(synchronization_group: SynchronizationGroup, objects: Box<[ObjectData]>, allocations: Box<[memory::AllocationMeta]>) -> Self {
+    fn new(synchronization_group: SynchronizationGroup, objects: Box<[ObjectData]>, allocations: Box<[AllocationMeta]>) -> Self {
         Self{
             group: synchronization_group,
             set_id: id::make_global_id(),
@@ -393,7 +404,7 @@ impl Ord for ObjectSetImpl {
 pub struct ObjectSet(Arc<ObjectSetImpl>);
 
 impl ObjectSet {
-    fn new(synchronization_group: SynchronizationGroup, objects: Box<[ObjectData]>, allocations: Box<[memory::AllocationMeta]>) -> Self {
+    fn new(synchronization_group: SynchronizationGroup, objects: Box<[ObjectData]>, allocations: Box<[AllocationMeta]>) -> Self {
         Self(Arc::new(ObjectSetImpl::new(synchronization_group, objects, allocations)))
     }
 
