@@ -5,7 +5,7 @@ use ash::vk::{API_VERSION_1_0, API_VERSION_1_2};
 use topological_sort::TopologicalSort;
 
 use crate::init::device::ApplicationFeature;
-use crate::NamedID;
+use crate::NamedUUID;
 
 ///
 /// A class used to collect any callbacks and settings that are used for device and instance initialization.
@@ -19,8 +19,8 @@ pub struct InitializationRegistry {
     pub required_instance_layers: HashSet<String>,
     pub optional_instance_layers: HashSet<String>,
 
-    pub features: HashMap<NamedID, MarkedFeature>,
-    pub required_features: HashSet<NamedID>,
+    pub features: HashMap<NamedUUID, MarkedFeature>,
+    pub required_features: HashSet<NamedUUID>,
 }
 
 pub struct MarkedFeature {
@@ -79,7 +79,7 @@ impl InitializationRegistry {
     /// Marks a feature as required. This means that during device selection no device will be used
     /// that does not support all required features.
     ///
-    pub fn add_required_application_feature(&mut self, name: NamedID) {
+    pub fn add_required_application_feature(&mut self, name: NamedUUID) {
         self.required_features.insert(name);
     }
 
@@ -88,7 +88,7 @@ impl InitializationRegistry {
     ///
     pub fn register_application_feature(&mut self, feature: Rc<dyn ApplicationFeature>) -> Result<(), String> {
         if self.features.contains_key(&feature.get_feature_name()) {
-            return Err(format!("Feature {} is already registered", feature.get_feature_name().name));
+            return Err(format!("Feature {} is already registered", feature.get_feature_name().get_name()));
         }
 
         self.features.insert(feature.get_feature_name(), MarkedFeature::new(feature));
@@ -100,7 +100,7 @@ impl InitializationRegistry {
     /// The list can be iterated from beginning to end to ensure all dependencies are always met.
     ///
     pub fn get_ordered_features(&self) -> Vec<Rc<dyn ApplicationFeature>> {
-        let mut sort = TopologicalSort::<NamedID>::new();
+        let mut sort = TopologicalSort::<NamedUUID>::new();
         self.features.keys().for_each(|feature| self.add_feature(feature, &mut sort));
 
         let mut sorted = Vec::new();
@@ -112,7 +112,7 @@ impl InitializationRegistry {
         sorted
     }
 
-    pub fn add_feature(&self, id: &NamedID, sort: &mut TopologicalSort<NamedID>) {
+    pub fn add_feature(&self, id: &NamedUUID, sort: &mut TopologicalSort<NamedUUID>) {
         for dependency in self.features[id].feature.get_dependencies() {
             sort.add_dependency(id.clone(), dependency);
         }
