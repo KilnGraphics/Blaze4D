@@ -45,20 +45,6 @@ impl NonZeroU47U16 {
     const fn get_little(&self) -> u16 {
         ((self.0.get() & Self::LITTLE_MASK) >> Self::LITTLE_OFFSET) as u16
     }
-
-    fn set_big(&mut self, new_big: u64) {
-        if new_big > Self::BIG_MAX {
-            panic!("Big out of range");
-        }
-
-        let masked = self.0.get() & (!Self::BIG_MASK);
-        self.0 = NonZeroU64::new(masked | (new_big << Self::BIG_OFFSET)).unwrap()
-    }
-
-    fn set_little(&mut self, new_little: u16) {
-        let masked = self.0.get() & (!Self::LITTLE_MASK);
-        self.0 = NonZeroU64::new(masked | ((new_little as u64) << Self::LITTLE_OFFSET)).unwrap()
-    }
 }
 
 impl Debug for NonZeroU47U16 {
@@ -163,7 +149,7 @@ impl Debug for GlobalId {
 /// bit is a always set niche bit. An extra utility function is provided to create a local id from
 /// a 64bit hash value.
 #[derive(Copy, Clone, Eq, PartialEq, Ord, PartialOrd, Hash)]
-struct LocalId(NonZeroU47U16);
+pub struct LocalId(NonZeroU47U16);
 
 impl LocalId {
     pub const BIG_MAX: u64 = NonZeroU47U16::BIG_MAX;
@@ -201,13 +187,13 @@ impl Debug for LocalId {
 ///
 /// A uuid is made up of a global, local id pair.
 #[derive(Copy, Clone, Eq, PartialEq, Ord, PartialOrd, Hash, Debug)]
-struct UUID {
+pub struct UUID {
     pub global: GlobalId,
     pub local: LocalId,
 }
 
 /// A utility struct providing a simple incrementing counter local id generator.
-struct IncrementingGenerator {
+pub struct IncrementingGenerator {
     global: GlobalId,
     next: std::sync::atomic::AtomicU64,
 }
