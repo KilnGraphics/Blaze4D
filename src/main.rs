@@ -14,7 +14,7 @@ use rosella_rs::init::device::{ApplicationFeature, DeviceMeta};
 use rosella_rs::init::initialization_registry::InitializationRegistry;
 use rosella_rs::rosella::Rosella;
 use rosella_rs::window::{RosellaSurface, RosellaWindow};
-use rosella_rs::NamedID;
+use rosella_rs::NamedUUID;
 use rosella_rs::shader::{GraphicsContext, GraphicsShader};
 use rosella_rs::shader::vertex::{VertexFormat, VertexFormatBuilder, VertexFormatElement};
 use rosella_rs::shader::vertex::data_type;
@@ -27,8 +27,8 @@ struct QueueFamilyIndices {
 struct QueueFeature;
 
 impl ApplicationFeature for QueueFeature {
-    fn get_feature_name(&self) -> NamedID {
-        NamedID::new("QueueFeature".to_string())
+    fn get_feature_name(&self) -> NamedUUID {
+        NamedUUID::new("QueueFeature".to_string())
     }
 
     fn is_supported(&self, _: &DeviceMeta) -> bool {
@@ -74,7 +74,7 @@ impl ApplicationFeature for QueueFeature {
         meta.add_queue_request(queue_family_indices.present_family);
     }
 
-    fn get_dependencies(&self) -> HashSet<NamedID> {
+    fn get_dependencies(&self) -> HashSet<NamedUUID> {
         HashSet::new()
     }
 }

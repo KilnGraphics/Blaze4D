@@ -1,4 +1,4 @@
-pub use util::id::NamedID;
+pub use util::id::NamedUUID;
 
 pub mod init;
 pub mod rosella;

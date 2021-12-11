@@ -12,7 +12,7 @@ use ash::{Device, Instance};
 use crate::init::initialization_registry::InitializationRegistry;
 use crate::util::utils::string_from_array;
 use crate::window::RosellaSurface;
-use crate::NamedID;
+use crate::NamedUUID;
 
 #[derive(Debug)]
 pub struct VulkanQueue {
@@ -52,10 +52,10 @@ struct QueueRequest {
 ///
 /// The default implementation of this class only validates that all dependencies are met and does not create any metadata.
 pub trait ApplicationFeature {
-    fn get_feature_name(&self) -> NamedID;
+    fn get_feature_name(&self) -> NamedUUID;
     fn is_supported(&self, meta: &DeviceMeta) -> bool;
     fn enable(&self, meta: &mut DeviceMeta, instance: &Instance, surface: &RosellaSurface);
-    fn get_dependencies(&self) -> HashSet<NamedID>;
+    fn get_dependencies(&self) -> HashSet<NamedUUID>;
 }
 
 /// Builds all information about features on the device and what is enabled.
@@ -67,8 +67,8 @@ pub struct DeviceFeatureBuilder {
 }
 
 pub struct DeviceMeta {
-    unsatisfied_requirements: Vec<NamedID>,
-    features: HashMap<NamedID, Rc<dyn ApplicationFeature>>,
+    unsatisfied_requirements: Vec<NamedUUID>,
+    features: HashMap<NamedUUID, Rc<dyn ApplicationFeature>>,
     pub feature_builder: DeviceFeatureBuilder,
 
     pub physical_device: PhysicalDevice,
