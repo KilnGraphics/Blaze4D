@@ -27,6 +27,7 @@ use std::sync::{Arc, LockResult, Mutex, MutexGuard};
 
 use ash::vk;
 use ash::vk::Handle;
+use crate::util::id::GlobalId;
 
 use super::id;
 
@@ -175,17 +176,17 @@ impl SyncData {
 
 // Internal implementation of the synchronization group
 struct SynchronizationGroupImpl {
-    group_id: u64,
+    group_id: GlobalId,
     sync_data: Mutex<SyncData>,
     manager: ObjectManager,
 }
 
 impl SynchronizationGroupImpl {
     fn new(manager: ObjectManager, semaphore: vk::Semaphore) -> Self {
-        Self{ group_id: id::make_global_id(), sync_data: Mutex::new(SyncData{ semaphore, last_access: 0u64 }), manager }
+        Self{ group_id: GlobalId::new(), sync_data: Mutex::new(SyncData{ semaphore, last_access: 0u64 }), manager }
     }
 
-    fn get_group_id(&self) -> u64 {
+    fn get_group_id(&self) -> GlobalId {
         self.group_id
     }
 
@@ -277,7 +278,7 @@ impl Ord for SynchronizationGroup {
 
 impl Hash for SynchronizationGroup {
     fn hash<H: Hasher>(&self, state: &mut H) {
-        state.write_u64(self.0.get_group_id())
+        self.0.group_id.hash(state)
     }
 }
 
@@ -316,7 +317,7 @@ impl ObjectData {
 // Internal implementation of the object set
 struct ObjectSetImpl {
     group: SynchronizationGroup,
-    set_id: u64,
+    set_id: GlobalId,
     objects: Box<[ObjectData]>,
     allocations: Box<[AllocationMeta]>,
 }
@@ -325,7 +326,7 @@ impl ObjectSetImpl {
     fn new(synchronization_group: SynchronizationGroup, objects: Box<[ObjectData]>, allocations: Box<[AllocationMeta]>) -> Self {
         Self{
             group: synchronization_group,
-            set_id: id::make_global_id(),
+            set_id: GlobalId::new(),
             objects,
             allocations
         }
@@ -337,7 +338,7 @@ impl ObjectSetImpl {
         }
 
         // Invalid local id but matching global is a serious error
-        Some(self.objects.get(id.get_local_id() as usize).unwrap().get_raw_handle())
+        Some(self.objects.get(id.get_index() as usize).unwrap().get_raw_handle())
     }
 
     fn get_buffer_handle(&self, id: id::BufferId) -> Option<vk::Buffer> {
@@ -346,7 +347,7 @@ impl ObjectSetImpl {
         }
 
         // Invalid local id but matching global is a serious error
-        match self.objects.get(id.get_local_id() as usize).unwrap() {
+        match self.objects.get(id.get_index() as usize).unwrap() {
             ObjectData::Buffer { handle, .. } => Some(*handle),
             _ => panic!("Object type mismatch"),
         }
@@ -358,7 +359,7 @@ impl ObjectSetImpl {
         }
 
         // Invalid local id but matching global is a serious error
-        match self.objects.get(id.get_local_id() as usize).unwrap() {
+        match self.objects.get(id.get_index() as usize).unwrap() {
             ObjectData::Image { handle, .. } => Some(*handle),
             _ => panic!("Object type mismatch"),
         }
@@ -469,7 +470,7 @@ impl Ord for ObjectSet {
 
 impl Hash for ObjectSet {
     fn hash<H: Hasher>(&self, state: &mut H) {
-        state.write_u64(self.0.set_id)
+        self.0.set_id.hash(state)
     }
 }
 

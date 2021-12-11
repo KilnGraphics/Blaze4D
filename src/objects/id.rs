@@ -2,6 +2,7 @@ use std::fmt::{Debug, Formatter};
 use std::hash::{Hash, Hasher};
 use std::num::NonZeroU64;
 use std::sync::atomic::{AtomicU64, Ordering};
+use crate::util::id::{GlobalId, LocalId, UUID};
 
 pub struct ObjectType;
 
@@ -32,58 +33,62 @@ impl ObjectType {
 }
 
 #[derive(Copy, Clone, PartialEq, Eq, PartialOrd, Ord)]
-pub struct ObjectId<const TYPE: u8> {
-    local: u64,
-    global: NonZeroU64,
-}
+pub struct ObjectId<const TYPE: u8>(UUID);
 
 impl<const TYPE: u8> ObjectId<TYPE> {
-    const LOCAL_ID_BITS: u32 = 56u32;
-    const LOCAL_ID_OFFSET: u32 = 0u32;
-    pub const LOCAL_ID_MAX: u64 = (1u64 << Self::LOCAL_ID_BITS) - 1u64;
-    const LOCAL_ID_MASK: u64 = Self::LOCAL_ID_MAX << Self::LOCAL_ID_OFFSET;
+    const INDEX_BITS: u32 = 56u32;
+    const INDEX_OFFSET: u32 = 0u32;
+    pub const INDEX_MAX: u64 = (1u64 << Self::INDEX_BITS) - 1u64;
+    const INDEX_MASK: u64 = Self::INDEX_MAX << Self::INDEX_OFFSET;
 
     const TYPE_BITS: u32 = 8u32;
-    const TYPE_OFFSET: u32 = Self::LOCAL_ID_OFFSET + Self::LOCAL_ID_BITS;
+    const TYPE_OFFSET: u32 = Self::INDEX_OFFSET + Self::INDEX_BITS;
     const TYPE_MASK: u64 = (u8::MAX as u64) << Self::TYPE_OFFSET;
 
-    const fn make(local_id: u64, global_id: u64, object_type: u8) -> Self {
-        if local_id > Self::LOCAL_ID_MAX {
+    fn make(global_id: GlobalId, index: u64, object_type: u8) -> Self {
+        if index > Self::INDEX_MAX {
             panic!("Local id out of range");
         }
 
-        let local = (local_id << Self::LOCAL_ID_OFFSET) | ((object_type as u64) << Self::TYPE_OFFSET);
-        let global = global_id;
+        let local = (index << Self::INDEX_OFFSET) | ((object_type as u64) << Self::TYPE_OFFSET);
 
-        if global == 0 {
-            panic!("Global id must be non zero");
-        }
-        unsafe { // Need to wait for const unwrap
-            ObjectId { local, global: NonZeroU64::new_unchecked(global) }
-        }
+        Self(UUID{
+            global: global_id,
+            local: LocalId::from_raw(local),
+        })
     }
 
-    pub const fn get_local_id(&self) -> u64 {
-        (self.local & Self::LOCAL_ID_MASK) >> Self::LOCAL_ID_OFFSET
+    pub const fn get_global_id(&self) -> GlobalId {
+        self.0.global
+    }
+
+    pub const fn get_local_id(&self) -> LocalId {
+        self.0.local
+    }
+
+    pub const fn get_index(&self) -> u64 {
+        (self.0.local.get_raw() & Self::INDEX_MASK) >> Self::INDEX_OFFSET
     }
 
     pub const fn get_type(&self) -> u8 {
-        ((self.local & Self::TYPE_MASK) >> Self::TYPE_OFFSET) as u8
-    }
-
-    pub const fn get_global_id(&self) -> u64 {
-        self.global.get()
+        ((self.0.local.get_raw() & Self::TYPE_MASK) >> Self::TYPE_OFFSET) as u8
     }
 
     pub const fn as_generic(&self) -> ObjectId<{ ObjectType::GENERIC }> {
-        ObjectId::<{ ObjectType::GENERIC }>{ local: self.local, global: self.global }
+        ObjectId::<{ ObjectType::GENERIC }>(self.0)
+    }
+}
+
+impl<const TYPE: u8> Into<UUID> for ObjectId<TYPE> {
+    fn into(self) -> UUID {
+        self.0
     }
 }
 
 impl ObjectId<{ ObjectType::GENERIC }> {
     pub const fn downcast<const TRG: u8>(self) -> Option<ObjectId<TRG>> {
         if self.get_type() == TRG {
-            Some(ObjectId::<TRG>{ local: self.local, global: self.global })
+            Some(ObjectId::<TRG>(self.0))
         } else {
             None
         }
@@ -102,50 +107,49 @@ impl<const TYPE: u8> Debug for ObjectId<TYPE> {
 
 impl<const TYPE: u8> Hash for ObjectId<TYPE> {
     fn hash<H: Hasher>(&self, state: &mut H) {
-        self.local.hash(state);
-        self.global.hash(state);
+        self.0.hash(state)
     }
 }
 
 impl ObjectId<{ ObjectType::BUFFER }> {
-    pub const fn new(local_id: u64, global_id: u64) -> Self {
-        Self::make(local_id, global_id, ObjectType::BUFFER)
+    pub fn new(global_id: GlobalId, index: u64) -> Self {
+        Self::make(global_id, index, ObjectType::BUFFER)
     }
 }
 
 impl ObjectId<{ ObjectType::BUFFER_VIEW }> {
-    pub const fn new(local_id: u64, global_id: u64) -> Self {
-        Self::make(local_id, global_id, ObjectType::BUFFER_VIEW)
+    pub fn new(global_id: GlobalId, index: u64) -> Self {
+        Self::make(global_id, index, ObjectType::BUFFER_VIEW)
     }
 }
 
 impl ObjectId<{ ObjectType::IMAGE }> {
-    pub const fn new(local_id: u64, global_id: u64) -> Self {
-        Self::make(local_id, global_id, ObjectType::IMAGE)
+    pub fn new(global_id: GlobalId, index: u64) -> Self {
+        Self::make(global_id, index, ObjectType::IMAGE)
     }
 }
 
 impl ObjectId<{ ObjectType::IMAGE_VIEW }> {
-    pub const fn new(local_id: u64, global_id: u64) -> Self {
-        Self::make(local_id, global_id, ObjectType::IMAGE_VIEW)
+    pub fn new(global_id: GlobalId, index: u64) -> Self {
+        Self::make(global_id, index, ObjectType::IMAGE_VIEW)
     }
 }
 
 impl ObjectId<{ ObjectType::BINARY_SEMAPHORE }> {
-    pub const fn new(local_id: u64, global_id: u64) -> Self {
-        Self::make(local_id, global_id, ObjectType::BINARY_SEMAPHORE)
+    pub fn new(global_id: GlobalId, index: u64) -> Self {
+        Self::make(global_id, index, ObjectType::BINARY_SEMAPHORE)
     }
 }
 
 impl ObjectId<{ ObjectType::TIMELINE_SEMAPHORE }> {
-    pub const fn new(local_id: u64, global_id: u64) -> Self {
-        Self::make(local_id, global_id, ObjectType::TIMELINE_SEMAPHORE)
+    pub fn new(global_id: GlobalId, index: u64) -> Self {
+        Self::make(global_id, index, ObjectType::TIMELINE_SEMAPHORE)
     }
 }
 
 impl ObjectId<{ ObjectType::EVENT }> {
-    pub const fn new(local_id: u64, global_id: u64) -> Self {
-        Self::make(local_id, global_id, ObjectType::EVENT)
+    pub fn new(global_id: GlobalId, index: u64) -> Self {
+        Self::make(global_id, index, ObjectType::EVENT)
     }
 }
 
@@ -157,52 +161,3 @@ pub type ImageViewId = ObjectId<{ ObjectType::IMAGE_VIEW }>;
 pub type BinarySemaphoreId = ObjectId<{ ObjectType::BINARY_SEMAPHORE }>;
 pub type TimelineSemaphoreId = ObjectId<{ ObjectType::TIMELINE_SEMAPHORE }>;
 pub type EventId = ObjectId<{ ObjectType::EVENT }>;
-
-static NEXT_GLOBAL_ID: AtomicU64 = AtomicU64::new(1);
-
-pub fn make_global_id() -> u64 {
-    NEXT_GLOBAL_ID.fetch_add(1, Ordering::Relaxed)
-}
-
-pub struct IdPool {
-    global_id: u64,
-    next_local_id: AtomicU64,
-}
-
-impl IdPool {
-    fn make_local_id(&self) -> u64 {
-        self.next_local_id.fetch_add(1, Ordering::Relaxed)
-    }
-
-    pub fn new() -> Self {
-        Self{ global_id: make_global_id(), next_local_id: AtomicU64::new(0) }
-    }
-
-    pub fn make_buffer(&self) -> BufferId {
-        BufferId::new(self.make_local_id(), self.global_id)
-    }
-
-    pub fn make_buffer_view(&self) -> BufferViewId {
-        BufferViewId::new(self.make_local_id(), self.global_id)
-    }
-
-    pub fn make_image(&self) -> ImageId {
-        ImageId::new(self.make_local_id(), self.global_id)
-    }
-
-    pub fn make_image_view(&self) -> ImageViewId {
-        ImageViewId::new(self.make_local_id(), self.global_id)
-    }
-
-    pub fn make_binary_semaphore(&self) -> BinarySemaphoreId {
-        BinarySemaphoreId::new(self.make_local_id(), self.global_id)
-    }
-
-    pub fn make_timeline_semaphore(&self) -> TimelineSemaphoreId {
-        TimelineSemaphoreId::new(self.make_local_id(), self.global_id)
-    }
-
-    pub fn make_event(&self) -> EventId {
-        EventId::new(self.make_local_id(), self.global_id)
-    }
-}
