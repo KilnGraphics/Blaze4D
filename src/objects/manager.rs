@@ -28,7 +28,6 @@ use std::sync::{Arc, LockResult, Mutex, MutexGuard};
 use ash::vk;
 use ash::vk::Handle;
 
-use super::memory;
 use super::id;
 
 /// Contains all the information (type, flags, allocation requirements etc.) about how an object

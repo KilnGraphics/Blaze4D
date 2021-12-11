@@ -1,6 +1,3 @@
-
-use super::memory;
-
 use ash::vk;
 
 #[derive(Copy, Clone, Debug)]
