@@ -10,6 +10,7 @@ use std::fmt::{Debug, Formatter};
 use std::hash::{Hash, Hasher};
 use std::num::NonZeroU64;
 use std::sync::Arc;
+use std::sync::atomic::AtomicU64;
 
 /// A global id backed by a 64 bit value.
 ///
@@ -42,7 +43,7 @@ pub struct GlobalId(NonZeroU64);
 
 impl GlobalId {
     // Need to reserve value 1 for the NamedId address space
-    const NEXT_GLOBAL_ID: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(2u64);
+    const NEXT_GLOBAL_ID: AtomicU64 = AtomicU64::new(2u64);
 
     /// Creates a new globally unique id
     ///
@@ -189,7 +190,7 @@ pub struct UUID {
 /// ```
 pub struct IncrementingGenerator {
     global: GlobalId,
-    next: std::sync::atomic::AtomicU64,
+    next: AtomicU64,
 }
 
 impl IncrementingGenerator {
@@ -197,7 +198,7 @@ impl IncrementingGenerator {
     pub fn new() -> Self {
         Self {
             global: GlobalId::new(),
-            next: std::sync::atomic::AtomicU64::new(1),
+            next: AtomicU64::new(1),
         }
     }
 
