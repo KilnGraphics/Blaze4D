@@ -94,15 +94,13 @@ impl Debug for GlobalId {
     }
 }
 
-/// A local id backed by a 47bit value and a 16bit value.
+/// A local id.
 ///
 /// While global ids are guaranteed to be globally unique, local ids must not be and can be
 /// generated in any way. The pair of a global id and a local id creates a globally unique
 /// identifier.
 ///
-/// Local ids are split into a 47bit field called big and a 16bit field called little. The remaining
-/// bit is a always set niche bit. An extra utility function is provided to create a local id from
-/// a 64bit hash value.
+/// Local ids are non zero u64 values.
 ///
 /// # Examples
 ///
@@ -124,6 +122,8 @@ pub struct LocalId(NonZeroU64);
 
 impl LocalId {
     /// Creates a local id for a raw value.
+    ///
+    /// The value must not be 0.
     pub const fn from_raw(value: u64) -> Self {
         if value == 0u64 {
             panic!("Local id must not be 0");
@@ -301,5 +301,11 @@ impl Hash for NamedUUID {
     fn hash<H: Hasher>(&self, state: &mut H) {
         // The hash should be identical to the one generated from the uuid
         self.get_uuid().hash(state)
+    }
+}
+
+impl Into<UUID> for NamedUUID {
+    fn into(self) -> UUID {
+        self.get_uuid()
     }
 }
