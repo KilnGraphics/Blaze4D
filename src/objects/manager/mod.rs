@@ -21,13 +21,18 @@
 //! synchronization group sets. This is required to prevent deadlock situations when trying to
 //! access multiple sets for the same operation.
 
+mod allocator;
+
 use std::cmp::Ordering;
 use std::hash::{Hash, Hasher};
 use std::sync::{Arc, LockResult, Mutex, MutexGuard};
 
 use ash::vk;
 use ash::vk::Handle;
+
 use crate::util::id::GlobalId;
+
+use allocator::*;
 
 use super::id;
 
