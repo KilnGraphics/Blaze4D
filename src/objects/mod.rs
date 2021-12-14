@@ -13,6 +13,8 @@ pub use image::ImageSubresourceRange;
 pub use buffer::BufferSpec;
 pub use buffer::BufferRange;
 
-pub use manager::SynchronizationGroup;
-pub use manager::ObjectSet;
-pub use manager::SynchronizationGroupSet;
+pub use manager::ObjectManager;
+pub use manager::synchronization_group::SynchronizationGroup;
+pub use manager::synchronization_group::SynchronizationGroupSet;
+pub use manager::object_set::ObjectSet;
+pub use manager::object_set::ObjectSetBuilder;
