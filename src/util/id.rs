@@ -41,17 +41,17 @@ use std::sync::atomic::AtomicU64;
 #[derive(Copy, Clone, Eq, PartialEq, Ord, PartialOrd, Hash)]
 pub struct GlobalId(NonZeroU64);
 
-impl GlobalId {
-    // Need to reserve value 1 for the NamedId address space
-    const NEXT_GLOBAL_ID: AtomicU64 = AtomicU64::new(2u64);
+// Need to reserve value 1 for the NamedId address space
+static NEXT_GLOBAL_ID: AtomicU64 = AtomicU64::new(2u64);
 
+impl GlobalId {
     /// Creates a new globally unique id
     ///
     /// # Panics
     ///
     /// This function will panic if the internal 64bit counter overflows.
     pub fn new() -> Self {
-        let next = Self::NEXT_GLOBAL_ID.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
+        let next = NEXT_GLOBAL_ID.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
 
         match NonZeroU64::new(next) {
             Some(val) => Self(val),
@@ -108,14 +108,14 @@ impl Debug for GlobalId {
 /// ```
 /// use rosella_rs::util::id::LocalId;
 ///
-/// // Creates a new local id with a big value of 1 and a little value of 0
-/// let id = LocalId::new(1u64, 0u16);
+/// // Creates a new local id with a value of 1
+/// let id = LocalId::from_raw(1u64);
 ///
 /// let same_id = id.clone();
 /// assert_eq!(id, same_id);
 ///
 /// // Local ids may not be globally unique
-/// let still_same_id = LocalId::new(1u64, 0u16);
+/// let still_same_id = LocalId::from_raw(1u64);
 /// assert_eq!(id, still_same_id);
 /// ```
 #[derive(Copy, Clone, Eq, PartialEq, Ord, PartialOrd, Hash)]
@@ -179,13 +179,13 @@ pub struct UUID {
 /// let generator = IncrementingGenerator::new();
 ///
 /// // A new uuid
-/// let some_uuid = generator.next();
+/// let some_uuid = generator.next().unwrap();
 ///
 /// // The global id of the generator will be used for uuids
 /// assert_eq!(generator.get_global_id(), some_uuid.global);
 ///
 /// // Some other uuid
-/// let other_uuid = generator.next();
+/// let other_uuid = generator.next().unwrap();
 /// assert_ne!(some_uuid, other_uuid);
 /// ```
 pub struct IncrementingGenerator {
