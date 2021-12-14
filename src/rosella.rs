@@ -11,9 +11,9 @@ use crate::window::{RosellaSurface, RosellaWindow};
 use ash::vk;
 
 pub struct Rosella {
-    pub instance: Arc<InstanceContext>,
+    pub instance: InstanceContext,
     pub surface: RosellaSurface,
-    pub device: Arc<DeviceContext>,
+    pub device: DeviceContext,
     pub object_manager: ObjectManager,
 }
 
@@ -24,12 +24,12 @@ impl Rosella {
         let ash_entry = ash::Entry::new();
         let ash_instance = create_instance(&registry, application_name, 0, window, &ash_entry);
 
-        let instance = Arc::new(InstanceContext::new(ash_entry, ash_instance));
+        let instance = InstanceContext::new(ash_entry, ash_instance);
 
         let surface = RosellaSurface::new(instance.vk(), &Entry::new(), window);
         let (ash_device, physical_device) = create_device(instance.vk(), registry, &surface);
 
-        let device = Arc::new(DeviceContext::new(instance.clone(), ash_device, physical_device).unwrap());
+        let device = DeviceContext::new(instance.clone(), ash_device, physical_device).unwrap();
 
         let elapsed = now.elapsed();
         println!("Instance & Device Initialization took: {:.2?}", elapsed);
@@ -67,80 +67,85 @@ impl Rosella {
 }
 
 struct InstanceContextImpl {
-
-}
-
-pub struct InstanceContext {
     entry: ash::Entry,
     instance: ash::Instance,
 }
 
+#[derive(Clone)]
+pub struct InstanceContext(Arc<InstanceContextImpl>);
+
 impl InstanceContext {
     fn new(entry: ash::Entry, instance: ash::Instance) -> Self {
-        Self{ entry, instance }
+        Self(Arc::new(InstanceContextImpl{
+            entry,
+            instance,
+        }))
     }
 
     pub fn get_entry(&self) -> &ash::Entry {
-        &self.entry
+        &self.0.entry
     }
 
     pub fn vk(&self) -> &ash::Instance {
-        &self.instance
+        &self.0.instance
     }
 }
 
 impl Drop for InstanceContext {
     fn drop(&mut self) {
         unsafe {
-            self.instance.destroy_instance(ALLOCATION_CALLBACKS);
+            self.0.instance.destroy_instance(ALLOCATION_CALLBACKS);
         }
     }
 }
 
-pub struct DeviceContext {
+pub struct DeviceContextImpl {
     #[allow(unused)]
-    instance: Arc<InstanceContext>,
+    instance: InstanceContext,
     device: ash::Device,
     physical_device: vk::PhysicalDevice,
     synchronization_2: ash::extensions::khr::Synchronization2,
     timeline_semaphore: ash::extensions::khr::TimelineSemaphore,
 }
 
+#[derive(Clone)]
+pub struct DeviceContext(Arc<DeviceContextImpl>);
+
 impl DeviceContext {
-    fn new(instance: Arc<InstanceContext>, device: ash::Device, physical_device: vk::PhysicalDevice) -> Result<Self, &'static str> {
+    fn new(instance: InstanceContext, device: ash::Device, physical_device: vk::PhysicalDevice) -> Result<Self, &'static str> {
         let synchronization_2 = ash::extensions::khr::Synchronization2::new(instance.vk(), &device);
         let timeline_semaphore = ash::extensions::khr::TimelineSemaphore::new(instance.get_entry(), instance.vk());
 
-        Ok(Self{
+        Ok(Self(Arc::new(DeviceContextImpl{
             instance,
             device,
             physical_device,
             synchronization_2,
             timeline_semaphore
-        })
+        })))
     }
 
     pub fn vk(&self) -> &ash::Device {
-        &self.device
+        &self.0.device
     }
 
     pub fn get_physical_device(&self) -> &vk::PhysicalDevice {
-        &self.physical_device
+        &self.0.physical_device
     }
 
     pub fn get_synchronization_2(&self) -> &ash::extensions::khr::Synchronization2 {
-        &self.synchronization_2
+        &self.0.synchronization_2
     }
 
     pub fn get_timeline_semaphore(&self) -> &ash::extensions::khr::TimelineSemaphore {
-        &self.timeline_semaphore
+        &self.0.timeline_semaphore
     }
 }
 
 impl Drop for DeviceContext {
     fn drop(&mut self) {
         unsafe {
-            self.device.destroy_device(ALLOCATION_CALLBACKS);
+            self.0.device.destroy_device(ALLOCATION_CALLBACKS);
         }
     }
 }

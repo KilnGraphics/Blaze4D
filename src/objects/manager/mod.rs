@@ -42,12 +42,12 @@ use super::id;
 
 // Internal implementation of the object manager
 struct ObjectManagerImpl {
-    instance: Arc<crate::rosella::InstanceContext>,
-    device: Arc<crate::rosella::DeviceContext>,
+    instance: crate::rosella::InstanceContext,
+    device: crate::rosella::DeviceContext,
 }
 
 impl ObjectManagerImpl {
-    fn new(instance: Arc<crate::rosella::InstanceContext>, device: Arc<crate::rosella::DeviceContext>) -> Self {
+    fn new(instance: crate::rosella::InstanceContext, device: crate::rosella::DeviceContext) -> Self {
         Self{
             instance,
             device,
@@ -91,7 +91,7 @@ pub struct ObjectManager(Arc<ObjectManagerImpl>);
 
 impl ObjectManager {
     /// Creates a new ObjectManager
-    pub fn new(instance: Arc<crate::rosella::InstanceContext>, device: Arc<crate::rosella::DeviceContext>) -> Self {
+    pub fn new(instance: crate::rosella::InstanceContext, device: crate::rosella::DeviceContext) -> Self {
         Self(Arc::new(ObjectManagerImpl::new(instance, device)))
     }
 
