@@ -8,6 +8,8 @@ use crate::init::instance_builder::create_instance;
 use crate::objects::manager::ObjectManager;
 use crate::window::{RosellaSurface, RosellaWindow};
 
+use ash::vk;
+
 pub struct Rosella {
     pub instance: Arc<InstanceContext>,
     pub surface: RosellaSurface,
@@ -25,9 +27,9 @@ impl Rosella {
         let instance = Arc::new(InstanceContext::new(ash_entry, ash_instance));
 
         let surface = RosellaSurface::new(instance.vk(), &Entry::new(), window);
-        let ash_device = create_device(instance.vk(), registry, &surface);
+        let (ash_device, physical_device) = create_device(instance.vk(), registry, &surface);
 
-        let device = Arc::new(DeviceContext::new(instance.clone(), ash_device).unwrap());
+        let device = Arc::new(DeviceContext::new(instance.clone(), ash_device, physical_device).unwrap());
 
         let elapsed = now.elapsed();
         println!("Instance & Device Initialization took: {:.2?}", elapsed);
@@ -64,6 +66,10 @@ impl Rosella {
     }
 }
 
+struct InstanceContextImpl {
+
+}
+
 pub struct InstanceContext {
     entry: ash::Entry,
     instance: ash::Instance,
@@ -95,18 +101,20 @@ pub struct DeviceContext {
     #[allow(unused)]
     instance: Arc<InstanceContext>,
     device: ash::Device,
+    physical_device: vk::PhysicalDevice,
     synchronization_2: ash::extensions::khr::Synchronization2,
     timeline_semaphore: ash::extensions::khr::TimelineSemaphore,
 }
 
 impl DeviceContext {
-    fn new(instance: Arc<InstanceContext>, device: ash::Device) -> Result<Self, &'static str> {
+    fn new(instance: Arc<InstanceContext>, device: ash::Device, physical_device: vk::PhysicalDevice) -> Result<Self, &'static str> {
         let synchronization_2 = ash::extensions::khr::Synchronization2::new(instance.vk(), &device);
         let timeline_semaphore = ash::extensions::khr::TimelineSemaphore::new(instance.get_entry(), instance.vk());
 
         Ok(Self{
             instance,
             device,
+            physical_device,
             synchronization_2,
             timeline_semaphore
         })
@@ -114,6 +122,10 @@ impl DeviceContext {
 
     pub fn vk(&self) -> &ash::Device {
         &self.device
+    }
+
+    pub fn get_physical_device(&self) -> &vk::PhysicalDevice {
+        &self.physical_device
     }
 
     pub fn get_synchronization_2(&self) -> &ash::extensions::khr::Synchronization2 {

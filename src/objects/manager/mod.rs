@@ -29,6 +29,8 @@ use std::sync::{Arc, LockResult, Mutex, MutexGuard};
 
 use ash::vk;
 use ash::vk::Handle;
+use gpu_allocator::AllocatorDebugSettings;
+use gpu_allocator::vulkan::{Allocator, AllocatorCreateDesc};
 
 use crate::util::id::GlobalId;
 
@@ -46,7 +48,10 @@ struct ObjectManagerImpl {
 
 impl ObjectManagerImpl {
     fn new(instance: Arc<crate::rosella::InstanceContext>, device: Arc<crate::rosella::DeviceContext>) -> Self {
-        Self{ instance, device }
+        Self{
+            instance,
+            device,
+        }
     }
 
     fn create_timeline_semaphore(&self, initial_value: u64) -> vk::Semaphore {
@@ -64,6 +69,10 @@ impl ObjectManagerImpl {
         unsafe {
             self.device.vk().destroy_semaphore(semaphore, None)
         }
+    }
+
+    fn create_object(&self, info: &ObjectCreateInfo, objects: Vec<ObjectData>, allocations: Vec<gpu_allocator::vulkan::Allocation>) {
+
     }
 
     fn create_objects(&self, objects: &[ObjectCreateInfo]) -> (Box<[ObjectData]>, AllocationMeta) {
@@ -93,9 +102,9 @@ impl ObjectManager {
 
     /// Creates a new object set builder
     pub fn create_object_set(&self, synchronization_group: SynchronizationGroup) -> ObjectSetBuilder {
-        if *synchronization_group.get_manager() != self {
-            panic!("Synchronization group is not owned by manager")
-        }
+        // if synchronization_group.get_manager() != self {
+        //     panic!("Synchronization group is not owned by manager")
+        // } TODO fix pointer equality
 
         ObjectSetBuilder::new(synchronization_group)
     }
