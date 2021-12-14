@@ -21,12 +21,12 @@ impl Rosella {
     pub fn new(registry: InitializationRegistry, window: &RosellaWindow, application_name: &str) -> Rosella {
         let now = std::time::Instant::now();
 
-        let ash_entry = ash::Entry::new();
+        let ash_entry = unsafe{ ash::Entry::new() }.unwrap();
         let ash_instance = create_instance(&registry, application_name, 0, window, &ash_entry);
 
-        let instance = InstanceContext::new(ash_entry, ash_instance);
+        let instance = InstanceContext::new(ash_entry.clone(), ash_instance);
 
-        let surface = RosellaSurface::new(instance.vk(), &Entry::new(), window);
+        let surface = RosellaSurface::new(instance.vk(), &ash_entry, window);
         let (ash_device, physical_device) = create_device(instance.vk(), registry, &surface);
 
         let device = DeviceContext::new(instance.clone(), ash_device, physical_device).unwrap();
@@ -123,6 +123,14 @@ impl DeviceContext {
             synchronization_2,
             timeline_semaphore
         })))
+    }
+
+    pub fn get_entry(&self) -> &ash::Entry {
+        self.0.instance.get_entry()
+    }
+
+    pub fn get_instance(&self) -> &InstanceContext {
+        &self.0.instance
     }
 
     pub fn vk(&self) -> &ash::Device {

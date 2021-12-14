@@ -59,7 +59,7 @@ impl GraphicsShader {
 
         options.set_target_env(
             TargetEnv::Vulkan,
-            Entry::new().try_enumerate_instance_version().ok().flatten().unwrap(),
+            device.get_entry().try_enumerate_instance_version().ok().flatten().unwrap(),
         );
 
         let vertex_shader = unsafe {

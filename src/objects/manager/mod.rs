@@ -48,6 +48,14 @@ struct ObjectManagerImpl {
 
 impl ObjectManagerImpl {
     fn new(instance: crate::rosella::InstanceContext, device: crate::rosella::DeviceContext) -> Self {
+        let allocator: Allocator = Allocator::new(&AllocatorCreateDesc{
+            instance: instance.vk().clone(),
+            device: device.vk().clone(),
+            physical_device: device.get_physical_device().clone(),
+            debug_settings: Default::default(),
+            buffer_device_address: false
+        }).unwrap();
+
         Self{
             instance,
             device,
