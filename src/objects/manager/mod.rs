@@ -33,58 +33,10 @@ use ash::vk::Handle;
 use crate::util::id::GlobalId;
 
 use allocator::*;
+use crate::objects::buffer::{BufferCreateInfo, BufferViewCreateInfo};
+use crate::objects::image::{ImageCreateMeta, ImageViewCreateMeta};
 
 use super::id;
-
-/// Contains all the information (type, flags, allocation requirements etc.) about how an object
-/// should be created.
-#[non_exhaustive]
-pub enum ObjectCreateMeta {
-    Buffer(super::buffer::BufferCreateMeta, AllocationCreateMeta),
-    BufferView(super::buffer::BufferViewCreateMeta, usize),
-    Image(super::image::ImageCreateMeta, AllocationCreateMeta),
-    ImageView(super::image::ImageViewCreateMeta, usize),
-    Event(),
-}
-
-/// Contains information about how memory should be allocated for an object.
-pub struct AllocationCreateMeta {
-}
-
-/// Wrapper type that is passed to the object set create function. The create function will store
-/// the assigned id of the object in this type which can then later be retrieved by the calling
-/// code.
-pub struct ObjectCreateRequest {
-    meta: ObjectCreateMeta,
-    id: Option<id::GenericId>,
-}
-
-impl ObjectCreateRequest {
-    /// Creates a new request without a resolved id.
-    pub fn new(meta: ObjectCreateMeta) -> Self {
-        Self{ meta, id: None }
-    }
-
-    /// Returns the create metadata.
-    pub fn get_meta(&self) -> &ObjectCreateMeta {
-        &self.meta
-    }
-
-    /// Updates the stored id.
-    pub fn resolve(&mut self, id: id::GenericId) {
-        self.id = Some(id)
-    }
-
-    /// Retrieves the currently stored id.
-    pub fn get_id(&self) -> Option<id::GenericId> {
-        self.id
-    }
-
-    /// Retrieves the currently stored id as an id of specified type.
-    pub fn get_id_typed<const TYPE: u8>(&self) -> Option<id::ObjectId<TYPE>> {
-        self.id.map(|id| id.downcast::<TYPE>()).flatten()
-    }
-}
 
 // Internal implementation of the object manager
 struct ObjectManagerImpl {
@@ -114,7 +66,11 @@ impl ObjectManagerImpl {
         }
     }
 
-    fn destroy_objects(&self, objects: &[ObjectData], allocations: &[AllocationMeta]) {
+    fn create_objects(&self, objects: &[ObjectCreateInfo]) -> (Box<[ObjectData]>, AllocationMeta) {
+        todo!()
+    }
+
+    fn destroy_objects(&self, objects: &[ObjectData], allocation: &AllocationMeta) {
         todo!()
     }
 }
@@ -135,13 +91,13 @@ impl ObjectManager {
         SynchronizationGroup::new(self.clone(), self.0.create_timeline_semaphore(0u64))
     }
 
-    /// Creates a new object set managed by this object manager
-    ///
-    /// The synchronization group *can* be from a different object manager however no validation is
-    /// performed with respect to any vulkan requirements. (For example ensuring that both control
-    /// the same device).
-    pub fn create_object_set(&self, objects: &mut [ObjectCreateRequest], synchronization_group: SynchronizationGroup) -> ObjectSet {
-        todo!()
+    /// Creates a new object set builder
+    pub fn create_object_set(&self, synchronization_group: SynchronizationGroup) -> ObjectSetBuilder {
+        if *synchronization_group.get_manager() != self {
+            panic!("Synchronization group is not owned by manager")
+        }
+
+        ObjectSetBuilder::new(synchronization_group)
     }
 
     // Internal function that destroys a semaphore created for a synchronization group
@@ -149,9 +105,13 @@ impl ObjectManager {
         self.0.destroy_semaphore(semaphore)
     }
 
+    fn create_objects(&self, objects: &[ObjectCreateInfo]) -> (Box<[ObjectData]>, AllocationMeta) {
+        self.0.create_objects(objects)
+    }
+
     // Internal function that destroys objects and allocations created for a object set
-    fn destroy_objects(&self, objects: &[ObjectData], allocations: &[AllocationMeta]) {
-        self.0.destroy_objects(objects, allocations)
+    fn destroy_objects(&self, objects: &[ObjectData], allocation: &AllocationMeta) {
+        self.0.destroy_objects(objects, allocation)
     }
 }
 
@@ -312,7 +272,9 @@ pub struct AccessInfo {
 enum ObjectData {
     Buffer{
         handle: vk::Buffer,
-        meta: super::buffer::BufferMeta,
+    },
+    BufferView{
+        handle: vk::BufferView,
     },
     Image {
         handle: vk::Image,
@@ -323,9 +285,131 @@ impl ObjectData {
     fn get_raw_handle(&self) -> u64 {
         match self {
             ObjectData::Buffer { handle, .. } => handle.as_raw(),
+            ObjectData::BufferView {handle, .. } => handle.as_raw(),
             ObjectData::Image { handle, .. } => handle.as_raw(),
         }
     }
+}
+
+/// Contains all the information (type, flags, allocation requirements etc.) about how an object
+/// should be created.
+enum ObjectCreateInfo {
+    Buffer(BufferCreateInfo, gpu_allocator::MemoryLocation),
+    InternalBufferView(super::buffer::BufferViewCreateInfo, usize),
+    ExternalBufferView(super::buffer::BufferViewCreateInfo, ObjectSet, id::BufferId),
+    Image(super::image::ImageCreateMeta, gpu_allocator::MemoryLocation),
+    ImageView(super::image::ImageViewCreateMeta, usize),
+    Event(),
+}
+
+pub struct ObjectSetBuilder {
+    synchronization_group: SynchronizationGroup,
+    set_id: GlobalId,
+    requests: Vec<ObjectCreateInfo>,
+}
+
+impl ObjectSetBuilder {
+    fn new(synchronization_group: SynchronizationGroup) -> Self {
+        Self {
+            synchronization_group,
+            set_id: GlobalId::new(),
+            requests: Vec::new(),
+        }
+    }
+
+    fn with_capacity(synchronization_group: SynchronizationGroup, capacity: usize) -> Self {
+        Self {
+            synchronization_group,
+            set_id: GlobalId::new(),
+            requests: Vec::with_capacity(capacity),
+        }
+    }
+
+    pub fn add_default_gpu_only_buffer(&mut self, info: BufferCreateInfo) -> id::BufferId {
+        let index = self.requests.len();
+
+        self.requests.push(ObjectCreateInfo::Buffer(
+            info,
+            gpu_allocator::MemoryLocation::GpuOnly
+        ));
+
+        id::BufferId::new(self.set_id, index as u64)
+    }
+
+    pub fn add_default_gpu_cpu_buffer(&mut self, info: BufferCreateInfo) -> id::BufferId {
+        let index = self.requests.len();
+
+        self.requests.push(ObjectCreateInfo::Buffer(
+            info,
+            gpu_allocator::MemoryLocation::CpuToGpu
+        ));
+
+        id::BufferId::new(self.set_id, index as u64)
+    }
+
+    pub fn add_internal_buffer_view(&mut self, info: BufferViewCreateInfo, buffer: id::BufferId) -> id::BufferViewId {
+        if buffer.get_global_id() != self.set_id {
+            panic!("Buffer global id does not match set id")
+        }
+
+        let index = self.requests.len();
+
+        self.requests.push(ObjectCreateInfo::InternalBufferView(
+            info,
+            buffer.get_index() as usize
+        ));
+
+        id::BufferViewId::new(self.set_id, index as u64)
+    }
+
+    pub fn add_external_buffer_view(&mut self, info: BufferViewCreateInfo, set: ObjectSet, buffer: id::BufferId) -> id::BufferViewId {
+        if buffer.get_global_id() != set.get_set_id() {
+            panic!("Buffer global id does not match set id")
+        }
+
+        if *set.get_synchronization_group() != self.synchronization_group {
+            panic!("Buffer does not match internal synchronization group")
+        }
+
+        let index = self.requests.len();
+
+        self.requests.push(ObjectCreateInfo::ExternalBufferView(
+            info,
+            set,
+            buffer
+        ));
+
+        id::BufferViewId::new(self.set_id, index as u64)
+    }
+
+    pub fn add_default_gpu_only_image(&mut self, info: ImageCreateMeta) -> id::ImageId {
+        todo!()
+    }
+
+    pub fn add_default_gpu_cpu_image(&mut self, info: ImageCreateMeta) -> id::ImageId {
+        todo!()
+    }
+
+    pub fn add_internal_image_view(&mut self, info: ImageViewCreateMeta, image: id::ImageId) -> id::ImageViewId {
+        todo!()
+    }
+
+    pub fn add_external_image_view(&mut self, info: ImageViewCreateMeta, set: ObjectSet, image: id::ImageId) -> id::ImageViewId {
+        todo!()
+    }
+
+    pub fn build(self) -> ObjectSet {
+        let (objects, allocation) = self.synchronization_group.get_manager().create_objects(self.requests.as_slice());
+        ObjectSet::new(self.synchronization_group, objects, allocation)
+    }
+}
+
+/// Wrapper type that is passed to the object set create function. The create function will store
+/// the assigned id of the object in this type which can then later be retrieved by the calling
+/// code.
+pub struct ObjectCreateRequest {
+    meta: ObjectCreateInfo,
+    id: Option<id::GenericId>,
 }
 
 // Internal implementation of the object set
@@ -333,16 +417,16 @@ struct ObjectSetImpl {
     group: SynchronizationGroup,
     set_id: GlobalId,
     objects: Box<[ObjectData]>,
-    allocations: Box<[AllocationMeta]>,
+    allocation: AllocationMeta,
 }
 
 impl ObjectSetImpl {
-    fn new(synchronization_group: SynchronizationGroup, objects: Box<[ObjectData]>, allocations: Box<[AllocationMeta]>) -> Self {
+    fn new(synchronization_group: SynchronizationGroup, objects: Box<[ObjectData]>, allocation: AllocationMeta) -> Self {
         Self{
             group: synchronization_group,
             set_id: GlobalId::new(),
             objects,
-            allocations
+            allocation,
         }
     }
 
@@ -380,14 +464,14 @@ impl ObjectSetImpl {
     }
 }
 
-// Needed because the SynchronizationSet mutex also protects the ObjectSet
-unsafe impl Sync for ObjectSetImpl {
-}
-
 impl Drop for ObjectSetImpl {
     fn drop(&mut self) {
-        self.group.get_manager().destroy_objects(self.objects.as_ref(), self.allocations.as_ref())
+        self.group.get_manager().destroy_objects(self.objects.as_ref(), &self.allocation)
     }
+}
+
+// Needed because the SynchronizationSet mutex also protects the ObjectSet
+unsafe impl Sync for ObjectSetImpl {
 }
 
 impl PartialEq for ObjectSetImpl {
@@ -418,8 +502,12 @@ impl Ord for ObjectSetImpl {
 pub struct ObjectSet(Arc<ObjectSetImpl>);
 
 impl ObjectSet {
-    fn new(synchronization_group: SynchronizationGroup, objects: Box<[ObjectData]>, allocations: Box<[AllocationMeta]>) -> Self {
-        Self(Arc::new(ObjectSetImpl::new(synchronization_group, objects, allocations)))
+    fn new(synchronization_group: SynchronizationGroup, objects: Box<[ObjectData]>, allocation: AllocationMeta) -> Self {
+        Self(Arc::new(ObjectSetImpl::new(synchronization_group, objects, allocation)))
+    }
+
+    pub fn get_set_id(&self) -> GlobalId {
+        self.0.set_id
     }
 
     /// Returns the synchronization group that controls access to this object set.

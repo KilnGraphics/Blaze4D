@@ -34,7 +34,7 @@ impl ObjectType {
 pub struct ObjectId<const TYPE: u8>(UUID);
 
 impl<const TYPE: u8> ObjectId<TYPE> {
-    const INDEX_BITS: u32 = 56u32;
+    pub const INDEX_BITS: u32 = 56u32;
     const INDEX_OFFSET: u32 = 0u32;
     pub const INDEX_MAX: u64 = (1u64 << Self::INDEX_BITS) - 1u64;
     const INDEX_MASK: u64 = Self::INDEX_MAX << Self::INDEX_OFFSET;
