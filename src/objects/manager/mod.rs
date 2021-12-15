@@ -46,6 +46,7 @@ use super::id;
 use synchronization_group::*;
 use object_set::*;
 use crate::objects::manager::allocator::{BufferRequestDescription, BufferViewRequestDescription, ImageRequestDescription, ImageViewRequestDescription, ObjectRequestDescription};
+use crate::util::slice_splitter::Splitter;
 
 enum ObjectCreateError<'s> {
     Vulkan(vk::Result),
@@ -317,8 +318,7 @@ impl ObjectManagerImpl {
 
         // Create dependant objects
         for i in 0..objects.len() {
-            let (head, tail) = objects.split_at_mut(i);
-            let (elem, tail) = tail.split_first_mut().unwrap();
+            let (mut split, elem) = Splitter::new(objects, i);
 
             match elem {
                 TemporaryObjectData::BufferView {
@@ -332,18 +332,9 @@ impl ObjectManagerImpl {
                             }
                             None => {
                                 let index = desc.buffer_id.get_index() as usize;
-                                if index < i {
-                                    match head.get(index).ok_or(ObjectCreateError::InvalidReference())? {
-                                        TemporaryObjectData::Buffer { handle, .. } => *handle,
-                                        _ => return Err(ObjectCreateError::InvalidReference())
-                                    }
-                                } else if index > i {
-                                    match tail.get(index - i - 1).ok_or(ObjectCreateError::InvalidReference())? {
-                                        TemporaryObjectData::Buffer { handle, .. } => *handle,
-                                        _ => return Err(ObjectCreateError::InvalidReference())
-                                    }
-                                } else {
-                                    return Err(ObjectCreateError::InvalidReference())
+                                match split.get(index).ok_or(ObjectCreateError::InvalidReference())? {
+                                    TemporaryObjectData::Buffer { handle, .. } => *handle,
+                                    _ => return Err(ObjectCreateError::InvalidReference())
                                 }
                             }
                         };
@@ -370,18 +361,9 @@ impl ObjectManagerImpl {
                             }
                             None => {
                                 let index = desc.image_id.get_index() as usize;
-                                if index < i {
-                                    match head.get(index).ok_or(ObjectCreateError::InvalidReference())? {
-                                        TemporaryObjectData::Image { handle, .. } => *handle,
-                                        _ => return Err(ObjectCreateError::InvalidReference())
-                                    }
-                                } else if index > i {
-                                    match tail.get(index - i - 1).ok_or(ObjectCreateError::InvalidReference())? {
-                                        TemporaryObjectData::Image { handle, .. } => *handle,
-                                        _ => return Err(ObjectCreateError::InvalidReference())
-                                    }
-                                } else {
-                                    return Err(ObjectCreateError::InvalidReference())
+                                match split.get(index).ok_or(ObjectCreateError::InvalidReference())? {
+                                    TemporaryObjectData::Image { handle, .. } => *handle,
+                                    _ => return Err(ObjectCreateError::InvalidReference())
                                 }
                             }
                         };
