@@ -23,10 +23,11 @@
 
 pub(super) mod synchronization_group;
 pub(super) mod object_set;
+mod allocator;
 
 use std::cmp::Ordering;
 use std::hash::{Hash, Hasher};
-use std::sync::{Arc, LockResult, Mutex, MutexGuard};
+use std::sync::{Arc, LockResult, Mutex, MutexGuard, PoisonError};
 
 use ash::vk;
 use ash::vk::Handle;
@@ -35,28 +36,58 @@ use gpu_allocator::vulkan::{Allocation, AllocationCreateDesc, Allocator, Allocat
 
 use crate::util::id::GlobalId;
 
-use crate::objects::buffer::{BufferCreateInfo, BufferViewCreateInfo};
-use crate::objects::image::{ImageCreateMeta, ImageViewCreateMeta};
+use crate::objects::buffer::{BufferCreateDesc, BufferViewCreateDesc};
+use crate::objects::image::{ImageCreateDesc, ImageViewCreateDesc};
 
 use super::id;
 
 use synchronization_group::*;
 use object_set::*;
+use crate::objects::manager::allocator::{BufferRequestDescription, BufferViewRequestDescription, ImageRequestDescription, ImageViewRequestDescription};
 
-enum ObjectCreateError {
+enum ObjectCreateError<'s> {
     Vulkan(vk::Result),
-    Allocation(AllocationError)
+    Allocation(AllocationError),
+    PoisonedAllocator(PoisonError<MutexGuard<'s, Allocator>>)
 }
 
-impl From<ash::vk::Result> for ObjectCreateError {
+impl<'s> From<ash::vk::Result> for ObjectCreateError<'s> {
     fn from(err: vk::Result) -> Self {
         ObjectCreateError::Vulkan(err)
     }
 }
 
-impl From<AllocationError> for ObjectCreateError {
+impl<'s> From<AllocationError> for ObjectCreateError<'s> {
     fn from(err: AllocationError) -> Self {
         ObjectCreateError::Allocation(err)
+    }
+}
+
+impl<'s> From<PoisonError<MutexGuard<'s, Allocator>>> for ObjectCreateError<'s> {
+    fn from(err: PoisonError<MutexGuard<'s, Allocator>>) -> Self {
+        ObjectCreateError::PoisonedAllocator(err)
+    }
+}
+
+// Internal struct used during object creation
+enum TemporaryObjectData<'a> {
+    Buffer{
+        handle: vk::Buffer,
+        allocation: Option<Allocation>,
+        desc: &'a BufferRequestDescription,
+    },
+    BufferView{
+        handle: vk::BufferView,
+        desc: &'a BufferViewRequestDescription,
+    },
+    Image{
+        handle: vk::Image,
+        allocation: Option<Allocation>,
+        desc: &'a ImageRequestDescription,
+    },
+    ImageView{
+        handle: vk::ImageView,
+        desc: &'a ImageViewRequestDescription,
     }
 }
 
@@ -64,7 +95,7 @@ impl From<AllocationError> for ObjectCreateError {
 struct ObjectManagerImpl {
     instance: crate::rosella::InstanceContext,
     device: crate::rosella::DeviceContext,
-    allocator: Allocator,
+    allocator: Mutex<Allocator>,
 }
 
 impl ObjectManagerImpl {
@@ -80,7 +111,7 @@ impl ObjectManagerImpl {
         Self{
             instance,
             device,
-            allocator,
+            allocator: Mutex::new(allocator),
         }
     }
 
@@ -101,54 +132,160 @@ impl ObjectManagerImpl {
         }
     }
 
-    fn create_buffer(&mut self, info: &BufferCreateInfo, location: MemoryLocation, allocations: &mut Vec<Allocation>) -> Result<ObjectData, ObjectCreateError> {
-        // Make sure that any potential panic in push gets triggered here so that we dont have dangling objects
-        allocations.reserve(allocations.len() + 1);
-
-        let create_info = vk::BufferCreateInfo::builder()
-            .size(info.size)
-            .usage(info.usage_flags)
-            .sharing_mode(vk::SharingMode::EXCLUSIVE);
-
-        let buffer = unsafe {
-             self.device.vk().create_buffer(&create_info.build(), None)?
+    fn destroy_temporary_objects(&self, objects: &mut [TemporaryObjectData], allocator: &mut MutexGuard<Allocator>) {
+        // First destroy any objects that might depend on other objects
+        for object in objects.iter() {
+            match object {
+                TemporaryObjectData::BufferView { handle, .. } => {
+                    if *handle != vk::BufferView::null() {
+                        unsafe { self.device.vk().destroy_buffer_view(*handle, None) }
+                    }
+                },
+                TemporaryObjectData::ImageView { handle, .. } => {
+                    if *handle != vk::ImageView::null() {
+                        unsafe { self.device.vk().destroy_image_view(*handle, None) }
+                    }
+                },
+                _ => {}
+            }
         };
-
-        let requirements = unsafe {
-            self.device.vk().get_buffer_memory_requirements(buffer)
-        };
-
-        let allocation_info = AllocationCreateDesc{
-            name: "",
-            requirements,
-            location,
-            linear: true
-        };
-
-        let allocation = self.allocator.allocate(&allocation_info).map_err(|err| {
-            unsafe{ self.device.vk().destroy_buffer(buffer, None); };
-            err
-        })?;
-
-        unsafe { self.device.vk().bind_buffer_memory(buffer, allocation.memory(), allocation.offset()) }.map_err(|err| {
-            self.allocator.free(allocation.clone());
-            unsafe { self.device.vk().destroy_buffer(buffer, None); };
-            err
-        })?;
-
-        allocations.push(allocation);
-        Ok(ObjectData::Buffer{ handle: buffer })
+        // Then destroy everything else
+        for object in objects.iter_mut() {
+            match object {
+                TemporaryObjectData::Buffer { handle, allocation, .. } => {
+                    if *handle != vk::Buffer::null() {
+                        unsafe { self.device.vk().destroy_buffer(*handle, None) }
+                    }
+                    allocation.take().map(|alloc| allocator.free(alloc));
+                },
+                TemporaryObjectData::Image { handle, allocation,  .. } => {
+                    if *handle != vk::Image::null() {
+                        unsafe { self.device.vk().destroy_image(*handle, None) }
+                    }
+                    allocation.take().map(|alloc| allocator.free(alloc));
+                },
+                _ => {}
+            }
+        }
     }
 
-    fn create_object(&self, info: &ObjectCreateInfo, objects: &mut Vec<ObjectData>, allocations: &mut Vec<Allocation>) {
-        match info {
-            ObjectCreateInfo::Buffer(_, _) => {}
-            ObjectCreateInfo::InternalBufferView(_, _) => {}
-            ObjectCreateInfo::ExternalBufferView(_, _, _) => {}
-            ObjectCreateInfo::Image(_, _) => {}
-            ObjectCreateInfo::ImageView(_, _) => {}
-            ObjectCreateInfo::Event() => {}
+    fn destroy_temporary_objects_no_lock(&self, objects: &mut [TemporaryObjectData]) {
+        let mut guard = self.allocator.lock().unwrap();
+        self.destroy_temporary_objects(objects, &mut guard);
+    }
+
+    fn create_temporary_objects(&self, objects: &mut [TemporaryObjectData]) -> Result<(), ObjectCreateError> {
+        // Create all objects that do not depend on other objects
+        for object in objects.iter_mut() {
+            match object {
+                TemporaryObjectData::Buffer {
+                    handle,
+                    desc,
+                    ..
+                } => {
+                    let create_info = vk::BufferCreateInfo::builder()
+                        .size(desc.description.size)
+                        .usage(desc.description.usage_flags)
+                        .sharing_mode(vk::SharingMode::EXCLUSIVE);
+
+                    *handle = unsafe {
+                        self.device.vk().create_buffer(&create_info.build(), None)
+                    }?;
+                },
+                TemporaryObjectData::Image {
+                    handle,
+                    desc,
+                    ..
+                } => {
+                    let create_info = vk::ImageCreateInfo::builder()
+                        .image_type(desc.description.spec.size.get_vulkan_type())
+                        .format(desc.description.spec.format.get_format())
+                        .extent(desc.description.spec.size.as_extent_3d())
+                        .mip_levels(desc.description.spec.size.get_mip_levels())
+                        .array_layers(desc.description.spec.size.get_array_layers())
+                        .samples(desc.description.spec.sample_count)
+                        .tiling(vk::ImageTiling::OPTIMAL)
+                        .usage(desc.description.usage_flags)
+                        .sharing_mode(vk::SharingMode::EXCLUSIVE);
+
+                    *handle = unsafe {
+                        self.device.vk().create_image(&create_info.build(), None)
+                    }?;
+                },
+                _ => {}
+            }
         }
+
+        // Allocate memory for objects
+        {
+            let mut allocator = self.allocator.lock()?;
+            for object in objects.iter_mut() {
+                match object {
+                    TemporaryObjectData::Buffer {
+                        handle,
+                        allocation,
+                        desc
+                    } => {
+                        if allocation.is_none() {
+                            let requirements = unsafe {
+                                self.device.vk().get_buffer_memory_requirements(*handle)
+                            };
+
+                            let alloc_desc = AllocationCreateDesc{
+                                name: "",
+                                requirements,
+                                location: desc.memory_location,
+                                linear: true
+                            };
+
+                            *allocation = Some(allocator.allocate(&alloc_desc)?);
+                            let alloc = allocation.as_ref().unwrap();
+
+                            unsafe {
+                                self.device.vk().bind_buffer_memory(*handle, alloc.memory(), alloc.offset())
+                            }?;
+                        }
+                    }
+                    TemporaryObjectData::Image {
+                        handle,
+                        allocation,
+                        desc
+                    } => {
+                        if allocation.is_none() {
+                            let requirements = unsafe {
+                                self.device.vk().get_image_memory_requirements(*handle)
+                            };
+
+                            let alloc_desc = AllocationCreateDesc{
+                                name: "",
+                                requirements,
+                                location: desc.memory_location,
+                                linear: false
+                            };
+
+                            *allocation = Some(allocator.allocate(&alloc_desc)?);
+                            let alloc = allocation.as_ref().unwrap();
+
+                            unsafe {
+                                self.device.vk().bind_image_memory(*handle, alloc.memory(), alloc.offset())
+                            }?;
+                        }
+                    }
+                    _ => {}
+                }
+            }
+        }
+
+        // Create dependant objects
+        for object in objects.iter_mut() {
+            match object {
+                TemporaryObjectData::BufferView { .. } => { todo!() }
+                TemporaryObjectData::ImageView { .. } => { todo!() }
+                _ => {}
+            }
+        }
+
+        Ok(())
     }
 
     fn create_objects(&self, objects: &[ObjectCreateInfo]) -> (Box<[ObjectData]>, AllocationMeta) {

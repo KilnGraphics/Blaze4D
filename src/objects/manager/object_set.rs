@@ -1,8 +1,8 @@
 use std::cmp::Ordering;
 use std::hash::{Hash, Hasher};
 use std::sync::Arc;
-use crate::objects::buffer::{BufferCreateInfo, BufferViewCreateInfo};
-use crate::objects::image::{ImageCreateMeta, ImageViewCreateMeta};
+use crate::objects::buffer::{BufferCreateDesc, BufferViewCreateDesc};
+use crate::objects::image::{ImageCreateDesc, ImageViewCreateDesc};
 use crate::objects::id;
 use crate::objects::manager::AllocationMeta;
 use crate::objects::manager::synchronization_group::SynchronizationGroup;
@@ -36,11 +36,11 @@ impl ObjectData {
 /// Contains all the information (type, flags, allocation requirements etc.) about how an object
 /// should be created.
 pub(super) enum ObjectCreateInfo {
-    Buffer(BufferCreateInfo, gpu_allocator::MemoryLocation),
-    InternalBufferView(BufferViewCreateInfo, usize),
-    ExternalBufferView(BufferViewCreateInfo, ObjectSet, id::BufferId),
-    Image(ImageCreateMeta, gpu_allocator::MemoryLocation),
-    ImageView(ImageViewCreateMeta, usize),
+    Buffer(BufferCreateDesc, gpu_allocator::MemoryLocation),
+    InternalBufferView(BufferViewCreateDesc, usize),
+    ExternalBufferView(BufferViewCreateDesc, ObjectSet, id::BufferId),
+    Image(ImageCreateDesc, gpu_allocator::MemoryLocation),
+    ImageView(ImageViewCreateDesc, usize),
     Event(),
 }
 
@@ -67,7 +67,7 @@ impl ObjectSetBuilder {
         }
     }
 
-    pub fn add_default_gpu_only_buffer(&mut self, info: BufferCreateInfo) -> id::BufferId {
+    pub fn add_default_gpu_only_buffer(&mut self, info: BufferCreateDesc) -> id::BufferId {
         let index = self.requests.len();
 
         self.requests.push(ObjectCreateInfo::Buffer(
@@ -78,7 +78,7 @@ impl ObjectSetBuilder {
         id::BufferId::new(self.set_id, index as u64)
     }
 
-    pub fn add_default_gpu_cpu_buffer(&mut self, info: BufferCreateInfo) -> id::BufferId {
+    pub fn add_default_gpu_cpu_buffer(&mut self, info: BufferCreateDesc) -> id::BufferId {
         let index = self.requests.len();
 
         self.requests.push(ObjectCreateInfo::Buffer(
@@ -89,7 +89,7 @@ impl ObjectSetBuilder {
         id::BufferId::new(self.set_id, index as u64)
     }
 
-    pub fn add_internal_buffer_view(&mut self, info: BufferViewCreateInfo, buffer: id::BufferId) -> id::BufferViewId {
+    pub fn add_internal_buffer_view(&mut self, info: BufferViewCreateDesc, buffer: id::BufferId) -> id::BufferViewId {
         if buffer.get_global_id() != self.set_id {
             panic!("Buffer global id does not match set id")
         }
@@ -104,7 +104,7 @@ impl ObjectSetBuilder {
         id::BufferViewId::new(self.set_id, index as u64)
     }
 
-    pub fn add_external_buffer_view(&mut self, info: BufferViewCreateInfo, set: ObjectSet, buffer: id::BufferId) -> id::BufferViewId {
+    pub fn add_external_buffer_view(&mut self, info: BufferViewCreateDesc, set: ObjectSet, buffer: id::BufferId) -> id::BufferViewId {
         if buffer.get_global_id() != set.get_set_id() {
             panic!("Buffer global id does not match set id")
         }
@@ -124,19 +124,19 @@ impl ObjectSetBuilder {
         id::BufferViewId::new(self.set_id, index as u64)
     }
 
-    pub fn add_default_gpu_only_image(&mut self, info: ImageCreateMeta) -> id::ImageId {
+    pub fn add_default_gpu_only_image(&mut self, info: ImageCreateDesc) -> id::ImageId {
         todo!()
     }
 
-    pub fn add_default_gpu_cpu_image(&mut self, info: ImageCreateMeta) -> id::ImageId {
+    pub fn add_default_gpu_cpu_image(&mut self, info: ImageCreateDesc) -> id::ImageId {
         todo!()
     }
 
-    pub fn add_internal_image_view(&mut self, info: ImageViewCreateMeta, image: id::ImageId) -> id::ImageViewId {
+    pub fn add_internal_image_view(&mut self, info: ImageViewCreateDesc, image: id::ImageId) -> id::ImageViewId {
         todo!()
     }
 
-    pub fn add_external_image_view(&mut self, info: ImageViewCreateMeta, set: ObjectSet, image: id::ImageId) -> id::ImageViewId {
+    pub fn add_external_image_view(&mut self, info: ImageViewCreateDesc, set: ObjectSet, image: id::ImageId) -> id::ImageViewId {
         todo!()
     }
 

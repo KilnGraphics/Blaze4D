@@ -50,6 +50,14 @@ impl ImageSize {
         ImageSize::Type3D { width, height, depth, mip_levels }
     }
 
+    pub const fn get_vulkan_type(&self) -> vk::ImageType {
+        match self {
+            ImageSize::Type1D { .. } => vk::ImageType::TYPE_1D,
+            ImageSize::Type2D { .. } => vk::ImageType::TYPE_2D,
+            ImageSize::Type3D { .. } => vk::ImageType::TYPE_3D,
+        }
+    }
+
     pub const fn get_width(&self) -> u32 {
         match self {
             ImageSize::Type1D { width, .. } => *width,
@@ -147,11 +155,11 @@ pub struct ImageMeta {
 }
 
 #[non_exhaustive]
-pub struct ImageCreateMeta {
+pub struct ImageCreateDesc {
     pub spec: ImageSpec,
     pub usage_flags: vk::ImageUsageFlags,
 }
 
-pub struct ImageViewCreateMeta {
+pub struct ImageViewCreateDesc {
 
 }

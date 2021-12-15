@@ -27,19 +27,19 @@ pub struct BufferMeta {
 }
 
 #[non_exhaustive]
-pub struct BufferCreateInfo {
+pub struct BufferCreateDesc {
     pub size: u64,
     pub usage_flags: vk::BufferUsageFlags,
 }
 
-impl BufferCreateInfo {
+impl BufferCreateDesc {
     pub fn new_simple(size: u64, usage_flags: vk::BufferUsageFlags) -> Self {
-        BufferCreateInfo { size, usage_flags }
+        BufferCreateDesc { size, usage_flags }
     }
 }
 
 #[non_exhaustive]
-pub struct BufferViewCreateInfo {
+pub struct BufferViewCreateDesc {
     pub format: vk::Format,
     pub range: BufferRange,
 }
