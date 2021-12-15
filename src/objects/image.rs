@@ -149,6 +149,18 @@ pub struct ImageSubresourceRange {
     pub array_layer_count: u32,
 }
 
+impl ImageSubresourceRange {
+    pub const fn as_vk_subresource_range(&self) -> vk::ImageSubresourceRange {
+        vk::ImageSubresourceRange {
+            aspect_mask: self.aspect_mask,
+            base_mip_level: self.base_mip_level,
+            level_count: self.mip_level_count,
+            base_array_layer: self.base_array_layer,
+            layer_count: self.array_layer_count
+        }
+    }
+}
+
 #[non_exhaustive]
 pub struct ImageMeta {
 
@@ -161,5 +173,8 @@ pub struct ImageCreateDesc {
 }
 
 pub struct ImageViewCreateDesc {
-
+    pub view_type: vk::ImageViewType,
+    pub format: &'static crate::objects::Format,
+    pub components: vk::ComponentMapping,
+    pub subresource_range: ImageSubresourceRange,
 }

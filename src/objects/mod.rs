@@ -3,6 +3,7 @@ pub mod image;
 pub mod buffer;
 pub mod id;
 pub mod manager;
+pub mod swapchain;
 
 pub use format::Format;
 
