@@ -2,6 +2,8 @@ use std::sync::Arc;
 use crate::ALLOCATION_CALLBACKS;
 use ash::{Entry};
 
+use ash::vk;
+
 use crate::init::device::{create_device};
 use crate::init::initialization_registry::InitializationRegistry;
 use crate::init::instance_builder::create_instance;
@@ -20,7 +22,7 @@ impl Rosella {
         let ash_entry = ash::Entry::new();
         let ash_instance = create_instance(&registry, application_name, 0, window, &ash_entry);
 
-        let instance = Arc::new(InstanceContext::new(ash_entry, ash_instance));
+        let instance = Arc::new(InstanceContext::new(ash_entry, ash_instance, VulkanVersion::VK_1_0));
 
         let surface = RosellaSurface::new(instance.vk(), &Entry::new(), window);
         let ash_device = create_device(instance.vk(), registry, &surface);
@@ -57,14 +59,35 @@ impl Rosella {
     }
 }
 
+#[derive(Copy, Clone, Debug)]
+pub struct VulkanVersion(u32);
+
+impl VulkanVersion {
+    pub const VK_1_0: VulkanVersion = VulkanVersion(vk::API_VERSION_1_0);
+    pub const VK_1_1: VulkanVersion = VulkanVersion(vk::API_VERSION_1_1);
+    pub const VK_1_2: VulkanVersion = VulkanVersion(vk::API_VERSION_1_2);
+
+    pub fn new(variant: u32, major: u32, minor: u32, patch: u32) -> Self {
+        Self(vk::make_api_version(variant, major, minor, patch))
+    }
+
+    pub fn is_supported(&self, version: VulkanVersion) -> bool {
+        vk::api_version_major(self.0) >= vk::api_version_major(version.0)
+    }
+}
+
 pub struct InstanceContext {
+    version: VulkanVersion,
     entry: ash::Entry,
     instance: ash::Instance,
+    khr_get_physical_device_properties_2: Option<ash::extensions::khr::GetPhysicalDeviceProperties2>,
 }
 
 impl InstanceContext {
-    fn new(entry: ash::Entry, instance: ash::Instance) -> Self {
-        Self{ entry, instance }
+    fn new(entry: ash::Entry, instance: ash::Instance, version: VulkanVersion) -> Self {
+        Self{ entry, instance, version,
+            khr_get_physical_device_properties_2: None
+        }
     }
 
     pub fn get_entry(&self) -> &ash::Entry {
@@ -73,6 +96,14 @@ impl InstanceContext {
 
     pub fn vk(&self) -> &ash::Instance {
         &self.instance
+    }
+
+    pub fn get_khr_get_physical_device_properties_2(&self) -> Option<&ash::extensions::khr::GetPhysicalDeviceProperties2> {
+        self.khr_get_physical_device_properties_2.as_ref()
+    }
+
+    pub fn get_version(&self) -> VulkanVersion {
+        self.version
     }
 }
 

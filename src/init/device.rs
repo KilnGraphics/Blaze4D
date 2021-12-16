@@ -1,18 +1,25 @@
+use std::borrow::BorrowMut;
 use std::cmp::min;
 use std::collections::{HashMap, HashSet};
+use std::ffi::c_void;
 use std::os::raw::c_char;
+use std::ptr::{null, null_mut};
 use std::rc::Rc;
 use std::sync::{Arc, Mutex};
 
 use ash::extensions::khr::Swapchain;
 use ash::prelude::VkResult;
-use ash::vk::{BindSparseInfo, DeviceCreateInfo, DeviceQueueCreateInfo, ExtensionProperties, Fence, PhysicalDevice, PhysicalDeviceFeatures2, PhysicalDeviceProperties, PhysicalDeviceType, PhysicalDeviceVulkan11Features, PhysicalDeviceVulkan12Features, PresentInfoKHR, Queue, QueueFamilyProperties, SubmitInfo, API_VERSION_1_1, API_VERSION_1_2};
+use ash::vk::{BindSparseInfo, DeviceCreateInfo, DeviceQueueCreateInfo, ExtensionProperties, Fence, PhysicalDevice, PhysicalDeviceFeatures2, PhysicalDeviceProperties, PhysicalDeviceType, PhysicalDeviceVulkan11Features, PhysicalDeviceVulkan12Features, PresentInfoKHR, Queue, QueueFamilyProperties, SubmitInfo, API_VERSION_1_1, API_VERSION_1_2, StructureType};
 use ash::{Device, Instance};
+
+use ash::vk;
+use winit::event::VirtualKeyCode::V;
 
 use crate::init::initialization_registry::InitializationRegistry;
 use crate::util::utils::string_from_array;
 use crate::window::RosellaSurface;
 use crate::NamedUUID;
+use crate::rosella::{InstanceContext, VulkanVersion};
 
 #[derive(Debug)]
 pub struct VulkanQueue {
@@ -303,4 +310,191 @@ impl VulkanQueue {
         let guard = self.queue.lock().unwrap();
         unsafe { swapchain.queue_present(*guard, present_info) }
     }
+}
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+enum PNextVariant {
+    VkPhysicalDeviceVulkan1_1Features(&'static vk::PhysicalDeviceVulkan11Features),
+    VkPhysicalDeviceVulkan1_2Features(&'static vk::PhysicalDeviceVulkan12Features),
+    VkPhysicalDeviceVulkan1_1Properties(&'static vk::PhysicalDeviceVulkan11Properties),
+    VkPhysicalDeviceVulkan1_2Properties(&'static vk::PhysicalDeviceVulkan12Properties),
+}
+
+struct PNextIterator {
+    current: *const c_void,
+}
+
+impl PNextIterator {
+    unsafe fn new(initial: *const c_void) -> Self {
+        Self { current: initial }
+    }
+}
+
+impl Iterator for PNextIterator {
+    type Item = PNextVariant;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        #[repr(C)]
+        struct RawStruct {
+            pub s_type: vk::StructureType,
+            pub p_next: *const c_void,
+        }
+
+        // Iterate until we find a struct that we know
+        while !self.current.is_null() {
+            let current = self.current;
+            let raw = unsafe { current.cast::<RawStruct>().read() };
+            self.current = raw.p_next;
+
+            match raw.s_type {
+                vk::StructureType::PHYSICAL_DEVICE_VULKAN_1_1_FEATURES => {
+                    return Some(PNextVariant::VkPhysicalDeviceVulkan1_1Features(unsafe {
+                        current.cast::<vk::PhysicalDeviceVulkan11Features>().as_ref().unwrap()
+                    }));
+                }
+
+                vk::StructureType::PHYSICAL_DEVICE_VULKAN_1_2_FEATURES => {
+                    return Some(PNextVariant::VkPhysicalDeviceVulkan1_2Features(unsafe {
+                        current.cast::<vk::PhysicalDeviceVulkan12Features>().as_ref().unwrap()
+                    }));
+                }
+
+                vk::StructureType::PHYSICAL_DEVICE_VULKAN_1_1_PROPERTIES => {
+                    return Some(PNextVariant::VkPhysicalDeviceVulkan1_1Properties(unsafe {
+                        current.cast::<vk::PhysicalDeviceVulkan11Properties>().as_ref().unwrap()
+                    }));
+                }
+
+                vk::StructureType::PHYSICAL_DEVICE_VULKAN_1_2_PROPERTIES => {
+                    return Some(PNextVariant::VkPhysicalDeviceVulkan1_2Properties(unsafe {
+                        current.cast::<vk::PhysicalDeviceVulkan12Properties>().as_ref().unwrap()
+                    }));
+                }
+
+                _ => {}
+            }
+        }
+
+        // No more structs to process
+        None
+    }
+}
+
+pub struct DeviceInfo {
+    instance: InstanceContext,
+    physical_device: vk::PhysicalDevice,
+    features_1_0: vk::PhysicalDeviceFeatures,
+    features_1_1: Option<vk::PhysicalDeviceVulkan11Features>,
+    features_1_2: Option<vk::PhysicalDeviceVulkan12Features>,
+    properties_1_0: vk::PhysicalDeviceProperties,
+    properties_1_1: Option<vk::PhysicalDeviceVulkan11Properties>,
+    properties_1_2: Option<vk::PhysicalDeviceVulkan12Properties>,
+}
+
+impl DeviceInfo {
+    fn new(instance: InstanceContext, physical_device: vk::PhysicalDevice) -> Self {
+        let mut features_1_0 = None;
+        let mut features_1_1 = None;
+        let mut features_1_2 = None;
+
+        let mut properties_1_0 = None;
+        let mut properties_1_1 = None;
+        let mut properties_1_2 = None;
+
+        let vk_1_1 = instance.get_version().is_supported(VulkanVersion::VK_1_1);
+        let get_physical_device_properties_2 = instance.get_khr_get_physical_device_properties_2();
+
+        if vk_1_1 || get_physical_device_properties_2.is_some() {
+            // Use the newer VK_KHR_get_physical_device_properties2 functions
+
+            let mut features2 = vk::PhysicalDeviceFeatures2::default();
+            if vk_1_1 {
+                unsafe { instance.vk().get_physical_device_features2(physical_device, &mut features2) };
+            } else {
+                unsafe { get_physical_device_properties_2.unwrap().get_physical_device_features2(physical_device, features2.borrow_mut()) };
+            }
+            let features2 = features2;
+
+            features_1_0 = Some(features2.features);
+
+            for variant in unsafe{ PNextIterator::new(features2.p_next) } {
+                match variant {
+                    PNextVariant::VkPhysicalDeviceVulkan1_1Features(features) => {
+                        let mut tmp = features.clone();
+                        tmp.p_next = null_mut();
+                        features_1_1 = Some(tmp);
+                    }
+                    PNextVariant::VkPhysicalDeviceVulkan1_2Features(features) => {
+                        let mut tmp = features.clone();
+                        tmp.p_next = null_mut();
+                        features_1_2 = Some(tmp);
+                    }
+                    _ => {}
+                }
+            }
+
+            let mut properties2 = vk::PhysicalDeviceProperties2::default();
+            if vk_1_1 {
+                unsafe { instance.vk().get_physical_device_properties2(physical_device, &mut properties2) };
+            } else {
+                unsafe { get_physical_device_properties_2.unwrap().get_physical_device_properties2(physical_device, properties2.borrow_mut()) };
+            }
+            let properties2 = properties2;
+
+            properties_1_0 = Some(properties2.properties);
+
+            for variant in unsafe{ PNextIterator::new(properties2.p_next) } {
+                match variant {
+                    PNextVariant::VkPhysicalDeviceVulkan1_1Properties(properties) => {
+                        let mut tmp = properties.clone();
+                        tmp.p_next = null_mut();
+                        properties_1_1 = Some(tmp);
+                    }
+                    PNextVariant::VkPhysicalDeviceVulkan1_2Properties(properties) => {
+                        let mut tmp = properties.clone();
+                        tmp.p_next = null_mut();
+                        properties_1_2 = Some(tmp);
+                    }
+                    _ => {}
+                }
+            }
+
+        } else {
+            // Fallback use base vulkan 1.0 functions
+            features_1_0 = Some(unsafe { instance.vk().get_physical_device_features(physical_device) });
+            properties_1_0 = Some(unsafe { instance.vk().get_physical_device_properties(physical_device) });
+        }
+
+        Self {
+            instance,
+            physical_device,
+            features_1_0: features_1_0.unwrap(),
+            features_1_1,
+            features_1_2,
+            properties_1_0: properties_1_0.unwrap(),
+            properties_1_1,
+            properties_1_2
+        }
+    }
+}
+
+pub struct DeviceConfiguration {
+
 }
