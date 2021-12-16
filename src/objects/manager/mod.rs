@@ -48,6 +48,7 @@ use object_set::*;
 use crate::objects::manager::allocator::{BufferRequestDescription, BufferViewRequestDescription, ImageRequestDescription, ImageViewRequestDescription, ObjectRequestDescription};
 use crate::util::slice_splitter::Splitter;
 
+#[derive(Debug)]
 enum ObjectCreateError<'s> {
     Vulkan(vk::Result),
     Allocation(AllocationError),
@@ -406,8 +407,52 @@ impl ObjectManagerImpl {
         }).collect()
     }
 
-    fn create_objects(&self, objects: &[ObjectCreateInfo]) -> (Box<[ObjectData]>, AllocationMeta) {
-        todo!()
+    fn flatten_temporary_object_data(&self, objects: Vec<TemporaryObjectData>) -> (Box<[ObjectData]>, AllocationMeta) {
+        let mut allocations = Vec::new();
+        let mut object_data = Vec::with_capacity(objects.len());
+
+        for mut object in objects.into_iter() {
+            object_data.push(match object {
+                TemporaryObjectData::Buffer { handle, allocation, .. } => {
+                    match allocation {
+                        None => {}
+                        Some(allocation) => allocations.push(allocation)
+                    }
+                    ObjectData::Buffer { handle }
+                }
+                TemporaryObjectData::BufferView { handle, desc, .. } => {
+                    ObjectData::BufferView {
+                        handle,
+                        source_set: desc.owning_set.clone(),
+                    }
+                }
+                TemporaryObjectData::Image { handle, allocation, .. } => {
+                    match allocation {
+                        None => {}
+                        Some(allocation) => allocations.push(allocation)
+                    }
+                    ObjectData::Image { handle }
+                }
+                TemporaryObjectData::ImageView { handle, desc, .. } => {
+                    ObjectData::ImageView {
+                        handle,
+                        source_set: desc.owning_set.clone(),
+                    }
+                }
+            });
+        }
+
+        (object_data.into_boxed_slice(), AllocationMeta{ allocations: allocations.into_boxed_slice() })
+    }
+
+    fn create_objects(&self, objects: &[ObjectRequestDescription]) -> (Box<[ObjectData]>, AllocationMeta) {
+        let mut objects = self.create_temporary_object_data(objects);
+        self.create_temporary_objects(objects.as_mut_slice()).map_err(|err| {
+            let mut guard = self.allocator.lock().unwrap();
+            self.destroy_temporary_objects(objects.as_mut_slice(), &mut guard); err
+        }).unwrap();
+
+        self.flatten_temporary_object_data(objects)
     }
 
     fn destroy_objects(&self, objects: &[ObjectData], allocation: &AllocationMeta) {
@@ -445,7 +490,7 @@ impl ObjectManager {
         self.0.destroy_semaphore(semaphore)
     }
 
-    fn create_objects(&self, objects: &[ObjectCreateInfo]) -> (Box<[ObjectData]>, AllocationMeta) {
+    fn create_objects(&self, objects: &[ObjectRequestDescription]) -> (Box<[ObjectData]>, AllocationMeta) {
         self.0.create_objects(objects)
     }
 
@@ -466,6 +511,5 @@ impl Clone for ObjectManager {
 /// These structs dont have to have a 1 to 1 mapping to objects. A allocation can back multiple
 /// objects or a object can be backed by multiple allocations.
 struct AllocationMeta {
+    allocations: Box<[Allocation]>,
 }
-
-

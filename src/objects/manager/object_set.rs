@@ -10,6 +10,8 @@ use crate::util::id::GlobalId;
 
 use ash::vk;
 use ash::vk::Handle;
+use gpu_allocator::MemoryLocation;
+use crate::objects::manager::allocator::ObjectRequestDescription;
 
 pub(super) enum ObjectData {
     Buffer{
@@ -17,9 +19,14 @@ pub(super) enum ObjectData {
     },
     BufferView{
         handle: vk::BufferView,
+        source_set: Option<ObjectSet>,
     },
     Image {
         handle: vk::Image,
+    },
+    ImageView {
+        handle: vk::ImageView,
+        source_set: Option<ObjectSet>,
     }
 }
 
@@ -29,25 +36,15 @@ impl ObjectData {
             ObjectData::Buffer { handle, .. } => handle.as_raw(),
             ObjectData::BufferView {handle, .. } => handle.as_raw(),
             ObjectData::Image { handle, .. } => handle.as_raw(),
+            ObjectData::ImageView { handle, .. } => handle.as_raw(),
         }
     }
-}
-
-/// Contains all the information (type, flags, allocation requirements etc.) about how an object
-/// should be created.
-pub(super) enum ObjectCreateInfo {
-    Buffer(BufferCreateDesc, gpu_allocator::MemoryLocation),
-    InternalBufferView(BufferViewCreateDesc, usize),
-    ExternalBufferView(BufferViewCreateDesc, ObjectSet, id::BufferId),
-    Image(ImageCreateDesc, gpu_allocator::MemoryLocation),
-    ImageView(ImageViewCreateDesc, usize),
-    Event(),
 }
 
 pub struct ObjectSetBuilder {
     synchronization_group: SynchronizationGroup,
     set_id: GlobalId,
-    requests: Vec<ObjectCreateInfo>,
+    requests: Vec<ObjectRequestDescription>,
 }
 
 impl ObjectSetBuilder {
@@ -67,44 +64,34 @@ impl ObjectSetBuilder {
         }
     }
 
-    pub fn add_default_gpu_only_buffer(&mut self, info: BufferCreateDesc) -> id::BufferId {
+    pub fn add_default_gpu_only_buffer(&mut self, desc: BufferCreateDesc) -> id::BufferId {
         let index = self.requests.len();
 
-        self.requests.push(ObjectCreateInfo::Buffer(
-            info,
-            gpu_allocator::MemoryLocation::GpuOnly
-        ));
+        self.requests.push(ObjectRequestDescription::make_buffer(desc, MemoryLocation::GpuOnly));
 
         id::BufferId::new(self.set_id, index as u64)
     }
 
-    pub fn add_default_gpu_cpu_buffer(&mut self, info: BufferCreateDesc) -> id::BufferId {
+    pub fn add_default_gpu_cpu_buffer(&mut self, desc: BufferCreateDesc) -> id::BufferId {
         let index = self.requests.len();
 
-        self.requests.push(ObjectCreateInfo::Buffer(
-            info,
-            gpu_allocator::MemoryLocation::CpuToGpu
-        ));
+        self.requests.push(ObjectRequestDescription::make_buffer(desc, MemoryLocation::CpuToGpu));
 
         id::BufferId::new(self.set_id, index as u64)
     }
 
-    pub fn add_internal_buffer_view(&mut self, info: BufferViewCreateDesc, buffer: id::BufferId) -> id::BufferViewId {
+    pub fn add_internal_buffer_view(&mut self, desc: BufferViewCreateDesc, buffer: id::BufferId) -> id::BufferViewId {
         if buffer.get_global_id() != self.set_id {
             panic!("Buffer global id does not match set id")
         }
-
         let index = self.requests.len();
 
-        self.requests.push(ObjectCreateInfo::InternalBufferView(
-            info,
-            buffer.get_index() as usize
-        ));
+        self.requests.push(ObjectRequestDescription::make_buffer_view(desc, None, buffer));
 
         id::BufferViewId::new(self.set_id, index as u64)
     }
 
-    pub fn add_external_buffer_view(&mut self, info: BufferViewCreateDesc, set: ObjectSet, buffer: id::BufferId) -> id::BufferViewId {
+    pub fn add_external_buffer_view(&mut self, desc: BufferViewCreateDesc, set: ObjectSet, buffer: id::BufferId) -> id::BufferViewId {
         if buffer.get_global_id() != set.get_set_id() {
             panic!("Buffer global id does not match set id")
         }
@@ -115,43 +102,58 @@ impl ObjectSetBuilder {
 
         let index = self.requests.len();
 
-        self.requests.push(ObjectCreateInfo::ExternalBufferView(
-            info,
-            set,
-            buffer
-        ));
+        self.requests.push(ObjectRequestDescription::make_buffer_view(desc, Some(set), buffer));
 
         id::BufferViewId::new(self.set_id, index as u64)
     }
 
-    pub fn add_default_gpu_only_image(&mut self, info: ImageCreateDesc) -> id::ImageId {
-        todo!()
+    pub fn add_default_gpu_only_image(&mut self, desc: ImageCreateDesc) -> id::ImageId {
+        let index = self.requests.len();
+
+        self.requests.push(ObjectRequestDescription::make_image(desc, MemoryLocation::GpuOnly));
+
+        id::ImageId::new(self.set_id, index as u64)
     }
 
-    pub fn add_default_gpu_cpu_image(&mut self, info: ImageCreateDesc) -> id::ImageId {
-        todo!()
+    pub fn add_default_gpu_cpu_image(&mut self, desc: ImageCreateDesc) -> id::ImageId {
+        let index = self.requests.len();
+
+        self.requests.push(ObjectRequestDescription::make_image(desc, MemoryLocation::CpuToGpu));
+
+        id::ImageId::new(self.set_id, index as u64)
     }
 
-    pub fn add_internal_image_view(&mut self, info: ImageViewCreateDesc, image: id::ImageId) -> id::ImageViewId {
-        todo!()
+    pub fn add_internal_image_view(&mut self, desc: ImageViewCreateDesc, image: id::ImageId) -> id::ImageViewId {
+        if image.get_global_id() != self.set_id {
+            panic!("Image global id does not match set id")
+        }
+        let index = self.requests.len();
+
+        self.requests.push(ObjectRequestDescription::make_image_view(desc, None, image));
+
+        id::ImageViewId::new(self.set_id, index as u64)
     }
 
-    pub fn add_external_image_view(&mut self, info: ImageViewCreateDesc, set: ObjectSet, image: id::ImageId) -> id::ImageViewId {
-        todo!()
+    pub fn add_external_image_view(&mut self, desc: ImageViewCreateDesc, set: ObjectSet, image: id::ImageId) -> id::ImageViewId {
+        if image.get_global_id() != set.get_set_id() {
+            panic!("Image global id does not match set id")
+        }
+
+        if *set.get_synchronization_group() != self.synchronization_group {
+            panic!("Image does not match internal synchronization group")
+        }
+
+        let index = self.requests.len();
+
+        self.requests.push(ObjectRequestDescription::make_image_view(desc, Some(set), image));
+
+        id::ImageViewId::new(self.set_id, index as u64)
     }
 
     pub fn build(self) -> ObjectSet {
         let (objects, allocation) = self.synchronization_group.get_manager().create_objects(self.requests.as_slice());
         ObjectSet::new(self.synchronization_group, objects, allocation)
     }
-}
-
-/// Wrapper type that is passed to the object set create function. The create function will store
-/// the assigned id of the object in this type which can then later be retrieved by the calling
-/// code.
-pub struct ObjectCreateRequest {
-    meta: ObjectCreateInfo,
-    id: Option<id::GenericId>,
 }
 
 // Internal implementation of the object set
@@ -193,6 +195,18 @@ impl ObjectSetImpl {
         }
     }
 
+    fn get_buffer_view_handle(&self, id: id::BufferViewId) -> Option<vk::BufferView> {
+        if id.get_global_id()!= self.set_id {
+            return None;
+        }
+
+        // Invalid local id but matching global is a serious error
+        match self.objects.get(id.get_index() as usize).unwrap() {
+            ObjectData::BufferView { handle, .. } => Some(*handle),
+            _ => panic!("Object type mismatch"),
+        }
+    }
+
     fn get_image_handle(&self, id: id::ImageId) -> Option<vk::Image> {
         if id.get_global_id() != self.set_id {
             return None;
@@ -201,6 +215,18 @@ impl ObjectSetImpl {
         // Invalid local id but matching global is a serious error
         match self.objects.get(id.get_index() as usize).unwrap() {
             ObjectData::Image { handle, .. } => Some(*handle),
+            _ => panic!("Object type mismatch"),
+        }
+    }
+
+    fn get_image_view_handle(&self, id: id::ImageViewId) -> Option<vk::ImageView> {
+        if id.get_global_id()!= self.set_id {
+            return None;
+        }
+
+        // Invalid local id but matching global is a serious error
+        match self.objects.get(id.get_index() as usize).unwrap() {
+            ObjectData::ImageView { handle, .. } => Some(*handle),
             _ => panic!("Object type mismatch"),
         }
     }
@@ -275,6 +301,10 @@ impl ObjectSet {
         self.0.get_buffer_handle(id)
     }
 
+    pub fn get_buffer_view_handle(&self, id: id::BufferViewId) -> Option<vk::BufferView> {
+        self.0.get_buffer_view_handle(id)
+    }
+
     /// Returns the handle of a image that is part of this object set.
     ///
     /// If the id is not part of the object set (i.e. the global id does not match) None will be
@@ -282,6 +312,10 @@ impl ObjectSet {
     /// is not a image) the function panics.
     pub fn get_image_handle(&self, id: id::ImageId) -> Option<vk::Image> {
         self.0.get_image_handle(id)
+    }
+
+    pub fn get_image_view_handle(&self, id: id::ImageViewId) -> Option<vk::ImageView> {
+        self.0.get_image_view_handle(id)
     }
 }
 
