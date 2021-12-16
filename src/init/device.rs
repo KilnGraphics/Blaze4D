@@ -397,6 +397,43 @@ impl Iterator for PNextIterator {
     }
 }
 
+pub struct QueueFamilyInfo {
+    index: u32,
+    properties: vk::QueueFamilyProperties,
+}
+
+impl QueueFamilyInfo {
+    fn new(index: u32, properties: vk::QueueFamilyProperties) -> Self {
+        Self {
+            index,
+            properties,
+        }
+    }
+
+    fn new2(index: u32, properties2: vk::QueueFamilyProperties2) -> Self {
+        let properties = properties2.queue_family_properties;
+
+        for variant in unsafe { PNextIterator::new(properties2.p_next) } {
+            match variant {
+                _ => {}
+            }
+        }
+
+        Self {
+            index,
+            properties,
+        }
+    }
+
+    pub fn get_index(&self) -> u32 {
+        self.index
+    }
+
+    pub fn get_properties(&self) -> &vk::QueueFamilyProperties {
+        &self.properties
+    }
+}
+
 pub struct DeviceInfo {
     instance: InstanceContext,
     physical_device: vk::PhysicalDevice,
@@ -406,6 +443,8 @@ pub struct DeviceInfo {
     properties_1_0: vk::PhysicalDeviceProperties,
     properties_1_1: Option<vk::PhysicalDeviceVulkan11Properties>,
     properties_1_2: Option<vk::PhysicalDeviceVulkan12Properties>,
+    memory_properties_1_0: vk::PhysicalDeviceMemoryProperties,
+    queue_families: Box<[QueueFamilyInfo]>,
 }
 
 impl DeviceInfo {
@@ -417,6 +456,10 @@ impl DeviceInfo {
         let mut properties_1_0 = None;
         let mut properties_1_1 = None;
         let mut properties_1_2 = None;
+
+        let mut memory_properties_1_0 = None;
+
+        let mut queue_families = None;
 
         let vk_1_1 = instance.get_version().is_supported(VulkanVersion::VK_1_1);
         let get_physical_device_properties_2 = instance.get_khr_get_physical_device_properties_2();
@@ -476,10 +519,57 @@ impl DeviceInfo {
                 }
             }
 
+            let mut memory_properties2 = vk::PhysicalDeviceMemoryProperties2::default();
+            if vk_1_1 {
+                unsafe { instance.vk().get_physical_device_memory_properties2(physical_device, &mut memory_properties2) };
+            } else {
+                unsafe { get_physical_device_properties_2.unwrap().get_physical_device_memory_properties2(physical_device, memory_properties2.borrow_mut()) };
+            }
+            let memory_properties2 = memory_properties2;
+
+            memory_properties_1_0 = Some(memory_properties2.memory_properties);
+
+            for variant in unsafe{ PNextIterator::new(memory_properties2.p_next) } {
+                match variant {
+                    _ => {}
+                }
+            }
+
+
+            let mut queue_properties2 = Vec::new();
+            if vk_1_1 {
+                let count = unsafe { instance.vk().get_physical_device_queue_family_properties2_len(physical_device) };
+
+                queue_properties2.resize(count, vk::QueueFamilyProperties2::default());
+
+                unsafe { instance.vk().get_physical_device_queue_family_properties2(physical_device, queue_properties2.as_mut()) };
+            } else {
+                let count = unsafe { get_physical_device_properties_2.unwrap().get_physical_device_queue_family_properties2_len(physical_device) };
+
+                queue_properties2.resize(count, vk::QueueFamilyProperties2::default());
+
+                unsafe { get_physical_device_properties_2.unwrap().get_physical_device_queue_family_properties2(physical_device, queue_properties2.as_mut()) };
+            }
+
+            queue_families = Some(queue_properties2.into_iter()
+                .enumerate()
+                .map(|(index, properties)| QueueFamilyInfo::new2(index as u32, properties))
+                .collect::<Vec<_>>()
+                .into_boxed_slice());
+
         } else {
-            // Fallback use base vulkan 1.0 functions
+            // Fallback to base vulkan 1.0 functions
             features_1_0 = Some(unsafe { instance.vk().get_physical_device_features(physical_device) });
             properties_1_0 = Some(unsafe { instance.vk().get_physical_device_properties(physical_device) });
+            memory_properties_1_0 = Some(unsafe { instance.vk().get_physical_device_memory_properties(physical_device) });
+
+            queue_families = Some(
+                unsafe { instance.vk().get_physical_device_queue_family_properties(physical_device) }
+                    .into_iter()
+                    .enumerate()
+                    .map(|(index, properties)| QueueFamilyInfo::new(index as u32, properties))
+                .collect::<Vec<_>>()
+                .into_boxed_slice());
         }
 
         Self {
@@ -490,8 +580,50 @@ impl DeviceInfo {
             features_1_2,
             properties_1_0: properties_1_0.unwrap(),
             properties_1_1,
-            properties_1_2
+            properties_1_2,
+            memory_properties_1_0: memory_properties_1_0.unwrap(),
+            queue_families: queue_families.unwrap(),
         }
+    }
+
+    pub fn get_instance(&self) -> &InstanceContext {
+        &self.instance
+    }
+
+    pub fn get_physical_device(&self) -> &vk::PhysicalDevice {
+        &self.physical_device
+    }
+
+    pub fn get_device_1_0_features(&self) -> &vk::PhysicalDeviceFeatures {
+        &self.features_1_0
+    }
+
+    pub fn get_device_1_1_features(&self) -> Option<&vk::PhysicalDeviceVulkan11Features> {
+        self.features_1_1.as_ref()
+    }
+
+    pub fn get_device_1_2_features(&self) -> Option<&vk::PhysicalDeviceVulkan12Features> {
+        self.features_1_2.as_ref()
+    }
+
+    pub fn get_device_1_0_properties(&self) -> &vk::PhysicalDeviceProperties {
+        &self.properties_1_0
+    }
+
+    pub fn get_device_1_1_properties(&self) -> Option<&vk::PhysicalDeviceVulkan11Properties> {
+        self.properties_1_1.as_ref()
+    }
+
+    pub fn get_device_1_2_properties(&self) -> Option<&vk::PhysicalDeviceVulkan12Properties> {
+        self.properties_1_2.as_ref()
+    }
+
+    pub fn get_memory_1_0_properties(&self) -> &vk::PhysicalDeviceMemoryProperties {
+        &self.memory_properties_1_0
+    }
+
+    pub fn get_queue_family_infos(&self) -> &[QueueFamilyInfo] {
+        self.queue_families.as_ref()
     }
 }
 
