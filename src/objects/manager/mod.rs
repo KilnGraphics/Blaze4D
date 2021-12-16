@@ -456,7 +456,33 @@ impl ObjectManagerImpl {
     }
 
     fn destroy_objects(&self, objects: &[ObjectData], allocation: &AllocationMeta) {
-        todo!()
+        for object in objects {
+            match object {
+                ObjectData::BufferView { handle, .. } => {
+                    unsafe{ self.device.vk().destroy_buffer_view(*handle, None) }
+                }
+                ObjectData::ImageView { handle, .. } => {
+                    unsafe{ self.device.vk().destroy_image_view(*handle, None) }
+                }
+                _ => {}
+            }
+        }
+        for object in objects {
+            match object {
+                ObjectData::Buffer { handle, .. } => {
+                    unsafe{ self.device.vk().destroy_buffer(*handle, None) }
+                }
+                ObjectData::Image { handle, .. } => {
+                    unsafe{ self.device.vk().destroy_image(*handle, None) }
+                }
+                _ => {}
+            }
+        }
+
+        let mut guard = self.allocator.lock().unwrap();
+        for allocation in allocation.allocations.as_ref() {
+            guard.free(allocation.clone());
+        }
     }
 }
 
