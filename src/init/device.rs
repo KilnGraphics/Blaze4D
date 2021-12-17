@@ -4,7 +4,7 @@ use std::cmp::min;
 use std::collections::{HashMap, HashSet};
 use std::ffi::c_void;
 use std::os::raw::c_char;
-use std::ptr::{null, null_mut};
+use std::ptr::null_mut;
 use std::rc::Rc;
 use std::sync::{Arc, Mutex};
 
@@ -15,7 +15,6 @@ use ash::{Device, Instance};
 
 use ash::vk;
 use topological_sort::TopologicalSort;
-use winit::event::VirtualKeyCode::V;
 use crate::init::application_feature::{ApplicationDeviceFeatureInstance, FeatureDependency, InitResult};
 
 use crate::init::initialization_registry::InitializationRegistry;
@@ -588,7 +587,7 @@ impl DeviceBuilder {
 
         for uuid in self.order.as_ref() {
             let ok = self.features.validate_dependencies_enabled(uuid);
-            let mut feature = self.features.take_initialized_feature(uuid);
+            let feature = self.features.take_initialized_feature(uuid);
 
             match feature {
                 Some(mut feature) => {
@@ -724,17 +723,17 @@ pub struct DeviceInfo {
 
 impl DeviceInfo {
     fn new(instance: InstanceContext, physical_device: vk::PhysicalDevice) -> Self {
-        let mut features_1_0 = None;
+        let features_1_0;
         let mut features_1_1 = None;
         let mut features_1_2 = None;
 
-        let mut properties_1_0 = None;
+        let properties_1_0;
         let mut properties_1_1 = None;
         let mut properties_1_2 = None;
 
-        let mut memory_properties_1_0 = None;
+        let memory_properties_1_0;
 
-        let mut queue_families = None;
+        let queue_families;
 
         let vk_1_1 = instance.get_version().is_supported(VulkanVersion::VK_1_1);
         let get_physical_device_properties_2 = instance.get_extension::<ash::extensions::khr::GetPhysicalDeviceProperties2>();

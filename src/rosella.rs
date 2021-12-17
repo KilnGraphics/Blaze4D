@@ -1,6 +1,5 @@
 use std::sync::Arc;
 use crate::ALLOCATION_CALLBACKS;
-use ash::{Entry};
 
 use crate::init::device::{create_device};
 use crate::init::initialization_registry::InitializationRegistry;
@@ -9,6 +8,7 @@ use crate::window::{RosellaSurface, RosellaWindow};
 
 use ash::vk;
 use crate::init::extensions::{AsRefOption, ExtensionFunctionSet, VkExtensionInfo, VkExtensionFunctions};
+use crate::util::id::UUID;
 
 pub struct Rosella {
     pub instance: InstanceContext,
@@ -116,6 +116,10 @@ impl InstanceContext {
     pub fn get_extension<T: VkExtensionInfo>(&self) -> Option<&T> where VkExtensionFunctions: AsRefOption<T> {
         self.0.extensions.get()
     }
+
+    pub fn is_extension_enabled(&self, uuid: UUID) -> bool {
+        self.0.extensions.contains(uuid)
+    }
 }
 
 impl Drop for InstanceContext {
@@ -166,6 +170,10 @@ impl DeviceContext {
 
     pub fn get_extension<T: VkExtensionInfo>(&self) -> Option<&T> where VkExtensionFunctions: AsRefOption<T> {
         self.0.extensions.get()
+    }
+
+    pub fn is_extension_enabled(&self, uuid: UUID) -> bool {
+        self.0.extensions.contains(uuid)
     }
 }
 

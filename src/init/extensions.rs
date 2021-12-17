@@ -1,10 +1,11 @@
 use std::collections::HashMap;
 use crate::NamedUUID;
 use paste::paste;
+use crate::util::id::UUID;
 
 #[derive(Clone)]
 pub struct ExtensionFunctionSet {
-    functions: HashMap<NamedUUID, VkExtensionFunctions>,
+    functions: HashMap<UUID, VkExtensionFunctions>,
 }
 
 impl ExtensionFunctionSet {
@@ -15,13 +16,17 @@ impl ExtensionFunctionSet {
     }
 
     pub fn add<T: VkExtensionInfo>(&mut self, functions: Box<T>) where VkExtensionFunctions: From<Box<T>> {
-        if self.functions.insert(T::UUID.clone(), VkExtensionFunctions::from(functions)).is_some() {
+        if self.functions.insert(T::UUID.get_uuid(), VkExtensionFunctions::from(functions)).is_some() {
             panic!("Added already existing function set");
         }
     }
 
+    pub fn contains(&self, uuid: UUID) -> bool {
+        self.functions.contains_key(&uuid)
+    }
+
     pub fn get<T: VkExtensionInfo>(&self) -> Option<&T> where VkExtensionFunctions: AsRefOption<T> {
-        self.functions.get(&T::UUID).map(|v| v.as_ref_option()).flatten()
+        self.functions.get(&T::UUID.get_uuid()).map(|v| v.as_ref_option().expect("Extension type mismatch"))
     }
 }
 

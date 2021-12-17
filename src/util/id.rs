@@ -5,7 +5,6 @@
 /// retaining global uniqueness.
 
 use std::cmp::Ordering;
-use std::collections::hash_map::DefaultHasher;
 use std::fmt::{Debug, Formatter};
 use std::hash::{Hash, Hasher};
 use std::num::NonZeroU64;

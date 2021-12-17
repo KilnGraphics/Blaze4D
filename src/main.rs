@@ -5,7 +5,7 @@ use std::collections::HashSet;
 use std::rc::Rc;
 
 use ash::extensions::khr::Swapchain;
-use ash::vk::{Format, QueueFlags};
+use ash::vk::QueueFlags;
 use ash::Instance;
 use winit::event::{Event, WindowEvent};
 use winit::event_loop::ControlFlow;
@@ -16,7 +16,7 @@ use rosella_rs::rosella::Rosella;
 use rosella_rs::window::{RosellaSurface, RosellaWindow};
 use rosella_rs::NamedUUID;
 use rosella_rs::shader::{GraphicsContext, GraphicsShader};
-use rosella_rs::shader::vertex::{VertexFormat, VertexFormatBuilder, VertexFormatElement};
+use rosella_rs::shader::vertex::VertexFormatBuilder;
 use rosella_rs::shader::vertex::data_type;
 
 struct QueueFamilyIndices {
@@ -90,7 +90,7 @@ fn setup_rosella(window: &RosellaWindow) -> Rosella {
 
 fn main() {
     let window = RosellaWindow::new("New New Rosella in Rust tm", 1396.0, 752.0);
-    let mut rosella = setup_rosella(&window);
+    let rosella = setup_rosella(&window);
 
     // Application Setup usually goes here. Anything in the window loop is either for closing or for looping.
     let basic_vertex_format = VertexFormatBuilder::new()
