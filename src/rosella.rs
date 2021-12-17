@@ -8,6 +8,7 @@ use crate::init::instance_builder::create_instance;
 use crate::window::{RosellaSurface, RosellaWindow};
 
 use ash::vk;
+use crate::init::extensions::{AsRefOption, ExtensionFunctionSet, VkExtensionInfo, VkExtensionFunctions};
 
 pub struct Rosella {
     pub instance: InstanceContext,
@@ -84,7 +85,7 @@ struct InstanceContextImpl {
     version: VulkanVersion,
     entry: ash::Entry,
     instance: ash::Instance,
-    khr_get_physical_device_properties_2: Option<ash::extensions::khr::GetPhysicalDeviceProperties2>,
+    extensions: ExtensionFunctionSet,
 }
 
 #[derive(Clone)]
@@ -96,7 +97,7 @@ impl InstanceContext {
             version,
             entry,
             instance,
-            khr_get_physical_device_properties_2: None,
+            extensions: ExtensionFunctionSet::new(),
         }))
     }
 
@@ -108,12 +109,12 @@ impl InstanceContext {
         &self.0.instance
     }
 
-    pub fn get_khr_get_physical_device_properties_2(&self) -> Option<&ash::extensions::khr::GetPhysicalDeviceProperties2> {
-        self.0.khr_get_physical_device_properties_2.as_ref()
-    }
-
     pub fn get_version(&self) -> VulkanVersion {
         self.0.version
+    }
+
+    pub fn get_extension<T: VkExtensionInfo>(&self) -> Option<&T> where VkExtensionFunctions: AsRefOption<T> {
+        self.0.extensions.get()
     }
 }
 
@@ -126,12 +127,10 @@ impl Drop for InstanceContext {
 }
 
 pub struct DeviceContextImpl {
-    #[allow(unused)]
     instance: InstanceContext,
     device: ash::Device,
     physical_device: vk::PhysicalDevice,
-    synchronization_2: ash::extensions::khr::Synchronization2,
-    timeline_semaphore: ash::extensions::khr::TimelineSemaphore,
+    extensions: ExtensionFunctionSet,
 }
 
 #[derive(Clone)]
@@ -139,15 +138,13 @@ pub struct DeviceContext(Arc<DeviceContextImpl>);
 
 impl DeviceContext {
     fn new(instance: InstanceContext, device: ash::Device, physical_device: vk::PhysicalDevice) -> Result<Self, &'static str> {
-        let synchronization_2 = ash::extensions::khr::Synchronization2::new(instance.vk(), &device);
-        let timeline_semaphore = ash::extensions::khr::TimelineSemaphore::new(instance.get_entry(), instance.vk());
+        let extensions = instance.0.extensions.clone();
 
         Ok(Self(Arc::new(DeviceContextImpl{
             instance,
             device,
             physical_device,
-            synchronization_2,
-            timeline_semaphore
+            extensions,
         })))
     }
 
@@ -167,12 +164,8 @@ impl DeviceContext {
         &self.0.physical_device
     }
 
-    pub fn get_synchronization_2(&self) -> &ash::extensions::khr::Synchronization2 {
-        &self.0.synchronization_2
-    }
-
-    pub fn get_timeline_semaphore(&self) -> &ash::extensions::khr::TimelineSemaphore {
-        &self.0.timeline_semaphore
+    pub fn get_extension<T: VkExtensionInfo>(&self) -> Option<&T> where VkExtensionFunctions: AsRefOption<T> {
+        self.0.extensions.get()
     }
 }
 

@@ -737,7 +737,7 @@ impl DeviceInfo {
         let mut queue_families = None;
 
         let vk_1_1 = instance.get_version().is_supported(VulkanVersion::VK_1_1);
-        let get_physical_device_properties_2 = instance.get_khr_get_physical_device_properties_2();
+        let get_physical_device_properties_2 = instance.get_extension::<ash::extensions::khr::GetPhysicalDeviceProperties2>();
 
         if vk_1_1 || get_physical_device_properties_2.is_some() {
             // Use the newer VK_KHR_get_physical_device_properties2 functions

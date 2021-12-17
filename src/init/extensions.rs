@@ -2,6 +2,7 @@ use std::collections::HashMap;
 use crate::NamedUUID;
 use paste::paste;
 
+#[derive(Clone)]
 pub struct ExtensionFunctionSet {
     functions: HashMap<NamedUUID, VkExtensionFunctions>,
 }
@@ -35,6 +36,7 @@ pub trait AsRefOption<T> {
 macro_rules! make_vk_extension_info {
     ($($struct_name:ty, $string_name:ident);+) => {
         paste! {
+            #[derive(Clone)]
             pub enum VkExtensionFunctions {
                 $([<$string_name:lower:camel>](Box<$struct_name>),)+
             }
