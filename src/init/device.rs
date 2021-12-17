@@ -1,3 +1,4 @@
+use std::any::Any;
 use std::borrow::BorrowMut;
 use std::cmp::min;
 use std::collections::{HashMap, HashSet};
@@ -13,7 +14,9 @@ use ash::vk::{BindSparseInfo, DeviceCreateInfo, DeviceQueueCreateInfo, Extension
 use ash::{Device, Instance};
 
 use ash::vk;
+use topological_sort::TopologicalSort;
 use winit::event::VirtualKeyCode::V;
+use crate::init::application_feature::ApplicationDeviceFeatureInstance;
 
 use crate::init::initialization_registry::InitializationRegistry;
 use crate::util::utils::string_from_array;
@@ -324,11 +327,129 @@ impl VulkanQueue {
 
 
 
+enum DeviceFeatureStage {
+    Uninitialized(Box<dyn ApplicationDeviceFeatureInstance>),
+    Initialized(Box<dyn ApplicationDeviceFeatureInstance>),
+    Enabled(Box<dyn ApplicationDeviceFeatureInstance>),
+    Disabled(Box<dyn ApplicationDeviceFeatureInstance>),
+    Processing,
+}
+
+pub struct DeviceFeatureSet {
+    features: HashMap<NamedUUID, DeviceFeatureStage>,
+}
+
+impl DeviceFeatureSet {
+    fn new(features: Vec<(NamedUUID, Box<dyn ApplicationDeviceFeatureInstance>)>) -> Self {
+        Self {
+            features: features.into_iter()
+                .map(|(uuid, feature)| (uuid, DeviceFeatureStage::Uninitialized(feature)))
+                .collect(),
+        }
+    }
+
+    pub fn get_feature<T: ApplicationDeviceFeatureInstance + 'static>(&mut self, name: &NamedUUID) -> &mut T {
+        match self.features.get_mut(name).unwrap() {
+            DeviceFeatureStage::Uninitialized(_) => { panic!("Tried to access uninitialized feature!") }
+            DeviceFeatureStage::Initialized(feature) => (*feature).as_mut(),
+            DeviceFeatureStage::Enabled(feature) => (*feature).as_mut(),
+            DeviceFeatureStage::Disabled(feature) => (*feature).as_mut(),
+            DeviceFeatureStage::Processing => { panic!("Tried to access feature which is currently being processed!") }
+        }.as_any_mut().downcast_mut().expect("Feature type mismatch")
+    }
+
+    fn take_uninitialized_feature(&mut self, name: &NamedUUID) -> Box<dyn ApplicationDeviceFeatureInstance> {
+        let feature = std::mem::replace(self.features.get_mut(name).unwrap(), DeviceFeatureStage::Processing);
+
+        match feature {
+            DeviceFeatureStage::Uninitialized(feature) => feature,
+            _ => { panic!("Expected feature to be in uninitialized state but was not")}
+        }
+    }
+
+    fn take_initialized_feature(&mut self, name: &NamedUUID) -> Box<dyn ApplicationDeviceFeatureInstance> {
+        let feature = std::mem::replace(self.features.get_mut(name).unwrap(), DeviceFeatureStage::Processing);
+
+        match feature {
+            DeviceFeatureStage::Initialized(feature) => feature,
+            _ => { panic!("Expected feature to be in initialized state but was not")}
+        }
+    }
+
+    fn return_feature_initialized(&mut self, name: &NamedUUID, feature: Box<dyn ApplicationDeviceFeatureInstance>) {
+        let storage = self.features.get_mut(name).unwrap();
+
+        if let DeviceFeatureStage::Processing = storage {
+            *storage = DeviceFeatureStage::Initialized(feature);
+        } else {
+            panic!("Expected feature to be in processing stage but was not");
+        }
+    }
+
+    fn return_feature_enabled(&mut self, name: &NamedUUID, feature: Box<dyn ApplicationDeviceFeatureInstance>) {
+        let storage = self.features.get_mut(name).unwrap();
+
+        if let DeviceFeatureStage::Processing = storage {
+            *storage = DeviceFeatureStage::Enabled(feature);
+        } else {
+            panic!("Expected feature to be in processing stage but was not");
+        }
+    }
+
+    fn return_feature_disabled(&mut self, name: &NamedUUID, feature: Box<dyn ApplicationDeviceFeatureInstance>) {
+        let storage = self.features.get_mut(name).unwrap();
+
+        if let DeviceFeatureStage::Processing = storage {
+            *storage = DeviceFeatureStage::Disabled(feature);
+        } else {
+            panic!("Expected feature to be in processing stage but was not");
+        }
+    }
+
+    fn collect_data(&mut self) -> HashMap<NamedUUID, Box<dyn Any>> {
+        let mut result = HashMap::new();
+        for (uuid, stage) in &self.features {
+            match stage {
+                DeviceFeatureStage::Enabled(feature) => { result.insert(uuid.clone(), feature.get_data()); }
+                DeviceFeatureStage::Disabled(_) => {}
+                _ => { panic!("Found feature that is not enabled or disabled during collection"); }
+            }
+        };
+        result
+    }
+}
 
 
+struct DeviceBuilder {
+    order: Box<[NamedUUID]>,
+    features: DeviceFeatureSet,
+    instance: InstanceContext,
+    physical_device: vk::PhysicalDevice,
+    info: Option<DeviceInfo>,
+    config: Option<DeviceConfigurator>,
+}
 
+impl DeviceBuilder {
+    fn new(instance: InstanceContext, physical_device: vk::PhysicalDevice, features: Vec<(NamedUUID, Box<dyn ApplicationDeviceFeatureInstance>)>, order: Box<[NamedUUID]>) -> Self {
+        Self {
+            order,
+            features: DeviceFeatureSet::new(features),
+            instance,
+            physical_device,
+            info: None,
+            config: None,
+        }
+    }
 
+    fn init_builder(&mut self) {
+        if self.info.is_some() {
+            panic!("Called init but info is not none");
+        }
 
+        self.info = Some(DeviceInfo::new(self.instance.clone(), self.physical_device))
+    }
+
+}
 
 enum PNextVariant {
     VkPhysicalDeviceVulkan1_1Features(&'static vk::PhysicalDeviceVulkan11Features),
@@ -627,6 +748,6 @@ impl DeviceInfo {
     }
 }
 
-pub struct DeviceConfiguration {
+pub struct DeviceConfigurator {
 
 }
