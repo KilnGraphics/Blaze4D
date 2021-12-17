@@ -582,7 +582,7 @@ impl DeviceBuilder {
         }
     }
 
-    fn run_enable_pass(&mut self) {
+    fn build(&mut self) {
         let info = self.info.as_ref().expect("Called enable pass but info is none");
         let config = self.config.as_mut().expect("Called enable pass but config is none");
 
@@ -602,10 +602,6 @@ impl DeviceBuilder {
                 None => {}
             }
         }
-    }
-
-    fn collect_data(&mut self) -> HashMap<NamedUUID, Box<dyn Any>> {
-        self.features.collect_data()
     }
 }
 
