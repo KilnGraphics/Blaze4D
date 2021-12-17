@@ -13,3 +13,4 @@ topological-sort = { version = "0.1.0" }
 shaderc = "0.7.3"
 nalgebra = "0.29.0"
 xxhash-rust = { features=["xxh3", "const_xxh3"] }
+paste = {}

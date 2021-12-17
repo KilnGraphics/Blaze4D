@@ -218,6 +218,29 @@ impl IncrementingGenerator {
     }
 }
 
+#[derive(Clone, Debug)]
+enum NameType {
+    Static(&'static str),
+    String(Arc<String>),
+}
+
+impl NameType {
+    const fn new_static(str: &'static str) -> Self {
+        Self::Static(str)
+    }
+
+    fn new_string(str: String) -> Self {
+        Self::String(Arc::new(str))
+    }
+
+    fn get(&self) -> &str {
+        match self {
+            NameType::Static(str) => *str,
+            NameType::String(str) => str.as_ref(),
+        }
+    }
+}
+
 /// A UUID generated from a string.
 ///
 /// NamedUUIDs use a predefined global id with the local id being calculated as the hash of a
@@ -225,7 +248,7 @@ impl IncrementingGenerator {
 /// stored by Arc enabling fast Copying of the struct.
 #[derive(Clone, Debug)]
 pub struct NamedUUID {
-    name: Arc<String>,
+    name: NameType,
     id: LocalId,
 }
 
@@ -241,21 +264,21 @@ impl NamedUUID {
         xxhash_rust::xxh3::xxh3_64(name.as_bytes())
     }
 
-    pub const fn new_const(name: &str) -> UUID {
+    pub const fn new_const(name: &'static str) -> NamedUUID {
         let hash = Self::hash_str_const(name);
 
-        UUID { global: Self::GLOBAL_ID, local: LocalId::from_hash(hash) }
+        NamedUUID { name: NameType::new_static(name), id: LocalId::from_hash(hash) }
     }
 
     pub fn new(name: String) -> NamedUUID {
         let hash = Self::hash_str(name.as_str());
 
-        NamedUUID { name: Arc::new(name), id: LocalId::from_hash(hash) }
+        NamedUUID { name: NameType::new_string(name), id: LocalId::from_hash(hash) }
     }
 
     /// Returns the string that generated the UUID
-    pub fn get_name(&self) -> &String {
-        self.name.as_ref()
+    pub fn get_name(&self) -> &str {
+        self.name.get()
     }
 
     /// Returns the uuid
