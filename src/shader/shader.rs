@@ -34,7 +34,7 @@ pub struct ComputeContext {
 
 /// Shaders & context needed to render a object.
 pub struct GraphicsShader {
-    pub device: Arc<DeviceContext>,
+    pub device: DeviceContext,
     pub graphics_context: GraphicsContext,
     pub vertex_shader: ShaderModule,
     pub fragment_shader: ShaderModule,
@@ -49,7 +49,7 @@ pub struct ComputeShader {
 impl GraphicsShader {
     /// Creates a new GraphicsShader based on glsl shaders.
     pub fn new(
-        device: Arc<DeviceContext>,
+        device: DeviceContext,
         vertex_shader: String,
         fragment_shader: String,
         graphics_context: GraphicsContext,
@@ -59,7 +59,7 @@ impl GraphicsShader {
 
         options.set_target_env(
             TargetEnv::Vulkan,
-            Entry::new().try_enumerate_instance_version().ok().flatten().unwrap(),
+            device.get_entry().try_enumerate_instance_version().ok().flatten().unwrap(),
         );
 
         let vertex_shader = unsafe {

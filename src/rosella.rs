@@ -2,32 +2,32 @@ use std::sync::Arc;
 use crate::ALLOCATION_CALLBACKS;
 use ash::{Entry};
 
-use ash::vk;
-
 use crate::init::device::{create_device};
 use crate::init::initialization_registry::InitializationRegistry;
 use crate::init::instance_builder::create_instance;
 use crate::window::{RosellaSurface, RosellaWindow};
 
+use ash::vk;
+
 pub struct Rosella {
-    pub instance: Arc<InstanceContext>,
+    pub instance: InstanceContext,
     pub surface: RosellaSurface,
-    pub device: Arc<DeviceContext>,
+    pub device: DeviceContext,
 }
 
 impl Rosella {
     pub fn new(registry: InitializationRegistry, window: &RosellaWindow, application_name: &str) -> Rosella {
         let now = std::time::Instant::now();
 
-        let ash_entry = ash::Entry::new();
+        let ash_entry = unsafe{ ash::Entry::new() }.unwrap();
         let ash_instance = create_instance(&registry, application_name, 0, window, &ash_entry);
 
-        let instance = Arc::new(InstanceContext::new(ash_entry, ash_instance, VulkanVersion::VK_1_0));
+        let instance = InstanceContext::new(VulkanVersion::VK_1_0, ash_entry.clone(), ash_instance);
 
-        let surface = RosellaSurface::new(instance.vk(), &Entry::new(), window);
+        let surface = RosellaSurface::new(instance.vk(), &ash_entry, window);
         let ash_device = create_device(instance.vk(), registry, &surface);
 
-        let device = Arc::new(DeviceContext::new(instance.clone(), ash_device).unwrap());
+        let device = DeviceContext::new(instance.clone(), ash_device, vk::PhysicalDevice::null()).unwrap();
 
         let elapsed = now.elapsed();
         println!("Instance & Device Initialization took: {:.2?}", elapsed);
@@ -49,7 +49,11 @@ impl Rosella {
                 .unwrap();
         }*/
 
-        Rosella { instance, surface, device }
+        Rosella {
+            instance: instance.clone(),
+            surface,
+            device: device.clone()
+        }
     }
 
     pub fn window_update(&self) {}
@@ -76,83 +80,106 @@ impl VulkanVersion {
     }
 }
 
-pub struct InstanceContext {
+struct InstanceContextImpl {
     version: VulkanVersion,
     entry: ash::Entry,
     instance: ash::Instance,
     khr_get_physical_device_properties_2: Option<ash::extensions::khr::GetPhysicalDeviceProperties2>,
 }
 
+#[derive(Clone)]
+pub struct InstanceContext(Arc<InstanceContextImpl>);
+
 impl InstanceContext {
-    fn new(entry: ash::Entry, instance: ash::Instance, version: VulkanVersion) -> Self {
-        Self{ entry, instance, version,
-            khr_get_physical_device_properties_2: None
-        }
+    fn new(version: VulkanVersion, entry: ash::Entry, instance: ash::Instance) -> Self {
+        Self(Arc::new(InstanceContextImpl{
+            version,
+            entry,
+            instance,
+            khr_get_physical_device_properties_2: None,
+        }))
     }
 
     pub fn get_entry(&self) -> &ash::Entry {
-        &self.entry
+        &self.0.entry
     }
 
     pub fn vk(&self) -> &ash::Instance {
-        &self.instance
+        &self.0.instance
     }
 
     pub fn get_khr_get_physical_device_properties_2(&self) -> Option<&ash::extensions::khr::GetPhysicalDeviceProperties2> {
-        self.khr_get_physical_device_properties_2.as_ref()
+        self.0.khr_get_physical_device_properties_2.as_ref()
     }
 
     pub fn get_version(&self) -> VulkanVersion {
-        self.version
+        self.0.version
     }
 }
 
 impl Drop for InstanceContext {
     fn drop(&mut self) {
         unsafe {
-            self.instance.destroy_instance(ALLOCATION_CALLBACKS);
+            self.0.instance.destroy_instance(ALLOCATION_CALLBACKS);
         }
     }
 }
 
-pub struct DeviceContext {
+pub struct DeviceContextImpl {
     #[allow(unused)]
-    instance: Arc<InstanceContext>,
+    instance: InstanceContext,
     device: ash::Device,
+    physical_device: vk::PhysicalDevice,
     synchronization_2: ash::extensions::khr::Synchronization2,
     timeline_semaphore: ash::extensions::khr::TimelineSemaphore,
 }
 
+#[derive(Clone)]
+pub struct DeviceContext(Arc<DeviceContextImpl>);
+
 impl DeviceContext {
-    fn new(instance: Arc<InstanceContext>, device: ash::Device) -> Result<Self, &'static str> {
+    fn new(instance: InstanceContext, device: ash::Device, physical_device: vk::PhysicalDevice) -> Result<Self, &'static str> {
         let synchronization_2 = ash::extensions::khr::Synchronization2::new(instance.vk(), &device);
         let timeline_semaphore = ash::extensions::khr::TimelineSemaphore::new(instance.get_entry(), instance.vk());
 
-        Ok(Self{
+        Ok(Self(Arc::new(DeviceContextImpl{
             instance,
             device,
+            physical_device,
             synchronization_2,
             timeline_semaphore
-        })
+        })))
+    }
+
+    pub fn get_entry(&self) -> &ash::Entry {
+        self.0.instance.get_entry()
+    }
+
+    pub fn get_instance(&self) -> &InstanceContext {
+        &self.0.instance
     }
 
     pub fn vk(&self) -> &ash::Device {
-        &self.device
+        &self.0.device
+    }
+
+    pub fn get_physical_device(&self) -> &vk::PhysicalDevice {
+        &self.0.physical_device
     }
 
     pub fn get_synchronization_2(&self) -> &ash::extensions::khr::Synchronization2 {
-        &self.synchronization_2
+        &self.0.synchronization_2
     }
 
     pub fn get_timeline_semaphore(&self) -> &ash::extensions::khr::TimelineSemaphore {
-        &self.timeline_semaphore
+        &self.0.timeline_semaphore
     }
 }
 
 impl Drop for DeviceContext {
     fn drop(&mut self) {
         unsafe {
-            self.device.destroy_device(ALLOCATION_CALLBACKS);
+            self.0.device.destroy_device(ALLOCATION_CALLBACKS);
         }
     }
 }
