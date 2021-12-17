@@ -16,7 +16,7 @@ use ash::{Device, Instance};
 use ash::vk;
 use topological_sort::TopologicalSort;
 use winit::event::VirtualKeyCode::V;
-use crate::init::application_feature::ApplicationDeviceFeatureInstance;
+use crate::init::application_feature::{ApplicationDeviceFeatureInstance, FeatureDependency, InitResult};
 
 use crate::init::initialization_registry::InitializationRegistry;
 use crate::util::utils::string_from_array;
@@ -326,93 +326,204 @@ impl VulkanQueue {
 
 
 
-
-enum DeviceFeatureStage {
-    Uninitialized(Box<dyn ApplicationDeviceFeatureInstance>),
-    Initialized(Box<dyn ApplicationDeviceFeatureInstance>),
-    Enabled(Box<dyn ApplicationDeviceFeatureInstance>),
-    Disabled(Box<dyn ApplicationDeviceFeatureInstance>),
+enum DeviceFeatureStage<T> {
+    Uninitialized(T),
+    Initialized(T),
+    Enabled(T),
+    Disabled,
     Processing,
 }
 
+struct DeviceFeatureInfo {
+    stage: DeviceFeatureStage<Box<dyn ApplicationDeviceFeatureInstance>>,
+    dependencies: Arc<[FeatureDependency]>,
+}
+
+impl DeviceFeatureInfo {
+    fn new(feature: Box<dyn ApplicationDeviceFeatureInstance>, dependencies: Arc<[FeatureDependency]>) -> Self {
+        Self {
+            stage: DeviceFeatureStage::Uninitialized(feature),
+            dependencies,
+        }
+    }
+
+    fn get(&self) -> DeviceFeatureStage<&dyn ApplicationDeviceFeatureInstance> {
+        match &self.stage {
+            DeviceFeatureStage::Uninitialized(val) => DeviceFeatureStage::Uninitialized(val.as_ref()),
+            DeviceFeatureStage::Initialized(val) => DeviceFeatureStage::Initialized(val.as_ref()),
+            DeviceFeatureStage::Enabled(val) => DeviceFeatureStage::Enabled(val.as_ref()),
+            DeviceFeatureStage::Disabled => DeviceFeatureStage::Disabled,
+            DeviceFeatureStage::Processing => DeviceFeatureStage::Processing,
+        }
+    }
+
+    fn get_mut(&mut self) -> DeviceFeatureStage<&mut dyn ApplicationDeviceFeatureInstance> {
+        match &mut self.stage {
+            DeviceFeatureStage::Uninitialized(val) => DeviceFeatureStage::Uninitialized(val.as_mut()),
+            DeviceFeatureStage::Initialized(val) => DeviceFeatureStage::Initialized(val.as_mut()),
+            DeviceFeatureStage::Enabled(val) => DeviceFeatureStage::Enabled(val.as_mut()),
+            DeviceFeatureStage::Disabled => DeviceFeatureStage::Disabled,
+            DeviceFeatureStage::Processing => DeviceFeatureStage::Processing,
+        }
+    }
+
+    fn take_uninitialized(&mut self) -> Option<Box<dyn ApplicationDeviceFeatureInstance>> {
+        let feature = std::mem::replace(&mut self.stage, DeviceFeatureStage::Processing);
+
+        match feature {
+            DeviceFeatureStage::Uninitialized(feature) => Some(feature),
+            _ => None,
+        }
+    }
+
+    fn take_initialized(&mut self) -> Option<Box<dyn ApplicationDeviceFeatureInstance>> {
+        let feature = std::mem::replace(&mut self.stage, DeviceFeatureStage::Processing);
+
+        match feature {
+            DeviceFeatureStage::Initialized(feature) => Some(feature),
+            _ => None,
+        }
+    }
+
+    fn return_initialized(&mut self, feature: Box<dyn ApplicationDeviceFeatureInstance>) {
+        if let DeviceFeatureStage::Processing = &self.stage {
+            self.stage = DeviceFeatureStage::Initialized(feature);
+        } else {
+            panic!("Expected feature to be in processing stage but was not");
+        }
+    }
+
+    fn return_enabled(&mut self, feature: Box<dyn ApplicationDeviceFeatureInstance>) {
+        if let DeviceFeatureStage::Processing = &self.stage {
+            self.stage = DeviceFeatureStage::Initialized(feature);
+        } else {
+            panic!("Expected feature to be in processing stage but was not");
+        }
+    }
+
+    fn return_disabled(&mut self) {
+        if let DeviceFeatureStage::Processing = &self.stage {
+            self.stage = DeviceFeatureStage::Disabled;
+        } else {
+            panic!("Expected feature to be in processing stage but was not");
+        }
+    }
+
+    fn is_initialized(&self) -> bool {
+        match &self.stage {
+            DeviceFeatureStage::Initialized(_) => true,
+            _ => false,
+        }
+    }
+
+    fn is_enabled(&self) -> bool {
+        match &self.stage {
+            DeviceFeatureStage::Enabled(_) => true,
+            _ => false,
+        }
+    }
+
+    fn get_dependencies(&self) -> &[FeatureDependency] {
+        self.dependencies.as_ref()
+    }
+}
+
 pub struct DeviceFeatureSet {
-    features: HashMap<NamedUUID, DeviceFeatureStage>,
+    features: HashMap<NamedUUID, DeviceFeatureInfo>,
 }
 
 impl DeviceFeatureSet {
-    fn new(features: Vec<(NamedUUID, Box<dyn ApplicationDeviceFeatureInstance>)>) -> Self {
+    fn new(features: Vec<(Box<dyn ApplicationDeviceFeatureInstance>, NamedUUID, Arc<[FeatureDependency]>)>) -> Self {
+
+
         Self {
             features: features.into_iter()
-                .map(|(uuid, feature)| (uuid, DeviceFeatureStage::Uninitialized(feature)))
+                .map(|(feature, uuid, deps)| (uuid, DeviceFeatureInfo::new(feature, deps)))
                 .collect(),
         }
     }
 
-    pub fn get_feature<T: ApplicationDeviceFeatureInstance + 'static>(&mut self, name: &NamedUUID) -> &mut T {
-        match self.features.get_mut(name).unwrap() {
-            DeviceFeatureStage::Uninitialized(_) => { panic!("Tried to access uninitialized feature!") }
-            DeviceFeatureStage::Initialized(feature) => (*feature).as_mut(),
-            DeviceFeatureStage::Enabled(feature) => (*feature).as_mut(),
-            DeviceFeatureStage::Disabled(feature) => (*feature).as_mut(),
-            DeviceFeatureStage::Processing => { panic!("Tried to access feature which is currently being processed!") }
-        }.as_any_mut().downcast_mut().expect("Feature type mismatch")
+    pub fn get_feature<T: ApplicationDeviceFeatureInstance + 'static>(&self, name: &NamedUUID) -> Option<&T> {
+        self.features.get(name).map(
+            |feature| match feature.get() {
+                DeviceFeatureStage::Uninitialized(_) => panic!("Tried to access feature that was uninitialized"),
+                DeviceFeatureStage::Initialized(feature) => Some(feature),
+                DeviceFeatureStage::Enabled(feature) => Some(feature),
+                DeviceFeatureStage::Disabled => None,
+                DeviceFeatureStage::Processing => panic!("Tried to access feature that was processing"),
+            }.map(|feature| feature.as_any().downcast_ref()).flatten()
+        ).flatten()
     }
 
-    fn take_uninitialized_feature(&mut self, name: &NamedUUID) -> Box<dyn ApplicationDeviceFeatureInstance> {
-        let feature = std::mem::replace(self.features.get_mut(name).unwrap(), DeviceFeatureStage::Processing);
-
-        match feature {
-            DeviceFeatureStage::Uninitialized(feature) => feature,
-            _ => { panic!("Expected feature to be in uninitialized state but was not")}
-        }
+    pub fn get_feature_mut<T: ApplicationDeviceFeatureInstance + 'static>(&mut self, name: &NamedUUID) -> Option<&mut T> {
+        self.features.get_mut(name).map(
+            |feature| match feature.get_mut() {
+                DeviceFeatureStage::Uninitialized(_) => panic!("Tried to access feature that was uninitialized"),
+                DeviceFeatureStage::Initialized(feature) => Some(feature),
+                DeviceFeatureStage::Enabled(feature) => Some(feature),
+                DeviceFeatureStage::Disabled => None,
+                DeviceFeatureStage::Processing => panic!("Tried to access feature that was processing"),
+            }.map(|feature| feature.as_any_mut().downcast_mut()).flatten()
+        ).flatten()
     }
 
-    fn take_initialized_feature(&mut self, name: &NamedUUID) -> Box<dyn ApplicationDeviceFeatureInstance> {
-        let feature = std::mem::replace(self.features.get_mut(name).unwrap(), DeviceFeatureStage::Processing);
-
-        match feature {
-            DeviceFeatureStage::Initialized(feature) => feature,
-            _ => { panic!("Expected feature to be in initialized state but was not")}
+    fn validate_dependencies_initialized(&self, name: &NamedUUID) -> bool {
+        for dependency in self.features.get(name).unwrap().get_dependencies() {
+            match dependency {
+                FeatureDependency::Strong(dep) => {
+                    if !self.features.get(dep).map_or(false, |f| f.is_initialized()) {
+                        return false
+                    }
+                }
+                FeatureDependency::Weak(_) => {}
+            }
         }
+        true
+    }
+
+    fn validate_dependencies_enabled(&self, name: &NamedUUID) -> bool {
+        for dependency in self.features.get(name).unwrap().get_dependencies() {
+            match dependency {
+                FeatureDependency::Strong(dep) => {
+                    if !self.features.get(dep).map_or(false, |f| f.is_enabled()) {
+                        return false
+                    }
+                }
+                FeatureDependency::Weak(_) => {}
+            }
+        }
+        true
+    }
+
+    fn take_uninitialized_feature(&mut self, name: &NamedUUID) -> Option<Box<dyn ApplicationDeviceFeatureInstance>> {
+        self.features.get_mut(name).map(|v| v.take_uninitialized()).flatten()
+    }
+
+    fn take_initialized_feature(&mut self, name: &NamedUUID) -> Option<Box<dyn ApplicationDeviceFeatureInstance>> {
+        self.features.get_mut(name).map(|v| v.take_initialized()).flatten()
     }
 
     fn return_feature_initialized(&mut self, name: &NamedUUID, feature: Box<dyn ApplicationDeviceFeatureInstance>) {
-        let storage = self.features.get_mut(name).unwrap();
-
-        if let DeviceFeatureStage::Processing = storage {
-            *storage = DeviceFeatureStage::Initialized(feature);
-        } else {
-            panic!("Expected feature to be in processing stage but was not");
-        }
+        self.features.get_mut(name).unwrap().return_initialized(feature)
     }
 
     fn return_feature_enabled(&mut self, name: &NamedUUID, feature: Box<dyn ApplicationDeviceFeatureInstance>) {
-        let storage = self.features.get_mut(name).unwrap();
-
-        if let DeviceFeatureStage::Processing = storage {
-            *storage = DeviceFeatureStage::Enabled(feature);
-        } else {
-            panic!("Expected feature to be in processing stage but was not");
-        }
+        self.features.get_mut(name).unwrap().return_enabled(feature)
     }
 
-    fn return_feature_disabled(&mut self, name: &NamedUUID, feature: Box<dyn ApplicationDeviceFeatureInstance>) {
-        let storage = self.features.get_mut(name).unwrap();
-
-        if let DeviceFeatureStage::Processing = storage {
-            *storage = DeviceFeatureStage::Disabled(feature);
-        } else {
-            panic!("Expected feature to be in processing stage but was not");
-        }
+    fn return_feature_disabled(&mut self, name: &NamedUUID) {
+        self.features.get_mut(name).unwrap().return_disabled()
     }
 
     fn collect_data(&mut self) -> HashMap<NamedUUID, Box<dyn Any>> {
         let mut result = HashMap::new();
-        for (uuid, stage) in &self.features {
-            match stage {
-                DeviceFeatureStage::Enabled(feature) => { result.insert(uuid.clone(), feature.get_data()); }
-                DeviceFeatureStage::Disabled(_) => {}
-                _ => { panic!("Found feature that is not enabled or disabled during collection"); }
+        for (uuid, feature) in &self.features {
+            match feature.get() {
+                DeviceFeatureStage::Uninitialized(_) => panic!("Found uninitialized feature while collecting data"),
+                DeviceFeatureStage::Initialized(_) => panic!("Found initialized feature while collecting data"),
+                DeviceFeatureStage::Enabled(feature) => { result.insert(uuid.clone(), feature.get_data()); },
+                DeviceFeatureStage::Disabled => {}
+                DeviceFeatureStage::Processing => panic!("Found processing feature while collecting data"),
             }
         };
         result
@@ -430,7 +541,7 @@ struct DeviceBuilder {
 }
 
 impl DeviceBuilder {
-    fn new(instance: InstanceContext, physical_device: vk::PhysicalDevice, features: Vec<(NamedUUID, Box<dyn ApplicationDeviceFeatureInstance>)>, order: Box<[NamedUUID]>) -> Self {
+    fn new(instance: InstanceContext, physical_device: vk::PhysicalDevice, features: Vec<(Box<dyn ApplicationDeviceFeatureInstance>, NamedUUID, Arc<[FeatureDependency]>)>, order: Box<[NamedUUID]>) -> Self {
         Self {
             order,
             features: DeviceFeatureSet::new(features),
@@ -449,6 +560,53 @@ impl DeviceBuilder {
         self.info = Some(DeviceInfo::new(self.instance.clone(), self.physical_device))
     }
 
+    fn run_init_pass(&mut self) {
+        let info = self.info.as_ref().expect("Called init pass but info is none");
+
+        for uuid in self.order.as_ref() {
+            let ok = self.features.validate_dependencies_initialized(uuid);
+            let mut feature = self.features.take_uninitialized_feature(uuid).expect("Missing uninitialized feature");
+
+            if ok {
+                match feature.init(&mut self.features, info) {
+                    InitResult::Ok => {
+                        self.features.return_feature_initialized(uuid, feature);
+                    }
+                    InitResult::Disable => {
+                        self.features.return_feature_disabled(uuid);
+                    }
+                }
+            } else {
+                self.features.return_feature_disabled(uuid);
+            }
+        }
+    }
+
+    fn run_enable_pass(&mut self) {
+        let info = self.info.as_ref().expect("Called enable pass but info is none");
+        let config = self.config.as_mut().expect("Called enable pass but config is none");
+
+        for uuid in self.order.as_ref() {
+            let ok = self.features.validate_dependencies_enabled(uuid);
+            let mut feature = self.features.take_initialized_feature(uuid);
+
+            match feature {
+                Some(mut feature) => {
+                    if !ok {
+                        panic!("Dependency is not met during enable");
+                    }
+
+                    feature.enable(&self.features, info, config);
+                    self.features.return_feature_enabled(uuid, feature);
+                }
+                None => {}
+            }
+        }
+    }
+
+    fn collect_data(&mut self) -> HashMap<NamedUUID, Box<dyn Any>> {
+        self.features.collect_data()
+    }
 }
 
 enum PNextVariant {
