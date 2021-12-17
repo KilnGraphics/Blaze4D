@@ -3,7 +3,7 @@ use crate::ALLOCATION_CALLBACKS;
 
 use crate::init::device::{create_device};
 use crate::init::initialization_registry::InitializationRegistry;
-use crate::init::instance_builder::create_instance;
+use crate::init::instance::create_instance;
 use crate::window::{RosellaSurface, RosellaWindow};
 
 use ash::vk;

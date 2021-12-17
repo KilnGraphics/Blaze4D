@@ -3,6 +3,7 @@ use std::rc::Rc;
 
 use ash::vk::{API_VERSION_1_0, API_VERSION_1_2};
 use topological_sort::TopologicalSort;
+use crate::init::application_feature::ApplicationDeviceFeature;
 
 use crate::init::device::ApplicationFeature;
 use crate::NamedUUID;

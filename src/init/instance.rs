@@ -51,3 +51,4 @@ pub fn create_instance(
 
     unsafe { entry.create_instance(&create_info, ALLOCATION_CALLBACKS) }.expect("Failed to create a Vulkan Instance.")
 }
+
