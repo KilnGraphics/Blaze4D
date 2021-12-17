@@ -233,10 +233,22 @@ impl NamedUUID {
     /// The global id used by all NamedUUIDs
     pub const GLOBAL_ID: GlobalId = GlobalId::from_raw(1u64);
 
+    const fn hash_str_const(name: &str) -> u64 {
+        xxhash_rust::const_xxh3::xxh3_64(name.as_bytes())
+    }
+
+    fn hash_str(name: &str) -> u64 {
+        xxhash_rust::xxh3::xxh3_64(name.as_bytes())
+    }
+
+    pub const fn new_const(name: &str) -> UUID {
+        let hash = Self::hash_str_const(name);
+
+        UUID { global: Self::GLOBAL_ID, local: LocalId::from_hash(hash) }
+    }
+
     pub fn new(name: String) -> NamedUUID {
-        let mut hasher = DefaultHasher::new();
-        name.hash(&mut hasher);
-        let hash = hasher.finish();
+        let hash = Self::hash_str(name.as_str());
 
         NamedUUID { name: Arc::new(name), id: LocalId::from_hash(hash) }
     }
