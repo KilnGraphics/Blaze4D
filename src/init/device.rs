@@ -822,7 +822,7 @@ impl QueueRequestResolver {
 }
 
 pub struct DeviceConfigurator {
-    enabled_extensions: HashMap<UUID, Option<&'static DeviceExtensionLoaderFn>>
+    enabled_extensions: HashMap<UUID, Option<&'static DeviceExtensionLoaderFn>>,
     queue_requests: Vec<QueueRequestResolver>,
 }
 
