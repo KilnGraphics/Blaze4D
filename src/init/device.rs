@@ -66,7 +66,7 @@ pub enum DeviceCreateError {
     NoSuitableDeviceFound,
 }
 
-pub fn create_device2(registry: &mut InitializationRegistry, instance: InstanceContext) -> Result<DeviceContext, DeviceCreateError> {
+pub fn create_device(registry: &mut InitializationRegistry, instance: InstanceContext) -> Result<DeviceContext, DeviceCreateError> {
     let (graph, features) : (Vec<_>, Vec<_>) = registry.take_device_features().into_iter().map(
         |(name, dependencies, feature, required)| {
             ((name.clone(), dependencies), (name, feature, required))

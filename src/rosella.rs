@@ -1,7 +1,7 @@
 use std::sync::Arc;
 use crate::ALLOCATION_CALLBACKS;
 
-use crate::init::device::{create_device2};
+use crate::init::device::{create_device};
 use crate::init::initialization_registry::InitializationRegistry;
 use crate::init::instance::create_instance;
 use crate::window::{RosellaSurface, RosellaWindow};
@@ -21,7 +21,7 @@ impl Rosella {
     pub fn new(mut registry: InitializationRegistry, window: &RosellaWindow, application_name: &str) -> Rosella {
         println!("Starting rosella");
 
-        WindowSurface::register_into(&mut registry, &window.handle);
+        WindowSurface::register_into(&mut registry, &window.handle, true);
 
         let now = std::time::Instant::now();
 
@@ -30,7 +30,7 @@ impl Rosella {
 
         let surface = RosellaSurface::new(instance.vk(), &ash_entry, window);
 
-        let device = create_device2(&mut registry, instance.clone()).ok().unwrap();
+        let device = create_device(&mut registry, instance.clone()).ok().unwrap();
 
         let elapsed = now.elapsed();
         println!("Instance & Device Initialization took: {:.2?}", elapsed);
@@ -94,6 +94,14 @@ struct InstanceContextImpl {
     extensions: ExtensionFunctionSet,
 }
 
+impl Drop for InstanceContextImpl {
+    fn drop(&mut self) {
+        unsafe {
+            self.instance.destroy_instance(None);
+        }
+    }
+}
+
 #[derive(Clone)]
 pub struct InstanceContext(Arc<InstanceContextImpl>);
 
@@ -128,19 +136,19 @@ impl InstanceContext {
     }
 }
 
-impl Drop for InstanceContext {
-    fn drop(&mut self) {
-        unsafe {
-            self.0.instance.destroy_instance(ALLOCATION_CALLBACKS);
-        }
-    }
-}
-
 pub struct DeviceContextImpl {
     instance: InstanceContext,
     device: ash::Device,
     physical_device: vk::PhysicalDevice,
     extensions: ExtensionFunctionSet,
+}
+
+impl Drop for DeviceContextImpl {
+    fn drop(&mut self) {
+        unsafe {
+            self.device.destroy_device(None);
+        }
+    }
 }
 
 #[derive(Clone)]
@@ -178,13 +186,5 @@ impl DeviceContext {
 
     pub fn is_extension_enabled(&self, uuid: UUID) -> bool {
         self.0.extensions.contains(uuid)
-    }
-}
-
-impl Drop for DeviceContext {
-    fn drop(&mut self) {
-        unsafe {
-            self.0.device.destroy_device(ALLOCATION_CALLBACKS);
-        }
     }
 }

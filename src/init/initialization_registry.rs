@@ -21,8 +21,14 @@ impl InitializationRegistry {
         }
     }
 
-    pub fn register_instance_feature(&mut self, name: NamedUUID, dependencies: Box<[NamedUUID]>, feature: Box<dyn ApplicationInstanceFeature>) {
-        if self.instance_features.insert(name.get_uuid(), (name, dependencies, feature, false)).is_some() {
+    pub fn register_instance_feature(&mut self, name: NamedUUID, dependencies: Box<[NamedUUID]>, feature: Box<dyn ApplicationInstanceFeature>, required: bool) {
+        if self.instance_features.insert(name.get_uuid(), (name, dependencies, feature, required)).is_some() {
+            panic!("Feature is already present in registry");
+        }
+    }
+
+    pub fn register_device_feature(&mut self, name: NamedUUID, dependencies: Box<[NamedUUID]>, feature: Box<dyn ApplicationDeviceFeature>, required: bool) {
+        if self.device_features.insert(name.get_uuid(), (name, dependencies, feature, required)).is_some() {
             panic!("Feature is already present in registry");
         }
     }

@@ -32,10 +32,6 @@ pub trait ApplicationInstanceFeature : FeatureBase {
 }
 
 pub trait ApplicationDeviceFeature {
-    fn get_name(&self) -> NamedUUID;
-
-    fn get_dependencies(&self) -> &[FeatureDependency];
-
     fn make_instance(&self) -> Box<dyn ApplicationDeviceFeatureInstance>;
 }
 
