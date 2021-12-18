@@ -30,7 +30,7 @@ use crate::rosella::{InstanceContext, VulkanVersion};
 #[derive(Debug)]
 pub struct VulkanQueue {
     queue: Mutex<Queue>,
-    family: i32,
+    family: u32,
 }
 
 struct QueueRequest {
@@ -259,7 +259,7 @@ impl DeviceMeta {
             if requests[family][index].is_none() {
                 requests[family][index] = Some(Arc::new(VulkanQueue {
                     queue: Mutex::new(unsafe { device.get_device_queue(family as u32, index as u32) }),
-                    family: family as i32,
+                    family: family as u32,
                 }));
             }
 
@@ -795,13 +795,12 @@ impl DeviceInfo {
 
 struct QueueRequestImpl {
     result: Option<Arc<VulkanQueue>>,
-    family: u32,
 }
 
 impl QueueRequestImpl {
     fn new(family: u32) -> (QueueRequest2, QueueRequestResolver) {
-        let cell = Rc::new(RefCell::new(QueueRequestImpl{ result: None, family }));
-        (QueueRequest2(cell.clone()), QueueRequestResolver(cell))
+        let cell = Rc::new(RefCell::new(QueueRequestImpl{ result: None }));
+        (QueueRequest2(cell.clone()), QueueRequestResolver{ request: cell, family, index: None })
     }
 }
 
@@ -813,11 +812,19 @@ impl QueueRequest2 {
     }
 }
 
-struct QueueRequestResolver(Rc<RefCell<QueueRequestImpl>>);
+struct QueueRequestResolver {
+    request: Rc<RefCell<QueueRequestImpl>>,
+    family: u32,
+    index: Option<u32>,
+}
 
 impl QueueRequestResolver {
     fn resolve(&mut self, queue: Arc<VulkanQueue>) {
-        (*self.0).borrow_mut().result = Some(queue);
+        (*self.request).borrow_mut().result = Some(queue);
+    }
+
+    fn get_family(&self) -> u32 {
+        self.family
     }
 }
 
@@ -854,7 +861,23 @@ impl DeviceConfigurator {
         request
     }
 
-    fn build_device(self, info: &DeviceInfo) -> Result<(ash::Device, ExtensionFunctionSet), DeviceCreateError> {
+    fn generate_queue_assignments(&mut self, info: &DeviceInfo) -> Box<[(u32, Box<[f32]>)]> {
+        let mut families = Vec::new();
+        families.resize_with(info.get_queue_family_infos().len(), || 0u32);
+
+        for request in &mut self.queue_requests {
+            *families.get_mut(request.get_family() as usize).unwrap() += 1u32;
+            request.index = Some(0);
+        }
+
+        families.into_iter().enumerate().filter_map(|(i, c)| if c != 0u32 {
+            let mut priorities = Vec::new();
+            priorities.resize_with(c as usize, || 1.0f32);
+            Some((i as u32, priorities.into_boxed_slice()))
+        } else { None }).collect()
+    }
+
+    fn build_device(mut self, info: &DeviceInfo) -> Result<(ash::Device, ExtensionFunctionSet), DeviceCreateError> {
         let mut extensions = Vec::with_capacity(self.enabled_extensions.len());
         for (uuid, _) in &self.enabled_extensions {
             extensions.push(
@@ -864,12 +887,40 @@ impl DeviceConfigurator {
             )
         }
 
+        let queue_assignments = self.generate_queue_assignments(info);
+        let mut queue_create_infos = Vec::with_capacity(queue_assignments.len());
+        for (family, priorities) in queue_assignments.iter() {
+            let create_info = vk::DeviceQueueCreateInfo::builder()
+                .queue_family_index(*family)
+                .queue_priorities(priorities);
+            queue_create_infos.push(create_info.build());
+        }
+
         let create_info = vk::DeviceCreateInfo::builder()
-            .enabled_extension_names(extensions.as_slice());
+            .enabled_extension_names(extensions.as_slice())
+            .queue_create_infos(queue_create_infos.as_slice());
 
         let device = unsafe {
             info.get_instance().vk().create_device(info.physical_device, &create_info.build(), None)
         }?;
+
+        let mut queues = Vec::with_capacity(queue_assignments.len());
+        for (family, priorities) in queue_assignments.iter() {
+            let mut family_queues = Vec::with_capacity(priorities.len());
+            for i in 0u32..(priorities.len() as u32) {
+                let queue = unsafe { device.get_device_queue(*family, i) };
+                family_queues.push(Arc::new(VulkanQueue {
+                    queue: Mutex::new(queue),
+                    family: *family
+                }));
+            }
+            queues.push(family_queues);
+        }
+        let queues = queues;
+
+        for request in &mut self.queue_requests {
+            request.resolve(queues.get(request.family as usize).unwrap().get(request.index.unwrap() as usize).unwrap().clone());
+        }
 
         let mut function_set = ExtensionFunctionSet::new();
         for (_, extension) in &self.enabled_extensions {
