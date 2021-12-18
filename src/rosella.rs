@@ -17,13 +17,11 @@ pub struct Rosella {
 }
 
 impl Rosella {
-    pub fn new(registry: InitializationRegistry, window: &RosellaWindow, application_name: &str) -> Rosella {
+    pub fn new(mut registry: InitializationRegistry, window: &RosellaWindow, application_name: &str) -> Rosella {
         let now = std::time::Instant::now();
 
         let ash_entry = unsafe{ ash::Entry::new() }.unwrap();
-        let ash_instance = create_instance(&registry, application_name, 0, window, &ash_entry);
-
-        let instance = InstanceContext::new(VulkanVersion::VK_1_0, ash_entry.clone(), ash_instance, ExtensionFunctionSet::new());
+        let instance = create_instance(&mut registry, application_name, 0).ok().unwrap();
 
         let surface = RosellaSurface::new(instance.vk(), &ash_entry, window);
         let ash_device = create_device(instance.vk(), registry, &surface);

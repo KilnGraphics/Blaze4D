@@ -81,7 +81,6 @@ impl ApplicationFeature for QueueFeature {
 
 fn setup_rosella(window: &RosellaWindow) -> Rosella {
     let mut registry = InitializationRegistry::new();
-    registry.add_required_instance_layer("VK_LAYER_KHRONOS_validation".to_string());
     let queue_feature = QueueFeature {};
     registry.register_application_feature(Rc::new(queue_feature)).unwrap();
     registry.add_required_application_feature(QueueFeature {}.get_feature_name());

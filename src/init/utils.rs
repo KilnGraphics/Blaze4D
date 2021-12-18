@@ -3,7 +3,6 @@ use std::collections::HashMap;
 use std::ffi::{CStr, CString};
 use std::iter::Map;
 use std::sync::Arc;
-use topological_sort::TopologicalSort;
 use crate::init::application_feature::FeatureDependency;
 use crate::NamedUUID;
 use crate::rosella::VulkanVersion;
@@ -515,7 +514,7 @@ impl<S: Eq + 'static, F> FeatureProcessor<S, F> {
         for uuid in self.order.as_ref() {
             let uuid = uuid.get_uuid();
 
-            let mut feature = self.features.take_conditional(&uuid, &condition)?;
+            let feature = self.features.take_conditional(&uuid, &condition)?;
 
             if let Some(mut feature) = feature {
                 let new_state = processor(&mut feature, &mut self.features)?;

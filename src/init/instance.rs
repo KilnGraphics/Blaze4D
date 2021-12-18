@@ -1,72 +1,22 @@
 use std::collections::{HashMap, HashSet};
 use std::ffi::CString;
 
-use crate::{ALLOCATION_CALLBACKS, NamedUUID};
-use ash::extensions::ext::DebugUtils;
-use ash::vk::{make_api_version, InstanceCreateInfo};
-use ash::{Entry, Instance, InstanceError};
+use crate::{ UUID, NamedUUID };
 use crate::init::application_feature::{ApplicationInstanceFeature, InitResult};
 
-use crate::init::initialization_registry::InitializationRegistry;
-use crate::init::utils::{ConditionResult, ExtensionProperties, FeatureProcessor, FeatureSet, FeatureSet2, LayerProperties};
-use crate::window::RosellaWindow;
+use crate::init::initialization_registry::{InitializationRegistry};
+use crate::init::utils::{ConditionResult, ExtensionProperties, FeatureProcessor, FeatureSet2, LayerProperties};
 
 use ash::vk;
-use crate::init::device::DeviceInfo;
 use crate::init::extensions::{ExtensionFunctionSet, InstanceExtensionLoader, InstanceExtensionLoaderFn, VkExtensionInfo};
 use crate::rosella::{InstanceContext, VulkanVersion};
-use crate::util::id::UUID;
-
-pub fn create_instance(
-    registry: &InitializationRegistry,
-    application_name: &str,
-    application_version: u32,
-    window: &RosellaWindow,
-    entry: &ash::Entry,
-) -> Instance {
-    let supported_version = entry
-        .try_enumerate_instance_version()
-        .ok()
-        .flatten()
-        .expect("Failed to enumerate over instance versions");
-    assert!(
-        supported_version >= registry.min_required_version,
-        "minimum vulkan version is not supported"
-    );
-
-    let app_name = CString::new(application_name).unwrap();
-    let app_info = vk::ApplicationInfo::builder()
-        .application_name(app_name.as_c_str())
-        .application_version(application_version)
-        .engine_name(CString::new("Rosella").unwrap().as_c_str())
-        .engine_version(make_api_version(2, 0, 0, 0))
-        .api_version(registry.max_supported_version)
-        .build();
-
-    // FIXME: do this properly. Just get it to compile for now
-    let layer_names = [CString::new("VK_LAYER_KHRONOS_validation").unwrap()];
-    let layers_names_raw: Vec<*const i8> = layer_names.iter().map(|raw_name| raw_name.as_ptr()).collect();
-
-    let surface_extensions = ash_window::enumerate_required_extensions(&window.handle).unwrap();
-    let mut extension_names_raw = surface_extensions.iter().map(|ext| ext.as_ptr()).collect::<Vec<_>>();
-    extension_names_raw.push(DebugUtils::name().as_ptr());
-
-    let create_info = InstanceCreateInfo::builder()
-        .application_info(&app_info)
-        .enabled_layer_names(&layers_names_raw)
-        .enabled_extension_names(&extension_names_raw)
-        .build();
-    // .push_next(createDebugUtilsCallback(VK10.VK_NULL_HANDLE));
-
-    unsafe { entry.create_instance(&create_info, ALLOCATION_CALLBACKS) }.expect("Failed to create a Vulkan Instance.")
-}
-
 
 pub enum InstanceCreateError {
     VulkanError(vk::Result),
     AshInstanceError(ash::InstanceError),
     AshLoadingError(ash::LoadingError),
     Utf8Error(std::str::Utf8Error),
+    NulError(std::ffi::NulError),
     LayerNotSupported,
     ExtensionNotSupported,
 }
@@ -93,6 +43,27 @@ impl From<std::str::Utf8Error> for InstanceCreateError {
     fn from(err: std::str::Utf8Error) -> Self {
         InstanceCreateError::Utf8Error(err)
     }
+}
+
+impl From<std::ffi::NulError> for InstanceCreateError {
+    fn from(err: std::ffi::NulError) -> Self {
+        InstanceCreateError::NulError(err)
+    }
+}
+
+pub fn create_instance(registry: &mut InitializationRegistry, application_name: &str, application_version: u32) -> Result<InstanceContext, InstanceCreateError> {
+    let application_info = ApplicationInfo{
+        application_name: CString::new(application_name)?,
+        application_version,
+        engine_name: CString::new("Rosella")?,
+        engine_version: 0, // TODO
+        api_version: vk::API_VERSION_1_2
+    };
+
+    let mut builder = InstanceBuilder::new(application_info, registry.take_instance_features());
+    builder.run_init_pass()?;
+    builder.run_enable_pass()?;
+    builder.build()
 }
 
 struct ApplicationInfo {

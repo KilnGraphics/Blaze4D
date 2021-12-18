@@ -3,22 +3,17 @@ use std::rc::Rc;
 
 use ash::vk::{API_VERSION_1_0, API_VERSION_1_2};
 use topological_sort::TopologicalSort;
-use crate::init::application_feature::ApplicationDeviceFeature;
+use crate::init::application_feature::{ApplicationDeviceFeature, ApplicationInstanceFeature};
 
 use crate::init::device::ApplicationFeature;
 use crate::NamedUUID;
+use crate::util::id::UUID;
 
 ///
 /// A class used to collect any callbacks and settings that are used for device and instance initialization.
 ///
 pub struct InitializationRegistry {
-    pub min_required_version: u32,
-    pub max_supported_version: u32,
-
-    pub required_instance_extensions: HashSet<String>,
-    pub optional_instance_extensions: HashSet<String>,
-    pub required_instance_layers: HashSet<String>,
-    pub optional_instance_layers: HashSet<String>,
+    instance_features: HashMap<UUID, (NamedUUID, Box<[NamedUUID]>, Box<dyn ApplicationInstanceFeature>)>,
 
     pub features: HashMap<NamedUUID, MarkedFeature>,
     pub required_features: HashSet<NamedUUID>,
@@ -37,42 +32,9 @@ impl MarkedFeature {
 impl InitializationRegistry {
     pub fn new() -> Self {
         InitializationRegistry {
-            min_required_version: API_VERSION_1_0,
-            max_supported_version: API_VERSION_1_2,
-            required_instance_layers: HashSet::new(),
-            optional_instance_layers: HashSet::new(),
-            required_instance_extensions: HashSet::new(),
-            optional_instance_extensions: HashSet::new(),
+            instance_features: HashMap::new(),
             features: HashMap::new(),
             required_features: HashSet::new(),
-        }
-    }
-
-    pub fn add_required_instance_layer(&mut self, layer: String) {
-        self.required_instance_layers.insert(layer);
-    }
-
-    pub fn add_optional_instance_layer(&mut self, layer: String) {
-        self.optional_instance_layers.insert(layer);
-    }
-
-    pub fn add_required_instance_extension(&mut self, extension: String) {
-        self.required_instance_extensions.insert(extension);
-    }
-
-    pub fn add_optional_instance_extension(&mut self, extension: String) {
-        self.optional_instance_extensions.insert(extension);
-    }
-
-    pub fn set_minimum_vulkan_version(&mut self, version: u32) {
-        if version > self.min_required_version {
-            self.min_required_version = version;
-        }
-    }
-
-    pub fn set_maximum_vulkan_version(&mut self, version: u32) {
-        if version > self.max_supported_version {
-            self.max_supported_version = version;
         }
     }
 
@@ -119,6 +81,17 @@ impl InitializationRegistry {
         }
 
         sort.insert(id.clone());
+    }
+
+    pub fn register_instance_feature(&mut self, name: NamedUUID, dependencies: Box<[NamedUUID]>, feature: Box<dyn ApplicationInstanceFeature>) {
+        if self.instance_features.insert(name.get_uuid(), (name, dependencies, feature)).is_some() {
+            panic!("Feature is already present in registry");
+        }
+    }
+
+    pub(super) fn take_instance_features(&mut self) -> Vec<(NamedUUID, Box<[NamedUUID]>, Box<dyn ApplicationInstanceFeature>)> {
+        let features = std::mem::replace(&mut self.instance_features, HashMap::new());
+        features.into_values().collect()
     }
 }
 
