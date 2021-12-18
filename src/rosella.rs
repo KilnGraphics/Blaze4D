@@ -8,6 +8,7 @@ use crate::window::{RosellaSurface, RosellaWindow};
 
 use ash::vk;
 use crate::init::extensions::{AsRefOption, ExtensionFunctionSet, VkExtensionInfo, VkExtensionFunctions};
+use crate::init::rosella_features::WindowSurface;
 use crate::util::id::UUID;
 
 pub struct Rosella {
@@ -18,6 +19,8 @@ pub struct Rosella {
 
 impl Rosella {
     pub fn new(mut registry: InitializationRegistry, window: &RosellaWindow, application_name: &str) -> Rosella {
+        WindowSurface::register_into(&mut registry, &window.handle);
+
         let now = std::time::Instant::now();
 
         let ash_entry = unsafe{ ash::Entry::new() }.unwrap();

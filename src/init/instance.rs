@@ -293,7 +293,7 @@ impl InstanceInfo {
 
 pub struct InstanceConfigurator {
     enabled_layers: HashSet<UUID>,
-    enabled_extensions: HashMap<UUID, &'static InstanceExtensionLoaderFn>,
+    enabled_extensions: HashMap<UUID, Option<&'static InstanceExtensionLoaderFn>>,
 }
 
 impl InstanceConfigurator {
@@ -315,7 +315,11 @@ impl InstanceConfigurator {
 
     pub fn enable_extension<EXT: VkExtensionInfo + InstanceExtensionLoader + 'static>(&mut self) {
         let uuid = EXT::UUID.get_uuid();
-        self.enabled_extensions.insert(uuid, &EXT::load_extension);
+        self.enabled_extensions.insert(uuid, Some(&EXT::load_extension));
+    }
+
+    pub fn enable_extension_str_no_load(&mut self, str: &str) {
+        self.enabled_extensions.insert(NamedUUID::uuid_for(str), None);
     }
 
     fn build_instance(self, info: &InstanceInfo, application_info: &vk::ApplicationInfo) -> Result<(ash::Instance, ExtensionFunctionSet), InstanceCreateError> {
@@ -348,7 +352,9 @@ impl InstanceConfigurator {
 
         let mut function_set = ExtensionFunctionSet::new();
         for (_, extension) in &self.enabled_extensions {
-            extension(&mut function_set, info.get_entry(), &instance);
+            if let Some(extension) = extension {
+                extension(&mut function_set, info.get_entry(), &instance);
+            }
         }
 
         Ok((instance, function_set))
