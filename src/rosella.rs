@@ -19,6 +19,8 @@ pub struct Rosella {
 
 impl Rosella {
     pub fn new(mut registry: InitializationRegistry, window: &RosellaWindow, application_name: &str) -> Rosella {
+        println!("Starting rosella");
+
         WindowSurface::register_into(&mut registry, &window.handle);
 
         let now = std::time::Instant::now();
