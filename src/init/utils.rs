@@ -415,10 +415,10 @@ impl<F: Feature> FeatureProcessor<F> {
 
         let mut topo_sort = topological_sort::TopologicalSort::new();
         for node in graph {
-            topo_sort.insert(node.0.clone());
             for dependency in node.1.as_ref() {
                 topo_sort.add_dependency(dependency.clone(), node.0.clone());
             }
+            topo_sort.insert(node.0);
         };
 
         let order: Vec<NamedUUID> = topo_sort.collect();
