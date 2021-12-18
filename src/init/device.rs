@@ -1,5 +1,6 @@
 use std::any::Any;
 use std::borrow::BorrowMut;
+use std::cell::RefCell;
 use std::cmp::min;
 use std::collections::{HashMap, HashSet};
 use std::ffi::c_void;
@@ -792,14 +793,44 @@ impl DeviceInfo {
     }
 }
 
+struct QueueRequestImpl {
+    result: Option<Arc<VulkanQueue>>,
+    family: u32,
+}
+
+impl QueueRequestImpl {
+    fn new(family: u32) -> (QueueRequest2, QueueRequestResolver) {
+        let cell = Rc::new(RefCell::new(QueueRequestImpl{ result: None, family }));
+        (QueueRequest2(cell.clone()), QueueRequestResolver(cell))
+    }
+}
+
+pub struct QueueRequest2(Rc<RefCell<QueueRequestImpl>>);
+
+impl QueueRequest2 {
+    pub fn get(&self) -> Arc<VulkanQueue> {
+        self.0.borrow().result.as_ref().unwrap().clone()
+    }
+}
+
+struct QueueRequestResolver(Rc<RefCell<QueueRequestImpl>>);
+
+impl QueueRequestResolver {
+    fn resolve(&mut self, queue: Arc<VulkanQueue>) {
+        (*self.0).borrow_mut().result = Some(queue);
+    }
+}
+
 pub struct DeviceConfigurator {
     enabled_extensions: HashMap<UUID, Option<&'static DeviceExtensionLoaderFn>>
+    queue_requests: Vec<QueueRequestResolver>,
 }
 
 impl DeviceConfigurator {
     fn new() -> Self {
         Self{
             enabled_extensions: HashMap::new(),
+            queue_requests: Vec::new(),
         }
     }
 
@@ -815,6 +846,12 @@ impl DeviceConfigurator {
         if !self.enabled_extensions.contains_key(&uuid) {
             self.enabled_extensions.insert(uuid, None);
         }
+    }
+
+    pub fn add_queue_request(&mut self, family: u32) -> QueueRequest2 {
+        let (request, resolver) = QueueRequestImpl::new(family);
+        self.queue_requests.push(resolver);
+        request
     }
 
     fn build_device(self, info: &DeviceInfo) -> Result<(ash::Device, ExtensionFunctionSet), DeviceCreateError> {
