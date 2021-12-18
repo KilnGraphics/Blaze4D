@@ -34,13 +34,11 @@ pub trait ApplicationInstanceFeature : FeatureBase {
 }
 
 pub trait ApplicationDeviceFeature {
-    type Instance: ApplicationDeviceFeatureInstance;
-
     fn get_name(&self) -> NamedUUID;
 
     fn get_dependencies(&self) -> &[FeatureDependency];
 
-    fn make_instance(&self) -> Box<Self::Instance>;
+    fn make_instance(&self) -> Box<dyn ApplicationDeviceFeatureInstance>;
 }
 
 pub trait ApplicationDeviceFeatureInstance : Send + FeatureBase {

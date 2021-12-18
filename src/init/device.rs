@@ -1,319 +1,57 @@
 use std::any::Any;
 use std::borrow::BorrowMut;
 use std::cell::RefCell;
-use std::cmp::min;
-use std::collections::{HashMap, HashSet};
+use std::collections::HashMap;
 use std::ffi::c_void;
-use std::os::raw::c_char;
 use std::ptr::null_mut;
 use std::rc::Rc;
 use std::sync::{Arc, Mutex};
 
 use ash::extensions::khr::Swapchain;
 use ash::prelude::VkResult;
-use ash::vk::{BindSparseInfo, DeviceCreateInfo, DeviceQueueCreateInfo, Fence, PhysicalDevice, PhysicalDeviceFeatures2, PhysicalDeviceProperties, PhysicalDeviceType, PhysicalDeviceVulkan11Features, PhysicalDeviceVulkan12Features, PresentInfoKHR, Queue, QueueFamilyProperties, SubmitInfo, API_VERSION_1_1, API_VERSION_1_2, StructureType};
-use ash::{Device, Instance};
 
 use ash::vk;
-use topological_sort::TopologicalSort;
-use crate::init::application_feature::{ApplicationDeviceFeatureInstance, FeatureDependency, InitResult};
+use crate::init::application_feature::{ApplicationDeviceFeatureInstance, InitResult};
 
 use crate::init::initialization_registry::InitializationRegistry;
-use crate::init::instance::InstanceFeatureState;
 use crate::init::utils::{ExtensionProperties, Feature, FeatureProcessor};
-use crate::util::utils::string_from_array;
-use crate::window::RosellaSurface;
 use crate::{NamedUUID, UUID};
 use crate::init::extensions::{DeviceExtensionLoader, DeviceExtensionLoaderFn, ExtensionFunctionSet, VkExtensionInfo};
-use crate::rosella::{InstanceContext, VulkanVersion};
+use crate::rosella::{DeviceContext, InstanceContext, VulkanVersion};
 
-#[derive(Debug)]
-pub struct VulkanQueue {
-    queue: Mutex<Queue>,
+struct VulkanQueueImpl {
+    queue: Mutex<vk::Queue>,
     family: u32,
 }
 
-struct QueueRequest {
-    requested_family: i32,
-    assigned_index: i32,
-    queue: Option<Arc<VulkanQueue>>,
-}
-
-/// A class that represents some collection of device features or capabilities.
-///
-/// Instances of this class can be registered into a FIXME {@link graphics.kiln.rosella.init.InitializationRegistry} which will then be
-/// used to select and initialize a device.
-///
-/// This happens in 2 stages.
-/// <ol>
-///     <li>The feature is queried if the device supports the feature.</li>
-///     <li>If support is detected and desired the feature will be called to configure the device.</li>
-/// </ol>
-/// For these interactions a instance of DeviceMeta is provided which manages
-/// information for a single physical device.
-///
-/// Since multiple devices may be tested concurrently the createInstance function will be called for each device which
-/// should return a object that can keep track of all necessary metadata it may need for one device. The ApplicationFeature
-/// class as well as separate created instances may be called concurrently, however created instances individually will
-/// never be called concurrently.
-///
-/// If the feature wants to return information to the application it can provide a metadata object which will be stored
-/// in the created device for the application to access.
-///
-/// A feature can access the instances of other features, however it must make sure to declare dependencies as otherwise
-/// those features may not have run yet.
-///
-/// The default implementation of this class only validates that all dependencies are met and does not create any metadata.
-pub trait ApplicationFeature {
-    fn get_feature_name(&self) -> NamedUUID;
-    fn is_supported(&self, meta: &DeviceMeta) -> bool;
-    fn enable(&self, meta: &mut DeviceMeta, instance: &Instance, surface: &RosellaSurface);
-    fn get_dependencies(&self) -> HashSet<NamedUUID>;
-}
-
-/// Builds all information about features on the device and what is enabled.
-/// TODO LOW_PRIORITY: add support for VK1.0 by not doing any of this on vk1.0. instead just create a simple VkPhysicalDeviceFeatures field
-pub struct DeviceFeatureBuilder {
-    pub vulkan_features: PhysicalDeviceFeatures2,
-    pub vulkan_11_features: Option<PhysicalDeviceVulkan11Features>,
-    pub vulkan_12_features: Option<PhysicalDeviceVulkan12Features>,
-}
-
-pub struct DeviceMeta {
-    unsatisfied_requirements: Vec<NamedUUID>,
-    features: HashMap<NamedUUID, Rc<dyn ApplicationFeature>>,
-    pub feature_builder: DeviceFeatureBuilder,
-
-    pub physical_device: PhysicalDevice,
-    properties: PhysicalDeviceProperties,
-    extension_properties: HashMap<String, vk::ExtensionProperties>,
-    queue_family_properties: Vec<QueueFamilyProperties>, // TODO LOW_PRIORITY: look at QueueFamilyProperties2
-
-    queue_requests: Vec<QueueRequest>,
-    enabled_extensions: Vec<*const c_char>,
-}
-
-pub fn create_device(instance: &Instance, registry: InitializationRegistry, surface: &RosellaSurface) -> Device {
-    let mut devices: Vec<DeviceMeta> = vec![];
-    let raw_devices = unsafe { instance.enumerate_physical_devices() }.expect("Failed to find devices.");
-    let application_features = registry.get_ordered_features();
-
-    for physical_device in raw_devices {
-        let mut meta = DeviceMeta::new(instance, physical_device, application_features.clone());
-        meta.process_support();
-        devices.push(meta);
-    }
-
-    //TODO: Sorting
-    devices.remove(0).create_device(instance, surface)
-}
-
-impl DeviceMeta {
-    pub fn new(instance: &Instance, physical_device: PhysicalDevice, application_features: Vec<Rc<dyn ApplicationFeature>>) -> DeviceMeta {
-        let mut features = HashMap::new();
-
-        for feature in application_features {
-            features.insert(feature.get_feature_name(), feature);
-        }
-
-        let device_properties = unsafe { instance.get_physical_device_properties(physical_device) };
-
-        let mut feature_builder = DeviceFeatureBuilder::new(device_properties.api_version);
-        feature_builder.vulkan_features.features = unsafe { instance.get_physical_device_features(physical_device) };
-
-        let queue_family_properties = unsafe { instance.get_physical_device_queue_family_properties(physical_device) };
-        let mut extension_properties = HashMap::new();
-
-        for extension_property in unsafe { instance.enumerate_device_extension_properties(physical_device) }.unwrap() {
-            extension_properties.insert(string_from_array(&extension_property.extension_name), extension_property);
-        }
-
-        DeviceMeta {
-            unsatisfied_requirements: vec![],
-            features,
-            feature_builder,
-            physical_device,
-            properties: device_properties,
-            extension_properties,
-            queue_family_properties,
-            queue_requests: vec![],
-            enabled_extensions: vec![],
-        }
-    }
-
-    fn process_support(&mut self) {
-        self.unsatisfied_requirements.clear();
-
-        for feature in self.features.values() {
-            if !feature.is_supported(self) {
-                self.unsatisfied_requirements.push(feature.get_feature_name())
-            }
-        }
-    }
-
-    /// return true if all required features are met by this device.
-    pub fn is_valid(&self) -> bool {
-        self.unsatisfied_requirements.is_empty()
-    }
-
-    pub fn get_performance_ranking(&self) -> i32 {
-        match self.properties.device_type {
-            PhysicalDeviceType::VIRTUAL_GPU => 1,
-            PhysicalDeviceType::INTEGRATED_GPU => 2,
-            PhysicalDeviceType::DISCRETE_GPU => 3,
-            _ => 0,
-        }
-    }
-
-    pub fn add_queue_request(&mut self, family: i32) {
-        self.queue_requests.push(QueueRequest::new(family));
-    }
-
-    pub fn enable_extension(&mut self, extension: *const c_char) {
-        self.enabled_extensions.push(extension)
-    }
-
-    pub fn create_device(mut self, instance: &Instance, surface: &RosellaSurface) -> Device {
-        for feature in std::mem::take(&mut self.features).values() {
-            if feature.is_supported(&self) {
-                feature.enable(&mut self, instance, surface);
-            }
-        }
-
-        let queue_mappings = self.generate_queue_mappings();
-        let mappings: Vec<DeviceQueueCreateInfo> = queue_mappings.iter().map(|x| { x.0 }).collect();
-        let mut device_create_info = DeviceCreateInfo::builder()
-            .queue_create_infos(&mappings)
-            .enabled_extension_names(&self.enabled_extensions)
-            .push_next(&mut self.feature_builder.vulkan_features);
-
-        if let Some(v11) = self.feature_builder.vulkan_11_features.as_mut() {
-            device_create_info = device_create_info.push_next(v11);
-        }
-
-        if let Some(v12) = self.feature_builder.vulkan_12_features.as_mut() {
-            device_create_info = device_create_info.push_next(v12);
-        }
-
-        let vk_device =
-            unsafe { instance.create_device(self.physical_device, &device_create_info, None) }.expect("Failed to create the VkDevice!");
-
-        self.fulfill_queue_requests(&vk_device);
-        drop(queue_mappings);
-
-        vk_device
-    }
-
-    fn generate_queue_mappings(&mut self) -> Vec<(DeviceQueueCreateInfo, Option<Vec<f32>>)> {
-        let mut next_queue_indices = vec![0; self.queue_family_properties.len()];
-
-        for mut request in self.queue_requests.iter_mut() {
-            let requested_family = request.requested_family as usize;
-            let index_requests = next_queue_indices[requested_family];
-            let index: u32 = index_requests as u32;
-            next_queue_indices[requested_family] += 1;
-
-            request.assigned_index = (index % self.queue_family_properties[requested_family].queue_count) as i32;
-        }
-
-        let family_count = next_queue_indices.iter().filter(|&&x| x > 0).count();
-
-        let mut queue_create_infos = vec![(DeviceQueueCreateInfo::default(), Option::<Vec<f32>>::None); family_count];
-
-        for family in 0..next_queue_indices.len() {
-            if next_queue_indices[family] == 0 {
-                continue;
-            }
-
-            let length = min(
-                next_queue_indices[family],
-                self.queue_family_properties[family].queue_count as usize,
-            );
-            let priorities = vec![1.0; length];
-
-            let (info, vec) = &mut queue_create_infos[family];
-            info.queue_family_index = family as u32;
-            info.p_queue_priorities = priorities.as_ptr();
-            info.queue_count = length as u32;
-            *vec = Some(priorities); // Hacks to make sure that Rust doesn't make this memory crab when vulkan still needs it.
-        }
-
-        queue_create_infos
-    }
-
-    fn fulfill_queue_requests(&mut self, device: &Device) {
-        let queue_family_count: usize = self.queue_family_properties.len();
-        let max_queue_count: usize = self
-            .queue_family_properties
-            .iter()
-            .map(|queue_family_properties| queue_family_properties.queue_count)
-            .max()
-            .unwrap_or(0) as usize;
-
-        let mut requests: Vec<Vec<Option<Arc<VulkanQueue>>>> = vec![vec![None; max_queue_count as usize]; queue_family_count];
-
-        for request in self.queue_requests.iter_mut() {
-            let family = request.requested_family as usize;
-            let index = request.assigned_index as usize;
-
-            if requests[family][index].is_none() {
-                requests[family][index] = Some(Arc::new(VulkanQueue {
-                    queue: Mutex::new(unsafe { device.get_device_queue(family as u32, index as u32) }),
-                    family: family as u32,
-                }));
-            }
-
-            request.queue = requests[family][index].as_ref().cloned();
-        }
-    }
-}
-
-/// Builds all information about features on the device and what is enabled.
-impl DeviceFeatureBuilder {
-    pub fn new(vk_api_version: u32) -> DeviceFeatureBuilder {
-        DeviceFeatureBuilder {
-            vulkan_features: PhysicalDeviceFeatures2::default(),
-            vulkan_11_features: if vk_api_version >= API_VERSION_1_1 {
-                Some(PhysicalDeviceVulkan11Features::default())
-            } else {
-                None
-            },
-            vulkan_12_features: if vk_api_version >= API_VERSION_1_2 {
-                Some(PhysicalDeviceVulkan12Features::default())
-            } else {
-                None
-            },
-        }
-    }
-}
-
-impl QueueRequest {
-    pub fn new(family: i32) -> QueueRequest {
-        QueueRequest {
-            requested_family: family,
-            assigned_index: 0,
-            queue: None,
-        }
-    }
-}
+#[derive(Clone)]
+pub struct VulkanQueue(Arc<VulkanQueueImpl>);
 
 impl VulkanQueue {
-    pub fn access_queue(&self) -> &Mutex<Queue> {
-        &self.queue
+    fn new(queue: vk::Queue, family: u32) -> Self {
+        Self(Arc::new(VulkanQueueImpl{ queue: Mutex::new(queue), family }))
     }
 
-    pub fn queue_submit(&self, device: ash::Device, submits: &[SubmitInfo], fence: Fence) -> VkResult<()> {
-        let guard = self.queue.lock().unwrap();
+    pub fn get_family(&self) -> u32 {
+        self.0.family
+    }
+
+    pub fn access_queue(&self) -> &Mutex<vk::Queue> {
+        &self.0.queue
+    }
+
+    pub fn queue_submit(&self, device: ash::Device, submits: &[vk::SubmitInfo], fence: vk::Fence) -> VkResult<()> {
+        let guard = self.0.queue.lock().unwrap();
         unsafe { device.queue_submit(*guard, submits, fence) }
     }
 
-    pub fn queue_bind_sparse(&self, device: ash::Device, submits: &[BindSparseInfo], fence: Fence) -> VkResult<()> {
-        let guard = self.queue.lock().unwrap();
+    pub fn queue_bind_sparse(&self, device: ash::Device, submits: &[vk::BindSparseInfo], fence: vk::Fence) -> VkResult<()> {
+        let guard = self.0.queue.lock().unwrap();
         unsafe { device.queue_bind_sparse(*guard, submits, fence) }
     }
 
-    pub fn queue_present_khr(&self, swapchain: Swapchain, present_info: &PresentInfoKHR) -> VkResult<bool> {
-        let guard = self.queue.lock().unwrap();
+    pub fn queue_present_khr(&self, swapchain: Swapchain, present_info: &vk::PresentInfoKHR) -> VkResult<bool> {
+        let guard = self.0.queue.lock().unwrap();
         unsafe { swapchain.queue_present(*guard, present_info) }
     }
 }
@@ -325,6 +63,51 @@ pub enum DeviceCreateError {
     Utf8Error(std::str::Utf8Error),
     NulError(std::ffi::NulError),
     ExtensionNotSupported,
+    NoSuitableDeviceFound,
+}
+
+pub fn create_device2(registry: &mut InitializationRegistry, instance: InstanceContext) -> Result<DeviceContext, DeviceCreateError> {
+    let (graph, features) : (Vec<_>, Vec<_>) = registry.take_device_features().into_iter().map(
+        |(name, dependencies, feature, required)| {
+            ((name.clone(), dependencies), (name, feature, required))
+        }).unzip();
+
+    let mut topo_sort = topological_sort::TopologicalSort::new();
+    for (node, dependencies) in graph {
+        for dependency in dependencies.iter() {
+            topo_sort.add_dependency(dependency.clone(), node.clone());
+        }
+        topo_sort.insert(node);
+    }
+    let ordering : Vec<_> = topo_sort.collect();
+
+    let devices = unsafe { instance.vk().enumerate_physical_devices() }?;
+    let devices : Vec<_> = devices.into_iter().map(|device| {
+        let feature_instances : Vec<_> = features.iter().map(
+            |(name, feature, required)| {
+                (name.clone(), feature.make_instance(), *required)
+            }).collect();
+
+        DeviceBuilder::new(instance.clone(), device, ordering.clone().into_boxed_slice(), feature_instances)
+    }).collect();
+
+    let mut devices : Vec<_> = devices.into_iter().filter_map(|mut device| {
+        if device.run_init_pass().is_err() {
+            return None;
+        }
+        if device.run_enable_pass().is_err() {
+            return None;
+        }
+        Some(device)
+    }).collect();
+
+    if devices.is_empty() {
+        return Err(DeviceCreateError::NoSuitableDeviceFound);
+    }
+
+    let device = devices.remove(0).build()?;
+
+    Ok(device)
 }
 
 impl From<vk::Result> for DeviceCreateError {
@@ -364,11 +147,25 @@ impl Feature for FeatureInfo {
     type State = DeviceFeatureState;
 
     fn get_payload(&self, pass_state: &Self::State) -> Option<&dyn Any> {
-        todo!()
+        if self.state == DeviceFeatureState::Disabled {
+            return None;
+        }
+        if &self.state != pass_state {
+            panic!("Attempted to access feature in invalid state");
+        }
+
+        Some(self.feature.as_ref().as_any())
     }
 
     fn get_payload_mut(&mut self, pass_state: &Self::State) -> Option<&mut dyn Any> {
-        todo!()
+        if self.state == DeviceFeatureState::Disabled {
+            return None;
+        }
+        if &self.state != pass_state {
+            panic!("Attempted to access feature in invalid state");
+        }
+
+        Some(self.feature.as_mut().as_any_mut())
     }
 }
 
@@ -456,6 +253,14 @@ impl DeviceBuilder {
         )?;
 
         Ok(())
+    }
+
+    fn build(self) -> Result<DeviceContext, DeviceCreateError> {
+        let info = self.info.expect("Called build but info is none");
+        let (device, function_set) = self.config.expect("Called build but config is none")
+            .build_device(&info)?;
+
+        Ok(DeviceContext::new(self.instance, device, self.physical_device, function_set))
     }
 }
 
@@ -794,7 +599,7 @@ impl DeviceInfo {
 }
 
 struct QueueRequestImpl {
-    result: Option<Arc<VulkanQueue>>,
+    result: Option<VulkanQueue>,
 }
 
 impl QueueRequestImpl {
@@ -807,7 +612,7 @@ impl QueueRequestImpl {
 pub struct QueueRequest2(Rc<RefCell<QueueRequestImpl>>);
 
 impl QueueRequest2 {
-    pub fn get(&self) -> Arc<VulkanQueue> {
+    pub fn get(&self) -> VulkanQueue {
         self.0.borrow().result.as_ref().unwrap().clone()
     }
 }
@@ -819,7 +624,7 @@ struct QueueRequestResolver {
 }
 
 impl QueueRequestResolver {
-    fn resolve(&mut self, queue: Arc<VulkanQueue>) {
+    fn resolve(&mut self, queue: VulkanQueue) {
         (*self.request).borrow_mut().result = Some(queue);
     }
 
@@ -909,10 +714,7 @@ impl DeviceConfigurator {
             let mut family_queues = Vec::with_capacity(priorities.len());
             for i in 0u32..(priorities.len() as u32) {
                 let queue = unsafe { device.get_device_queue(*family, i) };
-                family_queues.push(Arc::new(VulkanQueue {
-                    queue: Mutex::new(queue),
-                    family: *family
-                }));
+                family_queues.push(VulkanQueue::new(queue, *family));
             }
             queues.push(family_queues);
         }

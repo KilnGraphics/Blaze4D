@@ -1,20 +1,12 @@
 extern crate ash_window;
 extern crate winit;
 
-use std::collections::HashSet;
-use std::rc::Rc;
-
-use ash::extensions::khr::Swapchain;
-use ash::vk::QueueFlags;
-use ash::Instance;
 use winit::event::{Event, WindowEvent};
 use winit::event_loop::ControlFlow;
 
-use rosella_rs::init::device::{ApplicationFeature, DeviceMeta};
 use rosella_rs::init::initialization_registry::InitializationRegistry;
 use rosella_rs::rosella::Rosella;
-use rosella_rs::window::{RosellaSurface, RosellaWindow};
-use rosella_rs::NamedUUID;
+use rosella_rs::window::RosellaWindow;
 use rosella_rs::shader::{GraphicsContext, GraphicsShader};
 use rosella_rs::shader::vertex::VertexFormatBuilder;
 use rosella_rs::shader::vertex::data_type;
@@ -26,13 +18,10 @@ struct QueueFamilyIndices {
 
 struct QueueFeature;
 
-impl ApplicationFeature for QueueFeature {
+/*
+impl QueueFeature {
     fn get_feature_name(&self) -> NamedUUID {
         NamedUUID::new("QueueFeature".to_string())
-    }
-
-    fn is_supported(&self, _: &DeviceMeta) -> bool {
-        true
     }
 
     fn enable(&self, meta: &mut DeviceMeta, instance: &Instance, surface: &RosellaSurface) {
@@ -77,13 +66,11 @@ impl ApplicationFeature for QueueFeature {
     fn get_dependencies(&self) -> HashSet<NamedUUID> {
         HashSet::new()
     }
-}
+}*/
 
 fn setup_rosella(window: &RosellaWindow) -> Rosella {
     let mut registry = InitializationRegistry::new();
     let queue_feature = QueueFeature {};
-    registry.register_application_feature(Rc::new(queue_feature)).unwrap();
-    registry.add_required_application_feature(QueueFeature {}.get_feature_name());
     Rosella::new(registry, window, "new_new_rosella_example_scene_1")
 }
 

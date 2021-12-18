@@ -1,7 +1,7 @@
 use std::sync::Arc;
 use crate::ALLOCATION_CALLBACKS;
 
-use crate::init::device::{create_device};
+use crate::init::device::{create_device2};
 use crate::init::initialization_registry::InitializationRegistry;
 use crate::init::instance::create_instance;
 use crate::window::{RosellaSurface, RosellaWindow};
@@ -29,9 +29,8 @@ impl Rosella {
         let instance = create_instance(&mut registry, application_name, 0).ok().unwrap();
 
         let surface = RosellaSurface::new(instance.vk(), &ash_entry, window);
-        let ash_device = create_device(instance.vk(), registry, &surface);
 
-        let device = DeviceContext::new(instance.clone(), ash_device, vk::PhysicalDevice::null()).unwrap();
+        let device = create_device2(&mut registry, instance.clone()).ok().unwrap();
 
         let elapsed = now.elapsed();
         println!("Instance & Device Initialization took: {:.2?}", elapsed);
@@ -148,15 +147,13 @@ pub struct DeviceContextImpl {
 pub struct DeviceContext(Arc<DeviceContextImpl>);
 
 impl DeviceContext {
-    fn new(instance: InstanceContext, device: ash::Device, physical_device: vk::PhysicalDevice) -> Result<Self, &'static str> {
-        let extensions = instance.0.extensions.clone();
-
-        Ok(Self(Arc::new(DeviceContextImpl{
+    pub fn new(instance: InstanceContext, device: ash::Device, physical_device: vk::PhysicalDevice, extensions: ExtensionFunctionSet) -> Self {
+        Self(Arc::new(DeviceContextImpl{
             instance,
             device,
             physical_device,
             extensions,
-        })))
+        }))
     }
 
     pub fn get_entry(&self) -> &ash::Entry {

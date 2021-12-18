@@ -1,10 +1,7 @@
-use std::collections::{HashMap, HashSet};
-use std::rc::Rc;
+use std::collections::HashMap;
 
-use topological_sort::TopologicalSort;
-use crate::init::application_feature::{ApplicationInstanceFeature};
+use crate::init::application_feature::{ApplicationDeviceFeature, ApplicationInstanceFeature};
 
-use crate::init::device::ApplicationFeature;
 use crate::NamedUUID;
 use crate::util::id::UUID;
 
@@ -13,73 +10,15 @@ use crate::util::id::UUID;
 ///
 pub struct InitializationRegistry {
     instance_features: HashMap<UUID, (NamedUUID, Box<[NamedUUID]>, Box<dyn ApplicationInstanceFeature>, bool)>,
-
-    pub features: HashMap<NamedUUID, MarkedFeature>,
-    pub required_features: HashSet<NamedUUID>,
-}
-
-pub struct MarkedFeature {
-    pub feature: Rc<dyn ApplicationFeature>,
-}
-
-impl MarkedFeature {
-    fn new(feature: Rc<dyn ApplicationFeature>) -> Self {
-        MarkedFeature { feature }
-    }
+    device_features: HashMap<UUID, (NamedUUID, Box<[NamedUUID]>, Box<dyn ApplicationDeviceFeature>, bool)>,
 }
 
 impl InitializationRegistry {
     pub fn new() -> Self {
         InitializationRegistry {
             instance_features: HashMap::new(),
-            features: HashMap::new(),
-            required_features: HashSet::new(),
+            device_features: HashMap::new(),
         }
-    }
-
-    ///
-    /// Marks a feature as required. This means that during device selection no device will be used
-    /// that does not support all required features.
-    ///
-    pub fn add_required_application_feature(&mut self, name: NamedUUID) {
-        self.required_features.insert(name);
-    }
-
-    ///
-    /// Registers a application feature into this registry.
-    ///
-    pub fn register_application_feature(&mut self, feature: Rc<dyn ApplicationFeature>) -> Result<(), String> {
-        if self.features.contains_key(&feature.get_feature_name()) {
-            return Err(format!("Feature {} is already registered", feature.get_feature_name().get_name()));
-        }
-
-        self.features.insert(feature.get_feature_name(), MarkedFeature::new(feature));
-        Ok(())
-    }
-
-    ///
-    /// Topologically sorts all features and returns them as a list.
-    /// The list can be iterated from beginning to end to ensure all dependencies are always met.
-    ///
-    pub fn get_ordered_features(&self) -> Vec<Rc<dyn ApplicationFeature>> {
-        let mut sort = TopologicalSort::<NamedUUID>::new();
-        self.features.keys().for_each(|feature| self.add_feature(feature, &mut sort));
-
-        let mut sorted = Vec::new();
-
-        while let Some(id) = sort.pop() {
-            sorted.push(self.features[&id].feature.clone());
-        }
-
-        sorted
-    }
-
-    pub fn add_feature(&self, id: &NamedUUID, sort: &mut TopologicalSort<NamedUUID>) {
-        for dependency in self.features[id].feature.get_dependencies() {
-            sort.add_dependency(id.clone(), dependency);
-        }
-
-        sort.insert(id.clone());
     }
 
     pub fn register_instance_feature(&mut self, name: NamedUUID, dependencies: Box<[NamedUUID]>, feature: Box<dyn ApplicationInstanceFeature>) {
@@ -90,6 +29,11 @@ impl InitializationRegistry {
 
     pub(super) fn take_instance_features(&mut self) -> Vec<(NamedUUID, Box<[NamedUUID]>, Box<dyn ApplicationInstanceFeature>, bool)> {
         let features = std::mem::replace(&mut self.instance_features, HashMap::new());
+        features.into_values().collect()
+    }
+
+    pub(super) fn take_device_features(&mut self) -> Vec<(NamedUUID, Box<[NamedUUID]>, Box<dyn ApplicationDeviceFeature>, bool)> {
+        let features = std::mem::replace(&mut self.device_features, HashMap::new());
         features.into_values().collect()
     }
 }

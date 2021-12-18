@@ -110,10 +110,6 @@ impl<F: Feature> FeatureInfo<F> {
         Self(Some(feature))
     }
 
-    fn is_processing(&self) -> bool {
-        self.0.is_none()
-    }
-
     fn get(&self) -> Option<&F> {
         self.0.as_ref()
     }
