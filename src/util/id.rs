@@ -303,6 +303,17 @@ impl NamedUUID {
     pub fn get_local_id(&self) -> LocalId {
         self.id
     }
+
+    pub const fn clone_const(&self) -> Self {
+        match self.name {
+            NameType::String(_) => {
+                panic!("Cloned non const name")
+            }
+            NameType::Static(str) => {
+                Self{ name: NameType::Static(str), id: self.id }
+            }
+        }
+    }
 }
 
 impl PartialEq for NamedUUID {

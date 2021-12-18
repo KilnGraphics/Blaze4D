@@ -13,35 +13,36 @@ pub fn register_rosella_headless(registry: &mut InitializationRegistry) {
     GetPhysicalDeviceProperties2::register_into(registry);
 }
 
-pub trait ConstFeature : ApplicationInstanceFeature + Default + 'static {
-    const NAME: NamedUUID;
-    const DEPENDENCIES: &'static [NamedUUID];
+macro_rules! const_instance_feature{
+    ($struct_name:ty, $name:literal, [$($dependency:expr),*]) => {
+        impl $struct_name {
+            const NAME: NamedUUID = NamedUUID::new_const($name);
+            const DEPENDENCIES: &'static [NamedUUID] = &[$($dependency,)*];
 
-    fn register_into(registry: &mut InitializationRegistry) {
-        registry.register_instance_feature(
-            Self::NAME,
-            Self::DEPENDENCIES.to_vec().into_boxed_slice(),
-            Box::new(Self::default())
-        )
+            fn register_into(registry: &mut InitializationRegistry) {
+                registry.register_instance_feature(
+                    Self::NAME,
+                    Self::DEPENDENCIES.to_vec().into_boxed_slice(),
+                    Box::new(Self::default())
+                )
+            }
+        }
+
+        impl FeatureBase for $struct_name {
+            fn as_any(&self) -> &dyn Any {
+                self
+            }
+
+            fn as_any_mut(&mut self) -> &mut dyn Any {
+                self
+            }
+        }
     }
 }
 
 #[derive(Default)]
 pub struct RosellaInstanceBase;
-
-impl FeatureBase for RosellaInstanceBase {
-    fn as_any(&self) -> &dyn Any {
-        self
-    }
-
-    fn as_any_mut(&mut self) -> &mut dyn Any {
-        self
-    }
-
-    fn get_data(&self) -> Box<dyn Any> {
-        todo!()
-    }
-}
+const_instance_feature!(RosellaInstanceBase, "rosella:rosella_base", []);
 
 impl ApplicationInstanceFeature for RosellaInstanceBase {
     fn init(&mut self, _: &mut dyn FeatureAccess, _: &InstanceInfo) -> InitResult {
@@ -56,27 +57,9 @@ impl ApplicationInstanceFeature for RosellaInstanceBase {
     }
 }
 
-impl ConstFeature for RosellaInstanceBase {
-    const NAME: NamedUUID = NamedUUID::new_const("rosella:rosella_base");
-    const DEPENDENCIES: &'static [NamedUUID] = &[];
-}
-
 #[derive(Default)]
 pub struct GetPhysicalDeviceProperties2;
-
-impl FeatureBase for GetPhysicalDeviceProperties2 {
-    fn as_any(&self) -> &dyn Any {
-        self
-    }
-
-    fn as_any_mut(&mut self) -> &mut dyn Any {
-        self
-    }
-
-    fn get_data(&self) -> Box<dyn Any> {
-        todo!()
-    }
-}
+const_instance_feature!(GetPhysicalDeviceProperties2, "rosella_vk:get_physical_device_properties_2", []);
 
 impl ApplicationInstanceFeature for GetPhysicalDeviceProperties2 {
     fn init(&mut self, _: &mut dyn FeatureAccess, info: &InstanceInfo) -> InitResult {
@@ -100,11 +83,6 @@ impl ApplicationInstanceFeature for GetPhysicalDeviceProperties2 {
     fn finish(self, _: &Instance) -> Option<Box<dyn Any>> {
         None
     }
-}
-
-impl ConstFeature for GetPhysicalDeviceProperties2 {
-    const NAME: NamedUUID = NamedUUID::new_const("rosella_vk:get_physical_device_properties_2");
-    const DEPENDENCIES: &'static [NamedUUID] = &[];
 }
 
 pub struct WindowSurface {
@@ -139,10 +117,6 @@ impl FeatureBase for WindowSurface {
 
     fn as_any_mut(&mut self) -> &mut dyn Any {
         self
-    }
-
-    fn get_data(&self) -> Box<dyn Any> {
-        todo!()
     }
 }
 
