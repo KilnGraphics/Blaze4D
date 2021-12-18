@@ -1,5 +1,5 @@
 use std::any::Any;
-use crate::init::device;
+use crate::init::{ instance, device };
 use crate::init::utils::FeatureBase;
 use crate::NamedUUID;
 
@@ -17,7 +17,10 @@ pub enum InitResult {
     Disable,
 }
 
-pub trait ApplicationInstanceFeature {
+pub trait ApplicationInstanceFeature : FeatureBase {
+    fn init(&mut self, features: &device::DeviceFeatureSet, info: &device::DeviceInfo) -> InitResult;
+
+    fn enable(&mut self, features: &device::DeviceFeatureSet, info: &device::DeviceInfo, config: &device::DeviceConfigurator);
 }
 
 pub trait ApplicationDeviceFeature {
