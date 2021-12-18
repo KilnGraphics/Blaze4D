@@ -18,7 +18,7 @@ use topological_sort::TopologicalSort;
 use crate::init::application_feature::{ApplicationDeviceFeatureInstance, FeatureDependency, InitResult};
 
 use crate::init::initialization_registry::InitializationRegistry;
-use crate::init::utils::FeatureSet;
+use crate::init::utils::{Feature, FeatureProcessor};
 use crate::util::utils::string_from_array;
 use crate::window::RosellaSurface;
 use crate::NamedUUID;
@@ -318,14 +318,29 @@ impl VulkanQueue {
 
 
 
+pub enum DeviceFeatureState {
 
+}
 
+struct FeatureInfo {
 
-pub type DeviceFeatureSet = FeatureSet<dyn ApplicationDeviceFeatureInstance>;
+}
+
+impl Feature for FeatureInfo {
+    type State = DeviceFeatureState;
+
+    fn get_payload(&self, pass_state: &Self::State) -> Option<&dyn Any> {
+        todo!()
+    }
+
+    fn get_payload_mut(&mut self, pass_state: &Self::State) -> Option<&mut dyn Any> {
+        todo!()
+    }
+}
 
 struct DeviceBuilder {
     order: Box<[NamedUUID]>,
-    features: DeviceFeatureSet,
+    processor: FeatureProcessor<FeatureInfo>,
     instance: InstanceContext,
     physical_device: vk::PhysicalDevice,
     info: Option<DeviceInfo>,
@@ -333,71 +348,7 @@ struct DeviceBuilder {
 }
 
 impl DeviceBuilder {
-    fn new(instance: InstanceContext, physical_device: vk::PhysicalDevice, features: Vec<(Box<dyn ApplicationDeviceFeatureInstance>, NamedUUID, Arc<[FeatureDependency]>)>, order: Box<[NamedUUID]>) -> Self {
-        Self {
-            order,
-            features: DeviceFeatureSet::new(features),
-            instance,
-            physical_device,
-            info: None,
-            config: None,
-        }
-    }
-
     fn init_builder(&mut self) {
-        if self.info.is_some() {
-            panic!("Called init but info is not none");
-        }
-
-        self.info = Some(DeviceInfo::new(self.instance.clone(), self.physical_device))
-    }
-
-    fn run_init_pass(&mut self) {
-        let info = self.info.as_ref().expect("Called init pass but info is none");
-
-        for named_uuid in self.order.as_ref() {
-            let uuid = named_uuid.get_uuid();
-
-            let ok = self.features.validate_dependencies_initialized(&uuid);
-            let mut feature = self.features.take_uninitialized_feature(&uuid).expect("Missing uninitialized feature");
-
-            if ok {
-                match feature.init(&mut self.features, info) {
-                    InitResult::Ok => {
-                        self.features.return_feature_initialized(&uuid, feature);
-                    }
-                    InitResult::Disable => {
-                        self.features.return_feature_disabled(&uuid);
-                    }
-                }
-            } else {
-                self.features.return_feature_disabled(&uuid);
-            }
-        }
-    }
-
-    fn build(&mut self) {
-        let info = self.info.as_ref().expect("Called enable pass but info is none");
-        let config = self.config.as_mut().expect("Called enable pass but config is none");
-
-        for named_uuid in self.order.as_ref() {
-            let uuid = named_uuid.get_uuid();
-
-            let ok = self.features.validate_dependencies_enabled(&uuid);
-            let feature = self.features.take_initialized_feature(&uuid);
-
-            match feature {
-                Some(mut feature) => {
-                    if !ok {
-                        panic!("Dependency is not met during enable");
-                    }
-
-                    feature.enable(&self.features, info, config);
-                    self.features.return_feature_enabled(&uuid, feature);
-                }
-                None => {}
-            }
-        }
     }
 }
 
