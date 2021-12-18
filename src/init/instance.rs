@@ -154,7 +154,7 @@ impl InstanceBuilder {
 
         self.processor.run_pass::<InstanceCreateError, _>(
             InstanceFeatureState::Initialized,
-            |mut feature, access| {
+            |feature, access| {
                 if feature.state != InstanceFeatureState::Uninitialized {
                     panic!("Feature is not in uninitialized state in init pass");
                 }
@@ -338,7 +338,12 @@ impl InstanceConfigurator {
     }
 
     pub fn enable_extension_str_no_load(&mut self, str: &str) {
-        self.enabled_extensions.insert(NamedUUID::uuid_for(str), None);
+        let uuid = NamedUUID::uuid_for(str);
+
+        // Do not override a variant where the loader is potentially set
+        if !self.enabled_extensions.contains_key(&uuid) {
+            self.enabled_extensions.insert(uuid, None);
+        }
     }
 
     fn build_instance(self, info: &InstanceInfo, application_info: &vk::ApplicationInfo) -> Result<(ash::Instance, ExtensionFunctionSet), InstanceCreateError> {

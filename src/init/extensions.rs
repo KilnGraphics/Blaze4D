@@ -36,9 +36,14 @@ pub trait VkExtensionInfo {
 }
 
 pub type InstanceExtensionLoaderFn = dyn Fn(&mut ExtensionFunctionSet, &ash::Entry, &ash::Instance);
+pub type DeviceExtensionLoaderFn = dyn Fn(&mut ExtensionFunctionSet, &ash::Entry, &ash::Instance, &ash::Device);
 
 pub trait InstanceExtensionLoader {
     fn load_extension(function_set: &mut ExtensionFunctionSet, entry: &ash::Entry, instance: &ash::Instance);
+}
+
+pub trait DeviceExtensionLoader {
+    fn load_extension(function_set: &mut ExtensionFunctionSet, entry: &ash::Entry, instance: &ash::Instance, device: &ash::Device);
 }
 
 pub trait AsRefOption<T> {

@@ -10,7 +10,7 @@ use std::sync::{Arc, Mutex};
 
 use ash::extensions::khr::Swapchain;
 use ash::prelude::VkResult;
-use ash::vk::{BindSparseInfo, DeviceCreateInfo, DeviceQueueCreateInfo, ExtensionProperties, Fence, PhysicalDevice, PhysicalDeviceFeatures2, PhysicalDeviceProperties, PhysicalDeviceType, PhysicalDeviceVulkan11Features, PhysicalDeviceVulkan12Features, PresentInfoKHR, Queue, QueueFamilyProperties, SubmitInfo, API_VERSION_1_1, API_VERSION_1_2, StructureType};
+use ash::vk::{BindSparseInfo, DeviceCreateInfo, DeviceQueueCreateInfo, Fence, PhysicalDevice, PhysicalDeviceFeatures2, PhysicalDeviceProperties, PhysicalDeviceType, PhysicalDeviceVulkan11Features, PhysicalDeviceVulkan12Features, PresentInfoKHR, Queue, QueueFamilyProperties, SubmitInfo, API_VERSION_1_1, API_VERSION_1_2, StructureType};
 use ash::{Device, Instance};
 
 use ash::vk;
@@ -18,10 +18,12 @@ use topological_sort::TopologicalSort;
 use crate::init::application_feature::{ApplicationDeviceFeatureInstance, FeatureDependency, InitResult};
 
 use crate::init::initialization_registry::InitializationRegistry;
-use crate::init::utils::{Feature, FeatureProcessor};
+use crate::init::instance::InstanceFeatureState;
+use crate::init::utils::{ExtensionProperties, Feature, FeatureProcessor};
 use crate::util::utils::string_from_array;
 use crate::window::RosellaSurface;
-use crate::NamedUUID;
+use crate::{NamedUUID, UUID};
+use crate::init::extensions::{DeviceExtensionLoader, DeviceExtensionLoaderFn, ExtensionFunctionSet, VkExtensionInfo};
 use crate::rosella::{InstanceContext, VulkanVersion};
 
 #[derive(Debug)]
@@ -83,7 +85,7 @@ pub struct DeviceMeta {
 
     pub physical_device: PhysicalDevice,
     properties: PhysicalDeviceProperties,
-    extension_properties: HashMap<String, ExtensionProperties>,
+    extension_properties: HashMap<String, vk::ExtensionProperties>,
     queue_family_properties: Vec<QueueFamilyProperties>, // TODO LOW_PRIORITY: look at QueueFamilyProperties2
 
     queue_requests: Vec<QueueRequest>,
@@ -316,14 +318,45 @@ impl VulkanQueue {
 }
 
 
+pub enum DeviceCreateError {
+    VulkanError(vk::Result),
+    RequiredFeatureNotSupported(NamedUUID),
+    Utf8Error(std::str::Utf8Error),
+    NulError(std::ffi::NulError),
+    ExtensionNotSupported,
+}
 
+impl From<vk::Result> for DeviceCreateError {
+    fn from(err: vk::Result) -> Self {
+        DeviceCreateError::VulkanError(err)
+    }
+}
 
+impl From<std::str::Utf8Error> for DeviceCreateError {
+    fn from(err: std::str::Utf8Error) -> Self {
+        DeviceCreateError::Utf8Error(err)
+    }
+}
+
+impl From<std::ffi::NulError> for DeviceCreateError {
+    fn from(err: std::ffi::NulError) -> Self {
+        DeviceCreateError::NulError(err)
+    }
+}
+
+#[derive(Copy, Clone, Eq, PartialEq, Debug)]
 pub enum DeviceFeatureState {
-
+    Uninitialized,
+    Initialized,
+    Enabled,
+    Disabled
 }
 
 struct FeatureInfo {
-
+    feature: Box<dyn ApplicationDeviceFeatureInstance>,
+    state: DeviceFeatureState,
+    name: NamedUUID,
+    required: bool,
 }
 
 impl Feature for FeatureInfo {
@@ -339,7 +372,6 @@ impl Feature for FeatureInfo {
 }
 
 struct DeviceBuilder {
-    order: Box<[NamedUUID]>,
     processor: FeatureProcessor<FeatureInfo>,
     instance: InstanceContext,
     physical_device: vk::PhysicalDevice,
@@ -348,7 +380,81 @@ struct DeviceBuilder {
 }
 
 impl DeviceBuilder {
-    fn init_builder(&mut self) {
+    fn new(instance: InstanceContext, physical_device: vk::PhysicalDevice, order: Box<[NamedUUID]>, features: Vec<(NamedUUID, Box<dyn ApplicationDeviceFeatureInstance>, bool)>) -> Self {
+        let processor = FeatureProcessor::new(features.into_iter().map(
+            |(name, feature, required)|
+                (name.get_uuid(),
+                 FeatureInfo {
+                    feature,
+                    state: DeviceFeatureState::Uninitialized,
+                    name,
+                    required,
+                })
+        ), order);
+
+        Self {
+            processor,
+            instance,
+            physical_device,
+            info: None,
+            config: None,
+        }
+    }
+
+    fn run_init_pass(&mut self) -> Result<(), DeviceCreateError> {
+        if self.info.is_some() {
+            panic!("Called run init pass but info is already some");
+        }
+        self.info = Some(DeviceInfo::new(self.instance.clone(), self.physical_device)?);
+        let info = self.info.as_ref().unwrap();
+
+        self.processor.run_pass::<DeviceCreateError, _>(
+            DeviceFeatureState::Initialized,
+            |feature, access| {
+                if feature.state != DeviceFeatureState::Uninitialized {
+                    panic!("Feature is not in uninitialized state in init pass");
+                }
+                match feature.feature.init(access, info) {
+                    InitResult::Ok => feature.state = DeviceFeatureState::Initialized,
+                    InitResult::Disable => {
+                        feature.state = DeviceFeatureState::Disabled;
+                        if feature.required {
+                            return Err(DeviceCreateError::RequiredFeatureNotSupported(feature.name.clone()))
+                        }
+                    }
+                }
+                Ok(())
+            }
+        )?;
+
+        Ok(())
+    }
+
+    fn run_enable_pass(&mut self) -> Result<(), DeviceCreateError> {
+        if self.config.is_some() {
+            panic!("Called run enable pass but config is already some");
+        }
+        self.config = Some(DeviceConfigurator::new());
+        let config = self.config.as_mut().unwrap();
+
+        let info = self.info.as_ref().expect("Called run enable pass but info is none");
+
+        self.processor.run_pass::<DeviceCreateError, _>(
+            DeviceFeatureState::Enabled,
+            |feature, access| {
+                if feature.state == DeviceFeatureState::Disabled {
+                    return Ok(())
+                }
+                if feature.state != DeviceFeatureState::Initialized {
+                    panic!("Feature is not in initialized state in enable pass");
+                }
+                feature.feature.enable(access, info, config);
+                feature.state = DeviceFeatureState::Enabled;
+                Ok(())
+            }
+        )?;
+
+        Ok(())
     }
 }
 
@@ -467,10 +573,11 @@ pub struct DeviceInfo {
     properties_1_2: Option<vk::PhysicalDeviceVulkan12Properties>,
     memory_properties_1_0: vk::PhysicalDeviceMemoryProperties,
     queue_families: Box<[QueueFamilyInfo]>,
+    extensions: HashMap<UUID, ExtensionProperties>,
 }
 
 impl DeviceInfo {
-    fn new(instance: InstanceContext, physical_device: vk::PhysicalDevice) -> Self {
+    fn new(instance: InstanceContext, physical_device: vk::PhysicalDevice) -> Result<Self, DeviceCreateError> {
         let features_1_0;
         let mut features_1_1 = None;
         let mut features_1_2 = None;
@@ -594,7 +701,16 @@ impl DeviceInfo {
                 .into_boxed_slice());
         }
 
-        Self {
+        let extensions_raw = unsafe { instance.vk().enumerate_device_extension_properties(physical_device) }?;
+        let mut extensions = HashMap::new();
+        for extension in extensions_raw {
+            let extension = ExtensionProperties::new(&extension)?;
+            let uuid = NamedUUID::uuid_for(extension.get_name().as_str());
+
+            extensions.insert(uuid, extension);
+        }
+
+        Ok(Self {
             instance,
             physical_device,
             features_1_0: features_1_0.unwrap(),
@@ -605,7 +721,8 @@ impl DeviceInfo {
             properties_1_2,
             memory_properties_1_0: memory_properties_1_0.unwrap(),
             queue_families: queue_families.unwrap(),
-        }
+            extensions,
+        })
     }
 
     pub fn get_instance(&self) -> &InstanceContext {
@@ -647,8 +764,83 @@ impl DeviceInfo {
     pub fn get_queue_family_infos(&self) -> &[QueueFamilyInfo] {
         self.queue_families.as_ref()
     }
+
+    pub fn is_extension_supported<T: VkExtensionInfo>(&self) -> bool {
+        self.extensions.contains_key(&T::UUID.get_uuid())
+    }
+
+    pub fn is_extension_supported_str(&self, name: &str) -> bool {
+        let uuid = NamedUUID::uuid_for(name);
+        self.extensions.contains_key(&uuid)
+    }
+
+    pub fn is_extension_supported_uuid(&self, uuid: &UUID) -> bool {
+        self.extensions.contains_key(uuid)
+    }
+
+    pub fn get_extension_properties<T: VkExtensionInfo>(&self) -> Option<&ExtensionProperties> {
+        self.extensions.get(&T::UUID.get_uuid())
+    }
+
+    pub fn get_extension_properties_str(&self, name: &str) -> Option<&ExtensionProperties> {
+        let uuid = NamedUUID::uuid_for(name);
+        self.extensions.get(&uuid)
+    }
+
+    pub fn get_extension_properties_uuid(&self, uuid: &UUID) -> Option<&ExtensionProperties> {
+        self.extensions.get(uuid)
+    }
 }
 
 pub struct DeviceConfigurator {
+    enabled_extensions: HashMap<UUID, Option<&'static DeviceExtensionLoaderFn>>
+}
 
+impl DeviceConfigurator {
+    fn new() -> Self {
+        Self{
+            enabled_extensions: HashMap::new(),
+        }
+    }
+
+    pub fn enable_extension<EXT: VkExtensionInfo + DeviceExtensionLoader + 'static>(&mut self) {
+        let uuid = EXT::UUID.get_uuid();
+        self.enabled_extensions.insert(uuid, Some(&EXT::load_extension));
+    }
+
+    pub fn enable_extension_str_no_load(&mut self, str: &str) {
+        let uuid = NamedUUID::uuid_for(str);
+
+        // Do not override a variant where the loader is potentially set
+        if !self.enabled_extensions.contains_key(&uuid) {
+            self.enabled_extensions.insert(uuid, None);
+        }
+    }
+
+    fn build_device(self, info: &DeviceInfo) -> Result<(ash::Device, ExtensionFunctionSet), DeviceCreateError> {
+        let mut extensions = Vec::with_capacity(self.enabled_extensions.len());
+        for (uuid, _) in &self.enabled_extensions {
+            extensions.push(
+                info.get_extension_properties_uuid(uuid)
+                    .ok_or(DeviceCreateError::ExtensionNotSupported)?
+                    .get_c_name().as_ptr()
+            )
+        }
+
+        let create_info = vk::DeviceCreateInfo::builder()
+            .enabled_extension_names(extensions.as_slice());
+
+        let device = unsafe {
+            info.get_instance().vk().create_device(info.physical_device, &create_info.build(), None)
+        }?;
+
+        let mut function_set = ExtensionFunctionSet::new();
+        for (_, extension) in &self.enabled_extensions {
+            if let Some(extension) = extension {
+                extension(&mut function_set, info.get_instance().get_entry(), info.get_instance().vk(), &device);
+            }
+        }
+
+        Ok((device, function_set))
+    }
 }
