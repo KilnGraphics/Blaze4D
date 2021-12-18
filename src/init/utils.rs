@@ -101,6 +101,10 @@ pub trait FeatureAccess {
     fn get(&self, feature: &UUID) -> Option<&dyn Any>;
 
     fn get_mut(&mut self, feature: &UUID) -> Option<&mut dyn Any>;
+
+    fn is_supported(&self, feature: &UUID) -> bool {
+        self.get(feature).is_some()
+    }
 }
 
 struct FeatureInfo<F: Feature>(Option<F>);

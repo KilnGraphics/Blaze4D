@@ -56,7 +56,7 @@ impl VulkanQueue {
     }
 }
 
-
+#[derive(Debug)]
 pub enum DeviceCreateError {
     VulkanError(vk::Result),
     RequiredFeatureNotSupported(NamedUUID),

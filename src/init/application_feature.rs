@@ -28,7 +28,9 @@ pub trait ApplicationInstanceFeature : FeatureBase {
 
     fn enable(&mut self, features: &mut dyn FeatureAccess, info: &instance::InstanceInfo, config: &mut instance::InstanceConfigurator);
 
-    fn finish(self, instance: &ash::Instance) -> Option<Box<dyn Any>>;
+    fn finish(self, _: &ash::Instance) -> Option<Box<dyn Any>> where Self: Sized {
+        None
+    }
 }
 
 pub trait ApplicationDeviceFeature {

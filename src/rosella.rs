@@ -1,9 +1,8 @@
 use std::sync::Arc;
-use crate::ALLOCATION_CALLBACKS;
 
-use crate::init::device::{create_device};
+use crate::init::device::{create_device, DeviceCreateError};
 use crate::init::initialization_registry::InitializationRegistry;
-use crate::init::instance::create_instance;
+use crate::init::instance::{create_instance, InstanceCreateError};
 use crate::window::{RosellaSurface, RosellaWindow};
 
 use ash::vk;
@@ -17,8 +16,26 @@ pub struct Rosella {
     pub device: DeviceContext,
 }
 
+#[derive(Debug)]
+pub enum RosellaCreateError {
+    InstanceCreateError(InstanceCreateError),
+    DeviceCreateError(DeviceCreateError),
+}
+
+impl From<InstanceCreateError> for RosellaCreateError {
+    fn from(err: InstanceCreateError) -> Self {
+        RosellaCreateError::InstanceCreateError(err)
+    }
+}
+
+impl From<DeviceCreateError> for RosellaCreateError {
+    fn from(err: DeviceCreateError) -> Self {
+        RosellaCreateError::DeviceCreateError(err)
+    }
+}
+
 impl Rosella {
-    pub fn new(mut registry: InitializationRegistry, window: &RosellaWindow, application_name: &str) -> Rosella {
+    pub fn new(mut registry: InitializationRegistry, window: &RosellaWindow, application_name: &str) -> Result<Rosella, RosellaCreateError> {
         println!("Starting rosella");
 
         WindowSurface::register_into(&mut registry, &window.handle, true);
@@ -26,37 +43,20 @@ impl Rosella {
         let now = std::time::Instant::now();
 
         let ash_entry = unsafe{ ash::Entry::new() }.unwrap();
-        let instance = create_instance(&mut registry, application_name, 0).ok().unwrap();
+        let instance = create_instance(&mut registry, application_name, 0)?;
 
         let surface = RosellaSurface::new(instance.vk(), &ash_entry, window);
 
-        let device = create_device(&mut registry, instance.clone()).ok().unwrap();
+        let device = create_device(&mut registry, instance.clone())?;
 
         let elapsed = now.elapsed();
         println!("Instance & Device Initialization took: {:.2?}", elapsed);
 
-        /*        let vk = Entry::new();
-        let app_name = CString::new(application_name);
-        let surface_extensions = ash_window::enumerate_required_extensions(&window.handle).unwrap();
-        let mut extension_names_raw = surface_extensions
-            .iter()
-            .map(|ext| ext.as_ptr())
-            .collect::<Vec<_>>();
-        extension_names_raw.push(DebugUtils::name().as_ptr());
-
-        let debug_utils_loader = DebugUtils::new(&vk, &instance);
-
-        unsafe {
-            let debug_call_back = debug_utils_loader
-                .create_debug_utils_messenger(&debug_info, ALLOCATION_CALLBACKS)
-                .unwrap();
-        }*/
-
-        Rosella {
+        Ok(Rosella {
             instance: instance.clone(),
             surface,
             device: device.clone()
-        }
+        })
     }
 
     pub fn window_update(&self) {}

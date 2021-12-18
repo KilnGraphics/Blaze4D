@@ -99,11 +99,18 @@ macro_rules! make_vk_extension_info {
 
 make_vk_extension_info!(
     ash::extensions::khr::Swapchain, VK_KHR_Swapchain;
-    ash::extensions::khr::GetPhysicalDeviceProperties2, VK_KHR_get_physical_device_properties2
+    ash::extensions::khr::GetPhysicalDeviceProperties2, VK_KHR_get_physical_device_properties2;
+    ash::extensions::khr::TimelineSemaphore, VK_KHR_timeline_semaphore
 );
 
 impl InstanceExtensionLoader for ash::extensions::khr::GetPhysicalDeviceProperties2 {
     fn load_extension(function_set: &mut ExtensionFunctionSet, entry: &Entry, instance: &Instance) {
         function_set.add(Box::new(ash::extensions::khr::GetPhysicalDeviceProperties2::new(entry, instance)))
+    }
+}
+
+impl InstanceExtensionLoader for ash::extensions::khr::TimelineSemaphore {
+    fn load_extension(function_set: &mut ExtensionFunctionSet, entry: &Entry, instance: &Instance) {
+        function_set.add(Box::new(ash::extensions::khr::TimelineSemaphore::new(entry, instance)))
     }
 }

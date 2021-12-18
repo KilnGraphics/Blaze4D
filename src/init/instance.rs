@@ -12,6 +12,7 @@ use ash::vk;
 use crate::init::extensions::{ExtensionFunctionSet, InstanceExtensionLoader, InstanceExtensionLoaderFn, VkExtensionInfo};
 use crate::rosella::{InstanceContext, VulkanVersion};
 
+#[derive(Debug)]
 pub enum InstanceCreateError {
     VulkanError(vk::Result),
     AshInstanceError(ash::InstanceError),

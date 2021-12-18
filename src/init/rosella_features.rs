@@ -11,8 +11,9 @@ use crate::NamedUUID;
 use crate::rosella::VulkanVersion;
 
 pub fn register_rosella_headless(registry: &mut InitializationRegistry) {
+    KHRGetPhysicalDeviceProperties2::register_into(registry, false);
+    KHRTimelineSemaphore::register_into(registry, false);
     RosellaInstanceBase::register_into(registry, true);
-    GetPhysicalDeviceProperties2::register_into(registry, false);
 
     RosellaDeviceBase::register_into(registry, true);
 }
@@ -86,26 +87,26 @@ macro_rules! const_device_feature{
 
 #[derive(Default)]
 pub struct RosellaInstanceBase;
-const_instance_feature!(RosellaInstanceBase, "rosella:instance_base", []);
+const_instance_feature!(RosellaInstanceBase, "rosella:instance_base", [KHRTimelineSemaphore::NAME]);
 
 impl ApplicationInstanceFeature for RosellaInstanceBase {
-    fn init(&mut self, _: &mut dyn FeatureAccess, _: &InstanceInfo) -> InitResult {
+    fn init(&mut self, features: &mut dyn FeatureAccess, _: &InstanceInfo) -> InitResult {
+        if features.is_supported(&KHRTimelineSemaphore::NAME.get_uuid()) {
+            return InitResult::Disable;
+        }
+
         InitResult::Ok
     }
 
     fn enable(&mut self, _: &mut dyn FeatureAccess, _: &InstanceInfo, _: &mut InstanceConfigurator) {
     }
-
-    fn finish(self, _: &Instance) -> Option<Box<dyn Any>> {
-        None
-    }
 }
 
 #[derive(Default)]
-pub struct GetPhysicalDeviceProperties2;
-const_instance_feature!(GetPhysicalDeviceProperties2, "rosella_vk:get_physical_device_properties_2", []);
+pub struct KHRGetPhysicalDeviceProperties2;
+const_instance_feature!(KHRGetPhysicalDeviceProperties2, "rosella:instance_khr_get_physical_device_properties_2", []);
 
-impl ApplicationInstanceFeature for GetPhysicalDeviceProperties2 {
+impl ApplicationInstanceFeature for KHRGetPhysicalDeviceProperties2 {
     fn init(&mut self, _: &mut dyn FeatureAccess, info: &InstanceInfo) -> InitResult {
         if info.get_vulkan_version().is_supported(VulkanVersion::VK_1_1) {
             InitResult::Ok
@@ -123,9 +124,33 @@ impl ApplicationInstanceFeature for GetPhysicalDeviceProperties2 {
             config.enable_extension::<ash::extensions::khr::GetPhysicalDeviceProperties2>();
         }
     }
+}
 
-    fn finish(self, _: &Instance) -> Option<Box<dyn Any>> {
-        None
+#[derive(Default)]
+pub struct KHRTimelineSemaphore;
+const_instance_feature!(KHRTimelineSemaphore, "rosella:instance_khr_timeline_semaphore", [KHRGetPhysicalDeviceProperties2::NAME]);
+
+impl ApplicationInstanceFeature for KHRTimelineSemaphore {
+    fn init(&mut self, features: &mut dyn FeatureAccess, info: &InstanceInfo) -> InitResult {
+        if !features.is_supported(&KHRGetPhysicalDeviceProperties2::NAME.get_uuid()) {
+            return InitResult::Disable;
+        }
+
+        let core_present = info.get_vulkan_version().is_supported(VulkanVersion::VK_1_2);
+        if !core_present {
+            if !info.is_extension_supported::<ash::extensions::khr::TimelineSemaphore>() {
+                return InitResult::Disable;
+            }
+        }
+
+        InitResult::Ok
+    }
+
+    fn enable(&mut self, _: &mut dyn FeatureAccess, info: &InstanceInfo, config: &mut InstanceConfigurator) {
+        let core_present = info.get_vulkan_version().is_supported(VulkanVersion::VK_1_2);
+        if core_present {
+            config.enable_extension::<ash::extensions::khr::TimelineSemaphore>();
+        }
     }
 }
 
@@ -139,7 +164,7 @@ impl WindowSurface {
         let extensions = ash_window::enumerate_required_extensions(window).unwrap();
 
         Self {
-            name: NamedUUID::new_const("rosella:window_surface"),
+            name: NamedUUID::new_const("rosella:instance_window_surface"),
             extensions: extensions.into_iter().map(|str| std::ffi::CString::from(str)).collect()
         }
     }
@@ -190,11 +215,11 @@ struct RosellaDeviceBase;
 const_device_feature!(RosellaDeviceBase, "rosella:device_base", []);
 
 impl ApplicationDeviceFeatureInstance for RosellaDeviceBase {
-    fn init(&mut self, _: &mut dyn FeatureAccess, info: &DeviceInfo) -> InitResult {
-        todo!()
+    fn init(&mut self, _: &mut dyn FeatureAccess, _: &DeviceInfo) -> InitResult {
+        InitResult::Disable
     }
 
-    fn enable(&mut self, _: &mut dyn FeatureAccess, info: &DeviceInfo, config: &DeviceConfigurator) {
+    fn enable(&mut self, _: &mut dyn FeatureAccess, _: &DeviceInfo, _: &DeviceConfigurator) {
         todo!()
     }
 }
