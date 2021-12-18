@@ -1,6 +1,5 @@
 use std::any::Any;
-use crate::init::{ instance, device };
-use crate::init::utils::FeatureBase;
+use crate::init::{device, instance};
 use crate::NamedUUID;
 
 pub enum FeatureDependency {
@@ -10,6 +9,14 @@ pub enum FeatureDependency {
     /// A weak dependency only guarantees that the dependency is processed before this feature.
     /// But this feature will be processed even if the dependency is not met.
     Weak(NamedUUID),
+}
+
+pub trait FeatureBase {
+    fn as_any(&self) -> &dyn Any;
+
+    fn as_any_mut(&mut self) -> &mut dyn Any;
+
+    fn get_data(&self) -> Box<dyn Any>;
 }
 
 pub enum InitResult {

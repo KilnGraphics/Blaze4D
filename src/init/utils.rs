@@ -3,7 +3,7 @@ use std::collections::HashMap;
 use std::ffi::{CStr, CString};
 use std::iter::Map;
 use std::sync::Arc;
-use crate::init::application_feature::FeatureDependency;
+use crate::init::application_feature::{FeatureBase, FeatureDependency};
 use crate::NamedUUID;
 use crate::rosella::VulkanVersion;
 use crate::util::id::UUID;
@@ -90,14 +90,6 @@ impl ExtensionProperties {
     pub fn get_version(&self) -> u32 {
         self.version
     }
-}
-
-pub trait FeatureBase {
-    fn as_any(&self) -> &dyn Any;
-
-    fn as_any_mut(&mut self) -> &mut dyn Any;
-
-    fn get_data(&self) -> Box<dyn Any>;
 }
 
 enum FeatureStage<T> {

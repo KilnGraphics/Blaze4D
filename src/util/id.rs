@@ -275,8 +275,8 @@ impl NamedUUID {
         NamedUUID { name: NameType::new_string(name), id: LocalId::from_hash(hash) }
     }
 
-    pub fn uuid_for(name: &String) -> UUID {
-        let hash = Self::hash_str(name.as_str());
+    pub fn uuid_for(name: &str) -> UUID {
+        let hash = Self::hash_str(name);
 
         UUID{ global: Self::GLOBAL_ID, local: LocalId::from_hash(hash) }
     }

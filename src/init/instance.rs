@@ -216,7 +216,7 @@ impl InstanceInfo {
         let mut layers = HashMap::new();
         for layer in layers_raw {
             let layer = LayerProperties::new(&layer)?;
-            let uuid = NamedUUID::uuid_for(layer.get_name());
+            let uuid = NamedUUID::uuid_for(layer.get_name().as_str());
 
             layers.insert(uuid, layer);
         }
@@ -225,7 +225,7 @@ impl InstanceInfo {
         let mut extensions = HashMap::new();
         for extension in extensions_raw {
             let extension = ExtensionProperties::new(&extension)?;
-            let uuid = NamedUUID::uuid_for(extension.get_name());
+            let uuid = NamedUUID::uuid_for(extension.get_name().as_str());
 
             extensions.insert(uuid, extension);
         }
@@ -246,7 +246,7 @@ impl InstanceInfo {
         self.version
     }
 
-    pub fn is_layer_supported(&self, name: &String) -> bool {
+    pub fn is_layer_supported_str(&self, name: &str) -> bool {
         let uuid = NamedUUID::uuid_for(name);
         self.layers.contains_key(&uuid)
     }
@@ -255,7 +255,7 @@ impl InstanceInfo {
         self.layers.contains_key(uuid)
     }
 
-    pub fn get_layer_properties(&self, name: &String) -> Option<&LayerProperties> {
+    pub fn get_layer_properties_str(&self, name: &str) -> Option<&LayerProperties> {
         let uuid = NamedUUID::uuid_for(name);
         self.layers.get(&uuid)
     }
@@ -264,7 +264,11 @@ impl InstanceInfo {
         self.layers.get(uuid)
     }
 
-    pub fn is_extension_supported(&self, name: &String) -> bool {
+    pub fn is_extension_supported<T: VkExtensionInfo>(&self) -> bool {
+        self.extensions.contains_key(&T::UUID.get_uuid())
+    }
+
+    pub fn is_extension_supported_str(&self, name: &str) -> bool {
         let uuid = NamedUUID::uuid_for(name);
         self.extensions.contains_key(&uuid)
     }
@@ -273,7 +277,11 @@ impl InstanceInfo {
         self.extensions.contains_key(uuid)
     }
 
-    pub fn get_extension_properties(&self, name: &String) -> Option<&ExtensionProperties> {
+    pub fn get_extension_properties<T: VkExtensionInfo>(&self) -> Option<&ExtensionProperties> {
+        self.extensions.get(&T::UUID.get_uuid())
+    }
+
+    pub fn get_extension_properties_str(&self, name: &str) -> Option<&ExtensionProperties> {
         let uuid = NamedUUID::uuid_for(name);
         self.extensions.get(&uuid)
     }
@@ -296,7 +304,7 @@ impl InstanceConfigurator {
         }
     }
 
-    pub fn enable_layer(&mut self, name: &String) {
+    pub fn enable_layer(&mut self, name: &str) {
         let uuid = NamedUUID::uuid_for(name);
         self.enabled_layers.insert(uuid);
     }
