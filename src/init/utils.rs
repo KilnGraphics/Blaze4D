@@ -1,7 +1,6 @@
 use std::any::Any;
 use std::collections::HashMap;
 use std::ffi::{CStr, CString};
-use std::iter::Map;
 use std::sync::Arc;
 use crate::init::application_feature::{FeatureBase, FeatureDependency};
 use crate::NamedUUID;
@@ -296,191 +295,122 @@ impl<T: FeatureBase + ?Sized> FeatureSet<T> {
     }
 }
 
-pub struct FeatureInfo2<S: Eq, F> {
-    state: S,
-    name: NamedUUID,
-    feature: Option<F>,
+pub trait Feature {
+    type State;
+
+    fn get_payload(&self, pass_state: &Self::State) -> Option<&dyn Any>;
+
+    fn get_payload_mut(&mut self, pass_state: &Self::State) -> Option<&mut dyn Any>;
 }
 
-impl<S: Eq, F> FeatureInfo2<S, F> {
-    fn new(state: S, feature: F, name: NamedUUID) -> Self {
-        Self {
-            state,
-            name,
-            feature: Some(feature),
-        }
-    }
+pub trait FeatureAccess {
+    fn get(&self, feature: &UUID) -> Option<&dyn Any>;
 
-    fn get_state(&self) -> &S {
-        &self.state
-    }
+    fn get_mut(&mut self, feature: &UUID) -> Option<&mut dyn Any>;
+}
 
-    fn is_in_state(&self, state: &S) -> bool {
-        &self.state == state
-    }
+struct FeatureInfo2<F: Feature>(Option<F>);
 
-    fn set_state(&mut self, state: S) {
-        self.state = state;
+impl<F: Feature> FeatureInfo2<F> {
+    fn new(feature: F) -> Self {
+        Self(Some(feature))
     }
 
     fn is_processing(&self) -> bool {
-        self.feature.is_none()
+        self.0.is_none()
     }
 
     fn get(&self) -> Option<&F> {
-        self.feature.as_ref()
+        self.0.as_ref()
     }
 
     fn get_mut(&mut self) -> Option<&mut F> {
-        self.feature.as_mut()
+        self.0.as_mut()
     }
 
     fn take_feature(&mut self) -> F {
-        self.feature.take().expect("Attempted to take feature that is already processing")
+        self.0.take().expect("Attempted to take feature that is already processing")
     }
 
     fn return_feature(&mut self, feature: F) {
-        if self.feature.is_some() {
+        if self.0.is_some() {
             panic!("Attempted to return to feature that is not processing")
         }
-        self.feature = Some(feature)
+        self.0 = Some(feature)
     }
 }
 
-#[derive(Copy, Clone, Eq, PartialEq, Debug)]
-pub enum ConditionResult {
-    Take,
-    Skip,
+pub struct FeatureSet2<F: Feature> {
+    features: HashMap<UUID, FeatureInfo2<F>>,
+    current_stage: Option<F::State>
 }
 
-pub struct FeatureSet2<S: Eq + 'static, F> {
-    features: HashMap<UUID, FeatureInfo2<S, F>>,
-    get_test: Option<&'static dyn Fn(&S) -> bool>,
-}
-
-impl<S: Eq + 'static, F> FeatureSet2<S, F> {
-    fn new<I: Iterator>(features: I) -> Self
-        where <I as Iterator>::Item: Into<(NamedUUID, F, S)> {
-
-        let features = features.map(|feature| {
-            let (uuid, feature, state) = feature.into();
-            (uuid.get_uuid(), FeatureInfo2::new(state, feature, uuid))
-        }).collect();
-
+impl<F: Feature> FeatureSet2<F> {
+    fn new(features: HashMap<UUID, FeatureInfo2<F>>) -> Self {
         Self{
             features,
-            get_test: None,
+            current_stage: None
         }
     }
 
-    fn take_conditional<R, C>(&mut self, uuid: &UUID, cnd: C) -> Result<Option<F>, R>
-        where C: Fn(&S) -> Result<ConditionResult, R> {
-
-        match self.features.get_mut(uuid) {
-            Some(info) => {
-                if info.is_processing() {
-                    panic!("Attempted to take a feature which is already processing");
-                }
-
-                cnd(info.get_state()).map(|result| {
-                    if result == ConditionResult::Take {
-                        Some(info.take_feature())
-                    } else {
-                        None
-                    }
-                })
-            }
-            None => {
-                panic!("Attempted to take a feature which does not exist");
-            }
-        }
+    fn take_feature(&mut self, uuid: &UUID) -> F {
+        self.features.get_mut(uuid).unwrap().take_feature()
     }
 
-    fn transition_return(&mut self, uuid: &UUID, feature: F, new_state: S) {
-        let info = self.features.get_mut(uuid).expect("Attempted to return non existing feature");
-        info.return_feature(feature);
-        info.set_state(new_state);
-    }
-
-    fn clear_get_test(&mut self) {
-        self.get_test = None
-    }
-
-    fn set_get_test(&mut self, test: &'static dyn Fn(&S) -> bool) {
-        self.get_test = Some(test)
+    fn return_feature(&mut self, uuid: &UUID, feature: F) {
+        self.features.get_mut(uuid).unwrap().return_feature(feature);
     }
 }
 
-impl<S: Eq + 'static, F: FeatureBase> FeatureSet2<S, F> {
-    pub fn get<T: 'static>(&self, name: &NamedUUID) -> Option<&T> {
-        match self.get_test {
-            Some(test) => {
-                match self.features.get(&name.get_uuid()) {
-                    Some(info) => {
-                        if test(info.get_state()) {
-                            Some(info.get().expect("Attempted to get processing feature")
-                                .as_any().downcast_ref().expect("Invalid get type"))
-                        } else {
-                            None
-                        }
-                    }
-                    None => None
-                }
-            }
-            None => panic!("Called get but get_test is not set"),
-        }
+impl<F: Feature> FeatureAccess for FeatureSet2<F> {
+    fn get(&self, feature: &UUID) -> Option<&dyn Any> {
+        let stage = self.current_stage.as_ref().expect("Attempted to access feature outside of pass");
+        let feature = self.features.get(feature)?;
+
+        feature.get().unwrap().get_payload(stage)
     }
 
-    pub fn get_mut<T: 'static>(&mut self, name: &NamedUUID) -> Option<&T> {
-        match self.get_test {
-            Some(test) => {
-                match self.features.get_mut(&name.get_uuid()) {
-                    Some(info) => {
-                        if test(info.get_state()) {
-                            Some(info.get_mut().expect("Attempted to get processing feature")
-                                .as_any_mut().downcast_mut().expect("Invalid get type"))
-                        } else {
-                            None
-                        }
-                    }
-                    None => None
-                }
-            }
-            None => panic!("Called get but get_test is not set"),
-        }
+    fn get_mut(&mut self, feature: &UUID) -> Option<&mut dyn Any> {
+        let stage = self.current_stage.as_ref().expect("Attempted to access feature outside of pass");
+        let feature = self.features.get_mut(feature)?;
+
+        feature.get_mut().unwrap().get_payload_mut(stage)
     }
 }
 
-impl<S: Eq + 'static, F> IntoIterator for FeatureSet2<S, F> {
-    type Item = (S, F);
-    type IntoIter = Map<<HashMap::<UUID, FeatureInfo2<S, F>> as IntoIterator>::IntoIter, fn((UUID, FeatureInfo2<S, F>)) -> (S, F)>;
+impl<F: Feature> IntoIterator for FeatureSet2<F> {
+    type Item = F;
+    type IntoIter = <Vec<F> as IntoIterator>::IntoIter;
 
     fn into_iter(self) -> Self::IntoIter {
-        self.features.into_iter().map(|(_, mut info)|
-            (info.state, info.feature.take().expect("Attempted to convert processing feature set into iterator")))
+        let vec: Vec<_>= self.features.into_iter().map(|(_, mut info)| (info.take_feature())).collect();
+        vec.into_iter()
     }
 }
 
-pub struct FeatureProcessor<S: Eq + 'static, F> {
+pub struct FeatureProcessor<F: Feature> {
     order: Box<[NamedUUID]>,
-    features: FeatureSet2<S, F>
+    features: FeatureSet2<F>
 }
 
-impl<S: Eq + 'static, F> FeatureProcessor<S, F> {
-    pub fn new<I: Iterator>(features: I, order: Box<[NamedUUID]>) -> Self
-        where <I as Iterator>::Item: Into<(NamedUUID, F, S)> {
-
+impl<F: Feature> FeatureProcessor<F> {
+    pub fn new<I: Iterator<Item = (UUID, F)>>(features: I, order: Box<[NamedUUID]>) -> Self {
         Self {
             order,
-            features: FeatureSet2::new(features),
+            features: FeatureSet2::new(
+                features.map(|(uuid, feature)|
+                    (uuid, FeatureInfo2::new(feature))
+                ).collect()),
         }
     }
 
-    pub fn from_graph<I: Iterator<Item = (NamedUUID, Box<[NamedUUID]>, F, S)>>(features: I) -> Self {
-        let (graph, features): (Vec<_>, Vec<_>) =
+    pub fn from_graph<I: Iterator<Item = (NamedUUID, Box<[NamedUUID]>, F)>>(features: I) -> Self {
+        let (graph, features): (Vec<_>, HashMap<_, _>) =
             features.map(
-                |(name, dependencies, feature, state)|
-                    ((name.clone(), dependencies), (name, feature, state))
+                |(name, dependencies, feature)| {
+                    let uuid = name.get_uuid();
+                    ((name, dependencies), (uuid, FeatureInfo2::new(feature)))
+                }
             ).unzip();
 
         let mut topo_sort = topological_sort::TopologicalSort::new();
@@ -494,34 +424,31 @@ impl<S: Eq + 'static, F> FeatureProcessor<S, F> {
 
         Self {
             order: order.into_boxed_slice(),
-            features: FeatureSet2::new(features.into_iter()),
+            features: FeatureSet2::new(features),
         }
     }
 
-    pub fn run_pass<C, P, R>(&mut self, condition: C, get_test: &'static dyn Fn(&S) -> bool, mut processor: P) -> Result<(), R>
-        where C: Fn(&S) -> Result<ConditionResult, R>, P: FnMut(&mut F, &mut FeatureSet2<S, F>) -> Result<S, R> {
+    pub fn run_pass<R, P>(&mut self, pass_stage: F::State, mut processor: P) -> Result<(), R>
+        where P: FnMut(&mut F, &mut dyn FeatureAccess) -> Result<(), R> {
 
-        self.features.set_get_test(get_test);
+        self.features.current_stage = Some(pass_stage);
 
-        for uuid in self.order.as_ref() {
-            let uuid = uuid.get_uuid();
+        for name in self.order.as_ref() {
+            let uuid = name.get_uuid();
+            let mut feature = self.features.take_feature(&uuid);
 
-            let feature = self.features.take_conditional(&uuid, &condition)?;
+            processor(&mut feature, &mut self.features)?;
 
-            if let Some(mut feature) = feature {
-                let new_state = processor(&mut feature, &mut self.features)?;
-
-                self.features.transition_return(&uuid, feature, new_state);
-            }
+            self.features.return_feature(&uuid, feature);
         }
 
         Ok(())
     }
 }
 
-impl<S: Eq + 'static, F> IntoIterator for FeatureProcessor<S, F> {
-    type Item = (S, F);
-    type IntoIter = <FeatureSet2<S, F> as IntoIterator>::IntoIter;
+impl<F: Feature> IntoIterator for FeatureProcessor<F> {
+    type Item = F;
+    type IntoIter = <FeatureSet2<F> as IntoIterator>::IntoIter;
 
     fn into_iter(self) -> Self::IntoIter {
         self.features.into_iter()

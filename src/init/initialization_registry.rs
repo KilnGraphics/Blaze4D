@@ -13,7 +13,7 @@ use crate::util::id::UUID;
 /// A class used to collect any callbacks and settings that are used for device and instance initialization.
 ///
 pub struct InitializationRegistry {
-    instance_features: HashMap<UUID, (NamedUUID, Box<[NamedUUID]>, Box<dyn ApplicationInstanceFeature>)>,
+    instance_features: HashMap<UUID, (NamedUUID, Box<[NamedUUID]>, Box<dyn ApplicationInstanceFeature>, bool)>,
 
     pub features: HashMap<NamedUUID, MarkedFeature>,
     pub required_features: HashSet<NamedUUID>,
@@ -84,12 +84,12 @@ impl InitializationRegistry {
     }
 
     pub fn register_instance_feature(&mut self, name: NamedUUID, dependencies: Box<[NamedUUID]>, feature: Box<dyn ApplicationInstanceFeature>) {
-        if self.instance_features.insert(name.get_uuid(), (name, dependencies, feature)).is_some() {
+        if self.instance_features.insert(name.get_uuid(), (name, dependencies, feature, false)).is_some() {
             panic!("Feature is already present in registry");
         }
     }
 
-    pub(super) fn take_instance_features(&mut self) -> Vec<(NamedUUID, Box<[NamedUUID]>, Box<dyn ApplicationInstanceFeature>)> {
+    pub(super) fn take_instance_features(&mut self) -> Vec<(NamedUUID, Box<[NamedUUID]>, Box<dyn ApplicationInstanceFeature>, bool)> {
         let features = std::mem::replace(&mut self.instance_features, HashMap::new());
         features.into_values().collect()
     }

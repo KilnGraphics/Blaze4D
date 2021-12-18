@@ -1,3 +1,4 @@
+use std::any::Any;
 use std::collections::{HashMap, HashSet};
 use std::ffi::CString;
 
@@ -5,7 +6,7 @@ use crate::{ UUID, NamedUUID };
 use crate::init::application_feature::{ApplicationInstanceFeature, InitResult};
 
 use crate::init::initialization_registry::{InitializationRegistry};
-use crate::init::utils::{ConditionResult, ExtensionProperties, FeatureProcessor, FeatureSet2, LayerProperties};
+use crate::init::utils::{ExtensionProperties, Feature, FeatureProcessor, LayerProperties};
 
 use ash::vk;
 use crate::init::extensions::{ExtensionFunctionSet, InstanceExtensionLoader, InstanceExtensionLoaderFn, VkExtensionInfo};
@@ -17,6 +18,7 @@ pub enum InstanceCreateError {
     AshLoadingError(ash::LoadingError),
     Utf8Error(std::str::Utf8Error),
     NulError(std::ffi::NulError),
+    RequiredFeatureNotSupported(NamedUUID),
     LayerNotSupported,
     ExtensionNotSupported,
 }
@@ -82,57 +84,58 @@ pub enum InstanceFeatureState {
     Disabled,
 }
 
-pub type InstanceFeatureSet = FeatureSet2<InstanceFeatureState, Box<dyn ApplicationInstanceFeature>>;
+pub struct FeatureInfo {
+    feature: Box<dyn ApplicationInstanceFeature>,
+    state: InstanceFeatureState,
+    name: NamedUUID,
+    required: bool,
+}
+
+impl Feature for FeatureInfo {
+    type State = InstanceFeatureState;
+
+    fn get_payload(&self, pass_state: &Self::State) -> Option<&dyn Any> {
+        if self.state == InstanceFeatureState::Disabled {
+            return None;
+        }
+        if &self.state != pass_state {
+            panic!("Attempted to access feature in invalid state");
+        }
+
+        Some(self.feature.as_ref().as_any())
+    }
+
+    fn get_payload_mut(&mut self, pass_state: &Self::State) -> Option<&mut dyn Any> {
+        if self.state == InstanceFeatureState::Disabled {
+            return None;
+        }
+        if &self.state != pass_state {
+            panic!("Attempted to access feature in invalid state");
+        }
+
+        Some(self.feature.as_mut().as_any_mut())
+    }
+}
 
 struct InstanceBuilder {
-    processor: FeatureProcessor<InstanceFeatureState, Box<dyn ApplicationInstanceFeature>>,
+    processor: FeatureProcessor<FeatureInfo>,
     info: Option<InstanceInfo>,
     config: Option<InstanceConfigurator>,
     application_info: ApplicationInfo,
 }
 
 impl InstanceBuilder {
-    fn init_condition(state: &InstanceFeatureState) -> Result<ConditionResult, InstanceCreateError> {
-        if state != &InstanceFeatureState::Uninitialized {
-            panic!("State should be uninitialized during init pass");
-        }
-
-        Ok(ConditionResult::Take)
-    }
-
-    fn init_get_test(state: &InstanceFeatureState) -> bool {
-        if state == &InstanceFeatureState::Disabled {
-            return false;
-        } else if state != &InstanceFeatureState::Initialized {
-            panic!("Invalid state");
-        }
-        return true;
-    }
-
-    fn enable_condition(state: &InstanceFeatureState) -> Result<ConditionResult, InstanceCreateError> {
-        if state == &InstanceFeatureState::Disabled {
-            return Ok(ConditionResult::Skip);
-        }
-
-        if state != &InstanceFeatureState::Initialized {
-            panic!("State should be initialized during enable pass");
-        }
-
-        Ok(ConditionResult::Take)
-    }
-
-    fn enable_get_test(state: &InstanceFeatureState) -> bool {
-        if state == &InstanceFeatureState::Disabled {
-            return false;
-        } else if state != &InstanceFeatureState::Enabled {
-            panic!("Invalid state");
-        }
-        return true;
-    }
-
-    fn new(application_info: ApplicationInfo, features: Vec<(NamedUUID, Box<[NamedUUID]>, Box<dyn ApplicationInstanceFeature>)>) -> Self {
+    fn new(application_info: ApplicationInfo, features: Vec<(NamedUUID, Box<[NamedUUID]>, Box<dyn ApplicationInstanceFeature>, bool)>) -> Self {
         let processor = FeatureProcessor::from_graph(features.into_iter().map(
-            |(name, deps, feature)| (name, deps, feature, InstanceFeatureState::Uninitialized)));
+            |(name, deps, feature, required)| {
+                let info = FeatureInfo {
+                    feature,
+                    state: InstanceFeatureState::Uninitialized,
+                    name: name.clone(),
+                    required
+                };
+                (name, deps, info)
+            }));
 
         Self {
             processor,
@@ -149,13 +152,22 @@ impl InstanceBuilder {
         self.info = Some(InstanceInfo::new(unsafe{ ash::Entry::new() }?)?);
         let info = self.info.as_ref().unwrap();
 
-        self.processor.run_pass(
-            Self::init_condition, &Self::init_get_test,
-            |feature, set| {
-                match feature.init(set, info) {
-                    InitResult::Ok => Ok(InstanceFeatureState::Initialized),
-                    InitResult::Disable => Ok(InstanceFeatureState::Disabled),
+        self.processor.run_pass::<InstanceCreateError, _>(
+            InstanceFeatureState::Initialized,
+            |mut feature, access| {
+                if feature.state != InstanceFeatureState::Uninitialized {
+                    panic!("Feature is not in uninitialized state in init pass");
                 }
+                match feature.feature.init(access, info) {
+                    InitResult::Ok => feature.state = InstanceFeatureState::Initialized,
+                    InitResult::Disable => {
+                        feature.state = InstanceFeatureState::Disabled;
+                        if feature.required {
+                            return Err(InstanceCreateError::RequiredFeatureNotSupported(feature.name.clone()))
+                        }
+                    },
+                }
+                Ok(())
             }
         )?;
 
@@ -171,11 +183,18 @@ impl InstanceBuilder {
 
         let info = self.info.as_ref().expect("Called run enable pass but info is none");
 
-        self.processor.run_pass(
-            Self::enable_condition, &Self::enable_get_test,
-            |feature, set| {
-                feature.enable(set, info, config);
-                Ok(InstanceFeatureState::Enabled)
+        self.processor.run_pass::<InstanceCreateError, _>(
+            InstanceFeatureState::Enabled,
+            |feature, access| {
+                if feature.state == InstanceFeatureState::Disabled {
+                    return Ok(())
+                }
+                if feature.state != InstanceFeatureState::Initialized {
+                    panic!("Feature is not in initialized state in enable pass");
+                }
+                feature.feature.enable(access, info, config);
+                feature.state = InstanceFeatureState::Enabled;
+                Ok(())
             }
         )?;
 

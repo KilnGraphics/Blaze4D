@@ -1,9 +1,10 @@
 use std::any::Any;
 use ash::Instance;
 use crate::init::application_feature::{ApplicationInstanceFeature, InitResult};
-use crate::init::instance::{InstanceConfigurator, InstanceFeatureSet, InstanceInfo};
+use crate::init::instance::{InstanceConfigurator, InstanceInfo};
 use crate::init::application_feature::FeatureBase;
 use crate::init::initialization_registry::InitializationRegistry;
+use crate::init::utils::FeatureAccess;
 use crate::NamedUUID;
 use crate::rosella::VulkanVersion;
 
@@ -43,11 +44,11 @@ impl FeatureBase for RosellaInstanceBase {
 }
 
 impl ApplicationInstanceFeature for RosellaInstanceBase {
-    fn init(&mut self, _: &InstanceFeatureSet, _: &InstanceInfo) -> InitResult {
+    fn init(&mut self, _: &mut dyn FeatureAccess, _: &InstanceInfo) -> InitResult {
         InitResult::Ok
     }
 
-    fn enable(&mut self, _: &InstanceFeatureSet, _: &InstanceInfo, _: &mut InstanceConfigurator) {
+    fn enable(&mut self, _: &mut dyn FeatureAccess, _: &InstanceInfo, _: &mut InstanceConfigurator) {
     }
 
     fn finish(self, _: &Instance) -> Option<Box<dyn Any>> {
@@ -78,7 +79,7 @@ impl FeatureBase for GetPhysicalDeviceProperties2 {
 }
 
 impl ApplicationInstanceFeature for GetPhysicalDeviceProperties2 {
-    fn init(&mut self, _: &InstanceFeatureSet, info: &InstanceInfo) -> InitResult {
+    fn init(&mut self, _: &mut dyn FeatureAccess, info: &InstanceInfo) -> InitResult {
         if info.get_vulkan_version().is_supported(VulkanVersion::VK_1_1) {
             InitResult::Ok
         } else {
@@ -90,7 +91,7 @@ impl ApplicationInstanceFeature for GetPhysicalDeviceProperties2 {
         }
     }
 
-    fn enable(&mut self, _: &InstanceFeatureSet, info: &InstanceInfo, config: &mut InstanceConfigurator) {
+    fn enable(&mut self, _: &mut dyn FeatureAccess, info: &InstanceInfo, config: &mut InstanceConfigurator) {
         if !info.get_vulkan_version().is_supported(VulkanVersion::VK_1_1) {
             config.enable_extension::<ash::extensions::khr::GetPhysicalDeviceProperties2>();
         }
@@ -146,7 +147,7 @@ impl FeatureBase for WindowSurface {
 }
 
 impl ApplicationInstanceFeature for WindowSurface {
-    fn init(&mut self, _: &InstanceFeatureSet, info: &InstanceInfo) -> InitResult {
+    fn init(&mut self, _: &mut dyn FeatureAccess, info: &InstanceInfo) -> InitResult {
         for extension in &self.extensions {
             if !info.is_extension_supported_str(extension.to_str().unwrap()) {
                 return InitResult::Disable
@@ -155,7 +156,7 @@ impl ApplicationInstanceFeature for WindowSurface {
         InitResult::Ok
     }
 
-    fn enable(&mut self, _: &InstanceFeatureSet, _: &InstanceInfo, config: &mut InstanceConfigurator) {
+    fn enable(&mut self, _: &mut dyn FeatureAccess, _: &InstanceInfo, config: &mut InstanceConfigurator) {
         for extension in &self.extensions {
             config.enable_extension_str_no_load(extension.to_str().unwrap())
         }

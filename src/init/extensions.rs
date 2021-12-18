@@ -1,5 +1,4 @@
 use std::collections::HashMap;
-use std::ffi::CStr;
 use ash::{Entry, Instance};
 use crate::NamedUUID;
 use paste::paste;
@@ -92,8 +91,6 @@ macro_rules! make_vk_extension_info {
         })+
     }
 }
-
-struct NoGen;
 
 make_vk_extension_info!(
     ash::extensions::khr::Swapchain, VK_KHR_Swapchain;

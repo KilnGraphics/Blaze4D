@@ -1,5 +1,6 @@
 use std::any::Any;
 use crate::init::{device, instance};
+use crate::init::utils::FeatureAccess;
 use crate::NamedUUID;
 
 pub enum FeatureDependency {
@@ -25,9 +26,9 @@ pub enum InitResult {
 }
 
 pub trait ApplicationInstanceFeature : FeatureBase {
-    fn init(&mut self, features: &instance::InstanceFeatureSet, info: &instance::InstanceInfo) -> InitResult;
+    fn init(&mut self, features: &mut dyn FeatureAccess, info: &instance::InstanceInfo) -> InitResult;
 
-    fn enable(&mut self, features: &instance::InstanceFeatureSet, info: &instance::InstanceInfo, config: &mut instance::InstanceConfigurator);
+    fn enable(&mut self, features: &mut dyn FeatureAccess, info: &instance::InstanceInfo, config: &mut instance::InstanceConfigurator);
 
     fn finish(self, instance: &ash::Instance) -> Option<Box<dyn Any>>;
 }
