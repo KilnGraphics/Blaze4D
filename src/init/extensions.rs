@@ -1,4 +1,6 @@
 use std::collections::HashMap;
+use std::ffi::CStr;
+use ash::{Entry, Instance};
 use crate::NamedUUID;
 use paste::paste;
 use crate::util::id::UUID;
@@ -32,6 +34,12 @@ impl ExtensionFunctionSet {
 
 pub trait VkExtensionInfo {
     const UUID: NamedUUID;
+}
+
+pub type InstanceExtensionLoaderFn = dyn Fn(&mut ExtensionFunctionSet, &ash::Entry, &ash::Instance);
+
+pub trait InstanceExtensionLoader {
+    fn load_extension(function_set: &mut ExtensionFunctionSet, entry: &ash::Entry, instance: &ash::Instance);
 }
 
 pub trait AsRefOption<T> {
@@ -85,7 +93,15 @@ macro_rules! make_vk_extension_info {
     }
 }
 
+struct NoGen;
+
 make_vk_extension_info!(
     ash::extensions::khr::Swapchain, VK_KHR_Swapchain;
     ash::extensions::khr::GetPhysicalDeviceProperties2, VK_KHR_get_physical_device_properties2
 );
+
+impl InstanceExtensionLoader for ash::extensions::khr::GetPhysicalDeviceProperties2 {
+    fn load_extension(function_set: &mut ExtensionFunctionSet, entry: &Entry, instance: &Instance) {
+        function_set.add(Box::new(ash::extensions::khr::GetPhysicalDeviceProperties2::new(entry, instance)))
+    }
+}

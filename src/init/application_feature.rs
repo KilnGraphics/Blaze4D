@@ -18,9 +18,11 @@ pub enum InitResult {
 }
 
 pub trait ApplicationInstanceFeature : FeatureBase {
-    fn init(&mut self, features: &device::DeviceFeatureSet, info: &device::DeviceInfo) -> InitResult;
+    fn init(&mut self, features: &instance::InstanceFeatureSet, info: &instance::InstanceInfo) -> InitResult;
 
-    fn enable(&mut self, features: &device::DeviceFeatureSet, info: &device::DeviceInfo, config: &device::DeviceConfigurator);
+    fn enable(&mut self, features: &instance::InstanceFeatureSet, info: &instance::InstanceInfo, config: &mut instance::InstanceConfigurator);
+
+    fn finish(self, instance: &ash::Instance) -> Option<Box<dyn Any>>;
 }
 
 pub trait ApplicationDeviceFeature {

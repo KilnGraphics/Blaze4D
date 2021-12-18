@@ -23,7 +23,7 @@ impl Rosella {
         let ash_entry = unsafe{ ash::Entry::new() }.unwrap();
         let ash_instance = create_instance(&registry, application_name, 0, window, &ash_entry);
 
-        let instance = InstanceContext::new(VulkanVersion::VK_1_0, ash_entry.clone(), ash_instance);
+        let instance = InstanceContext::new(VulkanVersion::VK_1_0, ash_entry.clone(), ash_instance, ExtensionFunctionSet::new());
 
         let surface = RosellaSurface::new(instance.vk(), &ash_entry, window);
         let ash_device = create_device(instance.vk(), registry, &surface);
@@ -96,12 +96,12 @@ struct InstanceContextImpl {
 pub struct InstanceContext(Arc<InstanceContextImpl>);
 
 impl InstanceContext {
-    fn new(version: VulkanVersion, entry: ash::Entry, instance: ash::Instance) -> Self {
+    pub fn new(version: VulkanVersion, entry: ash::Entry, instance: ash::Instance, extensions: ExtensionFunctionSet) -> Self {
         Self(Arc::new(InstanceContextImpl{
             version,
             entry,
             instance,
-            extensions: ExtensionFunctionSet::new(),
+            extensions,
         }))
     }
 
