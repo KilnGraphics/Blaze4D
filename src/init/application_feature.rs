@@ -1,6 +1,6 @@
 use std::any::Any;
 use crate::init::{device, instance};
-use crate::init::utils::FeatureAccess;
+use crate::UUID;
 
 
 /// Common functions requires by all features
@@ -56,4 +56,15 @@ pub trait ApplicationDeviceFeature: Send + FeatureBase {
 
     /// Configures the device
     fn enable(&mut self, features: &mut dyn FeatureAccess, info: &device::DeviceInfo, config: &mut device::DeviceConfigurator);
+}
+
+/// Trait used by features to access their dependencies
+pub trait FeatureAccess {
+    fn get(&self, feature: &UUID) -> Option<&dyn Any>;
+
+    fn get_mut(&mut self, feature: &UUID) -> Option<&mut dyn Any>;
+
+    fn is_supported(&self, feature: &UUID) -> bool {
+        self.get(feature).is_some()
+    }
 }

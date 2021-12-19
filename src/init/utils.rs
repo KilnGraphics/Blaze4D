@@ -1,6 +1,7 @@
 use std::any::Any;
 use std::collections::HashMap;
 use std::ffi::{CStr, CString};
+use crate::init::application_feature::FeatureAccess;
 use crate::NamedUUID;
 use crate::rosella::VulkanVersion;
 use crate::util::id::UUID;
@@ -89,23 +90,12 @@ impl ExtensionProperties {
     }
 }
 
-pub trait Feature {
+pub(super) trait Feature {
     type State;
 
     fn get_payload(&self, pass_state: &Self::State) -> Option<&dyn Any>;
 
     fn get_payload_mut(&mut self, pass_state: &Self::State) -> Option<&mut dyn Any>;
-}
-
-/// Trait used by features to access their dependencies
-pub trait FeatureAccess {
-    fn get(&self, feature: &UUID) -> Option<&dyn Any>;
-
-    fn get_mut(&mut self, feature: &UUID) -> Option<&mut dyn Any>;
-
-    fn is_supported(&self, feature: &UUID) -> bool {
-        self.get(feature).is_some()
-    }
 }
 
 struct FeatureInfo<F: Feature>(Option<F>);

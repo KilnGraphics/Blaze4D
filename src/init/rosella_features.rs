@@ -1,3 +1,5 @@
+//! Common vulkan and rosella instance and device
+
 use std::any::Any;
 use std::ffi::{c_void, CStr};
 use ash::{Instance, vk};
@@ -7,10 +9,11 @@ use crate::init::instance::{InstanceConfigurator, InstanceInfo};
 use crate::init::application_feature::FeatureBase;
 use crate::init::device::{DeviceConfigurator, DeviceInfo};
 use crate::init::initialization_registry::InitializationRegistry;
-use crate::init::utils::FeatureAccess;
+use crate::init::application_feature::FeatureAccess;
 use crate::NamedUUID;
 use crate::rosella::VulkanVersion;
 
+/// Registers all instance and device features required for rosella to work in headless mode
 pub fn register_rosella_headless(registry: &mut InitializationRegistry) {
     KHRGetPhysicalDeviceProperties2::register_into(registry, false);
     KHRTimelineSemaphore::register_into(registry, false);
@@ -19,10 +22,14 @@ pub fn register_rosella_headless(registry: &mut InitializationRegistry) {
     RosellaDeviceBase::register_into(registry, true);
 }
 
+/// Registers instance and device features that provide debugging capabilities
 pub fn register_rosella_debug(registry: &mut InitializationRegistry, required: bool) {
     RosellaDebug::register_into(registry, required);
 }
 
+/// Utility macro that generates common implementations for instance features which can be default
+/// created.
+#[macro_export]
 macro_rules! const_instance_feature{
     ($struct_name:ty, $name:literal, [$($dependency:expr),*]) => {
         impl $struct_name {
@@ -51,6 +58,9 @@ macro_rules! const_instance_feature{
     }
 }
 
+/// Utility macro that generates common implementations for device features which can be default
+/// created.
+#[macro_export]
 macro_rules! const_device_feature{
     ($struct_name:ident, $name:literal, [$($dependency:expr),*]) => {
         paste! {
@@ -90,6 +100,7 @@ macro_rules! const_device_feature{
     }
 }
 
+/// Instance feature which provides all requirements needed for rosella to function in headless
 #[derive(Default)]
 pub struct RosellaInstanceBase;
 const_instance_feature!(RosellaInstanceBase, "rosella:instance_base", [KHRTimelineSemaphore::NAME]);
@@ -108,6 +119,7 @@ impl ApplicationInstanceFeature for RosellaInstanceBase {
     }
 }
 
+/// Instance feature which loads validation layers and provides debug callback logging
 #[derive(Default)]
 pub struct RosellaDebug;
 const_instance_feature!(RosellaDebug, "rosella:instance_debug", []);
@@ -168,6 +180,8 @@ impl ApplicationInstanceFeature for RosellaDebug {
     }
 }
 
+/// Instance feature representing the VK_KHR_get_physical_device_properties2 feature set.
+/// If the instance version is below 1.1 it will load the extension.
 #[derive(Default)]
 pub struct KHRGetPhysicalDeviceProperties2;
 const_instance_feature!(KHRGetPhysicalDeviceProperties2, "rosella:instance_khr_get_physical_device_properties_2", []);
@@ -192,6 +206,8 @@ impl ApplicationInstanceFeature for KHRGetPhysicalDeviceProperties2 {
     }
 }
 
+/// Instance feature representing the VK_KHR_timeline_semaphore feature set.
+/// If the instance version is below 1.2 it will load the extension.
 #[derive(Default)]
 pub struct KHRTimelineSemaphore;
 const_instance_feature!(KHRTimelineSemaphore, "rosella:instance_khr_timeline_semaphore", [KHRGetPhysicalDeviceProperties2::NAME]);
@@ -276,6 +292,7 @@ impl ApplicationInstanceFeature for WindowSurface {
     }
 }
 
+/// Device feature which provides all requirements needed for rosella to function in headless
 #[derive(Default)]
 struct RosellaDeviceBase;
 const_device_feature!(RosellaDeviceBase, "rosella:device_base", []);
