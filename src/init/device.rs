@@ -1,3 +1,6 @@
+/// Device initialization utilities
+
+
 use std::any::Any;
 use std::borrow::BorrowMut;
 use std::cell::RefCell;

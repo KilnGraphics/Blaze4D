@@ -1,3 +1,25 @@
+//! Instance initialization utilities
+//!
+//! An application can control how a vulkan instance is created by using
+//! [`ApplicationInstanceFeature`]s. Each feature represents some capability or set of capabilities
+//! that a vulkan instance may or may not support. The initialization code will call each feature
+//! and enable it if it is supported. An application can mark features as required in which case
+//! the init process will fail with [`InstanceCreateError::RequiredFeatureNotSupported`]  if any
+//! required feature is not supported.
+//!
+//! Features can return data to the application if they are enabled. (This is not implemented yet)
+//!
+//! Features are processed in multiple stages. First [`ApplicationInstanceFeature::init`] is called
+//! to query if a feature is supported. On any supported feature
+//! [`ApplicationInstanceFeature::enable`] will then be called to enable it and configure the
+//! instance. Finally after the vulkan instance has been created
+//! [`ApplicationInstanceFeature::finish`] is called to generate the data that can be returned to
+//! the application.
+//!
+//! Features can access other features during any of these stages. The ensure that dependencies have
+//! already completed processing the respective stage these dependencies must be declared when
+//! registering the feature into the [`InitializationRegistry`].
+
 use std::any::Any;
 use std::collections::{HashMap, HashSet};
 use std::ffi::CString;
@@ -13,6 +35,7 @@ use ash::vk::{DebugUtilsMessageSeverityFlagsEXT, DebugUtilsMessageTypeFlagsEXT};
 use crate::util::extensions::{ExtensionFunctionSet, InstanceExtensionLoader, InstanceExtensionLoaderFn, VkExtensionInfo};
 use crate::rosella::{InstanceContext, VulkanVersion};
 
+/// An error that may occur during the instance initialization process.
 #[derive(Debug)]
 pub enum InstanceCreateError {
     VulkanError(vk::Result),
@@ -55,6 +78,7 @@ impl From<std::ffi::NulError> for InstanceCreateError {
     }
 }
 
+/// Creates a new instance based on the features declared in the provided registry.
 pub fn create_instance(registry: &mut InitializationRegistry, application_name: &str, application_version: u32) -> Result<InstanceContext, InstanceCreateError> {
     let application_info = ApplicationInfo{
         application_name: CString::new(application_name)?,
@@ -80,6 +104,7 @@ struct ApplicationInfo {
     api_version: u32,
 }
 
+/// Represents the current state of some feature in the instance initialization process
 #[derive(Copy, Clone, Eq, PartialEq, Debug)]
 pub enum InstanceFeatureState {
     Uninitialized,
@@ -88,7 +113,8 @@ pub enum InstanceFeatureState {
     Disabled,
 }
 
-pub struct FeatureInfo {
+/// Meta information of a feature needed during the initialization process
+struct FeatureInfo {
     feature: Box<dyn ApplicationInstanceFeature>,
     state: InstanceFeatureState,
     name: NamedUUID,
@@ -121,6 +147,7 @@ impl Feature for FeatureInfo {
     }
 }
 
+/// High level implementation of the init process.
 struct InstanceBuilder {
     processor: FeatureProcessor<FeatureInfo>,
     info: Option<InstanceInfo>,
@@ -129,6 +156,9 @@ struct InstanceBuilder {
 }
 
 impl InstanceBuilder {
+    /// Generates a new builder for some feature set.
+    ///
+    /// No vulkan functions will be called here.
     fn new(application_info: ApplicationInfo, features: Vec<(NamedUUID, Box<[NamedUUID]>, Box<dyn ApplicationInstanceFeature>, bool)>) -> Self {
         let processor = FeatureProcessor::from_graph(features.into_iter().map(
             |(name, deps, feature, required)| {
@@ -150,6 +180,10 @@ impl InstanceBuilder {
         }
     }
 
+    /// Runs the init pass.
+    ///
+    /// First collects information about the capabilities of the vulkan environment and then calls
+    /// [`ApplicationInstanceFeature::init`] on all registered features in topological order.
     fn run_init_pass(&mut self) -> Result<(), InstanceCreateError> {
         log::debug!("Starting init pass");
 
@@ -184,6 +218,11 @@ impl InstanceBuilder {
         Ok(())
     }
 
+    /// Runs the enable pass
+    ///
+    /// Creates a [`InstanceConfigurator`] instance and calls [`ApplicationInstanceFeature::enable`]
+    /// on all supported features to configure the instance. This function does not create the
+    /// vulkan instance.
     fn run_enable_pass(&mut self) -> Result<(), InstanceCreateError> {
         log::debug!("Starting enable pass");
 
@@ -213,6 +252,7 @@ impl InstanceBuilder {
         Ok(())
     }
 
+    /// Creates the vulkan instance
     fn build(self) -> Result<InstanceContext, InstanceCreateError> {
         log::debug!("Building instance");
 
@@ -231,6 +271,8 @@ impl InstanceBuilder {
     }
 }
 
+
+/// Contains information about the vulkan environment.
 pub struct InstanceInfo {
     entry: ash::Entry,
     version: VulkanVersion,
@@ -271,62 +313,77 @@ impl InstanceInfo {
         })
     }
 
+    /// Returns an [`ash::Entry`] instance that can be used to access entry functions.
     pub fn get_entry(&self) -> &ash::Entry {
         &self.entry
     }
 
+    /// Returns the version advertised by the vulkan environment
     pub fn get_vulkan_version(&self) -> VulkanVersion {
         self.version
     }
 
+    /// Queries if a instance layer is supported
     pub fn is_layer_supported_str(&self, name: &str) -> bool {
         let uuid = NamedUUID::uuid_for(name);
         self.layers.contains_key(&uuid)
     }
 
+    /// Queries if a instance layer is supported
     pub fn is_layer_supported_uuid(&self, uuid: &UUID) -> bool {
         self.layers.contains_key(uuid)
     }
 
+    /// Returns the properties of a instance layer
     pub fn get_layer_properties_str(&self, name: &str) -> Option<&LayerProperties> {
         let uuid = NamedUUID::uuid_for(name);
         self.layers.get(&uuid)
     }
 
+    /// Returns the properties of a instance layer
     pub fn get_layer_properties_uuid(&self, uuid: &UUID) -> Option<&LayerProperties> {
         self.layers.get(uuid)
     }
 
+    /// Queries if a instance extension is supported
     pub fn is_extension_supported<T: VkExtensionInfo>(&self) -> bool {
         self.extensions.contains_key(&T::UUID.get_uuid())
     }
 
+    /// Queries if a instance extension is supported
     pub fn is_extension_supported_str(&self, name: &str) -> bool {
         let uuid = NamedUUID::uuid_for(name);
         self.extensions.contains_key(&uuid)
     }
 
+    /// Queries if a instance extension is supported
     pub fn is_extension_supported_uuid(&self, uuid: &UUID) -> bool {
         self.extensions.contains_key(uuid)
     }
 
+    /// Returns the properties of a instance extension
     pub fn get_extension_properties<T: VkExtensionInfo>(&self) -> Option<&ExtensionProperties> {
         self.extensions.get(&T::UUID.get_uuid())
     }
 
+    /// Returns the properties of a instance extension
     pub fn get_extension_properties_str(&self, name: &str) -> Option<&ExtensionProperties> {
         let uuid = NamedUUID::uuid_for(name);
         self.extensions.get(&uuid)
     }
 
+    /// Returns the properties of a instance extension
     pub fn get_extension_properties_uuid(&self, uuid: &UUID) -> Option<&ExtensionProperties> {
         self.extensions.get(uuid)
     }
 }
 
+/// Used by features to configure the created vulkan instance.
 pub struct InstanceConfigurator {
     enabled_layers: HashSet<UUID>,
     enabled_extensions: HashMap<UUID, Option<&'static InstanceExtensionLoaderFn>>,
+
+    /// Temporary hack until extensions can be properly handled
     debug_util_messenger: vk::PFN_vkDebugUtilsMessengerCallbackEXT, // TODO Make this flexible somehow, probably requires general overhaul of p_next pushing
 }
 
@@ -339,20 +396,24 @@ impl InstanceConfigurator {
         }
     }
 
+    /// Enables a instance layer
     pub fn enable_layer(&mut self, name: &str) {
         let uuid = NamedUUID::uuid_for(name);
         self.enabled_layers.insert(uuid);
     }
 
+    /// Enables a instance layer
     pub fn enable_layer_uuid(&mut self, uuid: UUID) {
         self.enabled_layers.insert(uuid);
     }
 
+    /// Enables a instance extension and registers the extension for automatic function loading
     pub fn enable_extension<EXT: VkExtensionInfo + InstanceExtensionLoader + 'static>(&mut self) {
         let uuid = EXT::UUID.get_uuid();
         self.enabled_extensions.insert(uuid, Some(&EXT::load_extension));
     }
 
+    /// Enables a instance extension without automatic function loading
     pub fn enable_extension_str_no_load(&mut self, str: &str) {
         let uuid = NamedUUID::uuid_for(str);
 
@@ -362,10 +423,14 @@ impl InstanceConfigurator {
         }
     }
 
+    /// Sets the debug messenger for VK_EXT_debug_utils
+    ///
+    /// This is a temporary hack until extension configuration can be properly handled.
     pub fn set_debug_messenger(&mut self, messenger: vk::PFN_vkDebugUtilsMessengerCallbackEXT) {
         self.debug_util_messenger = messenger;
     }
 
+    /// Creates a vulkan instance based on the configuration stored in this InstanceConfigurator
     fn build_instance(self, info: &InstanceInfo, application_info: &vk::ApplicationInfo) -> Result<(ash::Instance, ExtensionFunctionSet), InstanceCreateError> {
         let mut layers = Vec::with_capacity(self.enabled_layers.len());
         for layer in &self.enabled_layers {
