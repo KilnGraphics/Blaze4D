@@ -16,7 +16,7 @@ use crate::init::application_feature::{ApplicationDeviceFeatureInstance, InitRes
 use crate::init::initialization_registry::InitializationRegistry;
 use crate::init::utils::{ExtensionProperties, Feature, FeatureProcessor};
 use crate::{NamedUUID, UUID};
-use crate::init::extensions::{DeviceExtensionLoader, DeviceExtensionLoaderFn, ExtensionFunctionSet, VkExtensionInfo};
+use crate::util::extensions::{DeviceExtensionLoader, DeviceExtensionLoaderFn, ExtensionFunctionSet, VkExtensionInfo};
 use crate::rosella::{DeviceContext, InstanceContext, VulkanVersion};
 
 struct VulkanQueueImpl {

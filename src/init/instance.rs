@@ -11,7 +11,7 @@ use crate::init::utils::{ExtensionProperties, Feature, FeatureProcessor, LayerPr
 use ash::vk;
 use ash::vk::{DebugUtilsMessageSeverityFlagsEXT, DebugUtilsMessageTypeFlagsEXT};
 use log::debug;
-use crate::init::extensions::{ExtensionFunctionSet, InstanceExtensionLoader, InstanceExtensionLoaderFn, VkExtensionInfo};
+use crate::util::extensions::{ExtensionFunctionSet, InstanceExtensionLoader, InstanceExtensionLoaderFn, VkExtensionInfo};
 use crate::rosella::{InstanceContext, VulkanVersion};
 
 #[derive(Debug)]

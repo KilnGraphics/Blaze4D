@@ -11,7 +11,7 @@ use crate::init::instance::{create_instance, InstanceCreateError};
 use crate::window::{RosellaSurface, RosellaWindow};
 
 use ash::vk;
-use crate::init::extensions::{AsRefOption, ExtensionFunctionSet, VkExtensionInfo, VkExtensionFunctions};
+use crate::util::extensions::{AsRefOption, ExtensionFunctionSet, VkExtensionInfo, VkExtensionFunctions};
 use crate::init::rosella_features::WindowSurface;
 use crate::util::id::UUID;
 
