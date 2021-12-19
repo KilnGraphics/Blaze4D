@@ -8,6 +8,7 @@ edition = "2018"
 [dependencies]
 ash = "0.33.3"
 ash-window = {  }
+env_logger = "0.9.0"
 log = "0.4.14"
 topological-sort = "0.1.0"
 shaderc = "0.7.3"

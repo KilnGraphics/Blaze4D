@@ -9,6 +9,7 @@ use crate::init::initialization_registry::{InitializationRegistry};
 use crate::init::utils::{ExtensionProperties, Feature, FeatureProcessor, LayerProperties};
 
 use ash::vk;
+use log::debug;
 use crate::init::extensions::{ExtensionFunctionSet, InstanceExtensionLoader, InstanceExtensionLoaderFn, VkExtensionInfo};
 use crate::rosella::{InstanceContext, VulkanVersion};
 
@@ -62,6 +63,8 @@ pub fn create_instance(registry: &mut InitializationRegistry, application_name: 
         engine_version: 0, // TODO
         api_version: vk::API_VERSION_1_2
     };
+
+    log::info!("Creating instance for \"{}\" {}", application_name, application_version);
 
     let mut builder = InstanceBuilder::new(application_info, registry.take_instance_features());
     builder.run_init_pass()?;
@@ -129,6 +132,7 @@ impl InstanceBuilder {
     fn new(application_info: ApplicationInfo, features: Vec<(NamedUUID, Box<[NamedUUID]>, Box<dyn ApplicationInstanceFeature>, bool)>) -> Self {
         let processor = FeatureProcessor::from_graph(features.into_iter().map(
             |(name, deps, feature, required)| {
+                log::debug!("Instance feature {:?}", name);
                 let info = FeatureInfo {
                     feature,
                     state: InstanceFeatureState::Uninitialized,
@@ -147,6 +151,8 @@ impl InstanceBuilder {
     }
 
     fn run_init_pass(&mut self) -> Result<(), InstanceCreateError> {
+        log::debug!("Starting init pass");
+
         if self.info.is_some() {
             panic!("Called run init pass but info is already some");
         }
@@ -163,11 +169,14 @@ impl InstanceBuilder {
                     InitResult::Ok => feature.state = InstanceFeatureState::Initialized,
                     InitResult::Disable => {
                         feature.state = InstanceFeatureState::Disabled;
+                        log::debug!("Disabled feature {:?}", feature.name);
                         if feature.required {
+                            log::warn!("Failed to initialize required feature {:?}", feature.name);
                             return Err(InstanceCreateError::RequiredFeatureNotSupported(feature.name.clone()))
                         }
                     },
                 }
+                log::debug!("Initialized feature {:?}", feature.name);
                 Ok(())
             }
         )?;
@@ -176,6 +185,8 @@ impl InstanceBuilder {
     }
 
     fn run_enable_pass(&mut self) -> Result<(), InstanceCreateError> {
+        log::debug!("Starting enable pass");
+
         if self.config.is_some() {
             panic!("Called run enable pass but config is already some");
         }
@@ -203,6 +214,8 @@ impl InstanceBuilder {
     }
 
     fn build(self) -> Result<InstanceContext, InstanceCreateError> {
+        log::debug!("Building instance");
+
         let app_info = vk::ApplicationInfo::builder()
             .application_name(self.application_info.application_name.as_c_str())
             .application_version(self.application_info.application_version)
@@ -350,20 +363,26 @@ impl InstanceConfigurator {
     fn build_instance(self, info: &InstanceInfo, application_info: &vk::ApplicationInfo) -> Result<(ash::Instance, ExtensionFunctionSet), InstanceCreateError> {
         let mut layers = Vec::with_capacity(self.enabled_layers.len());
         for layer in &self.enabled_layers {
-            layers.push(
-                info.get_layer_properties_uuid(layer)
-                    .ok_or(InstanceCreateError::LayerNotSupported)?
-                    .get_c_name().as_ptr()
-            );
+            let layer = info.get_layer_properties_uuid(layer)
+                .ok_or(InstanceCreateError::LayerNotSupported)?;
+
+            log::debug!("Enabling layer \"{}\"", layer.get_name());
+
+            layers.push(layer.get_c_name().as_ptr());
         }
 
         let mut extensions = Vec::with_capacity(self.enabled_extensions.len());
-        for (uuid, _) in &self.enabled_extensions {
-            extensions.push(
-                info.get_extension_properties_uuid(uuid)
-                    .ok_or(InstanceCreateError::ExtensionNotSupported)?
-                    .get_c_name().as_ptr()
-            )
+        for (uuid, loader) in &self.enabled_extensions {
+            let extension = info.get_extension_properties_uuid(uuid)
+                .ok_or(InstanceCreateError::ExtensionNotSupported)?;
+
+            if loader.is_some() {
+                log::debug!("Enabling extension \"{}\"", extension.get_name());
+            } else {
+                log::debug!("Enabling no load extension \"{}\"", extension.get_name());
+            }
+
+            extensions.push(extension.get_c_name().as_ptr());
         }
 
         let create_info = vk::InstanceCreateInfo::builder()
@@ -381,6 +400,8 @@ impl InstanceConfigurator {
                 extension(&mut function_set, info.get_entry(), &instance);
             }
         }
+
+        log::debug!("Instance creation successful");
 
         Ok((instance, function_set))
     }

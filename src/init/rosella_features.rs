@@ -92,6 +92,7 @@ const_instance_feature!(RosellaInstanceBase, "rosella:instance_base", [KHRTimeli
 impl ApplicationInstanceFeature for RosellaInstanceBase {
     fn init(&mut self, features: &mut dyn FeatureAccess, _: &InstanceInfo) -> InitResult {
         if features.is_supported(&KHRTimelineSemaphore::NAME.get_uuid()) {
+            log::warn!("KHRTimelineSemaphore is not supported");
             return InitResult::Disable;
         }
 
@@ -133,6 +134,7 @@ const_instance_feature!(KHRTimelineSemaphore, "rosella:instance_khr_timeline_sem
 impl ApplicationInstanceFeature for KHRTimelineSemaphore {
     fn init(&mut self, features: &mut dyn FeatureAccess, info: &InstanceInfo) -> InitResult {
         if !features.is_supported(&KHRGetPhysicalDeviceProperties2::NAME.get_uuid()) {
+            log::warn!("KHRGetPhysicalDeviceProperties2 is not supported");
             return InitResult::Disable;
         }
 

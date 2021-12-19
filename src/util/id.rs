@@ -5,7 +5,7 @@
 /// retaining global uniqueness.
 
 use std::cmp::Ordering;
-use std::fmt::{Debug, Formatter};
+use std::fmt::{Debug, Formatter, Write};
 use std::hash::{Hash, Hasher};
 use std::num::NonZeroU64;
 use std::sync::Arc;
@@ -90,7 +90,7 @@ impl Into<u64> for GlobalId {
 
 impl Debug for GlobalId {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        f.debug_tuple("GlobalId").field(&self.get_raw()).finish()
+        f.write_str(&*format!("GlobalId({:#16X})", self.0))
     }
 }
 
@@ -152,7 +152,7 @@ impl LocalId {
 
 impl Debug for LocalId {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        f.debug_tuple("LocalId").field(&self.get_raw()).finish()
+        f.write_str(&*format!("LocalId({:#16X})", self.0))
     }
 }
 
@@ -245,7 +245,7 @@ impl NameType {
 /// NamedUUIDs use a predefined global id with the local id being calculated as the hash of a
 /// string. The name is stored along side the UUID for easy debugging or printing. The name is
 /// stored by Arc enabling fast Copying of the struct.
-#[derive(Clone, Debug)]
+#[derive(Clone)]
 pub struct NamedUUID {
     name: NameType,
     id: LocalId,
@@ -359,5 +359,15 @@ impl Hash for NamedUUID {
 impl Into<UUID> for NamedUUID {
     fn into(self) -> UUID {
         self.get_uuid()
+    }
+}
+
+impl Debug for NamedUUID {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        let name = match &self.name {
+            NameType::Static(str) => *str,
+            NameType::String(str) => str.as_str()
+        };
+        f.write_str(&*format!("NamedUUID{{\"{}\", {:?}}}", name, &self.id))
     }
 }

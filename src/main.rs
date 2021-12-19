@@ -79,6 +79,8 @@ fn setup_rosella(window: &RosellaWindow) -> Rosella {
 }
 
 fn main() {
+    env_logger::init();
+
     let window = RosellaWindow::new("New New Rosella in Rust tm", 1396.0, 752.0);
     let rosella = setup_rosella(&window);
 
