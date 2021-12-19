@@ -7,3 +7,6 @@ pub mod window;
 
 pub use util::id::UUID;
 pub use util::id::NamedUUID;
+
+#[cfg(test)]
+pub use util::test;
