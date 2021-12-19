@@ -1,5 +1,8 @@
 use std::any::Any;
-use ash::Instance;
+use std::ffi::{c_void, CStr};
+use std::str::Utf8Error;
+use ash::{Instance, vk};
+use ash::vk::DebugUtilsMessageSeverityFlagsEXT;
 use paste::paste;
 use crate::init::application_feature::{ApplicationDeviceFeature, ApplicationDeviceFeatureInstance, ApplicationInstanceFeature, InitResult};
 use crate::init::instance::{InstanceConfigurator, InstanceInfo};
@@ -16,6 +19,10 @@ pub fn register_rosella_headless(registry: &mut InitializationRegistry) {
     RosellaInstanceBase::register_into(registry, true);
 
     RosellaDeviceBase::register_into(registry, true);
+}
+
+pub fn register_rosella_debug(registry: &mut InitializationRegistry, required: bool) {
+    RosellaDebug::register_into(registry, required);
 }
 
 macro_rules! const_instance_feature{
@@ -100,6 +107,66 @@ impl ApplicationInstanceFeature for RosellaInstanceBase {
     }
 
     fn enable(&mut self, _: &mut dyn FeatureAccess, _: &InstanceInfo, _: &mut InstanceConfigurator) {
+    }
+}
+
+#[derive(Default)]
+pub struct RosellaDebug;
+const_instance_feature!(RosellaDebug, "rosella:instance_debug", []);
+
+impl RosellaDebug {
+    extern "system" fn debug_callback(severity: vk::DebugUtilsMessageSeverityFlagsEXT, types: vk::DebugUtilsMessageTypeFlagsEXT, data:*const vk::DebugUtilsMessengerCallbackDataEXT, _:*mut c_void) -> vk::Bool32 {
+        let data = unsafe { data.as_ref().unwrap() };
+
+        let id = match unsafe { CStr::from_ptr(data.p_message_id_name) }.to_str() {
+            Ok(str) => str,
+            Err(err) => {
+                log::error!("Failed to process debug callback id: {:?}", err);
+                return vk::FALSE;
+            }
+        };
+
+        let msg = match unsafe { CStr::from_ptr(data.p_message) }.to_str() {
+            Ok(str) => str,
+            Err(err) => {
+                log::error!("Failed to process debug callback message: {:?}", err);
+                return vk::FALSE;
+            }
+        };
+
+        if severity.contains(vk::DebugUtilsMessageSeverityFlagsEXT::ERROR) {
+            log::error!(target: "vulkan", "{}: {}", id, msg);
+        } else if severity.contains(vk::DebugUtilsMessageSeverityFlagsEXT::WARNING) {
+            log::warn!(target: "vulkan", "{}: {}", id, msg);
+        } else if severity.contains(vk::DebugUtilsMessageSeverityFlagsEXT::INFO) {
+            log::info!(target: "vulkan", "{}: {}", id, msg);
+        } else {
+            log::debug!(target: "vulkan", "{}: {}", id, msg);
+        }
+
+        vk::FALSE
+    }
+}
+
+impl ApplicationInstanceFeature for RosellaDebug {
+    fn init(&mut self, _: &mut dyn FeatureAccess, info: &InstanceInfo) -> InitResult {
+        if !info.is_extension_supported::<ash::extensions::ext::DebugUtils>() {
+            log::warn!("DebugUtils extension not found! Rosella debug will be disabled.");
+            return InitResult::Disable;
+        }
+
+        if !info.is_layer_supported_str("VK_LAYER_KHRONOS_validation") {
+            log::warn!("VK_LAYER_KHRONOS_validation not found! Rosella debug will be disabled.");
+            return InitResult::Disable;
+        }
+
+        InitResult::Ok
+    }
+
+    fn enable(&mut self, _: &mut dyn FeatureAccess, _: &InstanceInfo, config: &mut InstanceConfigurator) {
+        config.enable_extension::<ash::extensions::ext::DebugUtils>();
+        config.enable_layer("VK_LAYER_KHRONOS_validation");
+        config.set_debug_messenger(Some(RosellaDebug::debug_callback));
     }
 }
 

@@ -9,6 +9,7 @@ use crate::init::initialization_registry::{InitializationRegistry};
 use crate::init::utils::{ExtensionProperties, Feature, FeatureProcessor, LayerProperties};
 
 use ash::vk;
+use ash::vk::{DebugUtilsMessageSeverityFlagsEXT, DebugUtilsMessageTypeFlagsEXT};
 use log::debug;
 use crate::init::extensions::{ExtensionFunctionSet, InstanceExtensionLoader, InstanceExtensionLoaderFn, VkExtensionInfo};
 use crate::rosella::{InstanceContext, VulkanVersion};
@@ -327,6 +328,7 @@ impl InstanceInfo {
 pub struct InstanceConfigurator {
     enabled_layers: HashSet<UUID>,
     enabled_extensions: HashMap<UUID, Option<&'static InstanceExtensionLoaderFn>>,
+    debug_util_messenger: vk::PFN_vkDebugUtilsMessengerCallbackEXT, // TODO Make this flexible somehow, probably requires general overhaul of p_next pushing
 }
 
 impl InstanceConfigurator {
@@ -334,6 +336,7 @@ impl InstanceConfigurator {
         Self{
             enabled_layers: HashSet::new(),
             enabled_extensions: HashMap::new(),
+            debug_util_messenger: None,
         }
     }
 
@@ -358,6 +361,10 @@ impl InstanceConfigurator {
         if !self.enabled_extensions.contains_key(&uuid) {
             self.enabled_extensions.insert(uuid, None);
         }
+    }
+
+    pub fn set_debug_messenger(&mut self, messenger: vk::PFN_vkDebugUtilsMessengerCallbackEXT) {
+        self.debug_util_messenger = messenger;
     }
 
     fn build_instance(self, info: &InstanceInfo, application_info: &vk::ApplicationInfo) -> Result<(ash::Instance, ExtensionFunctionSet), InstanceCreateError> {
@@ -385,10 +392,20 @@ impl InstanceConfigurator {
             extensions.push(extension.get_c_name().as_ptr());
         }
 
-        let create_info = vk::InstanceCreateInfo::builder()
+        let mut create_info = vk::InstanceCreateInfo::builder()
             .application_info(application_info)
             .enabled_layer_names(layers.as_slice())
             .enabled_extension_names(extensions.as_slice());
+
+        let mut messenger;
+        if self.debug_util_messenger.is_some() {
+            messenger = vk::DebugUtilsMessengerCreateInfoEXT::builder()
+                .message_severity(DebugUtilsMessageSeverityFlagsEXT::all())
+                .message_type(DebugUtilsMessageTypeFlagsEXT::all())
+                .pfn_user_callback(self.debug_util_messenger);
+
+            create_info = create_info.push_next(&mut messenger);
+        }
 
         let instance = unsafe {
             info.get_entry().create_instance(&create_info, None)
