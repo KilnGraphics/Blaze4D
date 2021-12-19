@@ -217,10 +217,9 @@ const_device_feature!(RosellaDeviceBase, "rosella:device_base", []);
 
 impl ApplicationDeviceFeatureInstance for RosellaDeviceBase {
     fn init(&mut self, _: &mut dyn FeatureAccess, _: &DeviceInfo) -> InitResult {
-        InitResult::Disable
+        InitResult::Ok
     }
 
     fn enable(&mut self, _: &mut dyn FeatureAccess, _: &DeviceInfo, _: &DeviceConfigurator) {
-        todo!()
     }
 }

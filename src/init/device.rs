@@ -200,6 +200,8 @@ impl DeviceBuilder {
     }
 
     fn run_init_pass(&mut self) -> Result<(), DeviceCreateError> {
+        log::debug!("Starting init pass");
+
         if self.info.is_some() {
             panic!("Called run init pass but info is already some");
         }
@@ -216,11 +218,14 @@ impl DeviceBuilder {
                     InitResult::Ok => feature.state = DeviceFeatureState::Initialized,
                     InitResult::Disable => {
                         feature.state = DeviceFeatureState::Disabled;
+                        log::debug!("Disabled feature {:?}", feature.name);
                         if feature.required {
+                            log::warn!("Failed to initialize required feature {:?}", feature.name);
                             return Err(DeviceCreateError::RequiredFeatureNotSupported(feature.name.clone()))
                         }
                     }
                 }
+                log::debug!("Initialized feature {:?}", feature.name);
                 Ok(())
             }
         )?;
