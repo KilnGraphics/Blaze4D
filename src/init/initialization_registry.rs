@@ -2,8 +2,7 @@ use std::collections::HashMap;
 
 use crate::init::application_feature::{ApplicationDeviceFeature, ApplicationInstanceFeature};
 
-use crate::NamedUUID;
-use crate::util::id::UUID;
+use crate::{ NamedUUID, UUID };
 
 ///
 /// A class used to collect any callbacks and settings that are used for device and instance initialization.

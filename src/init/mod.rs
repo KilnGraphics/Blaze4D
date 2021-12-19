@@ -4,3 +4,5 @@ pub mod instance;
 pub mod application_feature;
 pub mod rosella_features;
 mod utils;
+
+pub use initialization_registry::InitializationRegistry;

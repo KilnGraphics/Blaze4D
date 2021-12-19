@@ -1,8 +1,6 @@
 use std::any::Any;
 use std::ffi::{c_void, CStr};
-use std::str::Utf8Error;
 use ash::{Instance, vk};
-use ash::vk::DebugUtilsMessageSeverityFlagsEXT;
 use paste::paste;
 use crate::init::application_feature::{ApplicationDeviceFeature, ApplicationDeviceFeatureInstance, ApplicationInstanceFeature, InitResult};
 use crate::init::instance::{InstanceConfigurator, InstanceInfo};
@@ -115,7 +113,7 @@ pub struct RosellaDebug;
 const_instance_feature!(RosellaDebug, "rosella:instance_debug", []);
 
 impl RosellaDebug {
-    extern "system" fn debug_callback(severity: vk::DebugUtilsMessageSeverityFlagsEXT, types: vk::DebugUtilsMessageTypeFlagsEXT, data:*const vk::DebugUtilsMessengerCallbackDataEXT, _:*mut c_void) -> vk::Bool32 {
+    extern "system" fn debug_callback(severity: vk::DebugUtilsMessageSeverityFlagsEXT, _: vk::DebugUtilsMessageTypeFlagsEXT, data:*const vk::DebugUtilsMessengerCallbackDataEXT, _:*mut c_void) -> vk::Bool32 {
         let data = unsafe { data.as_ref().unwrap() };
 
         let id = match unsafe { CStr::from_ptr(data.p_message_id_name) }.to_str() {

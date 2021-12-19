@@ -706,7 +706,7 @@ impl DeviceConfigurator {
             queue_create_infos.push(*create_info);
         }
 
-        let mut create_info = vk::DeviceCreateInfo::builder()
+        let create_info = vk::DeviceCreateInfo::builder()
             .enabled_extension_names(extensions.as_slice())
             .queue_create_infos(queue_create_infos.as_slice());
 

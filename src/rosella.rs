@@ -1,10 +1,5 @@
 use std::sync::Arc;
 
-use log::debug;
-use log::info;
-use log::warn;
-use log::error;
-
 use crate::init::device::{create_device, DeviceCreateError};
 use crate::init::initialization_registry::InitializationRegistry;
 use crate::init::instance::{create_instance, InstanceCreateError};
@@ -41,7 +36,7 @@ impl From<DeviceCreateError> for RosellaCreateError {
 
 impl Rosella {
     pub fn new(mut registry: InitializationRegistry, window: &RosellaWindow, application_name: &str) -> Result<Rosella, RosellaCreateError> {
-        info!("Starting Rosella");
+        log::info!("Starting Rosella");
 
         WindowSurface::register_into(&mut registry, &window.handle, true);
 

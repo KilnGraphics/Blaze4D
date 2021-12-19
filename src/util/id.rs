@@ -5,7 +5,7 @@
 /// retaining global uniqueness.
 
 use std::cmp::Ordering;
-use std::fmt::{Debug, Formatter, Write};
+use std::fmt::{Debug, Formatter};
 use std::hash::{Hash, Hasher};
 use std::num::NonZeroU64;
 use std::sync::Arc;
