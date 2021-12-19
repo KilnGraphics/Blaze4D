@@ -1,7 +1,6 @@
 use std::any::Any;
 use crate::init::{device, instance};
 use crate::init::utils::FeatureAccess;
-use crate::NamedUUID;
 
 
 /// Common functions requires by all features
@@ -20,7 +19,7 @@ pub enum InitResult {
     Disable,
 }
 
-/// A feature that controls instance initialization
+/// A feature that controls instance creation
 ///
 /// See [`crate::init::instance`] for more information.
 pub trait ApplicationInstanceFeature : FeatureBase {
@@ -37,12 +36,24 @@ pub trait ApplicationInstanceFeature : FeatureBase {
     }
 }
 
+/// A object that can generate [`ApplicationDeviceFeature`] instances used during the device
+/// creation process.
+///
+/// See [`crate::init::device`] for more information.
 pub trait ApplicationDeviceFeatureGenerator {
+
+    /// Creates a new instance
     fn make_instance(&self) -> Box<dyn ApplicationDeviceFeature>;
 }
 
+/// A feature that controls device creation
+///
+/// See [`crate::init::device`] for more information.
 pub trait ApplicationDeviceFeature: Send + FeatureBase {
+
+    /// Tests if the feature is supported
     fn init(&mut self, features: &mut dyn FeatureAccess, info: &device::DeviceInfo) -> InitResult;
 
+    /// Configures the device
     fn enable(&mut self, features: &mut dyn FeatureAccess, info: &device::DeviceInfo, config: &mut device::DeviceConfigurator);
 }

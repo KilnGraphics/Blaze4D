@@ -97,6 +97,7 @@ pub trait Feature {
     fn get_payload_mut(&mut self, pass_state: &Self::State) -> Option<&mut dyn Any>;
 }
 
+/// Trait used by features to access their dependencies
 pub trait FeatureAccess {
     fn get(&self, feature: &UUID) -> Option<&dyn Any>;
 
@@ -134,7 +135,9 @@ impl<F: Feature> FeatureInfo<F> {
     }
 }
 
-pub struct FeatureSet<F: Feature> {
+/// Internal utility to enable processing of features while allowing access to others
+/// TODO could this be simplified using RefCell?
+pub(super) struct FeatureSet<F: Feature> {
     features: HashMap<UUID, FeatureInfo<F>>,
     current_stage: Option<F::State>
 }
@@ -182,12 +185,14 @@ impl<F: Feature> IntoIterator for FeatureSet<F> {
     }
 }
 
-pub struct FeatureProcessor<F: Feature> {
+/// Internal utility that abstracts the process passes
+pub(super) struct FeatureProcessor<F: Feature> {
     order: Box<[NamedUUID]>,
     features: FeatureSet<F>
 }
 
 impl<F: Feature> FeatureProcessor<F> {
+    /// Creates a new processor using a predefined order
     pub fn new<I: Iterator<Item = (UUID, F)>>(features: I, order: Box<[NamedUUID]>) -> Self {
         Self {
             order,
@@ -198,6 +203,7 @@ impl<F: Feature> FeatureProcessor<F> {
         }
     }
 
+    /// Creates a new processor which generates the order based on a dependency graph
     pub fn from_graph<I: Iterator<Item = (NamedUUID, Box<[NamedUUID]>, F)>>(features: I) -> Self {
         let (graph, features): (Vec<_>, HashMap<_, _>) =
             features.map(
@@ -215,7 +221,10 @@ impl<F: Feature> FeatureProcessor<F> {
             topo_sort.insert(node.0);
         };
 
-        let order: Vec<NamedUUID> = topo_sort.collect();
+        // Remove features that dont exist
+        let order: Vec<NamedUUID> = topo_sort
+            .filter(|uuid: &NamedUUID| features.contains_key(&uuid.get_uuid()))
+            .collect();
 
         Self {
             order: order.into_boxed_slice(),
@@ -223,6 +232,7 @@ impl<F: Feature> FeatureProcessor<F> {
         }
     }
 
+    /// Runs a pass over all features in order
     pub fn run_pass<R, P>(&mut self, pass_stage: F::State, mut processor: P) -> Result<(), R>
         where P: FnMut(&mut F, &mut dyn FeatureAccess) -> Result<(), R> {
 

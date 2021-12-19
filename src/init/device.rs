@@ -27,7 +27,7 @@
 use std::any::Any;
 use std::borrow::BorrowMut;
 use std::cell::RefCell;
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 use std::ffi::c_void;
 use std::ptr::null_mut;
 use std::rc::Rc;
@@ -130,6 +130,8 @@ pub fn create_device(registry: &mut InitializationRegistry, instance: InstanceCo
             ((name.clone(), dependencies), (name, feature, required))
         }).unzip();
 
+    let feature_lookup : HashSet<_> = features.iter().map(|(uuid, _, _)| uuid.get_uuid()).collect();
+
     let mut topo_sort = topological_sort::TopologicalSort::new();
     for (node, dependencies) in graph {
         for dependency in dependencies.iter() {
@@ -137,7 +139,9 @@ pub fn create_device(registry: &mut InitializationRegistry, instance: InstanceCo
         }
         topo_sort.insert(node);
     }
-    let ordering : Vec<_> = topo_sort.collect();
+    let ordering : Vec<NamedUUID> = topo_sort
+        .filter(|uuid: &NamedUUID| feature_lookup.contains(&uuid.get_uuid())) // Remove features that dont exist
+        .collect();
 
     let devices = unsafe { instance.vk().enumerate_physical_devices() }?;
     let devices : Vec<_> = devices.into_iter().map(|device| {
