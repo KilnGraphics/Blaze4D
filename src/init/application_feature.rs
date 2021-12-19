@@ -40,5 +40,5 @@ pub trait ApplicationDeviceFeature {
 pub trait ApplicationDeviceFeatureInstance : Send + FeatureBase {
     fn init(&mut self, features: &mut dyn FeatureAccess, info: &device::DeviceInfo) -> InitResult;
 
-    fn enable(&mut self, features: &mut dyn FeatureAccess, info: &device::DeviceInfo, config: &device::DeviceConfigurator);
+    fn enable(&mut self, features: &mut dyn FeatureAccess, info: &device::DeviceInfo, config: &mut device::DeviceConfigurator);
 }

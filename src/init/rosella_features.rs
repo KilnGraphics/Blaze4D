@@ -285,6 +285,7 @@ impl ApplicationDeviceFeatureInstance for RosellaDeviceBase {
         InitResult::Ok
     }
 
-    fn enable(&mut self, _: &mut dyn FeatureAccess, _: &DeviceInfo, _: &DeviceConfigurator) {
+    fn enable(&mut self, _: &mut dyn FeatureAccess, _: &DeviceInfo, config: &mut DeviceConfigurator) {
+        config.add_queue_request(0); // TODO This is just to prevent validation errors
     }
 }
