@@ -91,7 +91,7 @@ const_instance_feature!(RosellaInstanceBase, "rosella:instance_base", [KHRTimeli
 
 impl ApplicationInstanceFeature for RosellaInstanceBase {
     fn init(&mut self, features: &mut dyn FeatureAccess, _: &InstanceInfo) -> InitResult {
-        if features.is_supported(&KHRTimelineSemaphore::NAME.get_uuid()) {
+        if !features.is_supported(&KHRTimelineSemaphore::NAME.get_uuid()) {
             log::warn!("KHRTimelineSemaphore is not supported");
             return InitResult::Disable;
         }
@@ -149,8 +149,7 @@ impl ApplicationInstanceFeature for KHRTimelineSemaphore {
     }
 
     fn enable(&mut self, _: &mut dyn FeatureAccess, info: &InstanceInfo, config: &mut InstanceConfigurator) {
-        let core_present = info.get_vulkan_version().is_supported(VulkanVersion::VK_1_2);
-        if core_present {
+        if !info.get_vulkan_version().is_supported(VulkanVersion::VK_1_2) {
             config.enable_extension::<ash::extensions::khr::TimelineSemaphore>();
         }
     }
