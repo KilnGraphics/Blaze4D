@@ -391,7 +391,7 @@ impl InstanceConfigurator {
             .enabled_extension_names(extensions.as_slice());
 
         let instance = unsafe {
-            info.get_entry().create_instance(&create_info.build(), None)
+            info.get_entry().create_instance(&create_info, None)
         }?;
 
         let mut function_set = ExtensionFunctionSet::new();

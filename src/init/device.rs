@@ -703,15 +703,17 @@ impl DeviceConfigurator {
             let create_info = vk::DeviceQueueCreateInfo::builder()
                 .queue_family_index(*family)
                 .queue_priorities(priorities);
-            queue_create_infos.push(create_info.build());
+            queue_create_infos.push(*create_info);
         }
 
-        let create_info = vk::DeviceCreateInfo::builder()
+        let mut device_create_info_chain : Vec<Box<dyn vk::ExtendsDeviceCreateInfo>>= Vec::new();
+
+        let mut create_info = vk::DeviceCreateInfo::builder()
             .enabled_extension_names(extensions.as_slice())
             .queue_create_infos(queue_create_infos.as_slice());
 
         let device = unsafe {
-            info.get_instance().vk().create_device(info.physical_device, &create_info.build(), None)
+            info.get_instance().vk().create_device(info.physical_device, &create_info, None)
         }?;
 
         let mut queues = Vec::with_capacity(queue_assignments.len());

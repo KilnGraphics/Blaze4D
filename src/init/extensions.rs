@@ -99,6 +99,7 @@ macro_rules! make_vk_extension_info {
 
 make_vk_extension_info!(
     ash::extensions::khr::Swapchain, VK_KHR_Swapchain;
+    ash::extensions::ext::DebugUtils, VK_EXT_debug_utils;
     ash::extensions::khr::GetPhysicalDeviceProperties2, VK_KHR_get_physical_device_properties2;
     ash::extensions::khr::TimelineSemaphore, VK_KHR_timeline_semaphore
 );
