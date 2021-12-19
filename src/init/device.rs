@@ -1,5 +1,28 @@
-/// Device initialization utilities
-
+//! Device initialization utilities
+//!
+//! An application can control how a vulkan device is created by using
+//! [`ApplicationDeviceFeature`]s. Each feature represents some capability or set of capabilities
+//! that a vulkan device may or may not support. The initialization code will call each feature
+//! and enable it if it is supported. An application can mark features as required in which case
+//! the init process will fail with [`DeviceCreateError::RequiredFeatureNotSupported`]  if any
+//! required feature is not supported.
+//!
+//! Features can return data to the application if they are enabled. (This is not implemented yet)
+//!
+//! Features are processed in multiple stages. First [`ApplicationDeviceFeature::init`] is called
+//! to query if a feature is supported. On any supported feature
+//! [`ApplicationDeviceFeature::enable`] will then be called to enable it and configure the
+//! instance. Finally after the vulkan instance has been created
+//! [`ApplicationDeviceFeature::finish`] is called to generate the data that can be returned to
+//! the application.
+//!
+//! To allow features to maintain internal state and process multiple potential physical devices
+//! a [`ApplicationDeviceFeatureGenerator`] is used to generate a [`ApplicationDeviceFeature`]
+//! instance for each physical device.
+//!
+//! Features can access other features during any of these stages. The ensure that dependencies have
+//! already completed processing the respective stage these dependencies must be declared when
+//! registering the feature into the [`InitializationRegistry`].
 
 use std::any::Any;
 use std::borrow::BorrowMut;
@@ -14,7 +37,7 @@ use ash::extensions::khr::Swapchain;
 use ash::prelude::VkResult;
 
 use ash::vk;
-use crate::init::application_feature::{ApplicationDeviceFeatureInstance, InitResult};
+use crate::init::application_feature::{ApplicationDeviceFeature, InitResult};
 
 use crate::init::initialization_registry::InitializationRegistry;
 use crate::init::utils::{ExtensionProperties, Feature, FeatureProcessor};
@@ -22,11 +45,13 @@ use crate::{NamedUUID, UUID};
 use crate::util::extensions::{DeviceExtensionLoader, DeviceExtensionLoaderFn, ExtensionFunctionSet, VkExtensionInfo};
 use crate::rosella::{DeviceContext, InstanceContext, VulkanVersion};
 
+/// Internal implementation of the [`VulkanQueue`] struct
 struct VulkanQueueImpl {
     queue: Mutex<vk::Queue>,
     family: u32,
 }
 
+/// A wrapper around vulkan queues which provides thread safe access to a queue.
 #[derive(Clone)]
 pub struct VulkanQueue(Arc<VulkanQueueImpl>);
 
@@ -35,30 +60,36 @@ impl VulkanQueue {
         Self(Arc::new(VulkanQueueImpl{ queue: Mutex::new(queue), family }))
     }
 
+    /// Returns the family index of the queue
     pub fn get_family(&self) -> u32 {
         self.0.family
     }
 
+    /// Returns the mutex that protects the queue
     pub fn access_queue(&self) -> &Mutex<vk::Queue> {
         &self.0.queue
     }
 
+    /// Performs a thread safe vkQueueSubmit call
     pub fn queue_submit(&self, device: ash::Device, submits: &[vk::SubmitInfo], fence: vk::Fence) -> VkResult<()> {
         let guard = self.0.queue.lock().unwrap();
         unsafe { device.queue_submit(*guard, submits, fence) }
     }
 
+    /// Performs a thread safe vkQueueBindSparse call
     pub fn queue_bind_sparse(&self, device: ash::Device, submits: &[vk::BindSparseInfo], fence: vk::Fence) -> VkResult<()> {
         let guard = self.0.queue.lock().unwrap();
         unsafe { device.queue_bind_sparse(*guard, submits, fence) }
     }
 
+    /// Performs a thread safe vkQueuePresentKHR call
     pub fn queue_present_khr(&self, swapchain: Swapchain, present_info: &vk::PresentInfoKHR) -> VkResult<bool> {
         let guard = self.0.queue.lock().unwrap();
         unsafe { swapchain.queue_present(*guard, present_info) }
     }
 }
 
+/// An error that may occur during the device initialization process.
 #[derive(Debug)]
 pub enum DeviceCreateError {
     VulkanError(vk::Result),
@@ -69,6 +100,30 @@ pub enum DeviceCreateError {
     NoSuitableDeviceFound,
 }
 
+impl From<vk::Result> for DeviceCreateError {
+    fn from(err: vk::Result) -> Self {
+        DeviceCreateError::VulkanError(err)
+    }
+}
+
+impl From<std::str::Utf8Error> for DeviceCreateError {
+    fn from(err: std::str::Utf8Error) -> Self {
+        DeviceCreateError::Utf8Error(err)
+    }
+}
+
+impl From<std::ffi::NulError> for DeviceCreateError {
+    fn from(err: std::ffi::NulError) -> Self {
+        DeviceCreateError::NulError(err)
+    }
+}
+
+/// Creates a single new device based on the features declared in the provided registry.
+///
+/// This function will consume the device features stored in the registry.
+///
+/// All discovered physical devices will be processed and the most suitable device will be selected.
+/// (TODO not implemented yet)
 pub fn create_device(registry: &mut InitializationRegistry, instance: InstanceContext) -> Result<DeviceContext, DeviceCreateError> {
     let (graph, features) : (Vec<_>, Vec<_>) = registry.take_device_features().into_iter().map(
         |(name, dependencies, feature, required)| {
@@ -113,40 +168,24 @@ pub fn create_device(registry: &mut InitializationRegistry, instance: InstanceCo
     Ok(device)
 }
 
-impl From<vk::Result> for DeviceCreateError {
-    fn from(err: vk::Result) -> Self {
-        DeviceCreateError::VulkanError(err)
-    }
-}
-
-impl From<std::str::Utf8Error> for DeviceCreateError {
-    fn from(err: std::str::Utf8Error) -> Self {
-        DeviceCreateError::Utf8Error(err)
-    }
-}
-
-impl From<std::ffi::NulError> for DeviceCreateError {
-    fn from(err: std::ffi::NulError) -> Self {
-        DeviceCreateError::NulError(err)
-    }
-}
-
+/// Represents the current state of some feature in the device initialization process
 #[derive(Copy, Clone, Eq, PartialEq, Debug)]
-pub enum DeviceFeatureState {
+enum DeviceFeatureState {
     Uninitialized,
     Initialized,
     Enabled,
     Disabled
 }
 
-struct FeatureInfo {
-    feature: Box<dyn ApplicationDeviceFeatureInstance>,
+/// Meta information of a feature needed during the initialization process
+struct DeviceFeatureInfo {
+    feature: Box<dyn ApplicationDeviceFeature>,
     state: DeviceFeatureState,
     name: NamedUUID,
     required: bool,
 }
 
-impl Feature for FeatureInfo {
+impl Feature for DeviceFeatureInfo {
     type State = DeviceFeatureState;
 
     fn get_payload(&self, pass_state: &Self::State) -> Option<&dyn Any> {
@@ -172,8 +211,9 @@ impl Feature for FeatureInfo {
     }
 }
 
+/// High level implementation of the device init process.
 struct DeviceBuilder {
-    processor: FeatureProcessor<FeatureInfo>,
+    processor: FeatureProcessor<DeviceFeatureInfo>,
     instance: InstanceContext,
     physical_device: vk::PhysicalDevice,
     info: Option<DeviceInfo>,
@@ -181,11 +221,14 @@ struct DeviceBuilder {
 }
 
 impl DeviceBuilder {
-    fn new(instance: InstanceContext, physical_device: vk::PhysicalDevice, order: Box<[NamedUUID]>, features: Vec<(NamedUUID, Box<dyn ApplicationDeviceFeatureInstance>, bool)>) -> Self {
+    /// Generates a new builder for some feature set and physical device.
+    ///
+    /// No vulkan functions will be called here.
+    fn new(instance: InstanceContext, physical_device: vk::PhysicalDevice, order: Box<[NamedUUID]>, features: Vec<(NamedUUID, Box<dyn ApplicationDeviceFeature>, bool)>) -> Self {
         let processor = FeatureProcessor::new(features.into_iter().map(
             |(name, feature, required)|
                 (name.get_uuid(),
-                 FeatureInfo {
+                 DeviceFeatureInfo {
                     feature,
                     state: DeviceFeatureState::Uninitialized,
                     name,
@@ -202,6 +245,10 @@ impl DeviceBuilder {
         }
     }
 
+    /// Runs the init pass.
+    ///
+    /// First collects information about the capabilities of the physical device and then calls
+    /// [`ApplicationDeviceFeature::init`] on all registered features in topological order.
     fn run_init_pass(&mut self) -> Result<(), DeviceCreateError> {
         log::debug!("Starting init pass");
 
@@ -236,6 +283,11 @@ impl DeviceBuilder {
         Ok(())
     }
 
+    /// Runs the enable pass
+    ///
+    /// Creates a [`DeviceConfigurator`] instance and calls [`ApplicationDeviceFeature::enable`]
+    /// on all supported features to configure the device. This function does not create the
+    /// vulkan device.
     fn run_enable_pass(&mut self) -> Result<(), DeviceCreateError> {
         if self.config.is_some() {
             panic!("Called run enable pass but config is already some");
@@ -263,6 +315,7 @@ impl DeviceBuilder {
         Ok(())
     }
 
+    /// Creates the vulkan device
     fn build(self) -> Result<DeviceContext, DeviceCreateError> {
         let info = self.info.expect("Called build but info is none");
         let (device, function_set) = self.config.expect("Called build but config is none")
@@ -272,6 +325,7 @@ impl DeviceBuilder {
     }
 }
 
+/// Represents all supported structs that the [`PNextIterator`] may return.
 enum PNextVariant {
     VkPhysicalDeviceVulkan1_1Features(&'static vk::PhysicalDeviceVulkan11Features),
     VkPhysicalDeviceVulkan1_2Features(&'static vk::PhysicalDeviceVulkan12Features),
@@ -279,6 +333,10 @@ enum PNextVariant {
     VkPhysicalDeviceVulkan1_2Properties(&'static vk::PhysicalDeviceVulkan12Properties),
 }
 
+/// Utility to iterate over a p_next chain
+///
+/// Only structs which have a variant in [`PNextVariant`] are returned during iteration. All other
+/// structs will be skipped.
 struct PNextIterator {
     current: *const c_void,
 }
@@ -339,12 +397,14 @@ impl Iterator for PNextIterator {
     }
 }
 
+/// Information about a queue family
 pub struct QueueFamilyInfo {
     index: u32,
     properties: vk::QueueFamilyProperties,
 }
 
 impl QueueFamilyInfo {
+    /// Collects information from a VK1.0 vkQueueFamilyProperties struct
     fn new(index: u32, properties: vk::QueueFamilyProperties) -> Self {
         Self {
             index,
@@ -352,6 +412,7 @@ impl QueueFamilyInfo {
         }
     }
 
+    /// Collects information form a VK1.1 vkQueueFamilyProperties2 struct
     fn new2(index: u32, properties2: vk::QueueFamilyProperties2) -> Self {
         let properties = properties2.queue_family_properties;
 
@@ -367,15 +428,18 @@ impl QueueFamilyInfo {
         }
     }
 
+    /// Returns the queue family index
     pub fn get_index(&self) -> u32 {
         self.index
     }
 
+    /// Returns the vkQueueFamilyProperties of this queue family
     pub fn get_properties(&self) -> &vk::QueueFamilyProperties {
         &self.properties
     }
 }
 
+/// Contains information about the vulkan device.
 pub struct DeviceInfo {
     instance: InstanceContext,
     physical_device: vk::PhysicalDevice,
@@ -539,10 +603,12 @@ impl DeviceInfo {
         })
     }
 
+    /// Returns the [`InstanceContext`] used
     pub fn get_instance(&self) -> &InstanceContext {
         &self.instance
     }
 
+    /// Returns the physical device that is being processed
     pub fn get_physical_device(&self) -> &vk::PhysicalDevice {
         &self.physical_device
     }
@@ -579,47 +645,70 @@ impl DeviceInfo {
         self.queue_families.as_ref()
     }
 
+    /// Queries if a device extension is supported
     pub fn is_extension_supported<T: VkExtensionInfo>(&self) -> bool {
         self.extensions.contains_key(&T::UUID.get_uuid())
     }
 
+    /// Queries if a device extension is supported
     pub fn is_extension_supported_str(&self, name: &str) -> bool {
         let uuid = NamedUUID::uuid_for(name);
         self.extensions.contains_key(&uuid)
     }
 
+    /// Queries if a device extension is supported
     pub fn is_extension_supported_uuid(&self, uuid: &UUID) -> bool {
         self.extensions.contains_key(uuid)
     }
 
+    /// Returns the properties of a device extension
+    ///
+    /// If the extension is not supported returns [`None`]
     pub fn get_extension_properties<T: VkExtensionInfo>(&self) -> Option<&ExtensionProperties> {
         self.extensions.get(&T::UUID.get_uuid())
     }
 
+    /// Returns the properties of a device extension
+    ///
+    /// If the extension is not supported returns [`None`]
     pub fn get_extension_properties_str(&self, name: &str) -> Option<&ExtensionProperties> {
         let uuid = NamedUUID::uuid_for(name);
         self.extensions.get(&uuid)
     }
 
+    /// Returns the properties of a device extension
+    ///
+    /// If the extension is not supported returns [`None`]
     pub fn get_extension_properties_uuid(&self, uuid: &UUID) -> Option<&ExtensionProperties> {
         self.extensions.get(uuid)
     }
 }
 
+/// Internal implementation of queue requests.
 struct QueueRequestImpl {
     result: Option<VulkanQueue>,
 }
 
 impl QueueRequestImpl {
-    fn new(family: u32) -> (QueueRequest2, QueueRequestResolver) {
+    /// Generates a new queue request for a specific family
+    fn new(family: u32) -> (QueueRequest, QueueRequestResolver) {
         let cell = Rc::new(RefCell::new(QueueRequestImpl{ result: None }));
-        (QueueRequest2(cell.clone()), QueueRequestResolver{ request: cell, family, index: None })
+        (QueueRequest(cell.clone()), QueueRequestResolver{ request: cell, family, index: None })
     }
 }
 
-pub struct QueueRequest2(Rc<RefCell<QueueRequestImpl>>);
+/// A queue request
+///
+/// During the enable pass features may request queues. A [`QueueRequest`] will be returned in such
+/// a case. [`QueueRequests`] can be accessed to retrieve a [`VulkanQueue`] during the finish pass.
+pub struct QueueRequest(Rc<RefCell<QueueRequestImpl>>);
 
-impl QueueRequest2 {
+impl QueueRequest {
+    /// Returns the [`VulkanQueue`] to fulfill this request.
+    ///
+    /// # Panics
+    /// Will panic if the request has not yet been resolved. Or in other words if this function is
+    /// called before the finish pass.
     pub fn get(&self) -> VulkanQueue {
         self.0.borrow().result.as_ref().unwrap().clone()
     }
@@ -632,6 +721,7 @@ struct QueueRequestResolver {
 }
 
 impl QueueRequestResolver {
+    /// Resolves the queue request
     fn resolve(&mut self, queue: VulkanQueue) {
         (*self.request).borrow_mut().result = Some(queue);
     }
@@ -654,11 +744,13 @@ impl DeviceConfigurator {
         }
     }
 
+    /// Enables a device extension and registers the extension for automatic function loading
     pub fn enable_extension<EXT: VkExtensionInfo + DeviceExtensionLoader + 'static>(&mut self) {
         let uuid = EXT::UUID.get_uuid();
         self.enabled_extensions.insert(uuid, Some(&EXT::load_extension));
     }
 
+    /// Enables a device extension without automatic function loading
     pub fn enable_extension_str_no_load(&mut self, str: &str) {
         let uuid = NamedUUID::uuid_for(str);
 
@@ -668,12 +760,17 @@ impl DeviceConfigurator {
         }
     }
 
-    pub fn add_queue_request(&mut self, family: u32) -> QueueRequest2 {
+    /// Creates a queue request
+    pub fn add_queue_request(&mut self, family: u32) -> QueueRequest {
         let (request, resolver) = QueueRequestImpl::new(family);
         self.queue_requests.push(resolver);
         request
     }
 
+    /// Generates queue assignments to fulfill requests
+    ///
+    /// Currently only generates 1 queue per needed family.
+    /// TODO maybe use multiple queues if supported?
     fn generate_queue_assignments(&mut self, info: &DeviceInfo) -> Box<[(u32, Box<[f32]>)]> {
         let mut families = Vec::new();
         families.resize_with(info.get_queue_family_infos().len(), || 0u32);
@@ -690,6 +787,7 @@ impl DeviceConfigurator {
         } else { None }).collect()
     }
 
+    /// Creates a vulkan device based on the configuration stored in this DeviceConfigurator
     fn build_device(mut self, info: &DeviceInfo) -> Result<(ash::Device, ExtensionFunctionSet), DeviceCreateError> {
         let mut extensions = Vec::with_capacity(self.enabled_extensions.len());
         for (uuid, _) in &self.enabled_extensions {

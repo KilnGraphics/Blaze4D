@@ -1,6 +1,6 @@
 use std::collections::HashMap;
 
-use crate::init::application_feature::{ApplicationDeviceFeature, ApplicationInstanceFeature};
+use crate::init::application_feature::{ApplicationDeviceFeatureGenerator, ApplicationInstanceFeature};
 
 use crate::{ NamedUUID, UUID };
 
@@ -9,7 +9,7 @@ use crate::{ NamedUUID, UUID };
 ///
 pub struct InitializationRegistry {
     instance_features: HashMap<UUID, (NamedUUID, Box<[NamedUUID]>, Box<dyn ApplicationInstanceFeature>, bool)>,
-    device_features: HashMap<UUID, (NamedUUID, Box<[NamedUUID]>, Box<dyn ApplicationDeviceFeature>, bool)>,
+    device_features: HashMap<UUID, (NamedUUID, Box<[NamedUUID]>, Box<dyn ApplicationDeviceFeatureGenerator>, bool)>,
 }
 
 impl InitializationRegistry {
@@ -26,7 +26,7 @@ impl InitializationRegistry {
         }
     }
 
-    pub fn register_device_feature(&mut self, name: NamedUUID, dependencies: Box<[NamedUUID]>, feature: Box<dyn ApplicationDeviceFeature>, required: bool) {
+    pub fn register_device_feature(&mut self, name: NamedUUID, dependencies: Box<[NamedUUID]>, feature: Box<dyn ApplicationDeviceFeatureGenerator>, required: bool) {
         if self.device_features.insert(name.get_uuid(), (name, dependencies, feature, required)).is_some() {
             panic!("Feature is already present in registry");
         }
@@ -37,7 +37,7 @@ impl InitializationRegistry {
         features.into_values().collect()
     }
 
-    pub(super) fn take_device_features(&mut self) -> Vec<(NamedUUID, Box<[NamedUUID]>, Box<dyn ApplicationDeviceFeature>, bool)> {
+    pub(super) fn take_device_features(&mut self) -> Vec<(NamedUUID, Box<[NamedUUID]>, Box<dyn ApplicationDeviceFeatureGenerator>, bool)> {
         let features = std::mem::replace(&mut self.device_features, HashMap::new());
         features.into_values().collect()
     }

@@ -2,7 +2,7 @@ use std::any::Any;
 use std::ffi::{c_void, CStr};
 use ash::{Instance, vk};
 use paste::paste;
-use crate::init::application_feature::{ApplicationDeviceFeature, ApplicationDeviceFeatureInstance, ApplicationInstanceFeature, InitResult};
+use crate::init::application_feature::{ApplicationDeviceFeatureGenerator, ApplicationDeviceFeature, ApplicationInstanceFeature, InitResult};
 use crate::init::instance::{InstanceConfigurator, InstanceInfo};
 use crate::init::application_feature::FeatureBase;
 use crate::init::device::{DeviceConfigurator, DeviceInfo};
@@ -57,8 +57,8 @@ macro_rules! const_device_feature{
             #[derive(Default)]
             pub struct [<$struct_name Generator>];
 
-            impl ApplicationDeviceFeature for [<$struct_name Generator>] {
-                fn make_instance(&self) -> Box<dyn ApplicationDeviceFeatureInstance> {
+            impl ApplicationDeviceFeatureGenerator for [<$struct_name Generator>] {
+                fn make_instance(&self) -> Box<dyn ApplicationDeviceFeature> {
                     Box::new($struct_name::default())
                 }
             }
@@ -280,7 +280,7 @@ impl ApplicationInstanceFeature for WindowSurface {
 struct RosellaDeviceBase;
 const_device_feature!(RosellaDeviceBase, "rosella:device_base", []);
 
-impl ApplicationDeviceFeatureInstance for RosellaDeviceBase {
+impl ApplicationDeviceFeature for RosellaDeviceBase {
     fn init(&mut self, _: &mut dyn FeatureAccess, _: &DeviceInfo) -> InitResult {
         InitResult::Ok
     }

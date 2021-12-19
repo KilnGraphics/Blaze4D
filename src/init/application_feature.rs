@@ -37,11 +37,11 @@ pub trait ApplicationInstanceFeature : FeatureBase {
     }
 }
 
-pub trait ApplicationDeviceFeature {
-    fn make_instance(&self) -> Box<dyn ApplicationDeviceFeatureInstance>;
+pub trait ApplicationDeviceFeatureGenerator {
+    fn make_instance(&self) -> Box<dyn ApplicationDeviceFeature>;
 }
 
-pub trait ApplicationDeviceFeatureInstance : Send + FeatureBase {
+pub trait ApplicationDeviceFeature: Send + FeatureBase {
     fn init(&mut self, features: &mut dyn FeatureAccess, info: &device::DeviceInfo) -> InitResult;
 
     fn enable(&mut self, features: &mut dyn FeatureAccess, info: &device::DeviceInfo, config: &mut device::DeviceConfigurator);

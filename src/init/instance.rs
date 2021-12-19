@@ -79,6 +79,8 @@ impl From<std::ffi::NulError> for InstanceCreateError {
 }
 
 /// Creates a new instance based on the features declared in the provided registry.
+///
+/// This function will consume the instance features stored in the registry.
 pub fn create_instance(registry: &mut InitializationRegistry, application_name: &str, application_version: u32) -> Result<InstanceContext, InstanceCreateError> {
     let application_info = ApplicationInfo{
         application_name: CString::new(application_name)?,
@@ -114,14 +116,14 @@ pub enum InstanceFeatureState {
 }
 
 /// Meta information of a feature needed during the initialization process
-struct FeatureInfo {
+struct InstanceFeatureInfo {
     feature: Box<dyn ApplicationInstanceFeature>,
     state: InstanceFeatureState,
     name: NamedUUID,
     required: bool,
 }
 
-impl Feature for FeatureInfo {
+impl Feature for InstanceFeatureInfo {
     type State = InstanceFeatureState;
 
     fn get_payload(&self, pass_state: &Self::State) -> Option<&dyn Any> {
@@ -147,9 +149,9 @@ impl Feature for FeatureInfo {
     }
 }
 
-/// High level implementation of the init process.
+/// High level implementation of the instance init process.
 struct InstanceBuilder {
-    processor: FeatureProcessor<FeatureInfo>,
+    processor: FeatureProcessor<InstanceFeatureInfo>,
     info: Option<InstanceInfo>,
     config: Option<InstanceConfigurator>,
     application_info: ApplicationInfo,
@@ -163,7 +165,7 @@ impl InstanceBuilder {
         let processor = FeatureProcessor::from_graph(features.into_iter().map(
             |(name, deps, feature, required)| {
                 log::debug!("Instance feature {:?}", name);
-                let info = FeatureInfo {
+                let info = InstanceFeatureInfo {
                     feature,
                     state: InstanceFeatureState::Uninitialized,
                     name: name.clone(),
@@ -362,17 +364,23 @@ impl InstanceInfo {
     }
 
     /// Returns the properties of a instance extension
+    ///
+    /// If the extension is not supported returns [`None`]
     pub fn get_extension_properties<T: VkExtensionInfo>(&self) -> Option<&ExtensionProperties> {
         self.extensions.get(&T::UUID.get_uuid())
     }
 
     /// Returns the properties of a instance extension
+    ///
+    /// If the extension is not supported returns [`None`]
     pub fn get_extension_properties_str(&self, name: &str) -> Option<&ExtensionProperties> {
         let uuid = NamedUUID::uuid_for(name);
         self.extensions.get(&uuid)
     }
 
     /// Returns the properties of a instance extension
+    ///
+    /// If the extension is not supported returns [`None`]
     pub fn get_extension_properties_uuid(&self, uuid: &UUID) -> Option<&ExtensionProperties> {
         self.extensions.get(uuid)
     }
