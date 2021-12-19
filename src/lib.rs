@@ -7,5 +7,3 @@ pub mod window;
 
 pub use util::id::UUID;
 pub use util::id::NamedUUID;
-
-pub use util::allocation_callbacks::ALLOCATION_CALLBACKS;

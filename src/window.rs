@@ -1,4 +1,3 @@
-use crate::ALLOCATION_CALLBACKS;
 use ash::extensions::khr::Surface;
 use ash::vk::SurfaceKHR;
 use ash::{Entry, Instance};
@@ -21,7 +20,7 @@ impl RosellaSurface {
     pub fn new(instance: &Instance, vk: &Entry, window: &RosellaWindow) -> Self {
         RosellaSurface {
             ash_surface: Surface::new(vk, instance),
-            khr_surface: unsafe { ash_window::create_surface(vk, instance, &window.handle, ALLOCATION_CALLBACKS) }
+            khr_surface: unsafe { ash_window::create_surface(vk, instance, &window.handle, None) }
                 .expect("Failed to create window surface."),
         }
     }
