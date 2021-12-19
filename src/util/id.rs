@@ -52,10 +52,12 @@ impl GlobalId {
     pub fn new() -> Self {
         let next = NEXT_GLOBAL_ID.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
 
-        match NonZeroU64::new(next) {
-            Some(val) => Self(val),
-            None => panic!("GlobalId overflow!")
+        // Give it some padding to allow panics to propagate. Its still 63bits big
+        if next > (u64::MAX / 2u64) {
+            panic!("GlobalId overflow!");
         }
+
+        GlobalId(NonZeroU64::new(next).unwrap())
     }
 
     /// Creates a global id from a raw 64bit value.
@@ -369,5 +371,50 @@ impl Debug for NamedUUID {
             NameType::String(str) => str.as_str()
         };
         f.write_str(&*format!("NamedUUID{{\"{}\", {:?}}}", name, &self.id))
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn global_id_uniqueness() {
+        let id1 = GlobalId::new();
+        let id2 = GlobalId::new();
+        let id3 = GlobalId::new();
+
+        assert_ne!(id1, id2);
+        assert_ne!(id1, id3);
+        assert_ne!(id2, id3);
+    }
+
+    #[test]
+    fn global_id_eq() {
+        let id1 = GlobalId::new();
+        let id2 = GlobalId::new();
+
+        assert_ne!(id1, id2);
+
+        assert_eq!(id1, id1);
+        assert_eq!(id2, id2);
+
+        let id1_clone = GlobalId::from_raw(id1.get_raw());
+        let id2_clone = GlobalId::from_raw(id2.get_raw());
+
+        assert_ne!(id1_clone, id2_clone);
+        assert_ne!(id1, id2_clone);
+        assert_ne!(id1_clone, id2);
+
+        assert_eq!(id1, id1_clone);
+        assert_eq!(id2, id2_clone);
+    }
+
+    #[test]
+    #[should_panic]
+    fn global_id_overflow() {
+        NEXT_GLOBAL_ID.store(u64::MAX - 10u64, std::sync::atomic::Ordering::SeqCst);
+
+        GlobalId::new();
     }
 }
