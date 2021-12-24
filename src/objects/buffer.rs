@@ -1,4 +1,5 @@
 use ash::vk;
+use crate::objects::Format;
 
 #[derive(Copy, Clone, Debug)]
 pub struct BufferSpec {
@@ -40,6 +41,12 @@ impl BufferCreateDesc {
 
 #[non_exhaustive]
 pub struct BufferViewCreateDesc {
-    pub format: vk::Format,
+    pub format: &'static crate::objects::Format,
     pub range: BufferRange,
+}
+
+impl BufferViewCreateDesc {
+    pub fn new_simple(range: BufferRange, format: &'static crate::objects::Format) -> Self {
+        Self { range, format }
+    }
 }

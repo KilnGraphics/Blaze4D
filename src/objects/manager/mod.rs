@@ -345,7 +345,7 @@ impl ObjectManagerImpl {
 
                         let create_info = vk::BufferViewCreateInfo::builder()
                             .buffer(buffer)
-                            .format(desc.description.format)
+                            .format(desc.description.format.get_format())
                             .offset(desc.description.range.offset)
                             .range(desc.description.range.length);
 
@@ -551,7 +551,7 @@ struct AllocationMeta {
 
 #[cfg(test)]
 mod tests {
-    use crate::objects::{ImageSize, ImageSpec};
+    use crate::objects::{BufferRange, ImageSize, ImageSpec};
     use super::*;
 
     fn create() -> ObjectManager {
@@ -615,5 +615,36 @@ mod tests {
         assert!(set.get_image_handle(id).is_some());
 
         drop(set);
+    }
+
+    #[test]
+    fn create_object_set_buffer_view() {
+        let manager = create();
+        let group = manager.create_synchronization_group();
+
+        let mut builder = manager.create_object_set(group.clone());
+        let buffer_desc = BufferCreateDesc::new_simple(
+            1024,
+            vk::BufferUsageFlags::TRANSFER_SRC | vk::BufferUsageFlags::TRANSFER_DST);
+        let buffer_id = builder.add_default_gpu_only_buffer(buffer_desc);
+        let view_desc = BufferViewCreateDesc::new_simple(BufferRange { offset: 256, length: 256 }, &crate::objects::Format::R16_UNORM);
+        let view_id = builder.add_internal_buffer_view(view_desc, buffer_id);
+
+        let set = builder.build();
+
+        assert!(set.get_buffer_handle(buffer_id).is_some());
+        assert!(set.get_buffer_view_handle(view_id).is_some());
+
+        let mut builder = manager.create_object_set(group.clone());
+        let view_desc = BufferViewCreateDesc::new_simple(BufferRange { offset: 256, length: 256 }, &crate::objects::Format::R16_UNORM);
+        let view2_id = builder.add_external_buffer_view(view_desc, set.clone(), buffer_id);
+
+        let set2 = builder.build();
+
+        assert!(set2.get_buffer_view_handle(view2_id).is_some());
+
+        // Test that original set does not get destroyed early
+        drop(set);
+        drop(set2);
     }
 }
