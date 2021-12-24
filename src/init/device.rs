@@ -28,8 +28,6 @@ use std::any::Any;
 use std::borrow::BorrowMut;
 use std::cell::RefCell;
 use std::collections::{HashMap, HashSet};
-use std::ffi::c_void;
-use std::ptr::null_mut;
 use std::rc::Rc;
 use std::sync::{Arc, Mutex};
 

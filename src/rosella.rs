@@ -42,10 +42,9 @@ impl Rosella {
 
         let now = std::time::Instant::now();
 
-        let ash_entry = unsafe{ ash::Entry::new() }.unwrap();
         let instance = create_instance(&mut registry, application_name, 0)?;
 
-        let surface = RosellaSurface::new(instance.vk(), &ash_entry, window);
+        let surface = RosellaSurface::new(instance.vk(), &instance.get_entry(), window);
 
         let device = create_device(&mut registry, instance.clone())?;
 

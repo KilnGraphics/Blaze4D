@@ -232,7 +232,7 @@ impl ApplicationInstanceFeature for KHRTimelineSemaphoreInstance {
 
     fn enable(&mut self, _: &mut dyn FeatureAccess, info: &InstanceInfo, config: &mut InstanceConfigurator) {
         if !info.get_vulkan_version().is_supported(VulkanVersion::VK_1_2) {
-            config.enable_extension::<ash::extensions::khr::TimelineSemaphore>();
+            config.enable_extension_no_load::<ash::extensions::khr::TimelineSemaphore>();
         }
     }
 }
