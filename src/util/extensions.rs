@@ -2,7 +2,6 @@ use std::collections::HashMap;
 use ash::{Entry, Instance};
 use crate::NamedUUID;
 use paste::paste;
-use crate::rosella::VulkanVersion;
 use crate::util::id::UUID;
 
 #[derive(Clone)]
@@ -111,14 +110,14 @@ impl InstanceExtensionLoader for ash::extensions::khr::GetPhysicalDeviceProperti
     }
 }
 
-impl InstanceExtensionLoader for ash::extensions::khr::TimelineSemaphore {
-    fn load_extension(function_set: &mut ExtensionFunctionSet, entry: &Entry, instance: &Instance) {
-        function_set.add(Box::new(ash::extensions::khr::TimelineSemaphore::new(entry, instance)))
-    }
-}
-
 impl InstanceExtensionLoader for ash::extensions::ext::DebugUtils {
     fn load_extension(function_set: &mut ExtensionFunctionSet, entry: &Entry, instance: &Instance) {
         function_set.add(Box::new(ash::extensions::ext::DebugUtils::new(entry, instance)))
+    }
+}
+
+impl DeviceExtensionLoader for ash::extensions::khr::TimelineSemaphore {
+    fn load_extension(function_set: &mut ExtensionFunctionSet, _: &Entry, instance: &Instance, device: &ash::Device) {
+        function_set.add(Box::new(ash::extensions::khr::TimelineSemaphore::new(instance, device)))
     }
 }

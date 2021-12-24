@@ -39,8 +39,6 @@ use crate::rosella::{InstanceContext, VulkanVersion};
 #[derive(Debug)]
 pub enum InstanceCreateError {
     VulkanError(vk::Result),
-    AshInstanceError(ash::InstanceError),
-    AshLoadingError(ash::LoadingError),
     Utf8Error(std::str::Utf8Error),
     NulError(std::ffi::NulError),
     RequiredFeatureNotSupported(NamedUUID),
@@ -51,18 +49,6 @@ pub enum InstanceCreateError {
 impl From<vk::Result> for InstanceCreateError {
     fn from(err: vk::Result) -> Self {
         InstanceCreateError::VulkanError(err)
-    }
-}
-
-impl From<ash::InstanceError> for InstanceCreateError {
-    fn from(err: ash::InstanceError) -> Self {
-        InstanceCreateError::AshInstanceError(err)
-    }
-}
-
-impl From<ash::LoadingError> for InstanceCreateError {
-    fn from(err: ash::LoadingError) -> Self {
-        InstanceCreateError::AshLoadingError(err)
     }
 }
 
@@ -192,7 +178,7 @@ impl InstanceBuilder {
         if self.info.is_some() {
             panic!("Called run init pass but info is already some");
         }
-        self.info = Some(InstanceInfo::new(unsafe{ ash::Entry::new() }?)?);
+        self.info = Some(InstanceInfo::new(ash::Entry::new() )?);
         let info = self.info.as_ref().unwrap();
 
         self.processor.run_pass::<InstanceCreateError, _>(
@@ -422,6 +408,12 @@ impl InstanceConfigurator {
     }
 
     /// Enables a instance extension without automatic function loading
+    pub fn enable_extension_no_load<EXT: VkExtensionInfo>(&mut self) {
+        let uuid = EXT::UUID.get_uuid();
+        self.enabled_extensions.insert(uuid, None);
+    }
+
+    /// Enables a instance extension without automatic function loading
     pub fn enable_extension_str_no_load(&mut self, str: &str) {
         let uuid = NamedUUID::uuid_for(str);
 
@@ -472,8 +464,8 @@ impl InstanceConfigurator {
         let mut messenger;
         if self.debug_util_messenger.is_some() {
             messenger = vk::DebugUtilsMessengerCreateInfoEXT::builder()
-                .message_severity(DebugUtilsMessageSeverityFlagsEXT::all())
-                .message_type(DebugUtilsMessageTypeFlagsEXT::all())
+                .message_severity(DebugUtilsMessageSeverityFlagsEXT::VERBOSE | DebugUtilsMessageSeverityFlagsEXT::INFO | DebugUtilsMessageSeverityFlagsEXT::WARNING | DebugUtilsMessageSeverityFlagsEXT::ERROR)
+                .message_type(DebugUtilsMessageTypeFlagsEXT::GENERAL | DebugUtilsMessageTypeFlagsEXT::PERFORMANCE | DebugUtilsMessageTypeFlagsEXT::VALIDATION)
                 .pfn_user_callback(self.debug_util_messenger);
 
             create_info = create_info.push_next(&mut messenger);
