@@ -267,7 +267,10 @@ impl ApplicationDeviceFeature for KHRTimelineSemaphoreDevice {
         }
     }
 
-    fn enable(&mut self, _: &mut dyn FeatureAccess, _: &DeviceInfo, config: &mut DeviceConfigurator) {
+    fn enable(&mut self, _: &mut dyn FeatureAccess, info: &DeviceInfo, config: &mut DeviceConfigurator) {
+        if !info.get_instance().get_version().is_supported(VulkanVersion::VK_1_2) {
+            config.enable_extension::<ash::extensions::khr::TimelineSemaphore>();
+        }
         config.enable_timeline_semaphore()
     }
 }
