@@ -269,7 +269,10 @@ impl DeviceBuilder {
                     panic!("Feature is not in uninitialized state in init pass");
                 }
                 match feature.feature.init(access, info) {
-                    InitResult::Ok => feature.state = DeviceFeatureState::Initialized,
+                    InitResult::Ok => {
+                        log::debug!("Initialized feature {:?}", feature.name);
+                        feature.state = DeviceFeatureState::Initialized;
+                    }
                     InitResult::Disable => {
                         feature.state = DeviceFeatureState::Disabled;
                         log::debug!("Disabled feature {:?}", feature.name);
@@ -279,7 +282,6 @@ impl DeviceBuilder {
                         }
                     }
                 }
-                log::debug!("Initialized feature {:?}", feature.name);
                 Ok(())
             }
         )?;
@@ -329,78 +331,6 @@ impl DeviceBuilder {
     }
 }
 
-/// Represents all supported structs that the [`PNextIterator`] may return.
-enum PNextVariant {
-    VkPhysicalDeviceVulkan1_1Features(&'static vk::PhysicalDeviceVulkan11Features),
-    VkPhysicalDeviceVulkan1_2Features(&'static vk::PhysicalDeviceVulkan12Features),
-    VkPhysicalDeviceVulkan1_1Properties(&'static vk::PhysicalDeviceVulkan11Properties),
-    VkPhysicalDeviceVulkan1_2Properties(&'static vk::PhysicalDeviceVulkan12Properties),
-}
-
-/// Utility to iterate over a p_next chain
-///
-/// Only structs which have a variant in [`PNextVariant`] are returned during iteration. All other
-/// structs will be skipped.
-struct PNextIterator {
-    current: *const c_void,
-}
-
-impl PNextIterator {
-    unsafe fn new(initial: *const c_void) -> Self {
-        Self { current: initial }
-    }
-}
-
-impl Iterator for PNextIterator {
-    type Item = PNextVariant;
-
-    fn next(&mut self) -> Option<Self::Item> {
-        #[repr(C)]
-        struct RawStruct {
-            pub s_type: vk::StructureType,
-            pub p_next: *const c_void,
-        }
-
-        // Iterate until we find a struct that we know
-        while !self.current.is_null() {
-            let current = self.current;
-            let raw = unsafe { current.cast::<RawStruct>().read() };
-            self.current = raw.p_next;
-
-            match raw.s_type {
-                vk::StructureType::PHYSICAL_DEVICE_VULKAN_1_1_FEATURES => {
-                    return Some(PNextVariant::VkPhysicalDeviceVulkan1_1Features(unsafe {
-                        current.cast::<vk::PhysicalDeviceVulkan11Features>().as_ref().unwrap()
-                    }));
-                }
-
-                vk::StructureType::PHYSICAL_DEVICE_VULKAN_1_2_FEATURES => {
-                    return Some(PNextVariant::VkPhysicalDeviceVulkan1_2Features(unsafe {
-                        current.cast::<vk::PhysicalDeviceVulkan12Features>().as_ref().unwrap()
-                    }));
-                }
-
-                vk::StructureType::PHYSICAL_DEVICE_VULKAN_1_1_PROPERTIES => {
-                    return Some(PNextVariant::VkPhysicalDeviceVulkan1_1Properties(unsafe {
-                        current.cast::<vk::PhysicalDeviceVulkan11Properties>().as_ref().unwrap()
-                    }));
-                }
-
-                vk::StructureType::PHYSICAL_DEVICE_VULKAN_1_2_PROPERTIES => {
-                    return Some(PNextVariant::VkPhysicalDeviceVulkan1_2Properties(unsafe {
-                        current.cast::<vk::PhysicalDeviceVulkan12Properties>().as_ref().unwrap()
-                    }));
-                }
-
-                _ => {}
-            }
-        }
-
-        // No more structs to process
-        None
-    }
-}
-
 /// Information about a queue family
 pub struct QueueFamilyInfo {
     index: u32,
@@ -419,12 +349,6 @@ impl QueueFamilyInfo {
     /// Collects information form a VK1.1 vkQueueFamilyProperties2 struct
     fn new2(index: u32, properties2: vk::QueueFamilyProperties2) -> Self {
         let properties = properties2.queue_family_properties;
-
-        for variant in unsafe { PNextIterator::new(properties2.p_next) } {
-            match variant {
-                _ => {}
-            }
-        }
 
         Self {
             index,
@@ -454,6 +378,9 @@ pub struct DeviceInfo {
     properties_1_1: Option<vk::PhysicalDeviceVulkan11Properties>,
     properties_1_2: Option<vk::PhysicalDeviceVulkan12Properties>,
     memory_properties_1_0: vk::PhysicalDeviceMemoryProperties,
+
+    /// Temporary hack until extension feature management is implemented
+    timeline_semaphore_features: Option<vk::PhysicalDeviceTimelineSemaphoreFeatures>,
     queue_families: Box<[QueueFamilyInfo]>,
     extensions: HashMap<UUID, ExtensionProperties>,
 }
@@ -470,81 +397,64 @@ impl DeviceInfo {
 
         let memory_properties_1_0;
 
+        let mut timeline_semaphore = None;
+
         let queue_families;
 
         let vk_1_1 = instance.get_version().is_supported(VulkanVersion::VK_1_1);
+        let vk_1_2 = instance.get_version().is_supported(VulkanVersion::VK_1_2);
         let get_physical_device_properties_2 = instance.get_extension::<ash::extensions::khr::GetPhysicalDeviceProperties2>();
 
         if vk_1_1 || get_physical_device_properties_2.is_some() {
             // Use the newer VK_KHR_get_physical_device_properties2 functions
+            let mut features2 = vk::PhysicalDeviceFeatures2::builder();
+            let mut properties2 = vk::PhysicalDeviceProperties2::builder();
+            let mut memory_properties2 = vk::PhysicalDeviceMemoryProperties2::builder();
 
-            let mut features2 = vk::PhysicalDeviceFeatures2::default();
+            if vk_1_1 {
+                features_1_1 = Some(vk::PhysicalDeviceVulkan11Features::default());
+                features2 = features2.push_next(features_1_1.as_mut().unwrap());
+
+                properties_1_1 = Some(vk::PhysicalDeviceVulkan11Properties::default());
+                properties2 = properties2.push_next(properties_1_1.as_mut().unwrap());
+            }
+
+            if vk_1_2 {
+                features_1_2 = Some(vk::PhysicalDeviceVulkan12Features::default());
+                features2 = features2.push_next(features_1_2.as_mut().unwrap());
+
+                properties_1_2 = Some(vk::PhysicalDeviceVulkan12Properties::default());
+                properties2 = properties2.push_next(properties_1_2.as_mut().unwrap());
+            }
+
+            if instance.is_extension_enabled(ash::extensions::khr::TimelineSemaphore::UUID.get_uuid()) {
+                timeline_semaphore = Some(vk::PhysicalDeviceTimelineSemaphoreFeatures::default());
+                features2 = features2.push_next(timeline_semaphore.as_mut().unwrap());
+            }
+
             if vk_1_1 {
                 unsafe { instance.vk().get_physical_device_features2(physical_device, &mut features2) };
             } else {
                 unsafe { get_physical_device_properties_2.unwrap().get_physical_device_features2(physical_device, features2.borrow_mut()) };
             }
-            let features2 = features2;
-
             features_1_0 = Some(features2.features);
+            drop(features2); // Get rid of mut references
 
-            for variant in unsafe{ PNextIterator::new(features2.p_next) } {
-                match variant {
-                    PNextVariant::VkPhysicalDeviceVulkan1_1Features(features) => {
-                        let mut tmp = features.clone();
-                        tmp.p_next = null_mut();
-                        features_1_1 = Some(tmp);
-                    }
-                    PNextVariant::VkPhysicalDeviceVulkan1_2Features(features) => {
-                        let mut tmp = features.clone();
-                        tmp.p_next = null_mut();
-                        features_1_2 = Some(tmp);
-                    }
-                    _ => {}
-                }
-            }
-
-            let mut properties2 = vk::PhysicalDeviceProperties2::default();
             if vk_1_1 {
                 unsafe { instance.vk().get_physical_device_properties2(physical_device, &mut properties2) };
             } else {
                 unsafe { get_physical_device_properties_2.unwrap().get_physical_device_properties2(physical_device, properties2.borrow_mut()) };
             }
-            let properties2 = properties2;
-
             properties_1_0 = Some(properties2.properties);
+            drop(properties2); // Get rid of mut references
 
-            for variant in unsafe{ PNextIterator::new(properties2.p_next) } {
-                match variant {
-                    PNextVariant::VkPhysicalDeviceVulkan1_1Properties(properties) => {
-                        let mut tmp = properties.clone();
-                        tmp.p_next = null_mut();
-                        properties_1_1 = Some(tmp);
-                    }
-                    PNextVariant::VkPhysicalDeviceVulkan1_2Properties(properties) => {
-                        let mut tmp = properties.clone();
-                        tmp.p_next = null_mut();
-                        properties_1_2 = Some(tmp);
-                    }
-                    _ => {}
-                }
-            }
-
-            let mut memory_properties2 = vk::PhysicalDeviceMemoryProperties2::default();
             if vk_1_1 {
                 unsafe { instance.vk().get_physical_device_memory_properties2(physical_device, &mut memory_properties2) };
             } else {
                 unsafe { get_physical_device_properties_2.unwrap().get_physical_device_memory_properties2(physical_device, memory_properties2.borrow_mut()) };
             }
-            let memory_properties2 = memory_properties2;
-
             memory_properties_1_0 = Some(memory_properties2.memory_properties);
-
-            for variant in unsafe{ PNextIterator::new(memory_properties2.p_next) } {
-                match variant {
-                    _ => {}
-                }
-            }
+            drop(memory_properties2); // Get rid of mut references
 
 
             let mut queue_properties2 = Vec::new();
@@ -602,6 +512,7 @@ impl DeviceInfo {
             properties_1_1,
             properties_1_2,
             memory_properties_1_0: memory_properties_1_0.unwrap(),
+            timeline_semaphore_features: timeline_semaphore,
             queue_families: queue_families.unwrap(),
             extensions,
         })
@@ -643,6 +554,11 @@ impl DeviceInfo {
 
     pub fn get_memory_1_0_properties(&self) -> &vk::PhysicalDeviceMemoryProperties {
         &self.memory_properties_1_0
+    }
+
+    /// Temporary hack until extension feature management is implemented
+    pub fn get_timeline_semaphore_features(&self) -> Option<&vk::PhysicalDeviceTimelineSemaphoreFeatures> {
+        self.timeline_semaphore_features.as_ref()
     }
 
     pub fn get_queue_family_infos(&self) -> &[QueueFamilyInfo] {
@@ -738,6 +654,9 @@ impl QueueRequestResolver {
 pub struct DeviceConfigurator {
     enabled_extensions: HashMap<UUID, Option<&'static DeviceExtensionLoaderFn>>,
     queue_requests: Vec<QueueRequestResolver>,
+
+    /// Temporary hack until extension feature management is implemented
+    enable_timeline_semaphores: bool,
 }
 
 impl DeviceConfigurator {
@@ -745,6 +664,7 @@ impl DeviceConfigurator {
         Self{
             enabled_extensions: HashMap::new(),
             queue_requests: Vec::new(),
+            enable_timeline_semaphores: false,
         }
     }
 
@@ -769,6 +689,11 @@ impl DeviceConfigurator {
         let (request, resolver) = QueueRequestImpl::new(family);
         self.queue_requests.push(resolver);
         request
+    }
+
+    /// Temporary hack until extension feature management is implemented
+    pub fn enable_timeline_semaphore(&mut self) {
+        self.enable_timeline_semaphores = true;
     }
 
     /// Generates queue assignments to fulfill requests
@@ -811,9 +736,17 @@ impl DeviceConfigurator {
             queue_create_infos.push(*create_info);
         }
 
-        let create_info = vk::DeviceCreateInfo::builder()
+        let mut create_info = vk::DeviceCreateInfo::builder()
             .enabled_extension_names(extensions.as_slice())
             .queue_create_infos(queue_create_infos.as_slice());
+
+        // Temporary hack until extension feature management is implemented
+        let mut timeline_semaphore_info;
+        if self.enable_timeline_semaphores {
+            timeline_semaphore_info = vk::PhysicalDeviceTimelineSemaphoreFeatures::builder()
+                .timeline_semaphore(true);
+            create_info = create_info.push_next(&mut timeline_semaphore_info);
+        }
 
         let device = unsafe {
             info.get_instance().vk().create_device(info.physical_device, &create_info, None)

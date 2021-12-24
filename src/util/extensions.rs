@@ -2,6 +2,7 @@ use std::collections::HashMap;
 use ash::{Entry, Instance};
 use crate::NamedUUID;
 use paste::paste;
+use crate::rosella::VulkanVersion;
 use crate::util::id::UUID;
 
 #[derive(Clone)]
