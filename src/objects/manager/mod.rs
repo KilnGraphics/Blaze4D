@@ -28,6 +28,7 @@ mod allocator;
 use std::alloc::handle_alloc_error;
 use std::cmp::Ordering;
 use std::hash::{Hash, Hasher};
+use std::mem::ManuallyDrop;
 use std::ptr::hash;
 use std::sync::{Arc, LockResult, Mutex, MutexGuard, PoisonError};
 
@@ -132,7 +133,9 @@ impl<'a> TemporaryObjectData<'a> {
 struct ObjectManagerImpl {
     instance: crate::rosella::InstanceContext,
     device: crate::rosella::DeviceContext,
-    allocator: Mutex<Allocator>,
+
+    // We need to ensure the allocator is dropped before the instance and device are
+    allocator: ManuallyDrop<Mutex<Allocator>>,
 }
 
 impl ObjectManagerImpl {
@@ -148,7 +151,7 @@ impl ObjectManagerImpl {
         Self{
             instance,
             device,
-            allocator: Mutex::new(allocator),
+            allocator: ManuallyDrop::new(Mutex::new(allocator)),
         }
     }
 
@@ -486,6 +489,12 @@ impl ObjectManagerImpl {
     }
 }
 
+impl Drop for ObjectManagerImpl {
+    fn drop(&mut self) {
+        unsafe{ ManuallyDrop::drop(&mut self.allocator) }
+    }
+}
+
 /// Public object manager api.
 ///
 /// This is a smart pointer reference to an internal struct.
@@ -538,4 +547,53 @@ impl Clone for ObjectManager {
 /// objects or a object can be backed by multiple allocations.
 struct AllocationMeta {
     allocations: Box<[Allocation]>,
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn create() -> ObjectManager {
+        let (instance, device) = crate::test::make_headless_instance_device();
+        ObjectManager::new(instance, device)
+    }
+
+    #[test]
+    fn create_destroy() {
+        let (instance, device) = crate::test::make_headless_instance_device();
+        let manager = ObjectManager::new(instance, device);
+        drop(manager);
+    }
+
+    #[test]
+    fn create_synchronization_group() {
+        let manager = create();
+        let group = manager.create_synchronization_group();
+        let group2 = manager.create_synchronization_group();
+
+        assert_eq!(group, group);
+        assert_eq!(group2, group2);
+        assert_ne!(group, group2);
+
+        drop(group2);
+        drop(group);
+    }
+
+    #[test]
+    fn create_object_set_buffer() {
+        let manager = create();
+        let group = manager.create_synchronization_group();
+
+        let mut builder = manager.create_object_set(group.clone());
+        let desc = BufferCreateDesc::new_simple(1024, vk::BufferUsageFlags::TRANSFER_SRC | vk::BufferUsageFlags::TRANSFER_DST);
+        let id = builder.add_default_gpu_only_buffer(desc);
+
+        let set = builder.build();
+
+        assert_eq!(set.get_synchronization_group(), &group);
+
+        assert!(set.get_buffer_handle(id).is_some());
+
+        drop(set);
+    }
 }

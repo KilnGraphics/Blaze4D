@@ -152,7 +152,7 @@ impl ObjectSetBuilder {
 
     pub fn build(self) -> ObjectSet {
         let (objects, allocation) = self.synchronization_group.get_manager().create_objects(self.requests.as_slice());
-        ObjectSet::new(self.synchronization_group, objects, allocation)
+        ObjectSet::new(self.set_id, self.synchronization_group, objects, allocation)
     }
 }
 
@@ -165,10 +165,10 @@ struct ObjectSetImpl {
 }
 
 impl ObjectSetImpl {
-    fn new(synchronization_group: SynchronizationGroup, objects: Box<[ObjectData]>, allocation: AllocationMeta) -> Self {
+    fn new(set_id: GlobalId, synchronization_group: SynchronizationGroup, objects: Box<[ObjectData]>, allocation: AllocationMeta) -> Self {
         Self{
             group: synchronization_group,
-            set_id: GlobalId::new(),
+            set_id,
             objects,
             allocation,
         }
@@ -270,8 +270,8 @@ impl Ord for ObjectSetImpl {
 pub struct ObjectSet(Arc<ObjectSetImpl>);
 
 impl ObjectSet {
-    fn new(synchronization_group: SynchronizationGroup, objects: Box<[ObjectData]>, allocation: AllocationMeta) -> Self {
-        Self(Arc::new(ObjectSetImpl::new(synchronization_group, objects, allocation)))
+    fn new(set_id: GlobalId, synchronization_group: SynchronizationGroup, objects: Box<[ObjectData]>, allocation: AllocationMeta) -> Self {
+        Self(Arc::new(ObjectSetImpl::new(set_id, synchronization_group, objects, allocation)))
     }
 
     pub fn get_set_id(&self) -> GlobalId {

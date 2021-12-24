@@ -1,4 +1,5 @@
 use std::cmp::Ordering;
+use std::fmt::{Debug, Formatter};
 use std::hash::{Hash, Hasher};
 use std::sync::{Arc, LockResult, Mutex, MutexGuard};
 
@@ -72,6 +73,12 @@ impl PartialOrd for SynchronizationGroupImpl {
 impl Ord for SynchronizationGroupImpl {
     fn cmp(&self, other: &Self) -> Ordering {
         self.group_id.cmp(&other.group_id)
+    }
+}
+
+impl Debug for SynchronizationGroup {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        f.write_str(&*format!("SynchronizationGroup({:#16X})", self.0.group_id.get_raw()))
     }
 }
 
