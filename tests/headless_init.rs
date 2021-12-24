@@ -7,8 +7,6 @@ mod test_common;
 
 #[test]
 fn init_no_feature() {
-    env_logger::init();
-
     let mut registry = InitializationRegistry::new();
     let instance_context = match create_instance(&mut registry, "Rosella Test", 1) {
         Ok(res) => res,
@@ -28,8 +26,6 @@ fn init_no_feature() {
 
 #[test]
 fn init_rosella() {
-    env_logger::init();
-
     let mut registry = InitializationRegistry::new();
     register_rosella_headless(&mut registry);
 
