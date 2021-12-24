@@ -136,6 +136,10 @@ impl InstanceContext {
     pub fn is_extension_enabled(&self, uuid: UUID) -> bool {
         self.0.extensions.contains(uuid)
     }
+
+    pub fn get_enabled_features(&self) -> &EnabledFeatures {
+        &self.0.features
+    }
 }
 
 pub struct DeviceContextImpl {
@@ -190,5 +194,9 @@ impl DeviceContext {
 
     pub fn is_extension_enabled(&self, uuid: UUID) -> bool {
         self.0.extensions.contains(uuid)
+    }
+
+    pub fn get_enabled_features(&self) -> &EnabledFeatures {
+        &self.0.features
     }
 }
