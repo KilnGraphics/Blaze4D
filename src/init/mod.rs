@@ -14,3 +14,7 @@ pub use application_feature::ApplicationInstanceFeature;
 pub use application_feature::ApplicationDeviceFeature;
 pub use application_feature::ApplicationDeviceFeatureGenerator;
 pub use application_feature::FeatureAccess;
+
+pub use utils::LayerProperties;
+pub use utils::ExtensionProperties;
+pub use utils::EnabledFeatures;
