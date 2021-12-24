@@ -1,5 +1,4 @@
 use crate::shader::vertex::VertexFormat;
-use crate::ALLOCATION_CALLBACKS;
 use ash::vk::{ShaderModule, ShaderModuleCreateInfo};
 use ash::{Device, Entry};
 use shaderc::{CompileOptions, Compiler, ShaderKind, TargetEnv};
@@ -70,7 +69,7 @@ impl GraphicsShader {
                         .expect("Failed to compile the VertexShader.")
                         .as_binary(),
                 ),
-                ALLOCATION_CALLBACKS,
+                None,
             )
         }.unwrap();
 
@@ -82,7 +81,7 @@ impl GraphicsShader {
                         .expect("Failed to compile the FragmentShader.")
                         .as_binary(),
                 ),
-                ALLOCATION_CALLBACKS,
+                None,
             )
         }.unwrap();
 
@@ -101,8 +100,8 @@ impl GraphicsShader {
 impl Drop for GraphicsShader {
     fn drop(&mut self) {
         unsafe {
-            self.device.vk().destroy_shader_module(self.vertex_shader, ALLOCATION_CALLBACKS);
-            self.device.vk().destroy_shader_module(self.fragment_shader, ALLOCATION_CALLBACKS);
+            self.device.vk().destroy_shader_module(self.vertex_shader, None);
+            self.device.vk().destroy_shader_module(self.fragment_shader, None);
         }
     }
 }

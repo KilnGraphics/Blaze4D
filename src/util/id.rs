@@ -5,7 +5,6 @@
 /// retaining global uniqueness.
 
 use std::cmp::Ordering;
-use std::collections::hash_map::DefaultHasher;
 use std::fmt::{Debug, Formatter};
 use std::hash::{Hash, Hasher};
 use std::num::NonZeroU64;
@@ -53,10 +52,12 @@ impl GlobalId {
     pub fn new() -> Self {
         let next = NEXT_GLOBAL_ID.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
 
-        match NonZeroU64::new(next) {
-            Some(val) => Self(val),
-            None => panic!("GlobalId overflow!")
+        // Give it some padding to allow panics to propagate. Its still 63bits big
+        if next > (u64::MAX / 2u64) {
+            panic!("GlobalId overflow!");
         }
+
+        GlobalId(NonZeroU64::new(next).unwrap())
     }
 
     /// Creates a global id from a raw 64bit value.
@@ -91,7 +92,7 @@ impl Into<u64> for GlobalId {
 
 impl Debug for GlobalId {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        f.debug_tuple("GlobalId").field(&self.get_raw()).finish()
+        f.write_str(&*format!("GlobalId({:#16X})", self.0))
     }
 }
 
@@ -153,7 +154,7 @@ impl LocalId {
 
 impl Debug for LocalId {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        f.debug_tuple("LocalId").field(&self.get_raw()).finish()
+        f.write_str(&*format!("LocalId({:#16X})", self.0))
     }
 }
 
@@ -218,14 +219,37 @@ impl IncrementingGenerator {
     }
 }
 
+#[derive(Clone, Debug)]
+enum NameType {
+    Static(&'static str),
+    String(Arc<String>),
+}
+
+impl NameType {
+    const fn new_static(str: &'static str) -> Self {
+        Self::Static(str)
+    }
+
+    fn new_string(str: String) -> Self {
+        Self::String(Arc::new(str))
+    }
+
+    fn get(&self) -> &str {
+        match self {
+            NameType::Static(str) => *str,
+            NameType::String(str) => str.as_ref(),
+        }
+    }
+}
+
 /// A UUID generated from a string.
 ///
 /// NamedUUIDs use a predefined global id with the local id being calculated as the hash of a
 /// string. The name is stored along side the UUID for easy debugging or printing. The name is
 /// stored by Arc enabling fast Copying of the struct.
-#[derive(Clone, Debug)]
+#[derive(Clone)]
 pub struct NamedUUID {
-    name: Arc<String>,
+    name: NameType,
     id: LocalId,
 }
 
@@ -233,17 +257,35 @@ impl NamedUUID {
     /// The global id used by all NamedUUIDs
     pub const GLOBAL_ID: GlobalId = GlobalId::from_raw(1u64);
 
-    pub fn new(name: String) -> NamedUUID {
-        let mut hasher = DefaultHasher::new();
-        name.hash(&mut hasher);
-        let hash = hasher.finish();
+    const fn hash_str_const(name: &str) -> u64 {
+        xxhash_rust::const_xxh3::xxh3_64(name.as_bytes())
+    }
 
-        NamedUUID { name: Arc::new(name), id: LocalId::from_hash(hash) }
+    fn hash_str(name: &str) -> u64 {
+        xxhash_rust::xxh3::xxh3_64(name.as_bytes())
+    }
+
+    pub const fn new_const(name: &'static str) -> NamedUUID {
+        let hash = Self::hash_str_const(name);
+
+        NamedUUID { name: NameType::new_static(name), id: LocalId::from_hash(hash) }
+    }
+
+    pub fn new(name: String) -> NamedUUID {
+        let hash = Self::hash_str(name.as_str());
+
+        NamedUUID { name: NameType::new_string(name), id: LocalId::from_hash(hash) }
+    }
+
+    pub fn uuid_for(name: &str) -> UUID {
+        let hash = Self::hash_str(name);
+
+        UUID{ global: Self::GLOBAL_ID, local: LocalId::from_hash(hash) }
     }
 
     /// Returns the string that generated the UUID
-    pub fn get_name(&self) -> &String {
-        self.name.as_ref()
+    pub fn get_name(&self) -> &str {
+        self.name.get()
     }
 
     /// Returns the uuid
@@ -262,6 +304,17 @@ impl NamedUUID {
     /// Returns the local id
     pub fn get_local_id(&self) -> LocalId {
         self.id
+    }
+
+    pub const fn clone_const(&self) -> Self {
+        match self.name {
+            NameType::String(_) => {
+                panic!("Cloned non const name")
+            }
+            NameType::Static(str) => {
+                Self{ name: NameType::Static(str), id: self.id }
+            }
+        }
     }
 }
 
@@ -309,4 +362,60 @@ impl Into<UUID> for NamedUUID {
     fn into(self) -> UUID {
         self.get_uuid()
     }
+}
+
+impl Debug for NamedUUID {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        let name = match &self.name {
+            NameType::Static(str) => *str,
+            NameType::String(str) => str.as_str()
+        };
+        f.write_str(&*format!("NamedUUID{{\"{}\", {:?}}}", name, &self.id))
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn global_id_uniqueness() {
+        let id1 = GlobalId::new();
+        let id2 = GlobalId::new();
+        let id3 = GlobalId::new();
+
+        assert_ne!(id1, id2);
+        assert_ne!(id1, id3);
+        assert_ne!(id2, id3);
+    }
+
+    #[test]
+    fn global_id_eq() {
+        let id1 = GlobalId::new();
+        let id2 = GlobalId::new();
+
+        assert_ne!(id1, id2);
+
+        assert_eq!(id1, id1);
+        assert_eq!(id2, id2);
+
+        let id1_clone = GlobalId::from_raw(id1.get_raw());
+        let id2_clone = GlobalId::from_raw(id2.get_raw());
+
+        assert_ne!(id1_clone, id2_clone);
+        assert_ne!(id1, id2_clone);
+        assert_ne!(id1_clone, id2);
+
+        assert_eq!(id1, id1_clone);
+        assert_eq!(id2, id2_clone);
+    }
+
+    /* TODO figure out how to run this without crashing other tests
+    #[test]
+    #[should_panic]
+    fn global_id_overflow() {
+        NEXT_GLOBAL_ID.store(u64::MAX - 10u64, std::sync::atomic::Ordering::SeqCst);
+
+        GlobalId::new();
+    }*/
 }
