@@ -551,6 +551,7 @@ struct AllocationMeta {
 
 #[cfg(test)]
 mod tests {
+    use crate::objects::{ImageSize, ImageSpec};
     use super::*;
 
     fn create() -> ObjectManager {
@@ -593,6 +594,25 @@ mod tests {
         assert_eq!(set.get_synchronization_group(), &group);
 
         assert!(set.get_buffer_handle(id).is_some());
+
+        drop(set);
+    }
+
+    #[test]
+    fn create_object_set_image() {
+        let manager = create();
+        let group = manager.create_synchronization_group();
+
+        let mut builder = manager.create_object_set(group.clone());
+        let desc = ImageCreateDesc::new_simple(ImageSpec::new_single_sample(ImageSize::make_1d(32), &crate::objects::Format::R16_UNORM),
+            vk::ImageUsageFlags::TRANSFER_SRC | vk::ImageUsageFlags::TRANSFER_DST);
+        let id = builder.add_default_gpu_only_image(desc);
+
+        let set = builder.build();
+
+        assert_eq!(set.get_synchronization_group(), &group);
+
+        assert!(set.get_image_handle(id).is_some());
 
         drop(set);
     }

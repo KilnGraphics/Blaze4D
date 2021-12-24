@@ -119,8 +119,12 @@ pub struct ImageSpec {
 }
 
 impl ImageSpec {
-    pub const fn new(size: ImageSize, format: &'static crate::objects::Format, sample_count: ash::vk::SampleCountFlags) -> Self {
+    pub const fn new(size: ImageSize, format: &'static crate::objects::Format, sample_count: vk::SampleCountFlags) -> Self {
         ImageSpec { format, size, sample_count }
+    }
+
+    pub const fn new_single_sample(size: ImageSize, format: &'static crate::objects::Format) -> Self {
+        ImageSpec { format, size, sample_count: vk::SampleCountFlags::TYPE_1 }
     }
 
     pub const fn get_size(&self) -> ImageSize {
@@ -170,6 +174,12 @@ pub struct ImageMeta {
 pub struct ImageCreateDesc {
     pub spec: ImageSpec,
     pub usage_flags: vk::ImageUsageFlags,
+}
+
+impl ImageCreateDesc {
+    pub fn new_simple(spec: ImageSpec, usage: vk::ImageUsageFlags) -> Self {
+        Self{ spec, usage_flags: usage }
+    }
 }
 
 pub struct ImageViewCreateDesc {
