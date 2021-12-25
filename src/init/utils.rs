@@ -90,6 +90,44 @@ impl ExtensionProperties {
     }
 }
 
+struct EnabledFeature {
+    data: Option<Box<dyn Any>>
+}
+
+pub struct EnabledFeatures {
+    features: HashMap<UUID, EnabledFeature>,
+}
+
+impl EnabledFeatures {
+    pub(super) fn new<T: Iterator<Item=(UUID, Option<Box<dyn Any>>)>>(data: T) -> Self {
+        Self{ features: data.map(|(id, data)| (id, EnabledFeature{ data })).collect() }
+    }
+
+    /// Checks if a feature is enabled.
+    pub fn is_feature_enabled(&self, id: &UUID) -> bool {
+        self.features.contains_key(id)
+    }
+
+    /// Returns the data associated with some enabled feature.
+    /// If either the feature is not enabled or it did not create any data None is returned.
+    pub fn get_feature_data(&self, id: &UUID) -> Option<&dyn Any> {
+        match self.features.get(id) {
+            None => None,
+            Some(f) => {
+                f.data.as_ref().map(|d| d.as_ref())
+            }
+        }
+    }
+
+    /// Returns the data associated with some enabled feature and attempts to cast it to a type.
+    ///
+    /// If either the feature is not enabled, it did not create any data or the cast failed,
+    /// None is returned.
+    pub fn get_feature_data_cast<T: 'static + Sized>(&self, id: &UUID) -> Option<&T> {
+        self.get_feature_data(id).map(|f| f.downcast_ref()).flatten()
+    }
+}
+
 pub(super) trait Feature {
     type State;
 

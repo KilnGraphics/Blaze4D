@@ -40,6 +40,7 @@ use crate::init::application_feature::{ApplicationDeviceFeature, InitResult};
 use crate::init::initialization_registry::InitializationRegistry;
 use crate::init::utils::{ExtensionProperties, Feature, FeatureProcessor};
 use crate::{NamedUUID, UUID};
+use crate::init::EnabledFeatures;
 use crate::util::extensions::{DeviceExtensionLoader, DeviceExtensionLoaderFn, ExtensionFunctionSet, VkExtensionInfo};
 use crate::rosella::{DeviceContext, InstanceContext, VulkanVersion};
 
@@ -321,11 +322,18 @@ impl DeviceBuilder {
 
     /// Creates the vulkan device
     fn build(self) -> Result<DeviceContext, DeviceCreateError> {
+        let instance = self.instance;
+
         let info = self.info.expect("Called build but info is none");
         let (device, function_set) = self.config.expect("Called build but config is none")
             .build_device(&info)?;
 
-        Ok(DeviceContext::new(self.instance, device, self.physical_device, function_set))
+        let features = EnabledFeatures::new(self.processor.into_iter().filter_map(
+            |mut info| {
+                Some((info.name.get_uuid(), info.feature.as_mut().finish(&instance, &device, &function_set)))
+            }));
+
+        Ok(DeviceContext::new(instance, device, self.physical_device, function_set, features))
     }
 }
 

@@ -6,6 +6,7 @@ use crate::init::instance::{create_instance, InstanceCreateError};
 use crate::window::{RosellaSurface, RosellaWindow};
 
 use ash::vk;
+use crate::init::EnabledFeatures;
 use crate::util::extensions::{AsRefOption, ExtensionFunctionSet, VkExtensionInfo, VkExtensionFunctions};
 use crate::init::rosella_features::WindowSurface;
 use crate::util::id::UUID;
@@ -91,6 +92,7 @@ struct InstanceContextImpl {
     entry: ash::Entry,
     instance: ash::Instance,
     extensions: ExtensionFunctionSet,
+    features: EnabledFeatures,
 }
 
 impl Drop for InstanceContextImpl {
@@ -105,12 +107,13 @@ impl Drop for InstanceContextImpl {
 pub struct InstanceContext(Arc<InstanceContextImpl>);
 
 impl InstanceContext {
-    pub fn new(version: VulkanVersion, entry: ash::Entry, instance: ash::Instance, extensions: ExtensionFunctionSet) -> Self {
+    pub fn new(version: VulkanVersion, entry: ash::Entry, instance: ash::Instance, extensions: ExtensionFunctionSet, features: EnabledFeatures) -> Self {
         Self(Arc::new(InstanceContextImpl{
             version,
             entry,
             instance,
             extensions,
+            features,
         }))
     }
 
@@ -133,6 +136,10 @@ impl InstanceContext {
     pub fn is_extension_enabled(&self, uuid: UUID) -> bool {
         self.0.extensions.contains(uuid)
     }
+
+    pub fn get_enabled_features(&self) -> &EnabledFeatures {
+        &self.0.features
+    }
 }
 
 pub struct DeviceContextImpl {
@@ -140,6 +147,7 @@ pub struct DeviceContextImpl {
     device: ash::Device,
     physical_device: vk::PhysicalDevice,
     extensions: ExtensionFunctionSet,
+    features: EnabledFeatures,
 }
 
 impl Drop for DeviceContextImpl {
@@ -154,12 +162,13 @@ impl Drop for DeviceContextImpl {
 pub struct DeviceContext(Arc<DeviceContextImpl>);
 
 impl DeviceContext {
-    pub fn new(instance: InstanceContext, device: ash::Device, physical_device: vk::PhysicalDevice, extensions: ExtensionFunctionSet) -> Self {
+    pub fn new(instance: InstanceContext, device: ash::Device, physical_device: vk::PhysicalDevice, extensions: ExtensionFunctionSet, features: EnabledFeatures) -> Self {
         Self(Arc::new(DeviceContextImpl{
             instance,
             device,
             physical_device,
             extensions,
+            features,
         }))
     }
 
@@ -185,5 +194,9 @@ impl DeviceContext {
 
     pub fn is_extension_enabled(&self, uuid: UUID) -> bool {
         self.0.extensions.contains(uuid)
+    }
+
+    pub fn get_enabled_features(&self) -> &EnabledFeatures {
+        &self.0.features
     }
 }

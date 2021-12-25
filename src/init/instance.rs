@@ -32,6 +32,7 @@ use crate::init::utils::{ExtensionProperties, Feature, FeatureProcessor, LayerPr
 
 use ash::vk;
 use ash::vk::{DebugUtilsMessageSeverityFlagsEXT, DebugUtilsMessageTypeFlagsEXT};
+use crate::init::EnabledFeatures;
 use crate::util::extensions::{ExtensionFunctionSet, InstanceExtensionLoader, InstanceExtensionLoaderFn, VkExtensionInfo};
 use crate::rosella::{InstanceContext, VulkanVersion};
 
@@ -255,7 +256,12 @@ impl InstanceBuilder {
         let (instance, function_set) = self.config.expect("Called build but config is none")
             .build_instance(&info, &app_info.build())?;
 
-        Ok(InstanceContext::new(info.get_vulkan_version(), info.entry, instance, function_set))
+        let features = EnabledFeatures::new(self.processor.into_iter().filter_map(
+            |mut info| {
+                Some((info.name.get_uuid(), info.feature.as_mut().finish(&instance, &function_set)))
+            }));
+
+        Ok(InstanceContext::new(info.get_vulkan_version(), info.entry, instance, function_set, features))
     }
 }
 

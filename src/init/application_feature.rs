@@ -1,5 +1,7 @@
 use std::any::Any;
 use crate::init::{device, instance};
+use crate::rosella::InstanceContext;
+use crate::util::extensions::ExtensionFunctionSet;
 use crate::UUID;
 
 
@@ -31,7 +33,7 @@ pub trait ApplicationInstanceFeature : FeatureBase {
     fn enable(&mut self, features: &mut dyn FeatureAccess, info: &instance::InstanceInfo, config: &mut instance::InstanceConfigurator);
 
     /// Performs any necessary post creation steps and generates the data that is sent back to the application
-    fn finish(self, _: &ash::Instance) -> Option<Box<dyn Any>> where Self: Sized {
+    fn finish(&mut self, _: &ash::Instance, _: &ExtensionFunctionSet) -> Option<Box<dyn Any>> {
         None
     }
 }
@@ -56,6 +58,10 @@ pub trait ApplicationDeviceFeature: Send + FeatureBase {
 
     /// Configures the device
     fn enable(&mut self, features: &mut dyn FeatureAccess, info: &device::DeviceInfo, config: &mut device::DeviceConfigurator);
+
+    fn finish(&mut self, _: &InstanceContext, _: &ash::Device, _: &ExtensionFunctionSet) -> Option<Box<dyn Any>> {
+        None
+    }
 }
 
 /// Trait used by features to access their dependencies

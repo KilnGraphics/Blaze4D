@@ -2,7 +2,7 @@
 
 use std::any::Any;
 use std::ffi::{c_void, CStr};
-use ash::{Instance, vk};
+use ash::vk;
 use paste::paste;
 use crate::init::application_feature::{ApplicationDeviceFeatureGenerator, ApplicationDeviceFeature, ApplicationInstanceFeature, InitResult};
 use crate::init::instance::{InstanceConfigurator, InstanceInfo};
@@ -324,10 +324,6 @@ impl ApplicationInstanceFeature for WindowSurface {
         for extension in &self.extensions {
             config.enable_extension_str_no_load(extension.to_str().unwrap())
         }
-    }
-
-    fn finish(self, _: &Instance) -> Option<Box<dyn Any>> {
-        None
     }
 }
 
