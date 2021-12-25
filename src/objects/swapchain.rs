@@ -64,6 +64,7 @@ impl SwapchainImageSpec {
 }
 
 #[derive(Copy, Clone)]
+#[non_exhaustive]
 pub struct SwapchainCreateDesc {
     pub image_spec: SwapchainImageSpec,
     pub usage: vk::ImageUsageFlags,
