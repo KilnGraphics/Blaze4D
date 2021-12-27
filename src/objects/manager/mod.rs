@@ -191,6 +191,7 @@ impl ObjectManagerImpl {
         }
     }
 
+    /// Creates the objects for a temporary object data list
     fn create_temporary_objects(&self, objects: &mut [TemporaryObjectData]) -> Result<(), ObjectCreateError> {
         // Create all objects that do not depend on other objects
         for object in objects.iter_mut() {
@@ -368,6 +369,7 @@ impl ObjectManagerImpl {
         Ok(())
     }
 
+    /// Converts a object request description list to a temporary object data list
     fn create_temporary_object_data<'a>(&self, objects: &'a [ObjectRequestDescription]) -> Vec<TemporaryObjectData<'a>> {
         objects.iter().map(|request| {
             match request {
@@ -387,6 +389,7 @@ impl ObjectManagerImpl {
         }).collect()
     }
 
+    /// Converts a temporary object data list to a object data list and allocation meta instance
     fn flatten_temporary_object_data(&self, objects: Vec<TemporaryObjectData>) -> (Box<[ObjectData]>, AllocationMeta) {
         let mut allocations = Vec::new();
         let mut object_data = Vec::with_capacity(objects.len());
@@ -425,6 +428,7 @@ impl ObjectManagerImpl {
         (object_data.into_boxed_slice(), AllocationMeta{ allocations: allocations.into_boxed_slice() })
     }
 
+    /// Creates objects for a object request description list
     fn create_objects(&self, objects: &[ObjectRequestDescription]) -> (Box<[ObjectData]>, AllocationMeta) {
         let mut objects = self.create_temporary_object_data(objects);
         self.create_temporary_objects(objects.as_mut_slice()).map_err(|err| {
@@ -435,6 +439,7 @@ impl ObjectManagerImpl {
         self.flatten_temporary_object_data(objects)
     }
 
+    /// Destroys objects previously created using [`ObjectManagerImpl::create_objects`]
     fn destroy_objects(&self, objects: &[ObjectData], allocation: &AllocationMeta) {
         for object in objects {
             match object {

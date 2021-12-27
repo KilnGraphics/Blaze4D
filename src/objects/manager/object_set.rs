@@ -43,6 +43,10 @@ impl ObjectData {
     }
 }
 
+/// Utility struct used to build an object set.
+///
+/// Collects information about objects that need to be created for an object set. The objects are
+/// only created once the build method is called.
 pub struct ObjectSetBuilder {
     synchronization_group: SynchronizationGroup,
     set_id: GlobalId,
@@ -58,6 +62,7 @@ impl ObjectSetBuilder {
         }
     }
 
+    /// Adds a request for a buffer that only needs to be accessed by the gpu
     pub fn add_default_gpu_only_buffer(&mut self, desc: BufferCreateDesc) -> id::BufferId {
         let index = self.requests.len();
 
@@ -66,6 +71,7 @@ impl ObjectSetBuilder {
         id::BufferId::new(self.set_id, index as u64)
     }
 
+    /// Adds a request for a buffer that needs to be accessed by both gpu and cpu
     pub fn add_default_gpu_cpu_buffer(&mut self, desc: BufferCreateDesc) -> id::BufferId {
         let index = self.requests.len();
 
@@ -74,6 +80,7 @@ impl ObjectSetBuilder {
         id::BufferId::new(self.set_id, index as u64)
     }
 
+    /// Adds a buffer view for a buffer created as part of this object set
     pub fn add_internal_buffer_view(&mut self, desc: BufferViewCreateDesc, buffer: id::BufferId) -> id::BufferViewId {
         if buffer.get_global_id() != self.set_id {
             panic!("Buffer global id does not match set id")
@@ -85,6 +92,7 @@ impl ObjectSetBuilder {
         id::BufferViewId::new(self.set_id, index as u64)
     }
 
+    /// Adds a buffer view for a buffer owned by a different object set
     pub fn add_external_buffer_view(&mut self, desc: BufferViewCreateDesc, set: ObjectSet, buffer: id::BufferId) -> id::BufferViewId {
         if buffer.get_global_id() != set.get_set_id() {
             panic!("Buffer global id does not match set id")
@@ -101,6 +109,7 @@ impl ObjectSetBuilder {
         id::BufferViewId::new(self.set_id, index as u64)
     }
 
+    /// Adds a request for a image that only needs to be accessed by the gpu
     pub fn add_default_gpu_only_image(&mut self, desc: ImageCreateDesc) -> id::ImageId {
         let index = self.requests.len();
 
@@ -109,6 +118,7 @@ impl ObjectSetBuilder {
         id::ImageId::new(self.set_id, index as u64)
     }
 
+    /// Adds a request for a image that needs to be accessed by both gpu and cpu
     pub fn add_default_gpu_cpu_image(&mut self, desc: ImageCreateDesc) -> id::ImageId {
         let index = self.requests.len();
 
@@ -117,6 +127,7 @@ impl ObjectSetBuilder {
         id::ImageId::new(self.set_id, index as u64)
     }
 
+    /// Adds a image view for a image created as part of this object set
     pub fn add_internal_image_view(&mut self, desc: ImageViewCreateDesc, image: id::ImageId) -> id::ImageViewId {
         if image.get_global_id() != self.set_id {
             panic!("Image global id does not match set id")
@@ -128,6 +139,7 @@ impl ObjectSetBuilder {
         id::ImageViewId::new(self.set_id, index as u64)
     }
 
+    /// Adds a image view for a image owned by a different object set
     pub fn add_external_image_view(&mut self, desc: ImageViewCreateDesc, set: ObjectSet, image: id::ImageId) -> id::ImageViewId {
         if image.get_global_id() != set.get_set_id() {
             panic!("Image global id does not match set id")
@@ -144,6 +156,7 @@ impl ObjectSetBuilder {
         id::ImageViewId::new(self.set_id, index as u64)
     }
 
+    /// Creates the objects and returns the resulting object set
     pub fn build(self) -> ObjectSet {
         let (objects, allocation) = self.synchronization_group.get_manager().create_objects(self.requests.as_slice());
         ObjectSet::new(self.set_id, self.synchronization_group, objects, allocation)
@@ -295,6 +308,11 @@ impl ObjectSet {
         self.0.get_buffer_handle(id)
     }
 
+    /// Returns the handle of a buffer view that is part of this object set.
+    ///
+    /// If the id is not part of the object set (i.e. the global id does not match) None will be
+    /// returned. If the id is invalid (matching global id but local id is invalid or object type
+    /// is not a buffer view) the function panics.
     pub fn get_buffer_view_handle(&self, id: id::BufferViewId) -> Option<vk::BufferView> {
         self.0.get_buffer_view_handle(id)
     }
@@ -308,6 +326,11 @@ impl ObjectSet {
         self.0.get_image_handle(id)
     }
 
+    /// Returns the handle of a image view that is part of this object set.
+    ///
+    /// If the id is not part of the object set (i.e. the global id does not match) None will be
+    /// returned. If the id is invalid (matching global id but local id is invalid or object type
+    /// is not a image view) the function panics.
     pub fn get_image_view_handle(&self, id: id::ImageViewId) -> Option<vk::ImageView> {
         self.0.get_image_view_handle(id)
     }
