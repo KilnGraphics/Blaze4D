@@ -9,12 +9,14 @@ use ash::vk;
 use crate::init::EnabledFeatures;
 use crate::util::extensions::{AsRefOption, ExtensionFunctionSet, VkExtensionInfo, VkExtensionFunctions};
 use crate::init::rosella_features::WindowSurface;
+use crate::objects::ObjectManager;
 use crate::util::id::UUID;
 
 pub struct Rosella {
     pub instance: InstanceContext,
     pub surface: RosellaSurface,
     pub device: DeviceContext,
+    pub object_manager: ObjectManager,
 }
 
 #[derive(Debug)]
@@ -52,10 +54,13 @@ impl Rosella {
         let elapsed = now.elapsed();
         println!("Instance & Device Initialization took: {:.2?}", elapsed);
 
+        let object_manager = ObjectManager::new(device.clone());
+
         Ok(Rosella {
-            instance: instance.clone(),
+            instance,
             surface,
-            device: device.clone()
+            device,
+            object_manager,
         })
     }
 
