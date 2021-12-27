@@ -3,9 +3,7 @@
 //! Contains structs and enums to manage creation, access to and destruction of vulkan objects.
 //!
 //! Access to objects is controlled using synchronization groups. All objects belonging to a
-//! synchronization group are accessed as one unit protected by a single timeline semaphore. This
-//! means 2 objects belonging to the same synchronization group cannot be accessed concurrently but
-//! only sequentially.
+//! synchronization group are accessed as one unit protected by a single timeline semaphore.
 //!
 //! Allocation and destruction of objects is managed through object sets. A objects set is a
 //! collection of objects that have the same lifetime. All objects are created when creating the set
@@ -50,28 +48,22 @@ use crate::objects::manager::allocator::{BufferRequestDescription, BufferViewReq
 use crate::util::slice_splitter::Splitter;
 
 #[derive(Debug)]
-enum ObjectCreateError<'s> {
+enum ObjectCreateError {
     Vulkan(vk::Result),
     Allocation(AllocationError),
-    InvalidReference(),
-    PoisonedAllocator(PoisonError<MutexGuard<'s, Allocator>>)
+    InvalidReference,
+    PoisonedAllocator,
 }
 
-impl<'s> From<ash::vk::Result> for ObjectCreateError<'s> {
+impl<'s> From<ash::vk::Result> for ObjectCreateError {
     fn from(err: vk::Result) -> Self {
         ObjectCreateError::Vulkan(err)
     }
 }
 
-impl<'s> From<AllocationError> for ObjectCreateError<'s> {
+impl<'s> From<AllocationError> for ObjectCreateError {
     fn from(err: AllocationError) -> Self {
         ObjectCreateError::Allocation(err)
-    }
-}
-
-impl<'s> From<PoisonError<MutexGuard<'s, Allocator>>> for ObjectCreateError<'s> {
-    fn from(err: PoisonError<MutexGuard<'s, Allocator>>) -> Self {
-        ObjectCreateError::PoisonedAllocator(err)
     }
 }
 
@@ -262,7 +254,7 @@ impl ObjectManagerImpl {
 
         // Allocate memory for objects
         {
-            let mut allocator = self.allocator.lock()?;
+            let mut allocator = self.allocator.lock().map_err(|_| ObjectCreateError::PoisonedAllocator)?;
             for object in objects.iter_mut() {
                 match object {
                     TemporaryObjectData::Buffer {
@@ -332,13 +324,13 @@ impl ObjectManagerImpl {
                     if handle != &vk::BufferView::null() {
                         let buffer = match desc.owning_set.as_ref() {
                             Some(set) => {
-                                set.get_buffer_handle(desc.buffer_id).ok_or(ObjectCreateError::InvalidReference())?
+                                set.get_buffer_handle(desc.buffer_id).ok_or(ObjectCreateError::InvalidReference)?
                             }
                             None => {
                                 let index = desc.buffer_id.get_index() as usize;
-                                match split.get(index).ok_or(ObjectCreateError::InvalidReference())? {
+                                match split.get(index).ok_or(ObjectCreateError::InvalidReference)? {
                                     TemporaryObjectData::Buffer { handle, .. } => *handle,
-                                    _ => return Err(ObjectCreateError::InvalidReference())
+                                    _ => return Err(ObjectCreateError::InvalidReference)
                                 }
                             }
                         };
@@ -361,13 +353,13 @@ impl ObjectManagerImpl {
                     if handle != &vk::ImageView::null() {
                         let image = match desc.owning_set.as_ref() {
                             Some(set) => {
-                                set.get_image_handle(desc.image_id).ok_or(ObjectCreateError::InvalidReference())?
+                                set.get_image_handle(desc.image_id).ok_or(ObjectCreateError::InvalidReference)?
                             }
                             None => {
                                 let index = desc.image_id.get_index() as usize;
-                                match split.get(index).ok_or(ObjectCreateError::InvalidReference())? {
+                                match split.get(index).ok_or(ObjectCreateError::InvalidReference)? {
                                     TemporaryObjectData::Image { handle, .. } => *handle,
-                                    _ => return Err(ObjectCreateError::InvalidReference())
+                                    _ => return Err(ObjectCreateError::InvalidReference)
                                 }
                             }
                         };
