@@ -1,7 +1,3 @@
-use std::borrow::Borrow;
-use std::marker::{PhantomData, PhantomPinned};
-use std::ops::Deref;
-
 pub struct Splitter<'a, T> {
     index: usize,
     head: &'a [T],

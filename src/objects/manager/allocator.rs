@@ -1,4 +1,3 @@
-use ash::vk::_screen_window;
 use crate::objects::buffer::{BufferCreateDesc, BufferViewCreateDesc};
 use crate::objects::image::{ImageCreateDesc, ImageViewCreateDesc};
 use crate::objects::{id, ObjectSet};

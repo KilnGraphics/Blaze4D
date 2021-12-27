@@ -1,5 +1,4 @@
 use ash::vk;
-use crate::objects::Format;
 
 #[derive(Copy, Clone, Debug)]
 pub struct BufferSpec {

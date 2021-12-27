@@ -92,6 +92,10 @@ impl SynchronizationGroup {
         Self(Arc::new(SynchronizationGroupImpl::new(manager, semaphore)))
     }
 
+    pub fn get_group_id(&self) -> GlobalId {
+        self.0.get_group_id()
+    }
+
     /// Returns the object manager managing this synchronization group
     pub fn get_manager(&self) -> &ObjectManager {
         &self.0.manager

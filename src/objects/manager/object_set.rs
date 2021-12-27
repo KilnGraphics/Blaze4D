@@ -19,6 +19,7 @@ pub(super) enum ObjectData {
     },
     BufferView{
         handle: vk::BufferView,
+        #[allow(unused)] // This is needed to prevent the source set from being destroyed early
         source_set: Option<ObjectSet>,
     },
     Image {
@@ -26,6 +27,7 @@ pub(super) enum ObjectData {
     },
     ImageView {
         handle: vk::ImageView,
+        #[allow(unused)] // This is needed to prevent the source set from being destroyed early
         source_set: Option<ObjectSet>,
     }
 }
@@ -53,14 +55,6 @@ impl ObjectSetBuilder {
             synchronization_group,
             set_id: GlobalId::new(),
             requests: Vec::new(),
-        }
-    }
-
-    pub(super) fn with_capacity(synchronization_group: SynchronizationGroup, capacity: usize) -> Self {
-        Self {
-            synchronization_group,
-            set_id: GlobalId::new(),
-            requests: Vec::with_capacity(capacity),
         }
     }
 

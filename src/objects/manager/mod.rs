@@ -23,24 +23,12 @@ pub(super) mod synchronization_group;
 pub(super) mod object_set;
 mod allocator;
 
-use std::alloc::handle_alloc_error;
-use std::cmp::Ordering;
-use std::hash::{Hash, Hasher};
 use std::mem::ManuallyDrop;
-use std::ptr::hash;
-use std::sync::{Arc, LockResult, Mutex, MutexGuard, PoisonError};
+use std::sync::{Arc, Mutex, MutexGuard};
 
 use ash::vk;
-use ash::vk::{Handle, Image};
-use gpu_allocator::{AllocationError, AllocatorDebugSettings, MemoryLocation};
+use gpu_allocator::AllocationError;
 use gpu_allocator::vulkan::{Allocation, AllocationCreateDesc, Allocator, AllocatorCreateDesc};
-
-use crate::util::id::GlobalId;
-
-use crate::objects::buffer::{BufferCreateDesc, BufferViewCreateDesc};
-use crate::objects::image::{ImageCreateDesc, ImageViewCreateDesc};
-
-use super::id;
 
 use synchronization_group::*;
 use object_set::*;
@@ -123,7 +111,6 @@ impl<'a> TemporaryObjectData<'a> {
 
 // Internal implementation of the object manager
 struct ObjectManagerImpl {
-    instance: crate::rosella::InstanceContext,
     device: crate::rosella::DeviceContext,
 
     // We need to ensure the allocator is dropped before the instance and device are
@@ -131,9 +118,9 @@ struct ObjectManagerImpl {
 }
 
 impl ObjectManagerImpl {
-    fn new(instance: crate::rosella::InstanceContext, device: crate::rosella::DeviceContext) -> Self {
+    fn new(device: crate::rosella::DeviceContext) -> Self {
         let allocator: Allocator = Allocator::new(&AllocatorCreateDesc{
-            instance: instance.vk().clone(),
+            instance: device.get_instance().vk().clone(),
             device: device.vk().clone(),
             physical_device: device.get_physical_device().clone(),
             debug_settings: Default::default(),
@@ -141,12 +128,12 @@ impl ObjectManagerImpl {
         }).unwrap();
 
         Self{
-            instance,
             device,
             allocator: ManuallyDrop::new(Mutex::new(allocator)),
         }
     }
 
+    /// Creates a timeline semaphore for use in a synchronization group
     fn create_timeline_semaphore(&self, initial_value: u64) -> vk::Semaphore {
         let mut timeline_info = vk::SemaphoreTypeCreateInfo::builder()
             .semaphore_type(vk::SemaphoreType::TIMELINE)
@@ -158,12 +145,15 @@ impl ObjectManagerImpl {
         }
     }
 
+    /// Destroys a semaphore previously created using [`ObjectManagerImpl::create_timeline_semaphore`]
     fn destroy_semaphore(&self, semaphore: vk::Semaphore) {
         unsafe {
             self.device.vk().destroy_semaphore(semaphore, None)
         }
     }
 
+    /// Destroys a set of temporary objects. This is used if an error is encountered during the
+    /// build process.
     fn destroy_temporary_objects(&self, objects: &mut [TemporaryObjectData], allocator: &mut MutexGuard<Allocator>) {
         // First destroy any object that might have a dependency on other objects
         for object in objects.iter() {
@@ -199,11 +189,6 @@ impl ObjectManagerImpl {
                 _ => {}
             }
         }
-    }
-
-    fn destroy_temporary_objects_no_lock(&self, objects: &mut [TemporaryObjectData]) {
-        let mut guard = self.allocator.lock().unwrap();
-        self.destroy_temporary_objects(objects, &mut guard);
     }
 
     fn create_temporary_objects(&self, objects: &mut [TemporaryObjectData]) -> Result<(), ObjectCreateError> {
@@ -314,7 +299,7 @@ impl ObjectManagerImpl {
 
         // Create dependant objects
         for i in 0..objects.len() {
-            let (mut split, elem) = Splitter::new(objects, i);
+            let (split, elem) = Splitter::new(objects, i);
 
             match elem {
                 TemporaryObjectData::BufferView {
@@ -406,7 +391,7 @@ impl ObjectManagerImpl {
         let mut allocations = Vec::new();
         let mut object_data = Vec::with_capacity(objects.len());
 
-        for mut object in objects.into_iter() {
+        for object in objects.into_iter() {
             object_data.push(match object {
                 TemporaryObjectData::Buffer { handle, allocation, .. } => {
                     match allocation {
@@ -476,7 +461,7 @@ impl ObjectManagerImpl {
 
         let mut guard = self.allocator.lock().unwrap();
         for allocation in allocation.allocations.as_ref() {
-            guard.free(allocation.clone());
+            guard.free(allocation.clone()).unwrap();
         }
     }
 }
@@ -494,8 +479,8 @@ pub struct ObjectManager(Arc<ObjectManagerImpl>);
 
 impl ObjectManager {
     /// Creates a new ObjectManager
-    pub fn new(instance: crate::rosella::InstanceContext, device: crate::rosella::DeviceContext) -> Self {
-        Self(Arc::new(ObjectManagerImpl::new(instance, device)))
+    pub fn new(device: crate::rosella::DeviceContext) -> Self {
+        Self(Arc::new(ObjectManagerImpl::new(device)))
     }
 
     /// Creates a new synchronization group managed by this object manager
@@ -544,17 +529,19 @@ struct AllocationMeta {
 #[cfg(test)]
 mod tests {
     use crate::objects::{BufferRange, ImageSize, ImageSpec};
+    use crate::objects::buffer::{BufferCreateDesc, BufferViewCreateDesc};
+    use crate::objects::image::ImageCreateDesc;
     use super::*;
 
     fn create() -> ObjectManager {
-        let (instance, device) = crate::test::make_headless_instance_device();
-        ObjectManager::new(instance, device)
+        let (_, device) = crate::test::make_headless_instance_device();
+        ObjectManager::new(device)
     }
 
     #[test]
     fn create_destroy() {
-        let (instance, device) = crate::test::make_headless_instance_device();
-        let manager = ObjectManager::new(instance, device);
+        let (_, device) = crate::test::make_headless_instance_device();
+        let manager = ObjectManager::new(device);
         drop(manager);
     }
 
