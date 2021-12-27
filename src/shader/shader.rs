@@ -1,5 +1,4 @@
 use crate::shader::vertex::VertexFormat;
-use crate::ALLOCATION_CALLBACKS;
 use ash::vk::{ShaderModule, ShaderModuleCreateInfo};
 use ash::{Device, Entry};
 use shaderc::{CompileOptions, Compiler, ShaderKind, TargetEnv};
@@ -34,7 +33,7 @@ pub struct ComputeContext {
 
 /// Shaders & context needed to render a object.
 pub struct GraphicsShader {
-    pub device: Arc<DeviceContext>,
+    pub device: DeviceContext,
     pub graphics_context: GraphicsContext,
     pub vertex_shader: ShaderModule,
     pub fragment_shader: ShaderModule,
@@ -49,7 +48,7 @@ pub struct ComputeShader {
 impl GraphicsShader {
     /// Creates a new GraphicsShader based on glsl shaders.
     pub fn new(
-        device: Arc<DeviceContext>,
+        device: DeviceContext,
         vertex_shader: String,
         fragment_shader: String,
         graphics_context: GraphicsContext,
@@ -59,7 +58,7 @@ impl GraphicsShader {
 
         options.set_target_env(
             TargetEnv::Vulkan,
-            Entry::new().try_enumerate_instance_version().ok().flatten().unwrap(),
+            device.get_entry().try_enumerate_instance_version().ok().flatten().unwrap(),
         );
 
         let vertex_shader = unsafe {
@@ -70,7 +69,7 @@ impl GraphicsShader {
                         .expect("Failed to compile the VertexShader.")
                         .as_binary(),
                 ),
-                ALLOCATION_CALLBACKS,
+                None,
             )
         }.unwrap();
 
@@ -82,7 +81,7 @@ impl GraphicsShader {
                         .expect("Failed to compile the FragmentShader.")
                         .as_binary(),
                 ),
-                ALLOCATION_CALLBACKS,
+                None,
             )
         }.unwrap();
 
@@ -101,8 +100,8 @@ impl GraphicsShader {
 impl Drop for GraphicsShader {
     fn drop(&mut self) {
         unsafe {
-            self.device.vk().destroy_shader_module(self.vertex_shader, ALLOCATION_CALLBACKS);
-            self.device.vk().destroy_shader_module(self.fragment_shader, ALLOCATION_CALLBACKS);
+            self.device.vk().destroy_shader_module(self.vertex_shader, None);
+            self.device.vk().destroy_shader_module(self.fragment_shader, None);
         }
     }
 }
