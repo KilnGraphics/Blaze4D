@@ -21,7 +21,9 @@
 
 pub(super) mod synchronization_group;
 pub(super) mod object_set;
+
 mod allocator;
+mod worker;
 
 use std::mem::ManuallyDrop;
 use std::sync::{Arc, Mutex, MutexGuard};
