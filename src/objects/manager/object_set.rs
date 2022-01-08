@@ -3,7 +3,7 @@ use std::hash::{Hash, Hasher};
 use std::sync::Arc;
 use crate::objects::buffer::{BufferCreateDesc, BufferViewCreateDesc};
 use crate::objects::image::{ImageCreateDesc, ImageViewCreateDesc};
-use crate::objects::id;
+use crate::objects::{id, ObjectManager};
 use crate::objects::manager::AllocationMeta;
 use crate::objects::manager::synchronization_group::SynchronizationGroup;
 use crate::util::id::GlobalId;
@@ -48,22 +48,42 @@ impl ObjectData {
 /// Collects information about objects that need to be created for an object set. The objects are
 /// only created once the build method is called.
 pub struct ObjectSetBuilder {
-    synchronization_group: SynchronizationGroup,
+    synchronization_group: Option<SynchronizationGroup>,
+    manager: ObjectManager,
     set_id: GlobalId,
     requests: Vec<ObjectRequestDescription>,
+    requires_group: bool,
 }
 
 impl ObjectSetBuilder {
     pub(super) fn new(synchronization_group: SynchronizationGroup) -> Self {
+        let manager = synchronization_group.get_manager().clone();
         Self {
-            synchronization_group,
+            synchronization_group: Some(synchronization_group),
+            manager,
             set_id: GlobalId::new(),
             requests: Vec::new(),
+            requires_group: false,
+        }
+    }
+
+    pub(super) fn new_no_group(manager: ObjectManager) -> Self {
+        Self {
+            synchronization_group: None,
+            manager,
+            set_id: GlobalId::new(),
+            requests: Vec::new(),
+            requires_group: false,
         }
     }
 
     /// Adds a request for a buffer that only needs to be accessed by the gpu
     pub fn add_default_gpu_only_buffer(&mut self, desc: BufferCreateDesc) -> id::BufferId {
+        if self.synchronization_group.is_none() {
+            panic!("Attempted to add buffer to object set without synchronization group");
+        }
+        self.requires_group = true;
+
         let index = self.requests.len();
 
         self.requests.push(ObjectRequestDescription::make_buffer(desc, MemoryLocation::GpuOnly));
@@ -73,6 +93,11 @@ impl ObjectSetBuilder {
 
     /// Adds a request for a buffer that needs to be accessed by both gpu and cpu
     pub fn add_default_gpu_cpu_buffer(&mut self, desc: BufferCreateDesc) -> id::BufferId {
+        if self.synchronization_group.is_none() {
+            panic!("Attempted to add buffer to object set without synchronization group");
+        }
+        self.requires_group = true;
+
         let index = self.requests.len();
 
         self.requests.push(ObjectRequestDescription::make_buffer(desc, MemoryLocation::CpuToGpu));
@@ -82,6 +107,11 @@ impl ObjectSetBuilder {
 
     /// Adds a buffer view for a buffer created as part of this object set
     pub fn add_internal_buffer_view(&mut self, desc: BufferViewCreateDesc, buffer: id::BufferId) -> id::BufferViewId {
+        if self.synchronization_group.is_none() {
+            panic!("Attempted to add buffer view to object set without synchronization group");
+        }
+        self.requires_group = true;
+
         if buffer.get_global_id() != self.set_id {
             panic!("Buffer global id does not match set id")
         }
@@ -94,11 +124,16 @@ impl ObjectSetBuilder {
 
     /// Adds a buffer view for a buffer owned by a different object set
     pub fn add_external_buffer_view(&mut self, desc: BufferViewCreateDesc, set: ObjectSet, buffer: id::BufferId) -> id::BufferViewId {
+        if self.synchronization_group.is_none() {
+            panic!("Attempted to add buffer view to object set without synchronization group");
+        }
+        self.requires_group = true;
+
         if buffer.get_global_id() != set.get_set_id() {
             panic!("Buffer global id does not match set id")
         }
 
-        if *set.get_synchronization_group() != self.synchronization_group {
+        if set.get_synchronization_group().unwrap() != self.synchronization_group.as_ref().unwrap() {
             panic!("Buffer does not match internal synchronization group")
         }
 
@@ -111,6 +146,11 @@ impl ObjectSetBuilder {
 
     /// Adds a request for a image that only needs to be accessed by the gpu
     pub fn add_default_gpu_only_image(&mut self, desc: ImageCreateDesc) -> id::ImageId {
+        if self.synchronization_group.is_none() {
+            panic!("Attempted to add image to object set without synchronization group");
+        }
+        self.requires_group = true;
+
         let index = self.requests.len();
 
         self.requests.push(ObjectRequestDescription::make_image(desc, MemoryLocation::GpuOnly));
@@ -120,6 +160,11 @@ impl ObjectSetBuilder {
 
     /// Adds a request for a image that needs to be accessed by both gpu and cpu
     pub fn add_default_gpu_cpu_image(&mut self, desc: ImageCreateDesc) -> id::ImageId {
+        if self.synchronization_group.is_none() {
+            panic!("Attempted to add image to object set without synchronization group");
+        }
+        self.requires_group = true;
+
         let index = self.requests.len();
 
         self.requests.push(ObjectRequestDescription::make_image(desc, MemoryLocation::CpuToGpu));
@@ -129,6 +174,11 @@ impl ObjectSetBuilder {
 
     /// Adds a image view for a image created as part of this object set
     pub fn add_internal_image_view(&mut self, desc: ImageViewCreateDesc, image: id::ImageId) -> id::ImageViewId {
+        if self.synchronization_group.is_none() {
+            panic!("Attempted to add image view to object set without synchronization group");
+        }
+        self.requires_group = true;
+
         if image.get_global_id() != self.set_id {
             panic!("Image global id does not match set id")
         }
@@ -141,11 +191,16 @@ impl ObjectSetBuilder {
 
     /// Adds a image view for a image owned by a different object set
     pub fn add_external_image_view(&mut self, desc: ImageViewCreateDesc, set: ObjectSet, image: id::ImageId) -> id::ImageViewId {
+        if self.synchronization_group.is_none() {
+            panic!("Attempted to add image view to object set without synchronization group");
+        }
+        self.requires_group = true;
+
         if image.get_global_id() != set.get_set_id() {
             panic!("Image global id does not match set id")
         }
 
-        if *set.get_synchronization_group() != self.synchronization_group {
+        if set.get_synchronization_group().unwrap() != self.synchronization_group.as_ref().unwrap() {
             panic!("Image does not match internal synchronization group")
         }
 
@@ -158,23 +213,27 @@ impl ObjectSetBuilder {
 
     /// Creates the objects and returns the resulting object set
     pub fn build(self) -> ObjectSet {
-        let (objects, allocation) = self.synchronization_group.get_manager().create_objects(self.requests.as_slice());
-        ObjectSet::new(self.set_id, self.synchronization_group, objects, allocation)
+        let group = if self.requires_group { self.synchronization_group } else { None };
+
+        let (objects, allocation) = self.manager.create_objects(self.requests.as_slice());
+        ObjectSet::new(self.set_id, group, self.manager, objects, allocation)
     }
 }
 
 // Internal implementation of the object set
 struct ObjectSetImpl {
-    group: SynchronizationGroup,
+    group: Option<SynchronizationGroup>,
+    manager: ObjectManager,
     set_id: GlobalId,
     objects: Box<[ObjectData]>,
     allocation: AllocationMeta,
 }
 
 impl ObjectSetImpl {
-    fn new(set_id: GlobalId, synchronization_group: SynchronizationGroup, objects: Box<[ObjectData]>, allocation: AllocationMeta) -> Self {
+    fn new(set_id: GlobalId, synchronization_group: Option<SynchronizationGroup>, manager: ObjectManager, objects: Box<[ObjectData]>, allocation: AllocationMeta) -> Self {
         Self{
             group: synchronization_group,
+            manager,
             set_id,
             objects,
             allocation,
@@ -241,7 +300,7 @@ impl ObjectSetImpl {
 
 impl Drop for ObjectSetImpl {
     fn drop(&mut self) {
-        self.group.get_manager().destroy_objects(self.objects.as_ref(), &self.allocation)
+        self.manager.destroy_objects(self.objects.as_ref(), &self.allocation)
     }
 }
 
@@ -277,8 +336,8 @@ impl Ord for ObjectSetImpl {
 pub struct ObjectSet(Arc<ObjectSetImpl>);
 
 impl ObjectSet {
-    fn new(set_id: GlobalId, synchronization_group: SynchronizationGroup, objects: Box<[ObjectData]>, allocation: AllocationMeta) -> Self {
-        Self(Arc::new(ObjectSetImpl::new(set_id, synchronization_group, objects, allocation)))
+    fn new(set_id: GlobalId, synchronization_group: Option<SynchronizationGroup>, manager: ObjectManager, objects: Box<[ObjectData]>, allocation: AllocationMeta) -> Self {
+        Self(Arc::new(ObjectSetImpl::new(set_id, synchronization_group, manager, objects, allocation)))
     }
 
     pub fn get_set_id(&self) -> GlobalId {
@@ -286,8 +345,8 @@ impl ObjectSet {
     }
 
     /// Returns the synchronization group that controls access to this object set.
-    pub fn get_synchronization_group(&self) -> &SynchronizationGroup {
-        &self.0.group
+    pub fn get_synchronization_group(&self) -> Option<&SynchronizationGroup> {
+        self.0.group.as_ref()
     }
 
     /// Returns the handle of an object that is part of this object set.

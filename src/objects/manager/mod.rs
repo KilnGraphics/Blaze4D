@@ -504,6 +504,11 @@ impl ObjectManager {
         ObjectSetBuilder::new(synchronization_group)
     }
 
+    /// Creates a new object set builder without a synchronization group
+    pub fn create_no_group_object_set(&self) -> ObjectSetBuilder {
+        ObjectSetBuilder::new_no_group(self.clone())
+    }
+
     // Internal function that destroys a semaphore created for a synchronization group
     fn destroy_semaphore(&self, semaphore: vk::Semaphore) {
         self.0.destroy_semaphore(semaphore)
@@ -577,7 +582,7 @@ mod tests {
 
         let set = builder.build();
 
-        assert_eq!(set.get_synchronization_group(), &group);
+        assert_eq!(set.get_synchronization_group(), Some(&group));
 
         assert!(set.get_buffer_handle(id).is_some());
 
@@ -596,7 +601,7 @@ mod tests {
 
         let set = builder.build();
 
-        assert_eq!(set.get_synchronization_group(), &group);
+        assert_eq!(set.get_synchronization_group(), Some(&group));
 
         assert!(set.get_image_handle(id).is_some());
 

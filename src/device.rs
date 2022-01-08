@@ -1,8 +1,6 @@
 use std::sync::Arc;
-use std::thread::JoinHandle;
 
 use ash::vk;
-use concurrent_queue::ConcurrentQueue;
 
 use crate::init::EnabledFeatures;
 use crate::instance::InstanceContext;
