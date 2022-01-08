@@ -1,17 +1,16 @@
 use std::cmp::Ordering;
 use std::hash::{Hash, Hasher};
+use std::mem::ManuallyDrop;
 use std::sync::Arc;
 use crate::objects::buffer::{BufferCreateDesc, BufferViewCreateDesc};
 use crate::objects::image::{ImageCreateDesc, ImageViewCreateDesc};
 use crate::objects::{id, ObjectManager};
-use crate::objects::manager::AllocationMeta;
 use crate::objects::manager::synchronization_group::SynchronizationGroup;
 use crate::util::id::GlobalId;
 
 use ash::vk;
 use ash::vk::Handle;
-use gpu_allocator::MemoryLocation;
-use crate::objects::manager::allocator::ObjectRequestDescription;
+use crate::objects::manager::allocator::{Allocation, AllocationStrategy, ObjectRequestDescription};
 
 pub(super) enum ObjectData {
     Buffer{
@@ -41,6 +40,11 @@ impl ObjectData {
             ObjectData::ImageView { handle, .. } => handle.as_raw(),
         }
     }
+}
+
+pub(super) struct ObjectSetData {
+    pub objects: Box<[ObjectData]>,
+    pub allocations: Box<[Allocation]>
 }
 
 /// Utility struct used to build an object set.
@@ -86,7 +90,7 @@ impl ObjectSetBuilder {
 
         let index = self.requests.len();
 
-        self.requests.push(ObjectRequestDescription::make_buffer(desc, MemoryLocation::GpuOnly));
+        self.requests.push(ObjectRequestDescription::make_buffer(desc, AllocationStrategy::AutoGpuOnly));
 
         id::BufferId::new(self.set_id, index as u64)
     }
@@ -100,7 +104,7 @@ impl ObjectSetBuilder {
 
         let index = self.requests.len();
 
-        self.requests.push(ObjectRequestDescription::make_buffer(desc, MemoryLocation::CpuToGpu));
+        self.requests.push(ObjectRequestDescription::make_buffer(desc, AllocationStrategy::AutoGpuCpu));
 
         id::BufferId::new(self.set_id, index as u64)
     }
@@ -153,7 +157,7 @@ impl ObjectSetBuilder {
 
         let index = self.requests.len();
 
-        self.requests.push(ObjectRequestDescription::make_image(desc, MemoryLocation::GpuOnly));
+        self.requests.push(ObjectRequestDescription::make_image(desc, AllocationStrategy::AutoGpuOnly));
 
         id::ImageId::new(self.set_id, index as u64)
     }
@@ -167,7 +171,7 @@ impl ObjectSetBuilder {
 
         let index = self.requests.len();
 
-        self.requests.push(ObjectRequestDescription::make_image(desc, MemoryLocation::CpuToGpu));
+        self.requests.push(ObjectRequestDescription::make_image(desc, AllocationStrategy::AutoGpuCpu));
 
         id::ImageId::new(self.set_id, index as u64)
     }
@@ -225,18 +229,21 @@ struct ObjectSetImpl {
     group: Option<SynchronizationGroup>,
     manager: ObjectManager,
     set_id: GlobalId,
-    objects: Box<[ObjectData]>,
-    allocation: AllocationMeta,
+
+    // Screw unwrap
+    data: ManuallyDrop<ObjectSetData>,
 }
 
 impl ObjectSetImpl {
-    fn new(set_id: GlobalId, synchronization_group: Option<SynchronizationGroup>, manager: ObjectManager, objects: Box<[ObjectData]>, allocation: AllocationMeta) -> Self {
+    fn new(set_id: GlobalId, synchronization_group: Option<SynchronizationGroup>, manager: ObjectManager, objects: Box<[ObjectData]>, allocations: Box<[Allocation]>) -> Self {
         Self{
             group: synchronization_group,
             manager,
             set_id,
-            objects,
-            allocation,
+            data: ManuallyDrop::new(ObjectSetData {
+                objects,
+                allocations,
+            })
         }
     }
 
@@ -246,7 +253,7 @@ impl ObjectSetImpl {
         }
 
         // Invalid local id but matching global is a serious error
-        Some(self.objects.get(id.get_index() as usize).unwrap().get_raw_handle())
+        Some(self.data.objects.get(id.get_index() as usize).unwrap().get_raw_handle())
     }
 
     fn get_buffer_handle(&self, id: id::BufferId) -> Option<vk::Buffer> {
@@ -255,7 +262,7 @@ impl ObjectSetImpl {
         }
 
         // Invalid local id but matching global is a serious error
-        match self.objects.get(id.get_index() as usize).unwrap() {
+        match self.data.objects.get(id.get_index() as usize).unwrap() {
             ObjectData::Buffer { handle, .. } => Some(*handle),
             _ => panic!("Object type mismatch"),
         }
@@ -267,7 +274,7 @@ impl ObjectSetImpl {
         }
 
         // Invalid local id but matching global is a serious error
-        match self.objects.get(id.get_index() as usize).unwrap() {
+        match self.data.objects.get(id.get_index() as usize).unwrap() {
             ObjectData::BufferView { handle, .. } => Some(*handle),
             _ => panic!("Object type mismatch"),
         }
@@ -279,7 +286,7 @@ impl ObjectSetImpl {
         }
 
         // Invalid local id but matching global is a serious error
-        match self.objects.get(id.get_index() as usize).unwrap() {
+        match self.data.objects.get(id.get_index() as usize).unwrap() {
             ObjectData::Image { handle, .. } => Some(*handle),
             _ => panic!("Object type mismatch"),
         }
@@ -291,7 +298,7 @@ impl ObjectSetImpl {
         }
 
         // Invalid local id but matching global is a serious error
-        match self.objects.get(id.get_index() as usize).unwrap() {
+        match self.data.objects.get(id.get_index() as usize).unwrap() {
             ObjectData::ImageView { handle, .. } => Some(*handle),
             _ => panic!("Object type mismatch"),
         }
@@ -300,7 +307,8 @@ impl ObjectSetImpl {
 
 impl Drop for ObjectSetImpl {
     fn drop(&mut self) {
-        self.manager.destroy_objects(self.objects.as_ref(), &self.allocation)
+        let data = unsafe { ManuallyDrop::take(&mut self.data) };
+        self.manager.destroy_objects(data.objects, data.allocations);
     }
 }
 
@@ -336,8 +344,8 @@ impl Ord for ObjectSetImpl {
 pub struct ObjectSet(Arc<ObjectSetImpl>);
 
 impl ObjectSet {
-    fn new(set_id: GlobalId, synchronization_group: Option<SynchronizationGroup>, manager: ObjectManager, objects: Box<[ObjectData]>, allocation: AllocationMeta) -> Self {
-        Self(Arc::new(ObjectSetImpl::new(set_id, synchronization_group, manager, objects, allocation)))
+    fn new(set_id: GlobalId, synchronization_group: Option<SynchronizationGroup>, manager: ObjectManager, objects: Box<[ObjectData]>, allocations: Box<[Allocation]>) -> Self {
+        Self(Arc::new(ObjectSetImpl::new(set_id, synchronization_group, manager, objects, allocations)))
     }
 
     pub fn get_set_id(&self) -> GlobalId {

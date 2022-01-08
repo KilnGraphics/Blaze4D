@@ -29,12 +29,10 @@ use std::mem::ManuallyDrop;
 use std::sync::{Arc, Mutex, MutexGuard};
 
 use ash::vk;
-use gpu_allocator::AllocationError;
-use gpu_allocator::vulkan::{Allocation, AllocationCreateDesc, Allocator, AllocatorCreateDesc};
 
 use synchronization_group::*;
 use object_set::*;
-use crate::objects::manager::allocator::{BufferRequestDescription, BufferViewRequestDescription, ImageRequestDescription, ImageViewRequestDescription, ObjectRequestDescription};
+use crate::objects::manager::allocator::*;
 use crate::util::slice_splitter::Splitter;
 
 #[derive(Debug)]
@@ -114,24 +112,16 @@ impl<'a> TemporaryObjectData<'a> {
 // Internal implementation of the object manager
 struct ObjectManagerImpl {
     device: crate::rosella::DeviceContext,
-
-    // We need to ensure the allocator is dropped before the instance and device are
-    allocator: ManuallyDrop<Mutex<Allocator>>,
+    allocator: Allocator,
 }
 
 impl ObjectManagerImpl {
     fn new(device: crate::rosella::DeviceContext) -> Self {
-        let allocator: Allocator = Allocator::new(&AllocatorCreateDesc{
-            instance: device.get_instance().vk().clone(),
-            device: device.vk().clone(),
-            physical_device: device.get_physical_device().clone(),
-            debug_settings: Default::default(),
-            buffer_device_address: false
-        }).unwrap();
+        let allocator = Allocator::new(device.clone());
 
         Self{
             device,
-            allocator: ManuallyDrop::new(Mutex::new(allocator)),
+            allocator,
         }
     }
 
@@ -156,7 +146,7 @@ impl ObjectManagerImpl {
 
     /// Destroys a set of temporary objects. This is used if an error is encountered during the
     /// build process.
-    fn destroy_temporary_objects(&self, objects: &mut [TemporaryObjectData], allocator: &mut MutexGuard<Allocator>) {
+    fn destroy_temporary_objects(&self, objects: &mut [TemporaryObjectData]) {
         // First destroy any object that might have a dependency on other objects
         for object in objects.iter() {
             match object {
@@ -180,13 +170,13 @@ impl ObjectManagerImpl {
                     if *handle != vk::Buffer::null() {
                         unsafe { self.device.vk().destroy_buffer(*handle, None) }
                     }
-                    allocation.take().map(|alloc| allocator.free(alloc));
+                    allocation.take().map(|alloc| self.allocator.free(alloc));
                 },
                 TemporaryObjectData::Image { handle, allocation,  .. } => {
                     if *handle != vk::Image::null() {
                         unsafe { self.device.vk().destroy_image(*handle, None) }
                     }
-                    allocation.take().map(|alloc| allocator.free(alloc));
+                    allocation.take().map(|alloc| self.allocator.free(alloc));
                 },
                 _ => {}
             }
@@ -242,7 +232,6 @@ impl ObjectManagerImpl {
 
         // Allocate memory for objects
         {
-            let mut allocator = self.allocator.lock().map_err(|_| ObjectCreateError::PoisonedAllocator)?;
             for object in objects.iter_mut() {
                 match object {
                     TemporaryObjectData::Buffer {
@@ -251,18 +240,7 @@ impl ObjectManagerImpl {
                         desc
                     } => {
                         if allocation.is_none() {
-                            let requirements = unsafe {
-                                self.device.vk().get_buffer_memory_requirements(*handle)
-                            };
-
-                            let alloc_desc = AllocationCreateDesc{
-                                name: "",
-                                requirements,
-                                location: desc.memory_location,
-                                linear: true
-                            };
-
-                            *allocation = Some(allocator.allocate(&alloc_desc)?);
+                            *allocation = Some(self.allocator.allocate_buffer_memory(*handle, &desc.strategy)?);
                             let alloc = allocation.as_ref().unwrap();
 
                             unsafe {
@@ -276,18 +254,7 @@ impl ObjectManagerImpl {
                         desc
                     } => {
                         if allocation.is_none() {
-                            let requirements = unsafe {
-                                self.device.vk().get_image_memory_requirements(*handle)
-                            };
-
-                            let alloc_desc = AllocationCreateDesc{
-                                name: "",
-                                requirements,
-                                location: desc.memory_location,
-                                linear: false
-                            };
-
-                            *allocation = Some(allocator.allocate(&alloc_desc)?);
+                            *allocation = Some(self.allocator.allocate_image_memory(*handle, &desc.strategy)?);
                             let alloc = allocation.as_ref().unwrap();
 
                             unsafe {
@@ -392,7 +359,7 @@ impl ObjectManagerImpl {
     }
 
     /// Converts a temporary object data list to a object data list and allocation meta instance
-    fn flatten_temporary_object_data(&self, objects: Vec<TemporaryObjectData>) -> (Box<[ObjectData]>, AllocationMeta) {
+    fn flatten_temporary_object_data(&self, objects: Vec<TemporaryObjectData>) -> (Box<[ObjectData]>, Box<[Allocation]>) {
         let mut allocations = Vec::new();
         let mut object_data = Vec::with_capacity(objects.len());
 
@@ -427,22 +394,21 @@ impl ObjectManagerImpl {
             });
         }
 
-        (object_data.into_boxed_slice(), AllocationMeta{ allocations: allocations.into_boxed_slice() })
+        (object_data.into_boxed_slice(), allocations.into_boxed_slice())
     }
 
     /// Creates objects for a object request description list
-    fn create_objects(&self, objects: &[ObjectRequestDescription]) -> (Box<[ObjectData]>, AllocationMeta) {
+    fn create_objects(&self, objects: &[ObjectRequestDescription]) -> (Box<[ObjectData]>, Box<[Allocation]>) {
         let mut objects = self.create_temporary_object_data(objects);
         self.create_temporary_objects(objects.as_mut_slice()).map_err(|err| {
-            let mut guard = self.allocator.lock().unwrap();
-            self.destroy_temporary_objects(objects.as_mut_slice(), &mut guard); err
+            self.destroy_temporary_objects(objects.as_mut_slice()); err
         }).unwrap();
 
         self.flatten_temporary_object_data(objects)
     }
 
     /// Destroys objects previously created using [`ObjectManagerImpl::create_objects`]
-    fn destroy_objects(&self, objects: &[ObjectData], allocation: &AllocationMeta) {
+    fn destroy_objects(&self, objects: &[ObjectData], allocations: Box<[Allocation]>) {
         for object in objects {
             match object {
                 ObjectData::BufferView { handle, .. } => {
@@ -466,16 +432,9 @@ impl ObjectManagerImpl {
             }
         }
 
-        let mut guard = self.allocator.lock().unwrap();
-        for allocation in allocation.allocations.as_ref() {
-            guard.free(allocation.clone()).unwrap();
+        for allocation in allocations.into_vec() {
+            self.allocator.free(allocation);
         }
-    }
-}
-
-impl Drop for ObjectManagerImpl {
-    fn drop(&mut self) {
-        unsafe{ ManuallyDrop::drop(&mut self.allocator) }
     }
 }
 
@@ -514,13 +473,13 @@ impl ObjectManager {
         self.0.destroy_semaphore(semaphore)
     }
 
-    fn create_objects(&self, objects: &[ObjectRequestDescription]) -> (Box<[ObjectData]>, AllocationMeta) {
+    fn create_objects(&self, objects: &[ObjectRequestDescription]) -> (Box<[ObjectData]>, Box<[Allocation]>) {
         self.0.create_objects(objects)
     }
 
     // Internal function that destroys objects and allocations created for a object set
-    fn destroy_objects(&self, objects: &[ObjectData], allocation: &AllocationMeta) {
-        self.0.destroy_objects(objects, allocation)
+    fn destroy_objects(&self, objects: Box<[ObjectData]>, allocations: Box<[Allocation]>) {
+        self.0.destroy_objects(&objects, allocations)
     }
 }
 
@@ -528,14 +487,6 @@ impl Clone for ObjectManager {
     fn clone(&self) -> Self {
         Self( self.0.clone() )
     }
-}
-
-/// Internal struct containing information about a memory allocation.
-///
-/// These structs dont have to have a 1 to 1 mapping to objects. A allocation can back multiple
-/// objects or a object can be backed by multiple allocations.
-struct AllocationMeta {
-    allocations: Box<[Allocation]>,
 }
 
 #[cfg(test)]
