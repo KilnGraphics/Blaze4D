@@ -10,7 +10,8 @@ use crate::util::id::GlobalId;
 
 use ash::vk;
 use ash::vk::Handle;
-use crate::objects::manager::allocator::{Allocation, AllocationStrategy, ObjectRequestDescription};
+use crate::objects::manager::allocator::{Allocation, AllocationStrategy};
+use crate::objects::manager::ObjectRequestDescription;
 
 pub(super) enum ObjectData {
     Buffer{

@@ -23,15 +23,16 @@ pub(super) mod synchronization_group;
 pub(super) mod object_set;
 
 mod allocator;
-mod worker;
 
-use std::mem::ManuallyDrop;
-use std::sync::{Arc, Mutex, MutexGuard};
+use std::sync::Arc;
 
 use ash::vk;
 
 use synchronization_group::*;
 use object_set::*;
+use crate::objects::buffer::{BufferCreateDesc, BufferViewCreateDesc};
+use crate::objects::id;
+use crate::objects::image::{ImageCreateDesc, ImageViewCreateDesc};
 use crate::objects::manager::allocator::*;
 use crate::util::slice_splitter::Splitter;
 
@@ -40,7 +41,6 @@ enum ObjectCreateError {
     Vulkan(vk::Result),
     Allocation(AllocationError),
     InvalidReference,
-    PoisonedAllocator,
 }
 
 impl<'s> From<ash::vk::Result> for ObjectCreateError {
@@ -55,57 +55,65 @@ impl<'s> From<AllocationError> for ObjectCreateError {
     }
 }
 
-// Internal struct used during object creation
-enum TemporaryObjectData<'a> {
-    Buffer{
-        handle: vk::Buffer,
-        allocation: Option<Allocation>,
-        desc: &'a BufferRequestDescription,
-    },
-    BufferView{
-        handle: vk::BufferView,
-        desc: &'a BufferViewRequestDescription,
-    },
-    Image{
-        handle: vk::Image,
-        allocation: Option<Allocation>,
-        desc: &'a ImageRequestDescription,
-    },
-    ImageView{
-        handle: vk::ImageView,
-        desc: &'a ImageViewRequestDescription,
-    }
+struct BufferCreateMetadata<'a> {
+    handle: vk::Buffer,
+    allocation: Option<Allocation>,
+    desc: &'a BufferRequestDescription,
 }
 
-impl<'a> TemporaryObjectData<'a> {
+struct BufferViewCreateMetadata<'a> {
+    handle: vk::BufferView,
+    desc: &'a BufferViewRequestDescription,
+}
+
+struct ImageCreateMetadata<'a> {
+    handle: vk::Image,
+    allocation: Option<Allocation>,
+    desc: &'a ImageRequestDescription,
+}
+
+struct ImageViewCreateMetadata<'a> {
+    handle: vk::ImageView,
+    desc: &'a ImageViewRequestDescription,
+}
+
+/// Internal struct used during object creation
+enum ObjectCreateMetadata<'a> {
+    Buffer(BufferCreateMetadata<'a>),
+    BufferView(BufferViewCreateMetadata<'a>),
+    Image(ImageCreateMetadata<'a>),
+    ImageView(ImageViewCreateMetadata<'a>),
+}
+
+impl<'a> ObjectCreateMetadata<'a> {
     fn make_buffer(desc: &'a BufferRequestDescription) -> Self {
-        Self::Buffer {
+        Self::Buffer(BufferCreateMetadata{
             handle: vk::Buffer::null(),
             allocation: None,
             desc
-        }
+        })
     }
 
     fn make_buffer_view(desc: &'a BufferViewRequestDescription) -> Self {
-        Self::BufferView {
+        Self::BufferView(BufferViewCreateMetadata{
             handle: vk::BufferView::null(),
             desc
-        }
+        })
     }
 
     fn make_image(desc: &'a ImageRequestDescription) -> Self {
-        Self::Image {
+        Self::Image(ImageCreateMetadata{
             handle: vk::Image::null(),
             allocation: None,
             desc
-        }
+        })
     }
 
     fn make_image_view(desc: &'a ImageViewRequestDescription) -> Self {
-        Self::ImageView {
+        Self::ImageView(ImageViewCreateMetadata{
             handle: vk::ImageView::null(),
             desc
-        }
+        })
     }
 }
 
@@ -146,192 +154,155 @@ impl ObjectManagerImpl {
 
     /// Destroys a set of temporary objects. This is used if an error is encountered during the
     /// build process.
-    fn destroy_temporary_objects(&self, objects: &mut [TemporaryObjectData]) {
-        // First destroy any object that might have a dependency on other objects
-        for object in objects.iter() {
+    fn destroy_temporary_objects(&self, objects: &mut [ObjectCreateMetadata]) {
+        // Iterate in reverse order to respect dependencies
+        for object in objects.iter_mut().rev() {
             match object {
-                TemporaryObjectData::BufferView { handle, .. } => {
-                    if *handle != vk::BufferView::null() {
-                        unsafe { self.device.vk().destroy_buffer_view(*handle, None) }
-                    }
-                },
-                TemporaryObjectData::ImageView { handle, .. } => {
-                    if *handle != vk::ImageView::null() {
-                        unsafe { self.device.vk().destroy_image_view(*handle, None) }
-                    }
-                },
-                _ => {}
-            }
-        };
-        // Then destroy everything else
-        for object in objects.iter_mut() {
-            match object {
-                TemporaryObjectData::Buffer { handle, allocation, .. } => {
+                ObjectCreateMetadata::Buffer(BufferCreateMetadata{ handle, allocation, .. }) => {
                     if *handle != vk::Buffer::null() {
                         unsafe { self.device.vk().destroy_buffer(*handle, None) }
                     }
                     allocation.take().map(|alloc| self.allocator.free(alloc));
                 },
-                TemporaryObjectData::Image { handle, allocation,  .. } => {
+                ObjectCreateMetadata::BufferView(BufferViewCreateMetadata{ handle, .. }) => {
+                    if *handle != vk::BufferView::null() {
+                        unsafe { self.device.vk().destroy_buffer_view(*handle, None) }
+                    }
+                },
+                ObjectCreateMetadata::Image(ImageCreateMetadata{ handle, allocation, .. }) => {
                     if *handle != vk::Image::null() {
                         unsafe { self.device.vk().destroy_image(*handle, None) }
                     }
                     allocation.take().map(|alloc| self.allocator.free(alloc));
                 },
-                _ => {}
+                ObjectCreateMetadata::ImageView(ImageViewCreateMetadata{ handle, .. }) => {
+                    if *handle != vk::ImageView::null() {
+                        unsafe { self.device.vk().destroy_image_view(*handle, None) }
+                    }
+                }
             }
         }
     }
 
+    fn create_buffer(&self, meta: &mut BufferCreateMetadata) -> Result<(), ObjectCreateError> {
+        if meta.handle == vk::Buffer::null() {
+            let create_info = vk::BufferCreateInfo::builder()
+                .size(meta.desc.description.size)
+                .usage(meta.desc.description.usage_flags)
+                .sharing_mode(vk::SharingMode::EXCLUSIVE);
+
+            meta.handle = unsafe {
+                self.device.vk().create_buffer(&create_info.build(), None)
+            }?;
+        }
+        if meta.allocation.is_none() {
+            meta.allocation = Some(self.allocator.allocate_buffer_memory(meta.handle, &meta.desc.strategy)?);
+            let alloc = meta.allocation.as_ref().unwrap();
+
+            unsafe {
+                self.device.vk().bind_buffer_memory(meta.handle, alloc.memory(), alloc.offset())
+            }?;
+        }
+        Ok(())
+    }
+
+    fn create_buffer_view(&self, meta: &mut BufferViewCreateMetadata, split: &Splitter<ObjectCreateMetadata>) -> Result<(), ObjectCreateError> {
+        if meta.handle == vk::BufferView::null() {
+            let buffer = match meta.desc.owning_set.as_ref() {
+                Some(set) => {
+                    set.get_buffer_handle(meta.desc.buffer_id).ok_or(ObjectCreateError::InvalidReference)?
+                }
+                None => {
+                    let index = meta.desc.buffer_id.get_index() as usize;
+                    match split.get(index).ok_or(ObjectCreateError::InvalidReference)? {
+                        ObjectCreateMetadata::Buffer(BufferCreateMetadata{ handle, .. }) => *handle,
+                        _ => return Err(ObjectCreateError::InvalidReference)
+                    }
+                }
+            };
+
+            let create_info = vk::BufferViewCreateInfo::builder()
+                .buffer(buffer)
+                .format(meta.desc.description.format.get_format())
+                .offset(meta.desc.description.range.offset)
+                .range(meta.desc.description.range.length);
+
+            meta.handle = unsafe {
+                self.device.vk().create_buffer_view(&create_info.build(), None)?
+            }
+        }
+        Ok(())
+    }
+
+    fn create_image(&self, meta: &mut ImageCreateMetadata) -> Result<(), ObjectCreateError> {
+        if meta.handle == vk::Image::null() {
+            let create_info = vk::ImageCreateInfo::builder()
+                .image_type(meta.desc.description.spec.size.get_vulkan_type())
+                .format(meta.desc.description.spec.format.get_format())
+                .extent(meta.desc.description.spec.size.as_extent_3d())
+                .mip_levels(meta.desc.description.spec.size.get_mip_levels())
+                .array_layers(meta.desc.description.spec.size.get_array_layers())
+                .samples(meta.desc.description.spec.sample_count)
+                .tiling(vk::ImageTiling::OPTIMAL) // TODO we need some way to turn this linear
+                .usage(meta.desc.description.usage_flags)
+                .sharing_mode(vk::SharingMode::EXCLUSIVE);
+
+            meta.handle = unsafe {
+                self.device.vk().create_image(&create_info.build(), None)
+            }?;
+        }
+        if meta.allocation.is_none() {
+            meta.allocation = Some(self.allocator.allocate_image_memory(meta.handle, &meta.desc.strategy)?);
+            let alloc = meta.allocation.as_ref().unwrap();
+
+            unsafe {
+                self.device.vk().bind_image_memory(meta.handle, alloc.memory(), alloc.offset())
+            }?;
+        }
+        Ok(())
+    }
+
+    fn create_image_view(&self, meta: &mut ImageViewCreateMetadata, split: Splitter<ObjectCreateMetadata>) -> Result<(), ObjectCreateError> {
+        if meta.handle == vk::ImageView::null() {
+            let image = match meta.desc.owning_set.as_ref() {
+                Some(set) => {
+                    set.get_image_handle(meta.desc.image_id).ok_or(ObjectCreateError::InvalidReference)?
+                }
+                None => {
+                    let index = meta.desc.image_id.get_index() as usize;
+                    match split.get(index).ok_or(ObjectCreateError::InvalidReference)? {
+                        ObjectCreateMetadata::Image(ImageCreateMetadata{ handle, .. }) => *handle,
+                        _ => return Err(ObjectCreateError::InvalidReference)
+                    }
+                }
+            };
+
+            let create_info = vk::ImageViewCreateInfo::builder()
+                .image(image)
+                .view_type(meta.desc.description.view_type)
+                .format(meta.desc.description.format.get_format())
+                .components(meta.desc.description.components)
+                .subresource_range(meta.desc.description.subresource_range.as_vk_subresource_range());
+
+            meta.handle = unsafe {
+                self.device.vk().create_image_view(&create_info, None)?
+            }
+        }
+        Ok(())
+    }
+
     /// Creates the objects for a temporary object data list
-    fn create_temporary_objects(&self, objects: &mut [TemporaryObjectData]) -> Result<(), ObjectCreateError> {
-        // Create all objects that do not depend on other objects
-        for object in objects.iter_mut() {
-            match object {
-                TemporaryObjectData::Buffer {
-                    handle,
-                    desc,
-                    ..
-                } => {
-                    if handle == &vk::Buffer::null() {
-                        let create_info = vk::BufferCreateInfo::builder()
-                            .size(desc.description.size)
-                            .usage(desc.description.usage_flags)
-                            .sharing_mode(vk::SharingMode::EXCLUSIVE);
+    fn create_objects_for_metadata(&self, objects: &mut [ObjectCreateMetadata]) -> Result<(), ObjectCreateError> {
 
-                        *handle = unsafe {
-                            self.device.vk().create_buffer(&create_info.build(), None)
-                        }?;
-                    }
-                },
-                TemporaryObjectData::Image {
-                    handle,
-                    desc,
-                    ..
-                } => {
-                    if handle == &vk::Image::null() {
-                        let create_info = vk::ImageCreateInfo::builder()
-                            .image_type(desc.description.spec.size.get_vulkan_type())
-                            .format(desc.description.spec.format.get_format())
-                            .extent(desc.description.spec.size.as_extent_3d())
-                            .mip_levels(desc.description.spec.size.get_mip_levels())
-                            .array_layers(desc.description.spec.size.get_array_layers())
-                            .samples(desc.description.spec.sample_count)
-                            .tiling(vk::ImageTiling::OPTIMAL)
-                            .usage(desc.description.usage_flags)
-                            .sharing_mode(vk::SharingMode::EXCLUSIVE);
-
-                        *handle = unsafe {
-                            self.device.vk().create_image(&create_info.build(), None)
-                        }?;
-                    }
-                },
-                _ => {}
-            }
-        }
-
-        // Allocate memory for objects
-        {
-            for object in objects.iter_mut() {
-                match object {
-                    TemporaryObjectData::Buffer {
-                        handle,
-                        allocation,
-                        desc
-                    } => {
-                        if allocation.is_none() {
-                            *allocation = Some(self.allocator.allocate_buffer_memory(*handle, &desc.strategy)?);
-                            let alloc = allocation.as_ref().unwrap();
-
-                            unsafe {
-                                self.device.vk().bind_buffer_memory(*handle, alloc.memory(), alloc.offset())
-                            }?;
-                        }
-                    }
-                    TemporaryObjectData::Image {
-                        handle,
-                        allocation,
-                        desc
-                    } => {
-                        if allocation.is_none() {
-                            *allocation = Some(self.allocator.allocate_image_memory(*handle, &desc.strategy)?);
-                            let alloc = allocation.as_ref().unwrap();
-
-                            unsafe {
-                                self.device.vk().bind_image_memory(*handle, alloc.memory(), alloc.offset())
-                            }?;
-                        }
-                    }
-                    _ => {}
-                }
-            }
-        }
-
-        // Create dependant objects
+        // Since every entry can only reference previous entries its safe to iterate over them just once
         for i in 0..objects.len() {
-            let (split, elem) = Splitter::new(objects, i);
+            let (split, object) = Splitter::new(objects, i);
 
-            match elem {
-                TemporaryObjectData::BufferView {
-                    handle,
-                    desc
-                } => {
-                    if handle != &vk::BufferView::null() {
-                        let buffer = match desc.owning_set.as_ref() {
-                            Some(set) => {
-                                set.get_buffer_handle(desc.buffer_id).ok_or(ObjectCreateError::InvalidReference)?
-                            }
-                            None => {
-                                let index = desc.buffer_id.get_index() as usize;
-                                match split.get(index).ok_or(ObjectCreateError::InvalidReference)? {
-                                    TemporaryObjectData::Buffer { handle, .. } => *handle,
-                                    _ => return Err(ObjectCreateError::InvalidReference)
-                                }
-                            }
-                        };
-
-                        let create_info = vk::BufferViewCreateInfo::builder()
-                            .buffer(buffer)
-                            .format(desc.description.format.get_format())
-                            .offset(desc.description.range.offset)
-                            .range(desc.description.range.length);
-
-                        *handle = unsafe {
-                            self.device.vk().create_buffer_view(&create_info.build(), None)?
-                        }
-                    }
-                }
-                TemporaryObjectData::ImageView {
-                    handle,
-                    desc
-                } => {
-                    if handle != &vk::ImageView::null() {
-                        let image = match desc.owning_set.as_ref() {
-                            Some(set) => {
-                                set.get_image_handle(desc.image_id).ok_or(ObjectCreateError::InvalidReference)?
-                            }
-                            None => {
-                                let index = desc.image_id.get_index() as usize;
-                                match split.get(index).ok_or(ObjectCreateError::InvalidReference)? {
-                                    TemporaryObjectData::Image { handle, .. } => *handle,
-                                    _ => return Err(ObjectCreateError::InvalidReference)
-                                }
-                            }
-                        };
-
-                        let create_info = vk::ImageViewCreateInfo::builder()
-                            .image(image)
-                            .view_type(desc.description.view_type)
-                            .format(desc.description.format.get_format())
-                            .components(desc.description.components)
-                            .subresource_range(desc.description.subresource_range.as_vk_subresource_range());
-
-                        *handle = unsafe {
-                            self.device.vk().create_image_view(&create_info, None)?
-                        }
-                    }
-                }
-                _ => {}
+            match object {
+                ObjectCreateMetadata::Buffer(meta) => self.create_buffer(meta)?,
+                ObjectCreateMetadata::BufferView(meta) => self.create_buffer_view(meta, &split)?,
+                ObjectCreateMetadata::Image(meta) => self.create_image(meta)?,
+                ObjectCreateMetadata::ImageView(meta) => self.create_image_view(meta, split)?,
             }
         }
 
@@ -339,53 +310,53 @@ impl ObjectManagerImpl {
     }
 
     /// Converts a object request description list to a temporary object data list
-    fn create_temporary_object_data<'a>(&self, objects: &'a [ObjectRequestDescription]) -> Vec<TemporaryObjectData<'a>> {
+    fn generate_objects_metadata<'a>(&self, objects: &'a [ObjectRequestDescription]) -> Vec<ObjectCreateMetadata<'a>> {
         objects.iter().map(|request| {
             match request {
                 ObjectRequestDescription::Buffer(desc) => {
-                    TemporaryObjectData::make_buffer(desc)
+                    ObjectCreateMetadata::make_buffer(desc)
                 }
                 ObjectRequestDescription::BufferView(desc) => {
-                    TemporaryObjectData::make_buffer_view(desc)
+                    ObjectCreateMetadata::make_buffer_view(desc)
                 }
                 ObjectRequestDescription::Image(desc) => {
-                    TemporaryObjectData::make_image(desc)
+                    ObjectCreateMetadata::make_image(desc)
                 }
                 ObjectRequestDescription::ImageView(desc) => {
-                    TemporaryObjectData::make_image_view(desc)
+                    ObjectCreateMetadata::make_image_view(desc)
                 }
             }
         }).collect()
     }
 
     /// Converts a temporary object data list to a object data list and allocation meta instance
-    fn flatten_temporary_object_data(&self, objects: Vec<TemporaryObjectData>) -> (Box<[ObjectData]>, Box<[Allocation]>) {
+    fn flatten_object_metadata(&self, objects: Vec<ObjectCreateMetadata>) -> (Box<[ObjectData]>, Box<[Allocation]>) {
         let mut allocations = Vec::new();
         let mut object_data = Vec::with_capacity(objects.len());
 
         for object in objects.into_iter() {
             object_data.push(match object {
-                TemporaryObjectData::Buffer { handle, allocation, .. } => {
+                ObjectCreateMetadata::Buffer(BufferCreateMetadata{ handle, allocation, .. }) => {
                     match allocation {
                         None => {}
                         Some(allocation) => allocations.push(allocation)
                     }
                     ObjectData::Buffer { handle }
                 }
-                TemporaryObjectData::BufferView { handle, desc, .. } => {
+                ObjectCreateMetadata::BufferView(BufferViewCreateMetadata{ handle, desc, .. }) => {
                     ObjectData::BufferView {
                         handle,
                         source_set: desc.owning_set.clone(),
                     }
                 }
-                TemporaryObjectData::Image { handle, allocation, .. } => {
+                ObjectCreateMetadata::Image(ImageCreateMetadata{ handle, allocation, .. }) => {
                     match allocation {
                         None => {}
                         Some(allocation) => allocations.push(allocation)
                     }
                     ObjectData::Image { handle }
                 }
-                TemporaryObjectData::ImageView { handle, desc, .. } => {
+                ObjectCreateMetadata::ImageView(ImageViewCreateMetadata{ handle, desc, .. }) => {
                     ObjectData::ImageView {
                         handle,
                         source_set: desc.owning_set.clone(),
@@ -399,12 +370,12 @@ impl ObjectManagerImpl {
 
     /// Creates objects for a object request description list
     fn create_objects(&self, objects: &[ObjectRequestDescription]) -> (Box<[ObjectData]>, Box<[Allocation]>) {
-        let mut objects = self.create_temporary_object_data(objects);
-        self.create_temporary_objects(objects.as_mut_slice()).map_err(|err| {
+        let mut objects = self.generate_objects_metadata(objects);
+        self.create_objects_for_metadata(objects.as_mut_slice()).map_err(|err| {
             self.destroy_temporary_objects(objects.as_mut_slice()); err
         }).unwrap();
 
-        self.flatten_temporary_object_data(objects)
+        self.flatten_object_metadata(objects)
     }
 
     /// Destroys objects previously created using [`ObjectManagerImpl::create_objects`]
@@ -567,7 +538,7 @@ mod tests {
         let mut builder = manager.create_object_set(group.clone());
         let buffer_desc = BufferCreateDesc::new_simple(
             1024,
-            vk::BufferUsageFlags::TRANSFER_SRC | vk::BufferUsageFlags::TRANSFER_DST);
+            vk::BufferUsageFlags::TRANSFER_SRC | vk::BufferUsageFlags::UNIFORM_TEXEL_BUFFER);
         let buffer_id = builder.add_default_gpu_only_buffer(buffer_desc);
         let view_desc = BufferViewCreateDesc::new_simple(BufferRange { offset: 256, length: 256 }, &crate::objects::Format::R16_UNORM);
         let view_id = builder.add_internal_buffer_view(view_desc, buffer_id);
@@ -588,5 +559,71 @@ mod tests {
         // Test that original set does not get destroyed early
         drop(set);
         drop(set2);
+    }
+}
+
+struct BufferRequestDescription {
+    pub description: BufferCreateDesc,
+    pub strategy: AllocationStrategy,
+}
+
+struct BufferViewRequestDescription {
+    pub description: BufferViewCreateDesc,
+    /// The set that owns the source buffer of the view. If None the source buffer must be part of
+    /// the same set of requests as this request.
+    pub owning_set: Option<ObjectSet>,
+    pub buffer_id: id::BufferId,
+}
+
+struct ImageRequestDescription {
+    pub description: ImageCreateDesc,
+    pub strategy: AllocationStrategy,
+}
+
+struct ImageViewRequestDescription {
+    pub description: ImageViewCreateDesc,
+    /// The set that owns the source image of the view. If None the source image must be part of
+    /// the same set of requests as this request.
+    pub owning_set: Option<ObjectSet>,
+    pub image_id: id::ImageId,
+}
+
+/// Describes a single object request
+enum ObjectRequestDescription {
+    Buffer(BufferRequestDescription),
+    BufferView(BufferViewRequestDescription),
+    Image(ImageRequestDescription),
+    ImageView(ImageViewRequestDescription),
+}
+
+impl ObjectRequestDescription {
+    pub fn make_buffer(description: BufferCreateDesc, strategy: AllocationStrategy) -> Self {
+        ObjectRequestDescription::Buffer(BufferRequestDescription{
+            description,
+            strategy
+        })
+    }
+
+    pub fn make_buffer_view(description: BufferViewCreateDesc, owning_set: Option<ObjectSet>, buffer_id: id::BufferId) -> Self {
+        ObjectRequestDescription::BufferView(BufferViewRequestDescription{
+            description,
+            owning_set,
+            buffer_id
+        })
+    }
+
+    pub fn make_image(description: ImageCreateDesc, strategy: AllocationStrategy) -> Self {
+        ObjectRequestDescription::Image(ImageRequestDescription{
+            description,
+            strategy
+        })
+    }
+
+    pub fn make_image_view(description: ImageViewCreateDesc, owning_set: Option<ObjectSet>, image_id: id::ImageId) -> Self {
+        ObjectRequestDescription::ImageView(ImageViewRequestDescription{
+            description,
+            owning_set,
+            image_id
+        })
     }
 }
