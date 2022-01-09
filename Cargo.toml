@@ -8,6 +8,8 @@ edition = "2018"
 [dependencies]
 ash = "0.34.0"
 ash-window = "0.8.0"
+concurrent-queue = "1.2.2"
+gpu-allocator = "0.12.0"
 log = "0.4.14"
 topological-sort = "0.1.0"
 shaderc = "0.7.3"

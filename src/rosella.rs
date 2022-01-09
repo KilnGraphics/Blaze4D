@@ -1,20 +1,20 @@
-use std::sync::Arc;
-
 use crate::init::device::{create_device, DeviceCreateError};
 use crate::init::initialization_registry::InitializationRegistry;
 use crate::init::instance::{create_instance, InstanceCreateError};
 use crate::window::{RosellaSurface, RosellaWindow};
 
-use ash::vk;
-use crate::init::EnabledFeatures;
-use crate::util::extensions::{AsRefOption, ExtensionFunctionSet, VkExtensionInfo, VkExtensionFunctions};
 use crate::init::rosella_features::WindowSurface;
-use crate::util::id::UUID;
+use crate::objects::ObjectManager;
+
+pub use crate::instance::VulkanVersion;
+pub use crate::instance::InstanceContext;
+pub use crate::device::DeviceContext;
 
 pub struct Rosella {
     pub instance: InstanceContext,
     pub surface: RosellaSurface,
     pub device: DeviceContext,
+    pub object_manager: ObjectManager,
 }
 
 #[derive(Debug)]
@@ -52,10 +52,13 @@ impl Rosella {
         let elapsed = now.elapsed();
         println!("Instance & Device Initialization took: {:.2?}", elapsed);
 
+        let object_manager = ObjectManager::new(device.clone());
+
         Ok(Rosella {
-            instance: instance.clone(),
+            instance,
             surface,
-            device: device.clone()
+            device,
+            object_manager,
         })
     }
 
@@ -63,140 +66,5 @@ impl Rosella {
 
     pub fn recreate_swapchain(&self, width: u32, height: u32) {
         println!("resize to {}x{}", width, height);
-    }
-}
-
-#[derive(Copy, Clone, Debug)]
-pub struct VulkanVersion(u32);
-
-impl VulkanVersion {
-    pub const VK_1_0: VulkanVersion = VulkanVersion(vk::API_VERSION_1_0);
-    pub const VK_1_1: VulkanVersion = VulkanVersion(vk::API_VERSION_1_1);
-    pub const VK_1_2: VulkanVersion = VulkanVersion(vk::API_VERSION_1_2);
-
-    pub const fn from_raw(value: u32) -> Self {
-        Self(value)
-    }
-
-    pub fn new(variant: u32, major: u32, minor: u32, patch: u32) -> Self {
-        Self(vk::make_api_version(variant, major, minor, patch))
-    }
-
-    pub fn is_supported(&self, version: VulkanVersion) -> bool {
-        vk::api_version_major(self.0) >= vk::api_version_major(version.0)
-    }
-}
-
-struct InstanceContextImpl {
-    version: VulkanVersion,
-    entry: ash::Entry,
-    instance: ash::Instance,
-    extensions: ExtensionFunctionSet,
-    features: EnabledFeatures,
-}
-
-impl Drop for InstanceContextImpl {
-    fn drop(&mut self) {
-        unsafe {
-            self.instance.destroy_instance(None);
-        }
-    }
-}
-
-#[derive(Clone)]
-pub struct InstanceContext(Arc<InstanceContextImpl>);
-
-impl InstanceContext {
-    pub fn new(version: VulkanVersion, entry: ash::Entry, instance: ash::Instance, extensions: ExtensionFunctionSet, features: EnabledFeatures) -> Self {
-        Self(Arc::new(InstanceContextImpl{
-            version,
-            entry,
-            instance,
-            extensions,
-            features,
-        }))
-    }
-
-    pub fn get_entry(&self) -> &ash::Entry {
-        &self.0.entry
-    }
-
-    pub fn vk(&self) -> &ash::Instance {
-        &self.0.instance
-    }
-
-    pub fn get_version(&self) -> VulkanVersion {
-        self.0.version
-    }
-
-    pub fn get_extension<T: VkExtensionInfo>(&self) -> Option<&T> where VkExtensionFunctions: AsRefOption<T> {
-        self.0.extensions.get()
-    }
-
-    pub fn is_extension_enabled(&self, uuid: UUID) -> bool {
-        self.0.extensions.contains(uuid)
-    }
-
-    pub fn get_enabled_features(&self) -> &EnabledFeatures {
-        &self.0.features
-    }
-}
-
-pub struct DeviceContextImpl {
-    instance: InstanceContext,
-    device: ash::Device,
-    physical_device: vk::PhysicalDevice,
-    extensions: ExtensionFunctionSet,
-    features: EnabledFeatures,
-}
-
-impl Drop for DeviceContextImpl {
-    fn drop(&mut self) {
-        unsafe {
-            self.device.destroy_device(None);
-        }
-    }
-}
-
-#[derive(Clone)]
-pub struct DeviceContext(Arc<DeviceContextImpl>);
-
-impl DeviceContext {
-    pub fn new(instance: InstanceContext, device: ash::Device, physical_device: vk::PhysicalDevice, extensions: ExtensionFunctionSet, features: EnabledFeatures) -> Self {
-        Self(Arc::new(DeviceContextImpl{
-            instance,
-            device,
-            physical_device,
-            extensions,
-            features,
-        }))
-    }
-
-    pub fn get_entry(&self) -> &ash::Entry {
-        self.0.instance.get_entry()
-    }
-
-    pub fn get_instance(&self) -> &InstanceContext {
-        &self.0.instance
-    }
-
-    pub fn vk(&self) -> &ash::Device {
-        &self.0.device
-    }
-
-    pub fn get_physical_device(&self) -> &vk::PhysicalDevice {
-        &self.0.physical_device
-    }
-
-    pub fn get_extension<T: VkExtensionInfo>(&self) -> Option<&T> where VkExtensionFunctions: AsRefOption<T> {
-        self.0.extensions.get()
-    }
-
-    pub fn is_extension_enabled(&self, uuid: UUID) -> bool {
-        self.0.extensions.contains(uuid)
-    }
-
-    pub fn get_enabled_features(&self) -> &EnabledFeatures {
-        &self.0.features
     }
 }

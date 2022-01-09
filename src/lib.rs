@@ -5,6 +5,9 @@ pub mod objects;
 pub mod util;
 pub mod window;
 
+mod instance;
+mod device;
+
 pub use util::id::UUID;
 pub use util::id::NamedUUID;
 
