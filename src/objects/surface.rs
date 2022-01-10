@@ -8,10 +8,14 @@ use crate::util::id::GlobalId;
 
 /// Trait that provides access to a surface object.
 ///
-/// Since many possible surface objects exits and management of these can differ this trait can be
-/// used to abstract those differences away. Rosella will only access the surface using a trait
-/// objects. Once the trait object is dropped it may assume that the surface is no longer used by
-/// rosella and is safe to be destroyed.
+/// Since many possible surface objects exits and management of these can differ this trait is
+/// used to abstract those differences away. Rosella will only access surfaces using a trait object
+/// of this type. Once the trait object is dropped it may assume that the surface is no longer used
+/// by rosella and is safe to be destroyed.
+///
+/// Note: While dropping of a surface typically is a rare occurrence it *may* happen synchronously
+/// with other engine operations. As such extensive computations or blocking operations should be
+/// avoided in the drop function.
 pub trait SurfaceProvider : Sync {
     fn get_handle(&self) -> vk::SurfaceKHR;
 }
