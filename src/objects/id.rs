@@ -15,6 +15,8 @@ impl ObjectType {
             Self::BINARY_SEMAPHORE => "BinarySemaphore",
             Self::TIMELINE_SEMAPHORE => "TimelineSemaphore",
             Self::EVENT => "Event",
+            Self::FENCE => "Fence",
+            Self::SURFACE => "Surface",
             _ => "Invalid",
         }
     }
@@ -28,6 +30,8 @@ impl ObjectType {
     pub const BINARY_SEMAPHORE: u8 = 5u8;
     pub const TIMELINE_SEMAPHORE: u8 = 6u8;
     pub const EVENT: u8 = 7u8;
+    pub const FENCE: u8 = 8u8;
+    pub const SURFACE: u8 = 9u8;
 }
 
 #[derive(Copy, Clone, PartialEq, Eq, PartialOrd, Ord)]
@@ -150,6 +154,18 @@ impl ObjectId<{ ObjectType::EVENT }> {
     }
 }
 
+impl ObjectId<{ ObjectType::FENCE }> {
+    pub fn new(global_id: GlobalId, index: u64) -> Self {
+        Self::make(global_id, index, ObjectType::FENCE)
+    }
+}
+
+impl ObjectId<{ ObjectType::SURFACE }> {
+    pub fn new(global_id: GlobalId, index: u64) -> Self {
+        Self::make(global_id, index, ObjectType::SURFACE)
+    }
+}
+
 pub type GenericId = ObjectId<{ ObjectType::GENERIC }>;
 pub type BufferId = ObjectId<{ ObjectType::BUFFER }>;
 pub type BufferViewId = ObjectId<{ ObjectType::BUFFER_VIEW }>;
@@ -158,3 +174,5 @@ pub type ImageViewId = ObjectId<{ ObjectType::IMAGE_VIEW }>;
 pub type BinarySemaphoreId = ObjectId<{ ObjectType::BINARY_SEMAPHORE }>;
 pub type TimelineSemaphoreId = ObjectId<{ ObjectType::TIMELINE_SEMAPHORE }>;
 pub type EventId = ObjectId<{ ObjectType::EVENT }>;
+pub type FenceId = ObjectId<{ ObjectType::FENCE }>;
+pub type SurfaceId = ObjectId<{ ObjectType::SURFACE }>;

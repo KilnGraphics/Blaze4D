@@ -4,6 +4,7 @@ pub mod buffer;
 pub mod id;
 pub mod manager;
 pub mod swapchain;
+pub mod surface;
 
 pub use format::Format;
 
