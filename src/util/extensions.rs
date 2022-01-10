@@ -1,5 +1,5 @@
 use std::collections::HashMap;
-use ash::{Entry, Instance};
+use ash::{Device, Entry, Instance};
 use crate::NamedUUID;
 use paste::paste;
 use crate::util::id::UUID;
@@ -98,8 +98,9 @@ macro_rules! make_vk_extension_info {
 }
 
 make_vk_extension_info!(
-    ash::extensions::khr::Swapchain, VK_KHR_Swapchain;
     ash::extensions::khr::GetPhysicalDeviceProperties2, VK_KHR_get_physical_device_properties2;
+    ash::extensions::khr::Surface, VK_KHR_surface;
+    ash::extensions::khr::Swapchain, VK_KHR_swapchain;
     ash::extensions::khr::TimelineSemaphore, VK_KHR_timeline_semaphore;
     ash::extensions::ext::DebugUtils, VK_EXT_debug_utils
 );
@@ -110,9 +111,21 @@ impl InstanceExtensionLoader for ash::extensions::khr::GetPhysicalDeviceProperti
     }
 }
 
+impl InstanceExtensionLoader for ash::extensions::khr::Surface {
+    fn load_extension(function_set: &mut ExtensionFunctionSet, entry: &Entry, instance: &Instance) {
+        function_set.add(Box::new(ash::extensions::khr::Surface::new(entry, instance)))
+    }
+}
+
 impl InstanceExtensionLoader for ash::extensions::ext::DebugUtils {
     fn load_extension(function_set: &mut ExtensionFunctionSet, entry: &Entry, instance: &Instance) {
         function_set.add(Box::new(ash::extensions::ext::DebugUtils::new(entry, instance)))
+    }
+}
+
+impl DeviceExtensionLoader for ash::extensions::khr::Swapchain {
+    fn load_extension(function_set: &mut ExtensionFunctionSet, _: &Entry, instance: &Instance, device: &Device) {
+        function_set.add(Box::new(ash::extensions::khr::Swapchain::new(instance, device)))
     }
 }
 
