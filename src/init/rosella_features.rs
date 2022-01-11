@@ -23,6 +23,12 @@ pub fn register_rosella_headless(registry: &mut InitializationRegistry) {
     RosellaDeviceBase::register_into(registry, true);
 }
 
+/// Registers all instance and device features required for rosella to present images
+pub fn register_rosella_present(registry: &mut InitializationRegistry) {
+    KHRSurface::register_into(registry, true);
+    KHRSwapchain::register_into(registry, true);
+}
+
 /// Registers instance and device features that provide debugging capabilities
 pub fn register_rosella_debug(registry: &mut InitializationRegistry, required: bool) {
     RosellaDebug::register_into(registry, required);
@@ -207,6 +213,25 @@ impl ApplicationInstanceFeature for KHRGetPhysicalDeviceProperties2 {
     }
 }
 
+/// Instance feature representing the VK_KHR_surface extension.
+#[derive(Default)]
+pub struct KHRSurface;
+const_instance_feature!(KHRSurface, "rosella:instance_khr_surface", []);
+
+impl ApplicationInstanceFeature for KHRSurface {
+    fn init(&mut self, _: &mut dyn FeatureAccess, info: &InstanceInfo) -> InitResult {
+        if !info.is_extension_supported::<ash::extensions::khr::Surface>() {
+            return InitResult::Disable;
+        }
+
+        return InitResult::Ok;
+    }
+
+    fn enable(&mut self, _: &mut dyn FeatureAccess, _: &InstanceInfo, config: &mut InstanceConfigurator) {
+        config.enable_extension::<ash::extensions::khr::Surface>();
+    }
+}
+
 /// Instance feature representing the VK_KHR_timeline_semaphore feature set.
 /// If the instance version is below 1.2 it will load the extension.
 #[derive(Default)]
@@ -329,7 +354,7 @@ impl ApplicationInstanceFeature for WindowSurface {
 
 /// Device feature which provides all requirements needed for rosella to function in headless
 #[derive(Default)]
-struct RosellaDeviceBase;
+pub struct RosellaDeviceBase;
 const_device_feature!(RosellaDeviceBase, "rosella:device_base", [KHRTimelineSemaphoreDevice::NAME]);
 
 impl ApplicationDeviceFeature for RosellaDeviceBase {
@@ -343,5 +368,24 @@ impl ApplicationDeviceFeature for RosellaDeviceBase {
 
     fn enable(&mut self, _: &mut dyn FeatureAccess, _: &DeviceInfo, config: &mut DeviceConfigurator) {
         config.add_queue_request(0); // TODO This is just to prevent validation errors
+    }
+}
+
+/// Device feature representing the VK_KHR_swapchain extension.
+#[derive(Default)]
+pub struct KHRSwapchain;
+const_device_feature!(KHRSwapchain, "rosella:device_khr_swapchain", []);
+
+impl ApplicationDeviceFeature for KHRSwapchain {
+    fn init(&mut self, _: &mut dyn FeatureAccess, info: &DeviceInfo) -> InitResult {
+        if !info.is_extension_supported::<ash::extensions::khr::Swapchain>() {
+            return InitResult::Disable;
+        }
+
+        InitResult::Ok
+    }
+
+    fn enable(&mut self, _: &mut dyn FeatureAccess, _: &DeviceInfo, config: &mut DeviceConfigurator) {
+        config.enable_extension::<ash::extensions::khr::Swapchain>()
     }
 }
