@@ -166,6 +166,8 @@ pub fn create_device(registry: &mut InitializationRegistry, instance: InstanceCo
         return Err(DeviceCreateError::NoSuitableDeviceFound);
     }
 
+    devices.sort_by(|a, b| b.get_enabled_feature_count().cmp(&a.get_enabled_feature_count())); // Need to reverse ordering to have highest first
+
     let device = devices.remove(0).build()?;
 
     Ok(device)
@@ -221,6 +223,7 @@ struct DeviceBuilder {
     physical_device: vk::PhysicalDevice,
     info: Option<DeviceInfo>,
     config: Option<DeviceConfigurator>,
+    enabled_features: u32,
 }
 
 impl DeviceBuilder {
@@ -245,6 +248,7 @@ impl DeviceBuilder {
             physical_device,
             info: None,
             config: None,
+            enabled_features: 0,
         }
     }
 
@@ -261,6 +265,10 @@ impl DeviceBuilder {
         self.info = Some(DeviceInfo::new(self.instance.clone(), self.physical_device)?);
         let info = self.info.as_ref().unwrap();
 
+        let device_name = unsafe { std::ffi::CStr::from_ptr(info.properties_1_0.device_name.as_ptr()).to_str()? };
+        log::info!("Found vulkan device \"{}\"({:#8X}) {:?}", device_name, info.properties_1_0.device_id ,info.properties_1_0.device_type);
+
+        let mut enabled_features = 0;
         self.processor.run_pass::<DeviceCreateError, _>(
             DeviceFeatureState::Initialized,
             |feature, access| {
@@ -271,6 +279,7 @@ impl DeviceBuilder {
                     InitResult::Ok => {
                         log::debug!("Initialized feature {:?}", feature.name);
                         feature.state = DeviceFeatureState::Initialized;
+                        enabled_features += 1;
                     }
                     InitResult::Disable => {
                         feature.state = DeviceFeatureState::Disabled;
@@ -284,6 +293,8 @@ impl DeviceBuilder {
                 Ok(())
             }
         )?;
+
+        self.enabled_features = enabled_features;
 
         Ok(())
     }
@@ -328,12 +339,19 @@ impl DeviceBuilder {
         let (device, function_set) = self.config.expect("Called build but config is none")
             .build_device(&info)?;
 
+        let device_name = unsafe { std::ffi::CStr::from_ptr(info.properties_1_0.device_name.as_ptr()).to_str()? };
+        log::info!("Creating vulkan device \"{}\"({:#8X}) {:?}", device_name, info.properties_1_0.device_id ,info.properties_1_0.device_type);
+
         let features = EnabledFeatures::new(self.processor.into_iter().filter_map(
             |mut info| {
                 Some((info.name.get_uuid(), info.feature.as_mut().finish(&instance, &device, &function_set)))
             }));
 
         Ok(DeviceContext::new(instance, device, self.physical_device, function_set, features))
+    }
+
+    fn get_enabled_feature_count(&self) -> u32 {
+        self.enabled_features
     }
 }
 
