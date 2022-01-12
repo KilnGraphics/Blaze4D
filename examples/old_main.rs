@@ -5,7 +5,7 @@ use winit::event::{Event, WindowEvent};
 use winit::event_loop::ControlFlow;
 
 use rosella_rs::init::initialization_registry::InitializationRegistry;
-use rosella_rs::init::rosella_features::{register_rosella_debug, register_rosella_headless};
+use rosella_rs::init::rosella_features::{register_rosella_debug, register_rosella_headless, register_rosella_present};
 use rosella_rs::rosella::Rosella;
 use rosella_rs::window::RosellaWindow;
 use rosella_rs::shader::{GraphicsContext, GraphicsShader};
@@ -16,6 +16,7 @@ fn setup_rosella(window: &RosellaWindow) -> Rosella {
     let mut registry = InitializationRegistry::new();
 
     register_rosella_headless(&mut registry);
+    register_rosella_present(&mut registry);
     register_rosella_debug(&mut registry, false);
 
     match Rosella::new(registry, window, "new_new_rosella_example_scene_1") {

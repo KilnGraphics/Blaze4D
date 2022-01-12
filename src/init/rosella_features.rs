@@ -16,10 +16,9 @@ use crate::rosella::VulkanVersion;
 /// Registers all instance and device features required for rosella to work in headless mode
 pub fn register_rosella_headless(registry: &mut InitializationRegistry) {
     KHRGetPhysicalDeviceProperties2::register_into(registry, false);
-    KHRTimelineSemaphoreInstance::register_into(registry, false);
     RosellaInstanceBase::register_into(registry, true);
 
-    KHRTimelineSemaphoreDevice::register_into(registry, false);
+    KHRTimelineSemaphore::register_into(registry, false);
     RosellaDeviceBase::register_into(registry, true);
 }
 
@@ -110,15 +109,10 @@ macro_rules! const_device_feature{
 /// Instance feature which provides all requirements needed for rosella to function in headless
 #[derive(Default)]
 pub struct RosellaInstanceBase;
-const_instance_feature!(RosellaInstanceBase, "rosella:instance_base", [KHRTimelineSemaphoreInstance::NAME]);
+const_instance_feature!(RosellaInstanceBase, "rosella:instance_base", []);
 
 impl ApplicationInstanceFeature for RosellaInstanceBase {
-    fn init(&mut self, features: &mut dyn FeatureAccess, _: &InstanceInfo) -> InitResult {
-        if !features.is_supported(&KHRTimelineSemaphoreInstance::NAME.get_uuid()) {
-            log::warn!("KHRTimelineSemaphore is not supported");
-            return InitResult::Disable;
-        }
-
+    fn init(&mut self, _: &mut dyn FeatureAccess, _: &InstanceInfo) -> InitResult {
         InitResult::Ok
     }
 
@@ -232,42 +226,12 @@ impl ApplicationInstanceFeature for KHRSurface {
     }
 }
 
-/// Instance feature representing the VK_KHR_timeline_semaphore feature set.
-/// If the instance version is below 1.2 it will load the extension.
-#[derive(Default)]
-pub struct KHRTimelineSemaphoreInstance;
-const_instance_feature!(KHRTimelineSemaphoreInstance, "rosella:instance_khr_timeline_semaphore", [KHRGetPhysicalDeviceProperties2::NAME]);
-
-impl ApplicationInstanceFeature for KHRTimelineSemaphoreInstance {
-    fn init(&mut self, features: &mut dyn FeatureAccess, info: &InstanceInfo) -> InitResult {
-        if !features.is_supported(&KHRGetPhysicalDeviceProperties2::NAME.get_uuid()) {
-            log::warn!("KHRGetPhysicalDeviceProperties2 is not supported");
-            return InitResult::Disable;
-        }
-
-        let core_present = info.get_vulkan_version().is_supported(VulkanVersion::VK_1_2);
-        if !core_present {
-            if !info.is_extension_supported::<ash::extensions::khr::TimelineSemaphore>() {
-                return InitResult::Disable;
-            }
-        }
-
-        InitResult::Ok
-    }
-
-    fn enable(&mut self, _: &mut dyn FeatureAccess, info: &InstanceInfo, config: &mut InstanceConfigurator) {
-        if !info.get_vulkan_version().is_supported(VulkanVersion::VK_1_2) {
-            config.enable_extension_no_load::<ash::extensions::khr::TimelineSemaphore>();
-        }
-    }
-}
-
 /// Device feature representing the VK_KHR_timeline_semaphore feature set.
 #[derive(Default)]
-pub struct KHRTimelineSemaphoreDevice;
-const_device_feature!(KHRTimelineSemaphoreDevice, "rosella:device_khr_timeline_semaphore", []);
+pub struct KHRTimelineSemaphore;
+const_device_feature!(KHRTimelineSemaphore, "rosella:device_khr_timeline_semaphore", []);
 
-impl ApplicationDeviceFeature for KHRTimelineSemaphoreDevice {
+impl ApplicationDeviceFeature for KHRTimelineSemaphore {
     fn init(&mut self, _: &mut dyn FeatureAccess, info: &DeviceInfo) -> InitResult {
         if info.get_instance().get_version().is_supported(VulkanVersion::VK_1_2) {
             if info.get_device_1_2_features().unwrap().timeline_semaphore == vk::TRUE {
@@ -355,11 +319,11 @@ impl ApplicationInstanceFeature for WindowSurface {
 /// Device feature which provides all requirements needed for rosella to function in headless
 #[derive(Default)]
 pub struct RosellaDeviceBase;
-const_device_feature!(RosellaDeviceBase, "rosella:device_base", [KHRTimelineSemaphoreDevice::NAME]);
+const_device_feature!(RosellaDeviceBase, "rosella:device_base", [KHRTimelineSemaphore::NAME]);
 
 impl ApplicationDeviceFeature for RosellaDeviceBase {
     fn init(&mut self, features: &mut dyn FeatureAccess, _: &DeviceInfo) -> InitResult {
-        if !features.is_supported(&KHRTimelineSemaphoreDevice::NAME.get_uuid()) {
+        if !features.is_supported(&KHRTimelineSemaphore::NAME.get_uuid()) {
             return InitResult::Disable;
         }
 
