@@ -1,5 +1,3 @@
-mod test_common;
-
 extern crate ash_window;
 extern crate winit;
 
@@ -37,7 +35,7 @@ fn main() {
         .element(data_type::FLOAT, 3)
         .build();
 
-    GraphicsShader::new(rosella.device.clone(), include_str!("test_resources/triangle.vert").to_string(), include_str!("test_resources/triangle.frag").to_string(), GraphicsContext {
+    GraphicsShader::new(rosella.device.clone(), include_str!("resources/triangle.vert").to_string(), include_str!("resources/triangle.frag").to_string(), GraphicsContext {
         mutable_uniforms: Default::default(),
         push_uniforms: Default::default(),
         vertex_format: basic_vertex_format,
