@@ -10,6 +10,7 @@ use crate::util::id::GlobalId;
 
 use ash::vk;
 use ash::vk::Handle;
+use crate::objects::id::ObjectSetId;
 use crate::objects::manager::allocator::{Allocation, AllocationStrategy};
 use crate::objects::manager::ObjectRequestDescription;
 
@@ -55,7 +56,7 @@ pub(super) struct ObjectSetData {
 pub struct ObjectSetBuilder {
     synchronization_group: Option<SynchronizationGroup>,
     manager: ObjectManager,
-    set_id: GlobalId,
+    set_id: ObjectSetId,
     requests: Vec<ObjectRequestDescription>,
     requires_group: bool,
 }
@@ -66,7 +67,7 @@ impl ObjectSetBuilder {
         Self {
             synchronization_group: Some(synchronization_group),
             manager,
-            set_id: GlobalId::new(),
+            set_id: ObjectSetId::new(),
             requests: Vec::new(),
             requires_group: false,
         }
@@ -76,7 +77,7 @@ impl ObjectSetBuilder {
         Self {
             synchronization_group: None,
             manager,
-            set_id: GlobalId::new(),
+            set_id: ObjectSetId::new(),
             requests: Vec::new(),
             requires_group: false,
         }
@@ -90,10 +91,13 @@ impl ObjectSetBuilder {
         self.requires_group = true;
 
         let index = self.requests.len();
+        if index > u16::MAX as usize {
+            panic!("Too many objects")
+        }
 
         self.requests.push(ObjectRequestDescription::make_buffer(desc, AllocationStrategy::AutoGpuOnly));
 
-        id::BufferId::new(self.set_id, index as u64)
+        id::BufferId::new(self.set_id, index as u16)
     }
 
     /// Adds a request for a buffer that needs to be accessed by both gpu and cpu
@@ -104,10 +108,13 @@ impl ObjectSetBuilder {
         self.requires_group = true;
 
         let index = self.requests.len();
+        if index > u16::MAX as usize {
+            panic!("Too many objects")
+        }
 
         self.requests.push(ObjectRequestDescription::make_buffer(desc, AllocationStrategy::AutoGpuCpu));
 
-        id::BufferId::new(self.set_id, index as u64)
+        id::BufferId::new(self.set_id, index as u16)
     }
 
     /// Adds a buffer view for a buffer created as part of this object set
@@ -117,14 +124,17 @@ impl ObjectSetBuilder {
         }
         self.requires_group = true;
 
-        if buffer.get_global_id() != self.set_id {
+        if buffer.get_set_id() != self.set_id {
             panic!("Buffer global id does not match set id")
         }
         let index = self.requests.len();
+        if index > u16::MAX as usize {
+            panic!("Too many objects")
+        }
 
         self.requests.push(ObjectRequestDescription::make_buffer_view(desc, None, buffer));
 
-        id::BufferViewId::new(self.set_id, index as u64)
+        id::BufferViewId::new(self.set_id, index as u16)
     }
 
     /// Adds a buffer view for a buffer owned by a different object set
@@ -134,7 +144,7 @@ impl ObjectSetBuilder {
         }
         self.requires_group = true;
 
-        if buffer.get_global_id() != set.get_set_id() {
+        if buffer.get_set_id() != set.get_set_id() {
             panic!("Buffer global id does not match set id")
         }
 
@@ -143,10 +153,13 @@ impl ObjectSetBuilder {
         }
 
         let index = self.requests.len();
+        if index > u16::MAX as usize {
+            panic!("Too many objects")
+        }
 
         self.requests.push(ObjectRequestDescription::make_buffer_view(desc, Some(set), buffer));
 
-        id::BufferViewId::new(self.set_id, index as u64)
+        id::BufferViewId::new(self.set_id, index as u16)
     }
 
     /// Adds a request for a image that only needs to be accessed by the gpu
@@ -157,10 +170,13 @@ impl ObjectSetBuilder {
         self.requires_group = true;
 
         let index = self.requests.len();
+        if index > u16::MAX as usize {
+            panic!("Too many objects")
+        }
 
         self.requests.push(ObjectRequestDescription::make_image(desc, AllocationStrategy::AutoGpuOnly));
 
-        id::ImageId::new(self.set_id, index as u64)
+        id::ImageId::new(self.set_id, index as u16)
     }
 
     /// Adds a request for a image that needs to be accessed by both gpu and cpu
@@ -171,10 +187,13 @@ impl ObjectSetBuilder {
         self.requires_group = true;
 
         let index = self.requests.len();
+        if index > u16::MAX as usize {
+            panic!("Too many objects")
+        }
 
         self.requests.push(ObjectRequestDescription::make_image(desc, AllocationStrategy::AutoGpuCpu));
 
-        id::ImageId::new(self.set_id, index as u64)
+        id::ImageId::new(self.set_id, index as u16)
     }
 
     /// Adds a image view for a image created as part of this object set
@@ -184,14 +203,17 @@ impl ObjectSetBuilder {
         }
         self.requires_group = true;
 
-        if image.get_global_id() != self.set_id {
+        if image.get_set_id() != self.set_id {
             panic!("Image global id does not match set id")
         }
         let index = self.requests.len();
+        if index > u16::MAX as usize {
+            panic!("Too many objects")
+        }
 
         self.requests.push(ObjectRequestDescription::make_image_view(desc, None, image));
 
-        id::ImageViewId::new(self.set_id, index as u64)
+        id::ImageViewId::new(self.set_id, index as u16)
     }
 
     /// Adds a image view for a image owned by a different object set
@@ -201,7 +223,7 @@ impl ObjectSetBuilder {
         }
         self.requires_group = true;
 
-        if image.get_global_id() != set.get_set_id() {
+        if image.get_set_id() != set.get_set_id() {
             panic!("Image global id does not match set id")
         }
 
@@ -210,10 +232,13 @@ impl ObjectSetBuilder {
         }
 
         let index = self.requests.len();
+        if index > u16::MAX as usize {
+            panic!("Too many objects")
+        }
 
         self.requests.push(ObjectRequestDescription::make_image_view(desc, Some(set), image));
 
-        id::ImageViewId::new(self.set_id, index as u64)
+        id::ImageViewId::new(self.set_id, index as u16)
     }
 
     /// Creates the objects and returns the resulting object set
@@ -229,14 +254,14 @@ impl ObjectSetBuilder {
 struct ObjectSetImpl {
     group: Option<SynchronizationGroup>,
     manager: ObjectManager,
-    set_id: GlobalId,
+    set_id: ObjectSetId,
 
     // Screw unwrap
     data: ManuallyDrop<ObjectSetData>,
 }
 
 impl ObjectSetImpl {
-    fn new(set_id: GlobalId, synchronization_group: Option<SynchronizationGroup>, manager: ObjectManager, objects: Box<[ObjectData]>, allocations: Box<[Allocation]>) -> Self {
+    fn new(set_id: ObjectSetId, synchronization_group: Option<SynchronizationGroup>, manager: ObjectManager, objects: Box<[ObjectData]>, allocations: Box<[Allocation]>) -> Self {
         Self{
             group: synchronization_group,
             manager,
@@ -249,7 +274,7 @@ impl ObjectSetImpl {
     }
 
     fn get_raw_handle(&self, id: id::GenericId) -> Option<u64> {
-        if id.get_global_id() != self.set_id {
+        if id.get_set_id() != self.set_id {
             return None;
         }
 
@@ -258,7 +283,7 @@ impl ObjectSetImpl {
     }
 
     fn get_buffer_handle(&self, id: id::BufferId) -> Option<vk::Buffer> {
-        if id.get_global_id() != self.set_id {
+        if id.get_set_id() != self.set_id {
             return None;
         }
 
@@ -270,7 +295,7 @@ impl ObjectSetImpl {
     }
 
     fn get_buffer_view_handle(&self, id: id::BufferViewId) -> Option<vk::BufferView> {
-        if id.get_global_id()!= self.set_id {
+        if id.get_set_id()!= self.set_id {
             return None;
         }
 
@@ -282,7 +307,7 @@ impl ObjectSetImpl {
     }
 
     fn get_image_handle(&self, id: id::ImageId) -> Option<vk::Image> {
-        if id.get_global_id() != self.set_id {
+        if id.get_set_id() != self.set_id {
             return None;
         }
 
@@ -294,7 +319,7 @@ impl ObjectSetImpl {
     }
 
     fn get_image_view_handle(&self, id: id::ImageViewId) -> Option<vk::ImageView> {
-        if id.get_global_id()!= self.set_id {
+        if id.get_set_id()!= self.set_id {
             return None;
         }
 
@@ -345,11 +370,11 @@ impl Ord for ObjectSetImpl {
 pub struct ObjectSet(Arc<ObjectSetImpl>);
 
 impl ObjectSet {
-    fn new(set_id: GlobalId, synchronization_group: Option<SynchronizationGroup>, manager: ObjectManager, objects: Box<[ObjectData]>, allocations: Box<[Allocation]>) -> Self {
+    fn new(set_id: ObjectSetId, synchronization_group: Option<SynchronizationGroup>, manager: ObjectManager, objects: Box<[ObjectData]>, allocations: Box<[Allocation]>) -> Self {
         Self(Arc::new(ObjectSetImpl::new(set_id, synchronization_group, manager, objects, allocations)))
     }
 
-    pub fn get_set_id(&self) -> GlobalId {
+    pub fn get_set_id(&self) -> ObjectSetId {
         self.0.set_id
     }
 

@@ -3,7 +3,7 @@ use std::sync::Arc;
 
 use ash::vk;
 
-use crate::objects::id::SurfaceId;
+use crate::objects::id::{ObjectSetId, SurfaceId};
 use crate::rosella::InstanceContext;
 use crate::util::id::GlobalId;
 
@@ -35,7 +35,7 @@ pub struct Surface(Arc<SurfaceImpl>);
 impl Surface {
     pub fn new(surface: Box<dyn SurfaceProvider>) -> Self {
         Self(Arc::new(SurfaceImpl{
-            id: SurfaceId::new(GlobalId::new(), 0),
+            id: SurfaceId::new(ObjectSetId::new(), 0),
             surface
         }))
     }
