@@ -1,4 +1,6 @@
+use std::cmp::Ordering;
 use std::collections::HashMap;
+use std::fmt::{Debug, Formatter, Pointer};
 use std::sync::{Arc, Mutex};
 
 use ash::vk;
@@ -8,7 +10,7 @@ use crate::instance::InstanceContext;
 use crate::objects::id::SurfaceId;
 use crate::objects::surface::{Surface, SurfaceCapabilities};
 use crate::util::extensions::{AsRefOption, ExtensionFunctionSet, VkExtensionInfo, VkExtensionFunctions};
-use crate::UUID;
+use crate::{NamedUUID, UUID};
 
 pub enum SurfaceAttachError {
     SurfaceAlreadyPresent,
@@ -16,6 +18,7 @@ pub enum SurfaceAttachError {
 }
 
 struct DeviceContextImpl {
+    id: NamedUUID,
     instance: InstanceContext,
     device: ash::Device,
     physical_device: vk::PhysicalDevice,
@@ -38,6 +41,7 @@ pub struct DeviceContext(Arc<DeviceContextImpl>);
 impl DeviceContext {
     pub fn new(instance: InstanceContext, device: ash::Device, physical_device: vk::PhysicalDevice, extensions: ExtensionFunctionSet, features: EnabledFeatures) -> Self {
         Self(Arc::new(DeviceContextImpl{
+            id: NamedUUID::with_str("Device"),
             instance,
             device,
             physical_device,
@@ -45,6 +49,10 @@ impl DeviceContext {
             features,
             surfaces: Mutex::new(HashMap::new()),
         }))
+    }
+
+    pub fn get_uuid(&self) -> &NamedUUID {
+        &self.0.id
     }
 
     pub fn get_entry(&self) -> &ash::Entry {
@@ -102,5 +110,32 @@ impl DeviceContext {
 
     pub fn get_surface_capabilities(&self, id: SurfaceId) -> Option<&SurfaceCapabilities> {
         None
+    }
+}
+
+impl PartialEq for DeviceContext {
+    fn eq(&self, other: &Self) -> bool {
+        self.0.id.eq(&other.0.id)
+    }
+}
+
+impl Eq for DeviceContext {
+}
+
+impl PartialOrd for DeviceContext {
+    fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
+        self.0.id.partial_cmp(&other.0.id)
+    }
+}
+
+impl Ord for DeviceContext {
+    fn cmp(&self, other: &Self) -> Ordering {
+        self.0.id.cmp(&other.0.id)
+    }
+}
+
+impl Debug for DeviceContext {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        self.0.fmt(f)
     }
 }
