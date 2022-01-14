@@ -1,10 +1,10 @@
+/// Implements the Xoshiro256++ random number algorithm.
+/// See https://prng.di.unimi.it/xoshiro256plusplus.c
 #[derive(Copy, Clone)]
 pub struct Xoshiro256PlusPlus {
     s: [u64; 4],
 }
 
-/// Implements the Xoshiro256++ random number algorithm.
-/// See https://prng.di.unimi.it/xoshiro256plusplus.c
 impl Xoshiro256PlusPlus {
     const JUMP : [u64; 4] = [0x180ec6d33cfd0abau64, 0xd5a61266f0c9392cu64, 0xa9582618e03fc9aau64, 0x39abdc4529b1661cu64];
     const LONG_JUMP : [u64; 4] = [ 0x76e15d3efefdcbbfu64, 0xc5004e441c522fb3u64, 0x77710069854ee241u64, 0x39109bb02acbe635u64 ];
