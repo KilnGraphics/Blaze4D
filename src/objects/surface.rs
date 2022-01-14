@@ -5,7 +5,6 @@ use ash::vk;
 
 use crate::objects::id::{ObjectSetId, SurfaceId};
 use crate::rosella::InstanceContext;
-use crate::util::id::GlobalId;
 
 /// Trait that provides access to a surface object.
 ///
@@ -23,6 +22,9 @@ pub trait SurfaceProvider : Sync {
 
 struct SurfaceImpl {
     id: SurfaceId,
+    handle: vk::SurfaceKHR,
+
+    #[allow(unused)] // Only reason we need this field is to keep the provider alive.
     surface: Box<dyn SurfaceProvider>,
 }
 
@@ -36,12 +38,13 @@ impl Surface {
     pub fn new(surface: Box<dyn SurfaceProvider>) -> Self {
         Self(Arc::new(SurfaceImpl{
             id: SurfaceId::new(ObjectSetId::new(), 0),
+            handle: surface.get_handle(),
             surface
         }))
     }
 
     pub fn get_handle(&self) -> vk::SurfaceKHR {
-        self.0.surface.get_handle()
+        self.0.handle
     }
 
     pub fn get_id(&self) -> SurfaceId {

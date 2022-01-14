@@ -92,7 +92,7 @@ macro_rules! make_vk_extension_info {
         }
 
         $(impl VkExtensionInfo for $struct_name {
-            const UUID: NamedUUID = NamedUUID::new_const(stringify!($string_name));
+            const UUID: NamedUUID = NamedUUID::from_str(stringify!($string_name));
         })+
     }
 }

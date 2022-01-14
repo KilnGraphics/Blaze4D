@@ -39,7 +39,7 @@ pub fn register_rosella_debug(registry: &mut InitializationRegistry, required: b
 macro_rules! const_instance_feature{
     ($struct_name:ty, $name:literal, [$($dependency:expr),*]) => {
         impl $struct_name {
-            const NAME: NamedUUID = NamedUUID::new_const($name);
+            const NAME: NamedUUID = NamedUUID::from_str($name);
             const DEPENDENCIES: &'static [NamedUUID] = &[$($dependency,)*];
 
             fn register_into(registry: &mut InitializationRegistry, required: bool) {
@@ -81,7 +81,7 @@ macro_rules! const_device_feature{
         }
 
         impl $struct_name {
-            const NAME: NamedUUID = NamedUUID::new_const($name);
+            const NAME: NamedUUID = NamedUUID::from_str($name);
             const DEPENDENCIES: &'static [NamedUUID] = &[$($dependency,)*];
 
             fn register_into(registry: &mut InitializationRegistry, required: bool) {
@@ -274,7 +274,7 @@ impl WindowSurface {
         let extensions = ash_window::enumerate_required_extensions(window).unwrap();
 
         Self {
-            name: NamedUUID::new_const("rosella:instance_window_surface"),
+            name: NamedUUID::from_str("rosella:instance_window_surface"),
             extensions: extensions.into_iter().map(|str| std::ffi::CString::from(str)).collect()
         }
     }

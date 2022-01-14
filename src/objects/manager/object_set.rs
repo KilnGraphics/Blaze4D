@@ -6,7 +6,6 @@ use crate::objects::buffer::{BufferCreateDesc, BufferViewCreateDesc};
 use crate::objects::image::{ImageCreateDesc, ImageViewCreateDesc};
 use crate::objects::{id, ObjectManager};
 use crate::objects::manager::synchronization_group::SynchronizationGroup;
-use crate::util::id::GlobalId;
 
 use ash::vk;
 use ash::vk::Handle;

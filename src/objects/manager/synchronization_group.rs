@@ -3,10 +3,10 @@ use std::fmt::{Debug, Formatter};
 use std::hash::{Hash, Hasher};
 use std::sync::{Arc, LockResult, Mutex, MutexGuard};
 
-use crate::util::id::GlobalId;
 use super::ObjectManager;
 
 use ash::vk;
+use crate::UUID;
 
 // Internal struct containing the semaphore payload and metadata
 struct SyncData {
@@ -30,17 +30,17 @@ impl SyncData {
 
 // Internal implementation of the synchronization group
 struct SynchronizationGroupImpl {
-    group_id: GlobalId,
+    group_id: UUID,
     sync_data: Mutex<SyncData>,
     manager: ObjectManager,
 }
 
 impl SynchronizationGroupImpl {
     fn new(manager: ObjectManager, semaphore: vk::Semaphore) -> Self {
-        Self{ group_id: GlobalId::new(), sync_data: Mutex::new(SyncData{ semaphore, last_access: 0u64 }), manager }
+        Self{ group_id: UUID::new(), sync_data: Mutex::new(SyncData{ semaphore, last_access: 0u64 }), manager }
     }
 
-    fn get_group_id(&self) -> GlobalId {
+    fn get_group_id(&self) -> UUID {
         self.group_id
     }
 
@@ -92,7 +92,7 @@ impl SynchronizationGroup {
         Self(Arc::new(SynchronizationGroupImpl::new(manager, semaphore)))
     }
 
-    pub fn get_group_id(&self) -> GlobalId {
+    pub fn get_group_id(&self) -> UUID {
         self.0.get_group_id()
     }
 

@@ -19,7 +19,7 @@ impl Xoshiro256PlusPlus {
     }
 
     /// Generates a new random number
-    pub const fn gen(&mut self) -> u64 {
+    pub fn gen(&mut self) -> u64 {
         let result = Self::rotl(self.s[0] + self.s[3], 23) + self.s[0];
 
         let t = self.s[1] << 17;
@@ -31,13 +31,13 @@ impl Xoshiro256PlusPlus {
 
         self.s[2] ^= t;
 
-        self.s[3] = rotl(self.s[3], 45);
+        self.s[3] = Self::rotl(self.s[3], 45);
 
         result
     }
 
     /// Utility function to create the jump and long_jump functions
-    const fn update_with<SIZE: usize>(&mut self, update: [u64; SIZE]) {
+    fn update_with<const SIZE: usize>(&mut self, update: [u64; SIZE]) {
         let mut s0 = 0u64;
         let mut s1 = 0u64;
         let mut s2 = 0u64;
@@ -63,14 +63,14 @@ impl Xoshiro256PlusPlus {
 
     /// This function is equivalent to 2^128 calls to [`Self::gen`]. It can be used to generate
     /// 2^128 non-overlapping subsequences for parallel computations.
-    pub const fn jump(&mut self) {
+    pub fn jump(&mut self) {
         self.update_with(Self::JUMP)
     }
 
     /// This function is equivalent to 2^192 calls to [`Self::gen`]. It can be used to generate
     /// 2^64 starting points from each of which [`Self::jump`] will generate 2^64 non-overlapping
     /// subsequences for parallel distributed computations.
-    pub const fn long_jump(&mut self) {
+    pub fn long_jump(&mut self) {
         self.update_with(Self::LONG_JUMP)
     }
 }

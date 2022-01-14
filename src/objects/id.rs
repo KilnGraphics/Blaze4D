@@ -1,8 +1,7 @@
-use std::fmt::{Debug, Formatter, Pointer};
+use std::fmt::{Debug, Formatter};
 use std::hash::{Hash, Hasher};
 use std::num::NonZeroU64;
 use std::sync::atomic::{AtomicU64, Ordering};
-use crate::util::id::{GlobalId, LocalId, UUID};
 
 /// An identifier for object sets
 #[derive(Copy, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
@@ -84,12 +83,10 @@ impl<const TYPE: u8> ObjectId<TYPE> {
     const SET_ID_MAX: u64 = (1u64 << Self::SET_ID_BITS) - 1u64;
     const SET_ID_MASK: u64 = Self::SET_ID_MAX << Self::SET_ID_OFFSET;
 
-    const INDEX_BITS: u32 = 16u32;
     const INDEX_OFFSET: u32 = 48u32;
     const INDEX_MAX: u64 = u16::MAX as u64;
     const INDEX_MASK: u64 = Self::INDEX_MAX << Self::INDEX_OFFSET;
 
-    const TYPE_BITS: u32 = 8u32;
     const TYPE_OFFSET: u32 = 40u32;
     const TYPE_MAX: u64 = u8::MAX as u64;
     const TYPE_MASK: u64 = Self::TYPE_MAX << Self::TYPE_OFFSET;
