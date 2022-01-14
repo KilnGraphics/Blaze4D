@@ -15,12 +15,12 @@ impl Xoshiro256PlusPlus {
     }
 
     const fn rotl(x: u64, k: i32) -> u64 {
-        (x << k) | (x >> (64 - k))
+        (x << k) | (x >> (64i32 - k))
     }
 
     /// Generates a new random number
     pub fn gen(&mut self) -> u64 {
-        let result = Self::rotl(self.s[0] + self.s[3], 23) + self.s[0];
+        let result = u64::overflowing_add(Self::rotl(u64::overflowing_add(self.s[0], self.s[3]).0, 23), self.s[0]).0;
 
         let t = self.s[1] << 17;
 
