@@ -209,8 +209,3 @@ impl Debug for NamedUUID {
         f.write_fmt(format_args!("NamedUUID{{\"{}\", {:?}}}", name, &self.id))
     }
 }
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-}
