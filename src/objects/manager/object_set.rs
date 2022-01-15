@@ -29,7 +29,19 @@ pub(super) enum ObjectData {
         handle: vk::ImageView,
         #[allow(unused)] // This is needed to prevent the source set from being destroyed early
         source_set: Option<ObjectSet>,
-    }
+    },
+    BinarySemaphore {
+        handle: vk::Semaphore,
+    },
+    TimelineSemaphore {
+        handle: vk::Semaphore,
+    },
+    Event {
+        handle: vk::Event,
+    },
+    Fence {
+        handle: vk::Fence,
+    },
 }
 
 impl ObjectData {
@@ -39,6 +51,10 @@ impl ObjectData {
             ObjectData::BufferView {handle, .. } => handle.as_raw(),
             ObjectData::Image { handle, .. } => handle.as_raw(),
             ObjectData::ImageView { handle, .. } => handle.as_raw(),
+            ObjectData::BinarySemaphore { handle, .. } => handle.as_raw(),
+            ObjectData::TimelineSemaphore { handle, .. } => handle.as_raw(),
+            ObjectData::Event { handle, .. } => handle.as_raw(),
+            ObjectData::Fence { handle, .. } => handle.as_raw(),
         }
     }
 }
@@ -89,14 +105,11 @@ impl ObjectSetBuilder {
         }
         self.requires_group = true;
 
-        let index = self.requests.len();
-        if index > u16::MAX as usize {
-            panic!("Too many objects")
-        }
+        let index = self.validate_set_size();
 
         self.requests.push(ObjectRequestDescription::make_buffer(desc, AllocationStrategy::AutoGpuOnly));
 
-        id::BufferId::new(self.set_id, index as u16)
+        id::BufferId::new(self.set_id, index)
     }
 
     /// Adds a request for a buffer that needs to be accessed by both gpu and cpu
@@ -106,14 +119,11 @@ impl ObjectSetBuilder {
         }
         self.requires_group = true;
 
-        let index = self.requests.len();
-        if index > u16::MAX as usize {
-            panic!("Too many objects")
-        }
+        let index = self.validate_set_size();
 
         self.requests.push(ObjectRequestDescription::make_buffer(desc, AllocationStrategy::AutoGpuCpu));
 
-        id::BufferId::new(self.set_id, index as u16)
+        id::BufferId::new(self.set_id, index)
     }
 
     /// Adds a buffer view for a buffer created as part of this object set
@@ -126,14 +136,11 @@ impl ObjectSetBuilder {
         if buffer.get_set_id() != self.set_id {
             panic!("Buffer global id does not match set id")
         }
-        let index = self.requests.len();
-        if index > u16::MAX as usize {
-            panic!("Too many objects")
-        }
+        let index = self.validate_set_size();
 
         self.requests.push(ObjectRequestDescription::make_buffer_view(desc, None, buffer));
 
-        id::BufferViewId::new(self.set_id, index as u16)
+        id::BufferViewId::new(self.set_id, index)
     }
 
     /// Adds a buffer view for a buffer owned by a different object set
@@ -151,14 +158,11 @@ impl ObjectSetBuilder {
             panic!("Buffer does not match internal synchronization group")
         }
 
-        let index = self.requests.len();
-        if index > u16::MAX as usize {
-            panic!("Too many objects")
-        }
+        let index = self.validate_set_size();
 
         self.requests.push(ObjectRequestDescription::make_buffer_view(desc, Some(set), buffer));
 
-        id::BufferViewId::new(self.set_id, index as u16)
+        id::BufferViewId::new(self.set_id, index)
     }
 
     /// Adds a request for a image that only needs to be accessed by the gpu
@@ -168,14 +172,11 @@ impl ObjectSetBuilder {
         }
         self.requires_group = true;
 
-        let index = self.requests.len();
-        if index > u16::MAX as usize {
-            panic!("Too many objects")
-        }
+        let index = self.validate_set_size();
 
         self.requests.push(ObjectRequestDescription::make_image(desc, AllocationStrategy::AutoGpuOnly));
 
-        id::ImageId::new(self.set_id, index as u16)
+        id::ImageId::new(self.set_id, index)
     }
 
     /// Adds a request for a image that needs to be accessed by both gpu and cpu
@@ -185,14 +186,11 @@ impl ObjectSetBuilder {
         }
         self.requires_group = true;
 
-        let index = self.requests.len();
-        if index > u16::MAX as usize {
-            panic!("Too many objects")
-        }
+        let index = self.validate_set_size();
 
         self.requests.push(ObjectRequestDescription::make_image(desc, AllocationStrategy::AutoGpuCpu));
 
-        id::ImageId::new(self.set_id, index as u16)
+        id::ImageId::new(self.set_id, index)
     }
 
     /// Adds a image view for a image created as part of this object set
@@ -205,14 +203,11 @@ impl ObjectSetBuilder {
         if image.get_set_id() != self.set_id {
             panic!("Image global id does not match set id")
         }
-        let index = self.requests.len();
-        if index > u16::MAX as usize {
-            panic!("Too many objects")
-        }
+        let index = self.validate_set_size();
 
         self.requests.push(ObjectRequestDescription::make_image_view(desc, None, image));
 
-        id::ImageViewId::new(self.set_id, index as u16)
+        id::ImageViewId::new(self.set_id, index)
     }
 
     /// Adds a image view for a image owned by a different object set
@@ -230,14 +225,43 @@ impl ObjectSetBuilder {
             panic!("Image does not match internal synchronization group")
         }
 
-        let index = self.requests.len();
-        if index > u16::MAX as usize {
-            panic!("Too many objects")
-        }
+        let index = self.validate_set_size();
 
         self.requests.push(ObjectRequestDescription::make_image_view(desc, Some(set), image));
 
-        id::ImageViewId::new(self.set_id, index as u16)
+        id::ImageViewId::new(self.set_id, index)
+    }
+
+    pub fn add_binary_semaphore(&mut self) -> id::BinarySemaphoreId {
+        let index = self.validate_set_size();
+
+        self.requests.push(ObjectRequestDescription::make_binary_semaphore());
+
+        id::BinarySemaphoreId::new(self.set_id, index)
+    }
+
+    pub fn add_timeline_semaphore(&mut self, initial_value: u64) -> id::TimelineSemaphoreId {
+        let index = self.validate_set_size();
+
+        self.requests.push(ObjectRequestDescription::make_timeline_semaphore(initial_value));
+
+        id::TimelineSemaphoreId::new(self.set_id, index)
+    }
+
+    pub fn add_event(&mut self) -> id::EventId {
+        let index = self.validate_set_size();
+
+        self.requests.push(ObjectRequestDescription::make_event(false));
+
+        id::EventId::new(self.set_id, index)
+    }
+
+    pub fn add_fence(&mut self, initial_signaled: bool) -> id::FenceId {
+        let index = self.validate_set_size();
+
+        self.requests.push(ObjectRequestDescription::make_fence(initial_signaled));
+
+        id::FenceId::new(self.set_id, index)
     }
 
     /// Creates the objects and returns the resulting object set
@@ -246,6 +270,16 @@ impl ObjectSetBuilder {
 
         let (objects, allocation) = self.manager.create_objects(self.requests.as_slice());
         ObjectSet::new(self.set_id, group, self.manager, objects, allocation)
+    }
+
+    /// Ensures that there is enough space to add another object to the set and returns the index of
+    /// the next object
+    fn validate_set_size(&self) -> u16 {
+        let index = self.requests.len();
+        if index > u16::MAX as usize {
+            panic!("Too many objects")
+        }
+        index as u16
     }
 }
 
@@ -318,13 +352,61 @@ impl ObjectSetImpl {
     }
 
     fn get_image_view_handle(&self, id: id::ImageViewId) -> Option<vk::ImageView> {
-        if id.get_set_id()!= self.set_id {
+        if id.get_set_id() != self.set_id {
             return None;
         }
 
         // Invalid local id but matching global is a serious error
         match self.data.objects.get(id.get_index() as usize).unwrap() {
             ObjectData::ImageView { handle, .. } => Some(*handle),
+            _ => panic!("Object type mismatch"),
+        }
+    }
+
+    fn get_binary_semaphore_handle(&self, id: id::BinarySemaphoreId) -> Option<vk::Semaphore> {
+        if id.get_set_id() != self.set_id {
+            return None;
+        }
+
+        // Invalid local id but matching global is a serious error
+        match self.data.objects.get(id.get_index() as usize).unwrap() {
+            ObjectData::BinarySemaphore { handle, .. } => Some(*handle),
+            _ => panic!("Object type mismatch"),
+        }
+    }
+
+    fn get_timeline_semaphore_handle(&self, id: id::TimelineSemaphoreId) -> Option<vk::Semaphore> {
+        if id.get_set_id() != self.set_id {
+            return None;
+        }
+
+        // Invalid local id but matching global is a serious error
+        match self.data.objects.get(id.get_index() as usize).unwrap() {
+            ObjectData::TimelineSemaphore { handle, .. } => Some(*handle),
+            _ => panic!("Object type mismatch"),
+        }
+    }
+
+    fn get_event_handle(&self, id: id::EventId) -> Option<vk::Event> {
+        if id.get_set_id() != self.set_id {
+            return None;
+        }
+
+        // Invalid local id but matching global is a serious error
+        match self.data.objects.get(id.get_index() as usize).unwrap() {
+            ObjectData::Event { handle, .. } => Some(*handle),
+            _ => panic!("Object type mismatch"),
+        }
+    }
+
+    fn get_fence_handle(&self, id: id::FenceId) -> Option<vk::Fence> {
+        if id.get_set_id() != self.set_id {
+            return None;
+        }
+
+        // Invalid local id but matching global is a serious error
+        match self.data.objects.get(id.get_index() as usize).unwrap() {
+            ObjectData::Fence { handle, .. } => Some(*handle),
             _ => panic!("Object type mismatch"),
         }
     }
@@ -425,6 +507,22 @@ impl ObjectSet {
     /// is not a image view) the function panics.
     pub fn get_image_view_handle(&self, id: id::ImageViewId) -> Option<vk::ImageView> {
         self.0.get_image_view_handle(id)
+    }
+
+    pub fn get_binary_semaphore_handle(&self, id: id::BinarySemaphoreId) -> Option<vk::Semaphore> {
+        self.0.get_binary_semaphore_handle(id)
+    }
+
+    pub fn get_timeline_semaphore_handle(&self, id: id::TimelineSemaphoreId) -> Option<vk::Semaphore> {
+        self.0.get_timeline_semaphore_handle(id)
+    }
+
+    pub fn get_event_handle(&self, id: id::EventId) -> Option<vk::Event> {
+        self.0.get_event_handle(id)
+    }
+
+    pub fn get_fence_handle(&self, id: id::FenceId) -> Option<vk::Fence> {
+        self.0.get_fence_handle(id)
     }
 }
 

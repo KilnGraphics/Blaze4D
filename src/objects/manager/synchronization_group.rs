@@ -51,7 +51,7 @@ impl SynchronizationGroupImpl {
 
 impl Drop for SynchronizationGroupImpl {
     fn drop(&mut self) {
-        self.manager.destroy_semaphore(self.sync_data.get_mut().unwrap().semaphore)
+        self.manager.destroy_group_semaphore(self.sync_data.get_mut().unwrap().semaphore)
     }
 }
 

@@ -77,12 +77,37 @@ struct ImageViewCreateMetadata<'a> {
     desc: &'a ImageViewRequestDescription,
 }
 
+struct BinarySemaphoreCreateMetadata<'a> {
+    handle: vk::Semaphore,
+    #[allow(unused)] // Nothing in it thus far but well add it for completeness sake
+    desc: &'a BinarySemaphoreRequestDescription,
+}
+
+struct TimelineSemaphoreCreateMetadata<'a> {
+    handle: vk::Semaphore,
+    desc: &'a TimelineSemaphoreRequestDescription
+}
+
+struct EventCreateMetadata<'a> {
+    handle: vk::Event,
+    desc: &'a EventRequestDescription,
+}
+
+struct FenceCreateMetadata<'a> {
+    handle: vk::Fence,
+    desc: &'a FenceRequestDescription,
+}
+
 /// Internal struct used during object creation
 enum ObjectCreateMetadata<'a> {
     Buffer(BufferCreateMetadata<'a>),
     BufferView(BufferViewCreateMetadata<'a>),
     Image(ImageCreateMetadata<'a>),
     ImageView(ImageViewCreateMetadata<'a>),
+    BinarySemaphore(BinarySemaphoreCreateMetadata<'a>),
+    TimelineSemaphore(TimelineSemaphoreCreateMetadata<'a>),
+    Event(EventCreateMetadata<'a>),
+    Fence(FenceCreateMetadata<'a>),
 }
 
 impl<'a> ObjectCreateMetadata<'a> {
@@ -115,6 +140,34 @@ impl<'a> ObjectCreateMetadata<'a> {
             desc
         })
     }
+
+    fn make_binary_semaphore(desc: &'a BinarySemaphoreRequestDescription) -> Self {
+        Self::BinarySemaphore(BinarySemaphoreCreateMetadata{
+            handle: vk::Semaphore::null(),
+            desc
+        })
+    }
+
+    fn make_timeline_semaphore(desc: &'a TimelineSemaphoreRequestDescription) -> Self {
+        Self::TimelineSemaphore(TimelineSemaphoreCreateMetadata{
+            handle: vk::Semaphore::null(),
+            desc
+        })
+    }
+
+    fn make_event(desc: &'a EventRequestDescription) -> Self {
+        Self::Event(EventCreateMetadata{
+            handle: vk::Event::null(),
+            desc
+        })
+    }
+
+    fn make_fence(desc: &'a FenceRequestDescription) -> Self {
+        Self::Fence(FenceCreateMetadata{
+            handle: vk::Fence::null(),
+            desc
+        })
+    }
 }
 
 // Internal implementation of the object manager
@@ -134,7 +187,7 @@ impl ObjectManagerImpl {
     }
 
     /// Creates a timeline semaphore for use in a synchronization group
-    fn create_timeline_semaphore(&self, initial_value: u64) -> vk::Semaphore {
+    fn create_group_semaphore(&self, initial_value: u64) -> vk::Semaphore {
         let mut timeline_info = vk::SemaphoreTypeCreateInfo::builder()
             .semaphore_type(vk::SemaphoreType::TIMELINE)
             .initial_value(initial_value);
@@ -146,7 +199,7 @@ impl ObjectManagerImpl {
     }
 
     /// Destroys a semaphore previously created using [`ObjectManagerImpl::create_timeline_semaphore`]
-    fn destroy_semaphore(&self, semaphore: vk::Semaphore) {
+    fn destroy_group_semaphore(&self, semaphore: vk::Semaphore) {
         unsafe {
             self.device.vk().destroy_semaphore(semaphore, None)
         }
@@ -178,6 +231,26 @@ impl ObjectManagerImpl {
                 ObjectCreateMetadata::ImageView(ImageViewCreateMetadata{ handle, .. }) => {
                     if *handle != vk::ImageView::null() {
                         unsafe { self.device.vk().destroy_image_view(*handle, None) }
+                    }
+                },
+                ObjectCreateMetadata::BinarySemaphore(BinarySemaphoreCreateMetadata{ handle, .. }) => {
+                    if *handle != vk::Semaphore::null() {
+                        unsafe { self.device.vk().destroy_semaphore(*handle, None) }
+                    }
+                },
+                ObjectCreateMetadata::TimelineSemaphore(TimelineSemaphoreCreateMetadata{ handle, .. }) => {
+                    if *handle != vk::Semaphore::null() {
+                        unsafe { self.device.vk().destroy_semaphore(*handle, None) }
+                    }
+                },
+                ObjectCreateMetadata::Event(EventCreateMetadata{ handle, .. }) => {
+                    if *handle != vk::Event::null() {
+                        unsafe { self.device.vk().destroy_event(*handle, None) }
+                    }
+                },
+                ObjectCreateMetadata::Fence(FenceCreateMetadata{ handle, .. }) => {
+                    if *handle != vk::Fence::null() {
+                        unsafe { self.device.vk().destroy_fence(*handle, None) }
                     }
                 }
             }
@@ -291,6 +364,69 @@ impl ObjectManagerImpl {
         Ok(())
     }
 
+    fn create_binary_semaphore(&self, meta: &mut BinarySemaphoreCreateMetadata) -> Result<(), ObjectCreateError> {
+        if meta.handle == vk::Semaphore::null() {
+            let create_info = vk::SemaphoreCreateInfo::builder();
+
+            meta.handle = unsafe {
+                self.device.vk().create_semaphore(&create_info, None)?
+            }
+        }
+        Ok(())
+    }
+
+    fn create_timeline_semaphore(&self, meta: &mut TimelineSemaphoreCreateMetadata) -> Result<(), ObjectCreateError> {
+        if meta.handle == vk::Semaphore::null() {
+            let mut timeline_info = vk::SemaphoreTypeCreateInfo::builder()
+                .semaphore_type(vk::SemaphoreType::TIMELINE)
+                .initial_value(meta.desc.initial_value);
+
+            let create_info = vk::SemaphoreCreateInfo::builder()
+                .push_next(&mut timeline_info);
+
+            meta.handle = unsafe {
+                self.device.vk().create_semaphore(&create_info, None)?
+            }
+        }
+        Ok(())
+    }
+
+    fn create_event(&self, meta: &mut EventCreateMetadata) -> Result<(), ObjectCreateError> {
+        if meta.handle == vk::Event::null() {
+            let flags = if meta.desc.device_only {
+                vk::EventCreateFlags::DEVICE_ONLY_KHR
+            } else {
+                vk::EventCreateFlags::empty()
+            };
+
+            let create_info = vk::EventCreateInfo::builder()
+                .flags(flags);
+
+            meta.handle = unsafe {
+                self.device.vk().create_event(&create_info, None)?
+            }
+        }
+        Ok(())
+    }
+
+    fn create_fence(&self, meta: &mut FenceCreateMetadata) -> Result<(), ObjectCreateError> {
+        if meta.handle == vk::Fence::null() {
+            let flags = if meta.desc.signaled {
+                vk::FenceCreateFlags::SIGNALED
+            } else {
+                vk::FenceCreateFlags::empty()
+            };
+
+            let create_info = vk::FenceCreateInfo::builder()
+                .flags(flags);
+
+            meta.handle = unsafe {
+                self.device.vk().create_fence(&create_info, None)?
+            }
+        }
+        Ok(())
+    }
+
     /// Creates the objects for a temporary object data list
     fn create_objects_for_metadata(&self, objects: &mut [ObjectCreateMetadata]) -> Result<(), ObjectCreateError> {
 
@@ -303,6 +439,10 @@ impl ObjectManagerImpl {
                 ObjectCreateMetadata::BufferView(meta) => self.create_buffer_view(meta, &split)?,
                 ObjectCreateMetadata::Image(meta) => self.create_image(meta)?,
                 ObjectCreateMetadata::ImageView(meta) => self.create_image_view(meta, split)?,
+                ObjectCreateMetadata::BinarySemaphore(meta) => self.create_binary_semaphore(meta)?,
+                ObjectCreateMetadata::TimelineSemaphore(meta) => self.create_timeline_semaphore(meta)?,
+                ObjectCreateMetadata::Event(meta) => self.create_event(meta)?,
+                ObjectCreateMetadata::Fence(meta) => self.create_fence(meta)?,
             }
         }
 
@@ -324,6 +464,18 @@ impl ObjectManagerImpl {
                 }
                 ObjectRequestDescription::ImageView(desc) => {
                     ObjectCreateMetadata::make_image_view(desc)
+                }
+                ObjectRequestDescription::BinarySemaphore(desc) => {
+                    ObjectCreateMetadata::make_binary_semaphore(desc)
+                }
+                ObjectRequestDescription::TimelineSemaphore(desc) => {
+                    ObjectCreateMetadata::make_timeline_semaphore(desc)
+                }
+                ObjectRequestDescription::Event(desc) => {
+                    ObjectCreateMetadata::make_event(desc)
+                }
+                ObjectRequestDescription::Fence(desc) => {
+                    ObjectCreateMetadata::make_fence(desc)
                 }
             }
         }).collect()
@@ -362,6 +514,18 @@ impl ObjectManagerImpl {
                         source_set: desc.owning_set.clone(),
                     }
                 }
+                ObjectCreateMetadata::BinarySemaphore(BinarySemaphoreCreateMetadata{ handle, .. }) => {
+                    ObjectData::BinarySemaphore { handle }
+                }
+                ObjectCreateMetadata::TimelineSemaphore(TimelineSemaphoreCreateMetadata{ handle, .. }) => {
+                    ObjectData::TimelineSemaphore { handle }
+                }
+                ObjectCreateMetadata::Event(EventCreateMetadata{ handle, .. }) => {
+                    ObjectData::Event { handle }
+                }
+                ObjectCreateMetadata::Fence(FenceCreateMetadata{ handle, .. }) => {
+                    ObjectData::Fence { handle }
+                }
             });
         }
 
@@ -380,7 +544,7 @@ impl ObjectManagerImpl {
 
     /// Destroys objects previously created using [`ObjectManagerImpl::create_objects`]
     fn destroy_objects(&self, objects: &[ObjectData], allocations: Box<[Allocation]>) {
-        for object in objects {
+        for object in objects.iter().rev() {
             match object {
                 ObjectData::BufferView { handle, .. } => {
                     unsafe{ self.device.vk().destroy_buffer_view(*handle, None) }
@@ -388,18 +552,24 @@ impl ObjectManagerImpl {
                 ObjectData::ImageView { handle, .. } => {
                     unsafe{ self.device.vk().destroy_image_view(*handle, None) }
                 }
-                _ => {}
-            }
-        }
-        for object in objects {
-            match object {
                 ObjectData::Buffer { handle, .. } => {
                     unsafe{ self.device.vk().destroy_buffer(*handle, None) }
                 }
                 ObjectData::Image { handle, .. } => {
                     unsafe{ self.device.vk().destroy_image(*handle, None) }
                 }
-                _ => {}
+                ObjectData::BinarySemaphore { handle, .. } => {
+                    unsafe{ self.device.vk().destroy_semaphore(*handle, None) }
+                }
+                ObjectData::TimelineSemaphore { handle, .. } => {
+                    unsafe{ self.device.vk().destroy_semaphore(*handle, None) }
+                }
+                ObjectData::Event { handle, .. } => {
+                    unsafe{ self.device.vk().destroy_event(*handle, None) }
+                }
+                ObjectData::Fence { handle, .. } => {
+                    unsafe{ self.device.vk().destroy_fence(*handle, None) }
+                }
             }
         }
 
@@ -422,7 +592,7 @@ impl ObjectManager {
 
     /// Creates a new synchronization group managed by this object manager
     pub fn create_synchronization_group(&self) -> SynchronizationGroup {
-        SynchronizationGroup::new(self.clone(), self.0.create_timeline_semaphore(0u64))
+        SynchronizationGroup::new(self.clone(), self.0.create_group_semaphore(0u64))
     }
 
     /// Creates a new object set builder
@@ -440,8 +610,8 @@ impl ObjectManager {
     }
 
     // Internal function that destroys a semaphore created for a synchronization group
-    fn destroy_semaphore(&self, semaphore: vk::Semaphore) {
-        self.0.destroy_semaphore(semaphore)
+    fn destroy_group_semaphore(&self, semaphore: vk::Semaphore) {
+        self.0.destroy_group_semaphore(semaphore)
     }
 
     fn create_objects(&self, objects: &[ObjectRequestDescription]) -> (Box<[ObjectData]>, Box<[Allocation]>) {
@@ -588,12 +758,31 @@ struct ImageViewRequestDescription {
     pub image_id: id::ImageId,
 }
 
+struct BinarySemaphoreRequestDescription {
+}
+
+struct TimelineSemaphoreRequestDescription {
+    pub initial_value: u64,
+}
+
+struct EventRequestDescription {
+    pub device_only: bool,
+}
+
+struct FenceRequestDescription {
+    pub signaled: bool,
+}
+
 /// Describes a single object request
 enum ObjectRequestDescription {
     Buffer(BufferRequestDescription),
     BufferView(BufferViewRequestDescription),
     Image(ImageRequestDescription),
     ImageView(ImageViewRequestDescription),
+    BinarySemaphore(BinarySemaphoreRequestDescription),
+    TimelineSemaphore(TimelineSemaphoreRequestDescription),
+    Event(EventRequestDescription),
+    Fence(FenceRequestDescription),
 }
 
 impl ObjectRequestDescription {
@@ -624,6 +813,29 @@ impl ObjectRequestDescription {
             description,
             owning_set,
             image_id
+        })
+    }
+
+    pub fn make_binary_semaphore() -> Self {
+        Self::BinarySemaphore(BinarySemaphoreRequestDescription{
+        })
+    }
+
+    pub fn make_timeline_semaphore(initial_value: u64) -> Self {
+        Self::TimelineSemaphore(TimelineSemaphoreRequestDescription{
+            initial_value
+        })
+    }
+
+    pub fn make_event(device_only: bool) -> Self {
+        Self::Event(EventRequestDescription{
+            device_only
+        })
+    }
+
+    pub fn make_fence(signaled: bool) -> Self {
+        Self::Fence(FenceRequestDescription{
+            signaled
         })
     }
 }
