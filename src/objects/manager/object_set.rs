@@ -1,3 +1,4 @@
+use std::any::Any;
 use std::cmp::Ordering;
 use std::hash::{Hash, Hasher};
 use std::mem::ManuallyDrop;
@@ -9,9 +10,106 @@ use crate::objects::manager::synchronization_group::SynchronizationGroup;
 
 use ash::vk;
 use ash::vk::Handle;
-use crate::objects::id::ObjectSetId;
+use crate::objects::id::{ObjectIdType, ObjectSetId};
 use crate::objects::manager::allocator::{Allocation, AllocationStrategy};
 use crate::objects::manager::ObjectRequestDescription;
+use crate::UUID;
+
+/// A trait that must be implemented by any object set implementation.
+pub trait ObjectSetProvider {
+    fn get_id(&self) -> UUID;
+
+    /// Returns the handle for an object id.
+    ///
+    /// #Panics
+    /// If the id does not map to an object in the set this function must panic.
+    fn get_raw_handle(&self, id: id::GenericId) -> u64;
+
+    /// Returns the synchronization group associated with a object.
+    ///
+    /// An object may not have a associated synchronization group in which case None should be
+    /// returned. Similarly for objects which do not need a synchronization group this function may
+    /// still return a synchronization group. (This is to allow object sets to return the same group
+    /// for all objects).
+    ///
+    /// #Panics
+    /// If the id does not map to an object in the set this function must panic.
+    fn get_synchronization_group(&self, id: id::GenericId) -> Option<SynchronizationGroup>;
+
+    fn as_any(&self) -> &dyn Any;
+}
+
+/// A wrapper type around the [`ObjectSetProvider`] trait.
+///
+/// Provides a uniform object set api.
+#[derive(Clone)]
+pub struct ObjectSet2(Arc<dyn ObjectSetProvider>);
+
+impl ObjectSet2 {
+    /// Creates a new object set from the specified provider.
+    pub fn new<T: ObjectSetProvider + 'static>(set: T) -> Self {
+        Self(Arc::new(set))
+    }
+
+    /// Returns the UUID of this object set
+    pub fn get_id(&self) -> UUID {
+        self.0.get_id()
+    }
+
+    /// Returns a handle for some object stored in this set.
+    ///
+    /// #Panics
+    /// If the id does not map to an object in this set the function will panic.
+    pub fn get_handle<TYPE: ObjectIdType>(&self, id: TYPE) -> TYPE::Handle {
+        TYPE::Handle::from_raw(self.0.get_raw_handle(id.as_generic()))
+    }
+
+    /// Returns the synchronization group associated with a object stored in this set.
+    ///
+    /// An object may not have a associated synchronization group in which case None should be
+    /// returned. Similarly for objects which do not need a synchronization group this function may
+    /// still return a synchronization group. (This is to allow object sets to return the same group
+    /// for all objects).
+    ///
+    /// #Panics
+    /// If the id does not map to an object in this set this function will panic.
+    pub fn get_synchronization_group<TYPE: ObjectIdType>(&self, id: TYPE) -> Option<SynchronizationGroup> {
+        self.0.get_synchronization_group(id.as_generic())
+    }
+
+    /// Returns a any reference to the wrapped [`ObjectSetProvider`]
+    pub fn get_any(&self) -> &dyn Any {
+        self.0.as_ref().as_any()
+    }
+}
+
+impl PartialEq for ObjectSet2 {
+    fn eq(&self, other: &Self) -> bool {
+        self.0.get_id().eq(&other.0.get_id())
+    }
+}
+
+impl Eq for ObjectSet2 {
+}
+
+impl PartialOrd for ObjectSet2 {
+    fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
+        self.0.get_id().partial_cmp(&other.0.get_id())
+    }
+}
+
+impl Ord for ObjectSet2 {
+    fn cmp(&self, other: &Self) -> Ordering {
+        self.0.get_id().cmp(&other.0.get_id())
+    }
+}
+
+impl Hash for ObjectSet2 {
+    fn hash<H: Hasher>(&self, state: &mut H) {
+        self.0.get_id().hash(state)
+    }
+}
+
 
 pub(super) enum ObjectData {
     Buffer{
@@ -30,10 +128,7 @@ pub(super) enum ObjectData {
         #[allow(unused)] // This is needed to prevent the source set from being destroyed early
         source_set: Option<ObjectSet>,
     },
-    BinarySemaphore {
-        handle: vk::Semaphore,
-    },
-    TimelineSemaphore {
+    Semaphore {
         handle: vk::Semaphore,
     },
     Event {
@@ -51,8 +146,7 @@ impl ObjectData {
             ObjectData::BufferView {handle, .. } => handle.as_raw(),
             ObjectData::Image { handle, .. } => handle.as_raw(),
             ObjectData::ImageView { handle, .. } => handle.as_raw(),
-            ObjectData::BinarySemaphore { handle, .. } => handle.as_raw(),
-            ObjectData::TimelineSemaphore { handle, .. } => handle.as_raw(),
+            ObjectData::Semaphore { handle, .. } => handle.as_raw(),
             ObjectData::Event { handle, .. } => handle.as_raw(),
             ObjectData::Fence { handle, .. } => handle.as_raw(),
         }
@@ -232,20 +326,20 @@ impl ObjectSetBuilder {
         id::ImageViewId::new(self.set_id, index)
     }
 
-    pub fn add_binary_semaphore(&mut self) -> id::BinarySemaphoreId {
+    pub fn add_binary_semaphore(&mut self) -> id::SemaphoreId {
         let index = self.validate_set_size();
 
         self.requests.push(ObjectRequestDescription::make_binary_semaphore());
 
-        id::BinarySemaphoreId::new(self.set_id, index)
+        id::SemaphoreId::new(self.set_id, index)
     }
 
-    pub fn add_timeline_semaphore(&mut self, initial_value: u64) -> id::TimelineSemaphoreId {
+    pub fn add_timeline_semaphore(&mut self, initial_value: u64) -> id::SemaphoreId {
         let index = self.validate_set_size();
 
         self.requests.push(ObjectRequestDescription::make_timeline_semaphore(initial_value));
 
-        id::TimelineSemaphoreId::new(self.set_id, index)
+        id::SemaphoreId::new(self.set_id, index)
     }
 
     pub fn add_event(&mut self) -> id::EventId {
@@ -363,26 +457,14 @@ impl ObjectSetImpl {
         }
     }
 
-    fn get_binary_semaphore_handle(&self, id: id::BinarySemaphoreId) -> Option<vk::Semaphore> {
+    fn get_semaphore_handle(&self, id: id::SemaphoreId) -> Option<vk::Semaphore> {
         if id.get_set_id() != self.set_id {
             return None;
         }
 
         // Invalid local id but matching global is a serious error
         match self.data.objects.get(id.get_index() as usize).unwrap() {
-            ObjectData::BinarySemaphore { handle, .. } => Some(*handle),
-            _ => panic!("Object type mismatch"),
-        }
-    }
-
-    fn get_timeline_semaphore_handle(&self, id: id::TimelineSemaphoreId) -> Option<vk::Semaphore> {
-        if id.get_set_id() != self.set_id {
-            return None;
-        }
-
-        // Invalid local id but matching global is a serious error
-        match self.data.objects.get(id.get_index() as usize).unwrap() {
-            ObjectData::TimelineSemaphore { handle, .. } => Some(*handle),
+            ObjectData::Semaphore { handle, .. } => Some(*handle),
             _ => panic!("Object type mismatch"),
         }
     }
@@ -509,12 +591,8 @@ impl ObjectSet {
         self.0.get_image_view_handle(id)
     }
 
-    pub fn get_binary_semaphore_handle(&self, id: id::BinarySemaphoreId) -> Option<vk::Semaphore> {
-        self.0.get_binary_semaphore_handle(id)
-    }
-
-    pub fn get_timeline_semaphore_handle(&self, id: id::TimelineSemaphoreId) -> Option<vk::Semaphore> {
-        self.0.get_timeline_semaphore_handle(id)
+    pub fn get_semaphore_handle(&self, id: id::SemaphoreId) -> Option<vk::Semaphore> {
+        self.0.get_semaphore_handle(id)
     }
 
     pub fn get_event_handle(&self, id: id::EventId) -> Option<vk::Event> {

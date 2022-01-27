@@ -3,6 +3,8 @@ use std::hash::{Hash, Hasher};
 use std::num::NonZeroU64;
 use std::sync::atomic::{AtomicU64, Ordering};
 
+use ash::vk;
+
 /// An identifier for object sets
 #[derive(Copy, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct ObjectSetId(NonZeroU64);
@@ -52,8 +54,7 @@ impl ObjectType {
             Self::BUFFER_VIEW => "BufferView",
             Self::IMAGE => "Image",
             Self::IMAGE_VIEW => "ImageView",
-            Self::BINARY_SEMAPHORE => "BinarySemaphore",
-            Self::TIMELINE_SEMAPHORE => "TimelineSemaphore",
+            Self::SEMAPHORE => "Semaphore",
             Self::EVENT => "Event",
             Self::FENCE => "Fence",
             Self::SURFACE => "Surface",
@@ -67,11 +68,10 @@ impl ObjectType {
     pub const BUFFER_VIEW: u8 = 2u8;
     pub const IMAGE: u8 = 3u8;
     pub const IMAGE_VIEW: u8 = 4u8;
-    pub const BINARY_SEMAPHORE: u8 = 5u8;
-    pub const TIMELINE_SEMAPHORE: u8 = 6u8;
-    pub const EVENT: u8 = 7u8;
-    pub const FENCE: u8 = 8u8;
-    pub const SURFACE: u8 = 9u8;
+    pub const SEMAPHORE: u8 = 5u8;
+    pub const EVENT: u8 = 6u8;
+    pub const FENCE: u8 = 7u8;
+    pub const SURFACE: u8 = 8u8;
 }
 
 #[derive(Copy, Clone, PartialEq, Eq, PartialOrd, Ord)]
@@ -139,33 +139,55 @@ impl<const TYPE: u8> Hash for ObjectId<TYPE> {
     }
 }
 
+/// Utility trait used to get the id type for a handle type
+pub trait ObjectHandleType {
+    type Id;
+}
+
+/// Utility trait used to get the handle type for an id type
+pub trait ObjectIdType {
+    type Handle: vk::Handle;
+
+    fn as_generic(&self) -> GenericId;
+}
+
 macro_rules! make_object_id {
-    ($value:expr) => {
+    ($value:expr, $handle_type:ty) => {
         impl ObjectId<{$value}> {
             pub fn new(set_id: ObjectSetId, index: u16) -> Self {
                 Self::make(set_id, index, $value)
             }
         }
+
+        impl ObjectIdType for ObjectId<{$value}> {
+            type Handle = $handle_type;
+
+            fn as_generic(&self) -> GenericId {
+                self.as_generic()
+            }
+        }
+
+        impl ObjectHandleType for $handle_type {
+            type Id = ObjectId<{$value}>;
+        }
     }
 }
 
-make_object_id!(ObjectType::BUFFER);
-make_object_id!(ObjectType::BUFFER_VIEW);
-make_object_id!(ObjectType::IMAGE);
-make_object_id!(ObjectType::IMAGE_VIEW);
-make_object_id!(ObjectType::BINARY_SEMAPHORE);
-make_object_id!(ObjectType::TIMELINE_SEMAPHORE);
-make_object_id!(ObjectType::EVENT);
-make_object_id!(ObjectType::FENCE);
-make_object_id!(ObjectType::SURFACE);
+make_object_id!(ObjectType::BUFFER, vk::Buffer);
+make_object_id!(ObjectType::BUFFER_VIEW, vk::BufferView);
+make_object_id!(ObjectType::IMAGE, vk::Image);
+make_object_id!(ObjectType::IMAGE_VIEW, vk::ImageView);
+make_object_id!(ObjectType::SEMAPHORE, vk::Semaphore);
+make_object_id!(ObjectType::EVENT, vk::Event);
+make_object_id!(ObjectType::FENCE, vk::Fence);
+make_object_id!(ObjectType::SURFACE, vk::SurfaceKHR);
 
 pub type GenericId = ObjectId<{ ObjectType::GENERIC }>;
 pub type BufferId = ObjectId<{ ObjectType::BUFFER }>;
 pub type BufferViewId = ObjectId<{ ObjectType::BUFFER_VIEW }>;
 pub type ImageId = ObjectId<{ ObjectType::IMAGE }>;
 pub type ImageViewId = ObjectId<{ ObjectType::IMAGE_VIEW }>;
-pub type BinarySemaphoreId = ObjectId<{ ObjectType::BINARY_SEMAPHORE }>;
-pub type TimelineSemaphoreId = ObjectId<{ ObjectType::TIMELINE_SEMAPHORE }>;
+pub type SemaphoreId = ObjectId<{ ObjectType::SEMAPHORE }>;
 pub type EventId = ObjectId<{ ObjectType::EVENT }>;
 pub type FenceId = ObjectId<{ ObjectType::FENCE }>;
 pub type SurfaceId = ObjectId<{ ObjectType::SURFACE }>;

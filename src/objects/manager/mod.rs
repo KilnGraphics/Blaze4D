@@ -23,6 +23,7 @@ pub(super) mod synchronization_group;
 pub(super) mod object_set;
 
 mod allocator;
+mod resource_object_set;
 
 use std::sync::Arc;
 
@@ -35,6 +36,8 @@ use crate::objects::id;
 use crate::objects::image::{ImageCreateDesc, ImageViewCreateDesc};
 use crate::objects::manager::allocator::*;
 use crate::util::slice_splitter::Splitter;
+
+pub use object_set::ObjectSetProvider;
 
 #[derive(Debug)]
 enum ObjectCreateError {
@@ -515,10 +518,10 @@ impl ObjectManagerImpl {
                     }
                 }
                 ObjectCreateMetadata::BinarySemaphore(BinarySemaphoreCreateMetadata{ handle, .. }) => {
-                    ObjectData::BinarySemaphore { handle }
+                    ObjectData::Semaphore { handle }
                 }
                 ObjectCreateMetadata::TimelineSemaphore(TimelineSemaphoreCreateMetadata{ handle, .. }) => {
-                    ObjectData::TimelineSemaphore { handle }
+                    ObjectData::Semaphore { handle }
                 }
                 ObjectCreateMetadata::Event(EventCreateMetadata{ handle, .. }) => {
                     ObjectData::Event { handle }
@@ -558,10 +561,7 @@ impl ObjectManagerImpl {
                 ObjectData::Image { handle, .. } => {
                     unsafe{ self.device.vk().destroy_image(*handle, None) }
                 }
-                ObjectData::BinarySemaphore { handle, .. } => {
-                    unsafe{ self.device.vk().destroy_semaphore(*handle, None) }
-                }
-                ObjectData::TimelineSemaphore { handle, .. } => {
+                ObjectData::Semaphore { handle, .. } => {
                     unsafe{ self.device.vk().destroy_semaphore(*handle, None) }
                 }
                 ObjectData::Event { handle, .. } => {

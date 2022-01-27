@@ -18,5 +18,6 @@ pub use buffer::BufferRange;
 pub use manager::ObjectManager;
 pub use manager::synchronization_group::SynchronizationGroup;
 pub use manager::synchronization_group::SynchronizationGroupSet;
+pub use manager::object_set::ObjectSet2;
 pub use manager::object_set::ObjectSet;
 pub use manager::object_set::ObjectSetBuilder;
