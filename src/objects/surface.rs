@@ -1,9 +1,9 @@
 use std::cmp::Ordering;
-use std::sync::Arc;
+use std::sync::{Arc, Mutex, MutexGuard};
 
 use ash::vk;
 
-use crate::objects::id::{ObjectSetId, SurfaceId};
+use crate::objects::id::{ObjectSetId, SurfaceId, SwapchainId};
 use crate::rosella::InstanceContext;
 
 /// Trait that provides access to a surface object.
@@ -23,6 +23,7 @@ pub trait SurfaceProvider : Sync {
 struct SurfaceImpl {
     id: SurfaceId,
     handle: vk::SurfaceKHR,
+    swapchain_info: Mutex<SurfaceSwapchainInfo>,
 
     #[allow(unused)] // Only reason we need this field is to keep the provider alive.
     surface: Box<dyn SurfaceProvider>,
@@ -39,6 +40,7 @@ impl Surface {
         Self(Arc::new(SurfaceImpl{
             id: SurfaceId::new(ObjectSetId::new(), 0),
             handle: surface.get_handle(),
+            swapchain_info: Mutex::new(SurfaceSwapchainInfo::None),
             surface
         }))
     }
@@ -49,6 +51,13 @@ impl Surface {
 
     pub fn get_id(&self) -> SurfaceId {
         self.0.id
+    }
+
+    /// Locks access to the information for the current access. This lock **must** be held when
+    /// creating or destroying a swapchain associated with this surface. This is, unless otherwise,
+    /// noted done inside object sets creating swapchains.
+    pub fn lock_swapchain_info(&self) -> MutexGuard<SurfaceSwapchainInfo> {
+        self.0.swapchain_info.lock().unwrap()
     }
 }
 
@@ -70,6 +79,42 @@ impl PartialOrd for Surface {
 impl Ord for Surface {
     fn cmp(&self, other: &Self) -> Ordering {
         self.0.id.cmp(&other.0.id)
+    }
+}
+
+/// Contains information about the current non retired swapchain associated with the surface.
+pub enum SurfaceSwapchainInfo {
+    Some {
+        id: SwapchainId,
+        handle: vk::SwapchainKHR,
+    },
+    None
+}
+
+impl SurfaceSwapchainInfo {
+    pub fn get_current_id(&self) -> Option<SwapchainId> {
+        match self {
+            SurfaceSwapchainInfo::Some { id, .. } => Some(*id),
+            SurfaceSwapchainInfo::None => None
+        }
+    }
+
+    pub fn get_current_handle(&self) -> Option<vk::SwapchainKHR> {
+        match self {
+            SurfaceSwapchainInfo::Some { handle, .. } => Some(*handle),
+            SurfaceSwapchainInfo::None => None
+        }
+    }
+
+    pub fn set_swapchain(&mut self, id: SwapchainId, handle: vk::SwapchainKHR) {
+        *self = SurfaceSwapchainInfo::Some {
+            id,
+            handle
+        };
+    }
+
+    pub fn clear(&mut self) {
+        *self = SurfaceSwapchainInfo::None;
     }
 }
 

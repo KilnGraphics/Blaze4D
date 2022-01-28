@@ -1,7 +1,7 @@
 use std::cmp::Ordering;
 use std::collections::HashMap;
 use std::fmt::{Debug, Formatter, Pointer};
-use std::sync::{Arc, Mutex};
+use std::sync::Arc;
 
 use ash::vk;
 
@@ -12,11 +12,6 @@ use crate::objects::surface::{Surface, SurfaceCapabilities};
 use crate::util::extensions::{AsRefOption, ExtensionFunctionSet, VkExtensionInfo, VkExtensionFunctions};
 use crate::{NamedUUID, UUID};
 
-pub enum SurfaceAttachError {
-    SurfaceAlreadyPresent,
-    DeviceUnsupported,
-}
-
 struct DeviceContextImpl {
     id: NamedUUID,
     instance: InstanceContext,
@@ -24,7 +19,7 @@ struct DeviceContextImpl {
     physical_device: vk::PhysicalDevice,
     extensions: ExtensionFunctionSet,
     features: EnabledFeatures,
-    surfaces: Mutex<HashMap<SurfaceId, (Surface, SurfaceCapabilities)>>,
+    surfaces: HashMap<SurfaceId, (Surface, SurfaceCapabilities)>,
 }
 
 impl Drop for DeviceContextImpl {
@@ -47,7 +42,7 @@ impl DeviceContext {
             physical_device,
             extensions,
             features,
-            surfaces: Mutex::new(HashMap::new()),
+            surfaces: HashMap::new(),
         }))
     }
 
@@ -83,33 +78,12 @@ impl DeviceContext {
         &self.0.features
     }
 
-    pub fn attach_surface(&self, surface: Surface) -> Result<SurfaceId, SurfaceAttachError> {
-        let id = surface.get_id();
-
-
-        let capabilities = SurfaceCapabilities::new(self.get_instance(), *self.get_physical_device(), surface.get_handle());
-        if capabilities.is_none() {
-            return Err(SurfaceAttachError::DeviceUnsupported);
-        }
-        let capabilities = capabilities.unwrap();
-
-        let mut map = self.0.surfaces.lock().unwrap();
-
-        if map.contains_key(&id) {
-            return Err(SurfaceAttachError::SurfaceAlreadyPresent);
-        }
-
-        map.insert(id, (surface, capabilities));
-
-        Ok(id)
-    }
-
     pub fn get_surface(&self, id: SurfaceId) -> Option<Surface> {
-        self.0.surfaces.lock().unwrap().get(&id).map(|data| data.0.clone())
+        self.0.surfaces.get(&id).map(|data| data.0.clone())
     }
 
     pub fn get_surface_capabilities(&self, id: SurfaceId) -> Option<&SurfaceCapabilities> {
-        None
+        self.0.surfaces.get(&id).map(|(_, cap)| cap)
     }
 }
 
