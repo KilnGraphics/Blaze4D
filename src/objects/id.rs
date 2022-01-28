@@ -58,6 +58,7 @@ impl ObjectType {
             Self::EVENT => "Event",
             Self::FENCE => "Fence",
             Self::SURFACE => "Surface",
+            Self::SWAPCHAIN => "Swapchain",
             _ => "Invalid",
         }
     }
@@ -72,6 +73,7 @@ impl ObjectType {
     pub const EVENT: u8 = 6u8;
     pub const FENCE: u8 = 7u8;
     pub const SURFACE: u8 = 8u8;
+    pub const SWAPCHAIN: u8 = 9u8;
 }
 
 #[derive(Copy, Clone, PartialEq, Eq, PartialOrd, Ord)]
@@ -181,6 +183,7 @@ make_object_id!(ObjectType::SEMAPHORE, vk::Semaphore);
 make_object_id!(ObjectType::EVENT, vk::Event);
 make_object_id!(ObjectType::FENCE, vk::Fence);
 make_object_id!(ObjectType::SURFACE, vk::SurfaceKHR);
+make_object_id!(ObjectType::SWAPCHAIN, vk::SwapchainKHR);
 
 pub type GenericId = ObjectId<{ ObjectType::GENERIC }>;
 pub type BufferId = ObjectId<{ ObjectType::BUFFER }>;
@@ -191,3 +194,4 @@ pub type SemaphoreId = ObjectId<{ ObjectType::SEMAPHORE }>;
 pub type EventId = ObjectId<{ ObjectType::EVENT }>;
 pub type FenceId = ObjectId<{ ObjectType::FENCE }>;
 pub type SurfaceId = ObjectId<{ ObjectType::SURFACE }>;
+pub type SwapchainId = ObjectId<{ ObjectType::SWAPCHAIN }>;
