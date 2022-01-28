@@ -1,12 +1,12 @@
 use std::any::Any;
+use std::sync::Arc;
 use ash::vk;
-use ash::vk::Handle;
 use crate::device::DeviceContext;
 
 use crate::objects::{id, ObjectManager, ObjectSet, SynchronizationGroup};
-use crate::objects::buffer::{BufferCreateDesc, BufferViewCreateDesc};
-use crate::objects::id::{GenericId, ObjectSetId};
-use crate::objects::image::{ImageCreateDesc, ImageViewCreateDesc};
+use crate::objects::buffer::{BufferCreateDesc, BufferInfo, BufferViewCreateDesc, BufferViewInfo};
+use crate::objects::id::{BufferId, BufferViewId, ImageId, ImageViewId, ObjectSetId};
+use crate::objects::image::{ImageCreateDesc, ImageInfo, ImageViewCreateDesc, ImageViewInfo};
 use crate::objects::manager::allocator::{Allocation, AllocationError, AllocationStrategy, Allocator};
 use crate::objects::manager::ObjectSetProvider;
 use crate::util::slice_splitter::Splitter;
@@ -39,16 +39,16 @@ pub(super) trait ResourceObjectCreator {
 }
 
 pub(super) struct BufferCreateMetadata {
-    desc: BufferCreateDesc,
+    info: Arc<BufferInfo>,
     strategy: AllocationStrategy,
     handle: vk::Buffer,
     allocation: Option<Allocation>,
 }
 
 impl BufferCreateMetadata {
-    fn new(desc: BufferCreateDesc, strategy: AllocationStrategy) -> Self {
+    fn new(desc: BufferCreateDesc, strategy: AllocationStrategy, group: SynchronizationGroup) -> Self {
         Self {
-            desc,
+            info: Arc::new(BufferInfo::new(desc, group)),
             strategy,
             handle: vk::Buffer::null(),
             allocation: None,
@@ -59,9 +59,10 @@ impl BufferCreateMetadata {
 impl ResourceObjectCreator for BufferCreateMetadata {
     fn create(&mut self, device: &DeviceContext, allocator: &Allocator, _: &Splitter<ResourceObjectCreateMetadata>) -> Result<(), ObjectCreateError> {
         if self.handle == vk::Buffer::null() {
+            let desc = self.info.get_description();
             let create_info = vk::BufferCreateInfo::builder()
-                .size(self.desc.size)
-                .usage(self.desc.usage_flags)
+                .size(desc.size)
+                .usage(desc.usage_flags)
                 .sharing_mode(vk::SharingMode::EXCLUSIVE);
 
             self.handle = unsafe {
@@ -97,10 +98,9 @@ impl ResourceObjectCreator for BufferCreateMetadata {
             panic!("Incomplete Buffer object")
         }
 
-        let object = ResourceObjectData {
-            object_type: ResourceObjectType::Buffer,
-            handle: self.handle.as_raw(),
-            source_set: None,
+        let object = ResourceObjectData::Buffer {
+            handle: self.handle,
+            info: self.info,
         };
 
         (object , self.allocation)
@@ -108,16 +108,16 @@ impl ResourceObjectCreator for BufferCreateMetadata {
 }
 
 pub(super) struct BufferViewCreateMetadata {
-    desc: BufferViewCreateDesc,
+    info: Box<BufferViewInfo>,
     buffer_set: Option<ObjectSet>,
     buffer_id: id::BufferId,
     handle: vk::BufferView,
 }
 
 impl BufferViewCreateMetadata {
-    fn new(desc: BufferViewCreateDesc, buffer_set: Option<ObjectSet>, buffer_id: id::BufferId) -> Self {
+    fn new(desc: BufferViewCreateDesc, buffer_set: Option<ObjectSet>, buffer_id: id::BufferId, buffer_info: Arc<BufferInfo>) -> Self {
         Self {
-            desc,
+            info: Box::new(BufferViewInfo::new(desc, buffer_id, buffer_info)),
             buffer_set,
             buffer_id,
             handle: vk::BufferView::null(),
@@ -130,7 +130,7 @@ impl ResourceObjectCreator for BufferViewCreateMetadata {
         if self.handle == vk::BufferView::null() {
             let buffer = match self.buffer_set.as_ref() {
                 Some(set) => {
-                    set.get_handle(self.buffer_id)
+                    set.get_buffer_handle(self.buffer_id)
                 }
                 None => {
                     let index = self.buffer_id.get_index() as usize;
@@ -141,11 +141,12 @@ impl ResourceObjectCreator for BufferViewCreateMetadata {
                 }
             };
 
+            let desc = self.info.get_description();
             let create_info = vk::BufferViewCreateInfo::builder()
                 .buffer(buffer)
-                .format(self.desc.format.get_format())
-                .offset(self.desc.range.offset)
-                .range(self.desc.range.length);
+                .format(desc.format.get_format())
+                .offset(desc.range.offset)
+                .range(desc.range.length);
 
             self.handle = unsafe {
                 device.vk().create_buffer_view(&create_info.build(), None)?
@@ -166,10 +167,10 @@ impl ResourceObjectCreator for BufferViewCreateMetadata {
             panic!("Incomplete BufferView object")
         }
 
-        let object = ResourceObjectData {
-            object_type: ResourceObjectType::BufferView,
-            handle: self.handle.as_raw(),
-            source_set: self.buffer_set
+        let object = ResourceObjectData::BufferView {
+            handle: self.handle,
+            info: self.info,
+            source_set: self.buffer_set,
         };
 
         (object, None)
@@ -177,16 +178,16 @@ impl ResourceObjectCreator for BufferViewCreateMetadata {
 }
 
 pub(super) struct ImageCreateMetadata {
-    desc: ImageCreateDesc,
+    info: Arc<ImageInfo>,
     strategy: AllocationStrategy,
     handle: vk::Image,
     allocation: Option<Allocation>,
 }
 
 impl ImageCreateMetadata {
-    fn new(desc: ImageCreateDesc, strategy: AllocationStrategy) -> Self {
+    fn new(desc: ImageCreateDesc, strategy: AllocationStrategy, group: SynchronizationGroup) -> Self {
         Self {
-            desc,
+            info: Arc::new(ImageInfo::new(desc, group)),
             strategy,
             handle: vk::Image::null(),
             allocation: None,
@@ -197,15 +198,16 @@ impl ImageCreateMetadata {
 impl ResourceObjectCreator for ImageCreateMetadata {
     fn create(&mut self, device: &DeviceContext, allocator: &Allocator, _: &Splitter<ResourceObjectCreateMetadata>) -> Result<(), ObjectCreateError> {
         if self.handle == vk::Image::null() {
+            let desc = self.info.get_description();
             let create_info = vk::ImageCreateInfo::builder()
-                .image_type(self.desc.spec.size.get_vulkan_type())
-                .format(self.desc.spec.format.get_format())
-                .extent(self.desc.spec.size.as_extent_3d())
-                .mip_levels(self.desc.spec.size.get_mip_levels())
-                .array_layers(self.desc.spec.size.get_array_layers())
-                .samples(self.desc.spec.sample_count)
+                .image_type(desc.spec.size.get_vulkan_type())
+                .format(desc.spec.format.get_format())
+                .extent(desc.spec.size.as_extent_3d())
+                .mip_levels(desc.spec.size.get_mip_levels())
+                .array_layers(desc.spec.size.get_array_layers())
+                .samples(desc.spec.sample_count)
                 .tiling(vk::ImageTiling::OPTIMAL) // TODO we need some way to turn this linear
-                .usage(self.desc.usage_flags)
+                .usage(desc.usage_flags)
                 .sharing_mode(vk::SharingMode::EXCLUSIVE);
 
             self.handle = unsafe {
@@ -241,10 +243,9 @@ impl ResourceObjectCreator for ImageCreateMetadata {
             panic!("Incomplete Image object")
         }
 
-        let object = ResourceObjectData {
-            object_type: ResourceObjectType::Image,
-            handle: self.handle.as_raw(),
-            source_set: None
+        let object = ResourceObjectData::Image {
+            handle: self.handle,
+            info: self.info
         };
 
         (object, self.allocation)
@@ -252,16 +253,16 @@ impl ResourceObjectCreator for ImageCreateMetadata {
 }
 
 pub(super) struct ImageViewCreateMetadata {
-    desc: ImageViewCreateDesc,
+    info: Box<ImageViewInfo>,
     image_set: Option<ObjectSet>,
     image_id: id::ImageId,
     handle: vk::ImageView,
 }
 
 impl ImageViewCreateMetadata {
-    fn new(desc: ImageViewCreateDesc, image_set: Option<ObjectSet>, image_id: id::ImageId) -> Self {
+    fn new(desc: ImageViewCreateDesc, image_set: Option<ObjectSet>, image_id: id::ImageId, image_info: Arc<ImageInfo>) -> Self {
         Self {
-            desc,
+            info: Box::new(ImageViewInfo::new(desc, image_id, image_info)),
             image_set,
             image_id,
             handle: vk::ImageView::null(),
@@ -274,7 +275,7 @@ impl ResourceObjectCreator for ImageViewCreateMetadata {
         if self.handle == vk::ImageView::null() {
             let image = match self.image_set.as_ref() {
                 Some(set) => {
-                    set.get_handle(self.image_id)
+                    set.get_image_handle(self.image_id)
                 }
                 None => {
                     let index = self.image_id.get_index() as usize;
@@ -285,12 +286,13 @@ impl ResourceObjectCreator for ImageViewCreateMetadata {
                 }
             };
 
+            let desc = self.info.get_description();
             let create_info = vk::ImageViewCreateInfo::builder()
                 .image(image)
-                .view_type(self.desc.view_type)
-                .format(self.desc.format.get_format())
-                .components(self.desc.components)
-                .subresource_range(self.desc.subresource_range.as_vk_subresource_range());
+                .view_type(desc.view_type)
+                .format(desc.format.get_format())
+                .components(desc.components)
+                .subresource_range(desc.subresource_range.as_vk_subresource_range());
 
             self.handle = unsafe {
                 device.vk().create_image_view(&create_info, None)?
@@ -311,9 +313,9 @@ impl ResourceObjectCreator for ImageViewCreateMetadata {
             panic!("Incomplete ImageView object")
         }
 
-        let object = ResourceObjectData {
-            object_type: ResourceObjectType::ImageView,
-            handle: self.handle.as_raw(),
+        let object = ResourceObjectData::ImageView {
+            handle: self.handle,
+            info: self.info,
             source_set: self.image_set
         };
 
@@ -329,20 +331,20 @@ pub(super) enum ResourceObjectCreateMetadata {
 }
 
 impl ResourceObjectCreateMetadata {
-    fn make_buffer(desc: BufferCreateDesc, strategy: AllocationStrategy) -> Self {
-        Self::Buffer(BufferCreateMetadata::new(desc, strategy))
+    fn make_buffer(desc: BufferCreateDesc, strategy: AllocationStrategy, group: SynchronizationGroup) -> Self {
+        Self::Buffer(BufferCreateMetadata::new(desc, strategy, group))
     }
 
-    fn make_buffer_view(desc: BufferViewCreateDesc, buffer_set: Option<ObjectSet>, buffer_id: id::BufferId) -> Self {
-        Self::BufferView(BufferViewCreateMetadata::new(desc, buffer_set, buffer_id))
+    fn make_buffer_view(desc: BufferViewCreateDesc, buffer_set: Option<ObjectSet>, buffer_id: id::BufferId, buffer_info: Arc<BufferInfo>) -> Self {
+        Self::BufferView(BufferViewCreateMetadata::new(desc, buffer_set, buffer_id, buffer_info))
     }
 
-    fn make_image(desc: ImageCreateDesc, strategy: AllocationStrategy) -> Self {
-        Self::Image(ImageCreateMetadata::new(desc, strategy))
+    fn make_image(desc: ImageCreateDesc, strategy: AllocationStrategy, group: SynchronizationGroup) -> Self {
+        Self::Image(ImageCreateMetadata::new(desc, strategy, group))
     }
 
-    fn make_image_view(desc: ImageViewCreateDesc, image_set: Option<ObjectSet>, image_id: id::ImageId) -> Self {
-        Self::ImageView(ImageViewCreateMetadata::new(desc, image_set, image_id))
+    fn make_image_view(desc: ImageViewCreateDesc, image_set: Option<ObjectSet>, image_id: id::ImageId, image_info: Arc<ImageInfo>) -> Self {
+        Self::ImageView(ImageViewCreateMetadata::new(desc, image_set, image_id, image_info))
     }
 }
 
@@ -375,38 +377,43 @@ impl ResourceObjectCreator for ResourceObjectCreateMetadata {
     }
 }
 
-pub(super) enum ResourceObjectType {
-    Buffer,
-    BufferView,
-    Image,
-    ImageView,
-}
-
-pub(super) struct ResourceObjectData {
-    object_type: ResourceObjectType,
-    handle: u64,
-    #[allow(unused)] // Only here to avoid destruction of source set
-    source_set: Option<ObjectSet>
+pub(super) enum ResourceObjectData {
+    Buffer {
+        handle: vk::Buffer,
+        info: Arc<BufferInfo>,
+    },
+    BufferView {
+        handle: vk::BufferView,
+        info: Box<BufferViewInfo>,
+        source_set: Option<ObjectSet>,
+    },
+    Image {
+        handle: vk::Image,
+        info: Arc<ImageInfo>,
+    },
+    ImageView {
+        handle: vk::ImageView,
+        info: Box<ImageViewInfo>,
+        source_set: Option<ObjectSet>,
+    }
 }
 
 impl ResourceObjectData {
     pub fn destroy(self, device: &DeviceContext) {
-        match self.object_type {
-            ResourceObjectType::Buffer => {
-                let id = vk::Buffer::from_raw(self.handle);
-                unsafe { device.vk().destroy_buffer(id, None) }
+        match self {
+            ResourceObjectData::Buffer{ handle, .. } => {
+                unsafe { device.vk().destroy_buffer(handle, None) }
             }
-            ResourceObjectType::BufferView => {
-                let id = vk::BufferView::from_raw(self.handle);
-                unsafe { device.vk().destroy_buffer_view(id, None) }
+            ResourceObjectData::BufferView{ handle, source_set, .. } => {
+                unsafe { device.vk().destroy_buffer_view(handle, None) }
+                drop(source_set); // Keep it alive until here
             }
-            ResourceObjectType::Image => {
-                let id = vk::Image::from_raw(self.handle);
-                unsafe { device.vk().destroy_image(id, None) }
+            ResourceObjectData::Image{ handle, .. } => {
+                unsafe { device.vk().destroy_image(handle, None) }
             }
-            ResourceObjectType::ImageView => {
-                let id = vk::ImageView::from_raw(self.handle);
-                unsafe { device.vk().destroy_image_view(id, None) }
+            ResourceObjectData::ImageView{ handle, source_set, .. } => {
+                unsafe { device.vk().destroy_image_view(handle, None) }
+                drop(source_set); // Keep it alive until here
             }
         }
     }
@@ -448,7 +455,7 @@ impl ResourceObjectSetBuilder {
     /// If there are more requests than the max object set size.
     pub fn add_default_gpu_only_buffer(&mut self, desc: BufferCreateDesc) -> id::BufferId {
         let index = self.get_next_index();
-        self.requests.push(ResourceObjectCreateMetadata::make_buffer(desc, AllocationStrategy::AutoGpuOnly));
+        self.requests.push(ResourceObjectCreateMetadata::make_buffer(desc, AllocationStrategy::AutoGpuOnly, self.synchronization_group.clone()));
 
         id::BufferId::new(self.set_id, index)
     }
@@ -460,7 +467,7 @@ impl ResourceObjectSetBuilder {
     pub fn add_default_gpu_cpu_buffer(&mut self, desc: BufferCreateDesc) -> id::BufferId {
         let index = self.get_next_index();
 
-        self.requests.push(ResourceObjectCreateMetadata::make_buffer(desc, AllocationStrategy::AutoGpuCpu));
+        self.requests.push(ResourceObjectCreateMetadata::make_buffer(desc, AllocationStrategy::AutoGpuCpu, self.synchronization_group.clone()));
 
         id::BufferId::new(self.set_id, index)
     }
@@ -469,13 +476,21 @@ impl ResourceObjectSetBuilder {
     ///
     /// #Panics
     /// If there are more requests than the max object set size.
+    /// If the source buffer id does not map to a buffer.
     pub fn add_internal_buffer_view(&mut self, desc: BufferViewCreateDesc, buffer: id::BufferId) -> id::BufferViewId {
         if buffer.get_set_id() != self.set_id {
             panic!("Buffer set id does not match builder set id");
         }
+        let info = match self.requests.get(buffer.get_index() as usize).unwrap() {
+            ResourceObjectCreateMetadata::Buffer(buff) => {
+                buff.info.clone()
+            }
+            _ => panic!("Buffer id does not map to a buffer")
+        };
+
         let index = self.get_next_index();
 
-        self.requests.push(ResourceObjectCreateMetadata::make_buffer_view(desc, None, buffer));
+        self.requests.push(ResourceObjectCreateMetadata::make_buffer_view(desc, None, buffer, info));
 
         id::BufferViewId::new(self.set_id, index)
     }
@@ -488,9 +503,11 @@ impl ResourceObjectSetBuilder {
         if buffer.get_set_id() != set.get_id() {
             panic!("Buffer set id does not match object set id");
         }
+        let info = set.get_buffer_info(buffer).clone();
+
         let index = self.get_next_index();
 
-        self.requests.push(ResourceObjectCreateMetadata::make_buffer_view(desc, Some(set), buffer));
+        self.requests.push(ResourceObjectCreateMetadata::make_buffer_view(desc, Some(set), buffer, info));
 
         id::BufferViewId::new(self.set_id, index)
     }
@@ -498,7 +515,7 @@ impl ResourceObjectSetBuilder {
     pub fn add_default_gpu_only_image(&mut self, desc: ImageCreateDesc) -> id::ImageId {
         let index = self.get_next_index();
 
-        self.requests.push(ResourceObjectCreateMetadata::make_image(desc, AllocationStrategy::AutoGpuOnly));
+        self.requests.push(ResourceObjectCreateMetadata::make_image(desc, AllocationStrategy::AutoGpuOnly, self.synchronization_group.clone()));
 
         id::ImageId::new(self.set_id, index)
     }
@@ -506,7 +523,7 @@ impl ResourceObjectSetBuilder {
     pub fn add_default_gpu_cpu_image(&mut self, desc: ImageCreateDesc) -> id::ImageId {
         let index = self.get_next_index();
 
-        self.requests.push(ResourceObjectCreateMetadata::make_image(desc, AllocationStrategy::AutoGpuCpu));
+        self.requests.push(ResourceObjectCreateMetadata::make_image(desc, AllocationStrategy::AutoGpuCpu, self.synchronization_group.clone()));
 
         id::ImageId::new(self.set_id, index)
     }
@@ -515,9 +532,16 @@ impl ResourceObjectSetBuilder {
         if image.get_set_id() != self.set_id {
             panic!("Image set id does not match builder set id");
         }
+        let info = match self.requests.get(image.get_index() as usize).unwrap() {
+            ResourceObjectCreateMetadata::Image(img) => {
+                img.info.clone()
+            }
+            _ => panic!("Image id does not map to a image")
+        };
+
         let index = self.get_next_index();
 
-        self.requests.push(ResourceObjectCreateMetadata::make_image_view(desc, None, image));
+        self.requests.push(ResourceObjectCreateMetadata::make_image_view(desc, None, image, info));
 
         id::ImageViewId::new(self.set_id, index)
     }
@@ -526,9 +550,11 @@ impl ResourceObjectSetBuilder {
         if image.get_set_id() != set.get_id() {
             panic!("Buffer set id does not match object set id");
         }
+        let info = set.get_image_info(image).clone();
+
         let index = self.get_next_index();
 
-        self.requests.push(ResourceObjectCreateMetadata::make_image_view(desc, Some(set), image));
+        self.requests.push(ResourceObjectCreateMetadata::make_image_view(desc, Some(set), image, info));
 
         id::ImageViewId::new(self.set_id, index)
     }
@@ -539,7 +565,6 @@ impl ResourceObjectSetBuilder {
         ObjectSet::new(ResourceObjectSet {
             set_id: self.set_id,
             manager: self.manager,
-            synchronization_group: self.synchronization_group,
             objects,
             allocations,
         })
@@ -549,7 +574,6 @@ impl ResourceObjectSetBuilder {
 struct ResourceObjectSet {
     set_id: ObjectSetId,
     manager: ObjectManager,
-    synchronization_group: SynchronizationGroup,
     objects: Box<[ResourceObjectData]>,
     allocations: Box<[Allocation]>
 }
@@ -568,18 +592,60 @@ impl ObjectSetProvider for ResourceObjectSet {
         self.set_id
     }
 
-    fn get_raw_handle(&self, id: GenericId) -> u64 {
-        if id.get_set_id() != self.set_id {
-            panic!("Id belongs to different object set")
+    fn get_buffer_handle(&self, id: BufferId) -> vk::Buffer {
+        match self.objects.get(id.get_index() as usize).unwrap() {
+            ResourceObjectData::Buffer { handle, .. } => *handle,
+            _ => panic!("Id does not map to buffer")
         }
-
-        let index = id.get_index() as usize;
-
-        self.objects.get(index).unwrap().handle
     }
 
-    fn get_synchronization_group(&self, _: GenericId) -> Option<SynchronizationGroup> {
-        Some(self.synchronization_group.clone())
+    fn get_buffer_info(&self, id: BufferId) -> &Arc<BufferInfo> {
+        match self.objects.get(id.get_index() as usize).unwrap() {
+            ResourceObjectData::Buffer { info, .. } => info,
+            _ => panic!("Id does not map to buffer")
+        }
+    }
+
+    fn get_buffer_view_handle(&self, id: BufferViewId) -> vk::BufferView {
+        match self.objects.get(id.get_index() as usize).unwrap() {
+            ResourceObjectData::BufferView { handle, .. } => *handle,
+            _ => panic!("Id does not map to buffer view")
+        }
+    }
+
+    fn get_buffer_view_info(&self, id: BufferViewId) -> &BufferViewInfo {
+        match self.objects.get(id.get_index() as usize).unwrap() {
+            ResourceObjectData::BufferView { info, .. } => info.as_ref(),
+            _ => panic!("Id does not map to buffer view")
+        }
+    }
+
+    fn get_image_handle(&self, id: ImageId) -> vk::Image {
+        match self.objects.get(id.get_index() as usize).unwrap() {
+            ResourceObjectData::Image { handle, .. } => *handle,
+            _ => panic!("Id does not map to image")
+        }
+    }
+
+    fn get_image_info(&self, id: ImageId) -> &Arc<ImageInfo> {
+        match self.objects.get(id.get_index() as usize).unwrap() {
+            ResourceObjectData::Image { info, .. } => info,
+            _ => panic!("Id does not map to image")
+        }
+    }
+
+    fn get_image_view_handle(&self, id: ImageViewId) -> vk::ImageView {
+        match self.objects.get(id.get_index() as usize).unwrap() {
+            ResourceObjectData::ImageView { handle, .. } => *handle,
+            _ => panic!("Id does not map to image view")
+        }
+    }
+
+    fn get_image_view_info(&self, id: ImageViewId) -> &ImageViewInfo {
+        match self.objects.get(id.get_index() as usize).unwrap() {
+            ResourceObjectData::ImageView { info, .. } => info.as_ref(),
+            _ => panic!("Id does not map to image view")
+        }
     }
 
     fn as_any(&self) -> &dyn Any {

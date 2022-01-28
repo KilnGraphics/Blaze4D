@@ -24,6 +24,7 @@ pub(super) mod object_set;
 
 mod allocator;
 mod resource_object_set;
+mod swapchain_object_set;
 
 use std::sync::Arc;
 
@@ -205,7 +206,7 @@ mod tests {
 
         let set = builder.build();
 
-        assert_ne!(set.get_handle(id), vk::Buffer::null());
+        assert_ne!(set.get_buffer_handle(id), vk::Buffer::null());
 
         drop(set);
     }
@@ -221,7 +222,7 @@ mod tests {
 
         let set = builder.build();
 
-        assert_ne!(set.get_handle(view), vk::BufferView::null());
+        assert_ne!(set.get_buffer_view_handle(view), vk::BufferView::null());
 
         drop(set);
     }
@@ -239,7 +240,7 @@ mod tests {
 
         let set = builder.build();
 
-        assert_ne!(set.get_handle(image), vk::Image::null());
+        assert_ne!(set.get_image_handle(image), vk::Image::null());
 
         drop(set);
     }
@@ -269,7 +270,7 @@ mod tests {
 
         let set = builder.build();
 
-        assert_ne!(set.get_handle(view), vk::ImageView::null());
+        assert_ne!(set.get_image_view_handle(view), vk::ImageView::null());
 
         drop(set);
     }

@@ -1,6 +1,8 @@
 use std::fmt::Debug;
+use std::sync::Arc;
 
 use ash::vk;
+use crate::objects::{id, SynchronizationGroup};
 
 #[derive(Copy, Clone, Debug)]
 pub enum ImageSize {
@@ -166,11 +168,6 @@ impl ImageSubresourceRange {
 }
 
 #[non_exhaustive]
-pub struct ImageMeta {
-
-}
-
-#[non_exhaustive]
 pub struct ImageCreateDesc {
     pub spec: ImageSpec,
     pub usage_flags: vk::ImageUsageFlags,
@@ -182,9 +179,65 @@ impl ImageCreateDesc {
     }
 }
 
+pub struct ImageInfo {
+    desc: ImageCreateDesc,
+    group: SynchronizationGroup,
+}
+
+impl ImageInfo {
+    pub fn new(desc: ImageCreateDesc, group: SynchronizationGroup) -> Self {
+        Self {
+            desc,
+            group,
+        }
+    }
+
+    pub fn get_description(&self) -> &ImageCreateDesc {
+        &self.desc
+    }
+
+    pub fn get_synchronization_group(&self) -> &SynchronizationGroup {
+        &self.group
+    }
+}
+
 pub struct ImageViewCreateDesc {
     pub view_type: vk::ImageViewType,
     pub format: &'static crate::objects::Format,
     pub components: vk::ComponentMapping,
     pub subresource_range: ImageSubresourceRange,
+}
+
+pub struct ImageViewInfo {
+    desc: ImageViewCreateDesc,
+    source_image_id: id::ImageId,
+    source_image_info: Arc<ImageInfo>,
+}
+
+impl ImageViewInfo {
+    pub fn new(desc: ImageViewCreateDesc, source_image_id: id::ImageId, source_image_info: Arc<ImageInfo>) -> Self {
+        Self {
+            desc,
+            source_image_id,
+            source_image_info
+        }
+    }
+
+    pub fn get_description(&self) -> &ImageViewCreateDesc {
+        &self.desc
+    }
+
+    pub fn get_source_image_id(&self) -> id::ImageId {
+        self.source_image_id
+    }
+
+    pub fn get_source_image_info(&self) -> &ImageInfo {
+        self.source_image_info.as_ref()
+    }
+
+    /// Utility function to get the synchronization group for this image view.
+    /// Is equivalent to calling `get_source_image_info().get_synchronization_group()`.
+    pub fn get_synchronization_group(&self) -> &SynchronizationGroup {
+        self.source_image_info.get_synchronization_group()
+    }
 }
