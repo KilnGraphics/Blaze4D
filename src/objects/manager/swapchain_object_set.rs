@@ -1,4 +1,4 @@
-use crate::objects::image::ImageViewCreateDesc;
+use crate::objects::image::ImageViewDescription;
 use crate::objects::ObjectManager;
 use crate::objects::surface::Surface;
 use crate::objects::swapchain::SwapchainCreateDesc;

@@ -24,32 +24,32 @@ pub struct BufferRange {
 }
 
 #[non_exhaustive]
-pub struct BufferCreateDesc {
+pub struct BufferDescription {
     pub size: u64,
     pub usage_flags: vk::BufferUsageFlags,
 }
 
-impl BufferCreateDesc {
+impl BufferDescription {
     pub fn new_simple(size: u64, usage_flags: vk::BufferUsageFlags) -> Self {
-        BufferCreateDesc { size, usage_flags }
+        BufferDescription { size, usage_flags }
     }
 }
 
 /// Contains information about a vulkan buffer object
 pub struct BufferInfo {
-    desc: BufferCreateDesc,
+    desc: BufferDescription,
     group: SynchronizationGroup,
 }
 
 impl BufferInfo {
-    pub fn new(desc: BufferCreateDesc, group: SynchronizationGroup) -> Self {
+    pub fn new(desc: BufferDescription, group: SynchronizationGroup) -> Self {
         Self {
             desc,
             group
         }
     }
 
-    pub fn get_description(&self) -> &BufferCreateDesc {
+    pub fn get_description(&self) -> &BufferDescription {
         &self.desc
     }
 
@@ -59,12 +59,12 @@ impl BufferInfo {
 }
 
 #[non_exhaustive]
-pub struct BufferViewCreateDesc {
+pub struct BufferViewDescription {
     pub format: &'static crate::objects::Format,
     pub range: BufferRange,
 }
 
-impl BufferViewCreateDesc {
+impl BufferViewDescription {
     pub fn new_simple(range: BufferRange, format: &'static crate::objects::Format) -> Self {
         Self { range, format }
     }
@@ -72,13 +72,13 @@ impl BufferViewCreateDesc {
 
 /// Contains information about a vulkan buffer view object
 pub struct BufferViewInfo {
-    desc: BufferViewCreateDesc,
+    desc: BufferViewDescription,
     source_buffer_id: id::BufferId,
     source_buffer_info: Arc<BufferInfo>,
 }
 
 impl BufferViewInfo {
-    pub fn new(desc: BufferViewCreateDesc, source_buffer_id: id::BufferId, source_buffer_info: Arc<BufferInfo>) -> Self {
+    pub fn new(desc: BufferViewDescription, source_buffer_id: id::BufferId, source_buffer_info: Arc<BufferInfo>) -> Self {
         Self {
             desc,
             source_buffer_id,
@@ -86,7 +86,7 @@ impl BufferViewInfo {
         }
     }
 
-    pub fn get_description(&self) -> &BufferViewCreateDesc {
+    pub fn get_description(&self) -> &BufferViewDescription {
         &self.desc
     }
 

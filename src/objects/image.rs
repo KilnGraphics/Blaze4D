@@ -168,31 +168,31 @@ impl ImageSubresourceRange {
 }
 
 #[non_exhaustive]
-pub struct ImageCreateDesc {
+pub struct ImageDescription {
     pub spec: ImageSpec,
     pub usage_flags: vk::ImageUsageFlags,
 }
 
-impl ImageCreateDesc {
+impl ImageDescription {
     pub fn new_simple(spec: ImageSpec, usage: vk::ImageUsageFlags) -> Self {
         Self{ spec, usage_flags: usage }
     }
 }
 
 pub struct ImageInfo {
-    desc: ImageCreateDesc,
+    desc: ImageDescription,
     group: SynchronizationGroup,
 }
 
 impl ImageInfo {
-    pub fn new(desc: ImageCreateDesc, group: SynchronizationGroup) -> Self {
+    pub fn new(desc: ImageDescription, group: SynchronizationGroup) -> Self {
         Self {
             desc,
             group,
         }
     }
 
-    pub fn get_description(&self) -> &ImageCreateDesc {
+    pub fn get_description(&self) -> &ImageDescription {
         &self.desc
     }
 
@@ -201,7 +201,7 @@ impl ImageInfo {
     }
 }
 
-pub struct ImageViewCreateDesc {
+pub struct ImageViewDescription {
     pub view_type: vk::ImageViewType,
     pub format: &'static crate::objects::Format,
     pub components: vk::ComponentMapping,
@@ -209,13 +209,13 @@ pub struct ImageViewCreateDesc {
 }
 
 pub struct ImageViewInfo {
-    desc: ImageViewCreateDesc,
+    desc: ImageViewDescription,
     source_image_id: id::ImageId,
     source_image_info: Arc<ImageInfo>,
 }
 
 impl ImageViewInfo {
-    pub fn new(desc: ImageViewCreateDesc, source_image_id: id::ImageId, source_image_info: Arc<ImageInfo>) -> Self {
+    pub fn new(desc: ImageViewDescription, source_image_id: id::ImageId, source_image_info: Arc<ImageInfo>) -> Self {
         Self {
             desc,
             source_image_id,
@@ -223,7 +223,7 @@ impl ImageViewInfo {
         }
     }
 
-    pub fn get_description(&self) -> &ImageViewCreateDesc {
+    pub fn get_description(&self) -> &ImageViewDescription {
         &self.desc
     }
 

@@ -165,9 +165,9 @@ impl Clone for ObjectManager {
 #[cfg(test)]
 mod tests {
     use crate::objects;
-    use crate::objects::buffer::{BufferCreateDesc, BufferViewCreateDesc};
+    use crate::objects::buffer::{BufferDescription, BufferViewDescription};
     use crate::objects::{BufferRange, ImageSize, ImageSpec, ImageSubresourceRange};
-    use crate::objects::image::{ImageCreateDesc, ImageViewCreateDesc};
+    use crate::objects::image::{ImageDescription, ImageViewDescription};
     use super::*;
 
     fn create() -> ObjectManager {
@@ -202,7 +202,7 @@ mod tests {
         let group = manager.create_synchronization_group();
         let mut builder = manager.create_resource_object_set(group);
 
-        let id = builder.add_default_gpu_only_buffer(BufferCreateDesc::new_simple(1024, vk::BufferUsageFlags::TRANSFER_SRC));
+        let id = builder.add_default_gpu_only_buffer(BufferDescription::new_simple(1024, vk::BufferUsageFlags::TRANSFER_SRC));
 
         let set = builder.build();
 
@@ -217,8 +217,8 @@ mod tests {
         let group = manager.create_synchronization_group();
         let mut builder = manager.create_resource_object_set(group);
 
-        let buffer = builder.add_default_gpu_only_buffer(BufferCreateDesc::new_simple(1024, vk::BufferUsageFlags::UNIFORM_TEXEL_BUFFER));
-        let view = builder.add_internal_buffer_view(BufferViewCreateDesc::new_simple(BufferRange { offset: 0, length: 1024 }, &objects::Format::R16_UNORM), buffer);
+        let buffer = builder.add_default_gpu_only_buffer(BufferDescription::new_simple(1024, vk::BufferUsageFlags::UNIFORM_TEXEL_BUFFER));
+        let view = builder.add_internal_buffer_view(BufferViewDescription::new_simple(BufferRange { offset: 0, length: 1024 }, &objects::Format::R16_UNORM), buffer);
 
         let set = builder.build();
 
@@ -233,7 +233,7 @@ mod tests {
         let group = manager.create_synchronization_group();
         let mut builder = manager.create_resource_object_set(group);
 
-        let image = builder.add_default_gpu_only_image(ImageCreateDesc::new_simple(
+        let image = builder.add_default_gpu_only_image(ImageDescription::new_simple(
             ImageSpec::new_single_sample(ImageSize::make_2d(32, 32), &objects::Format::R8_UNORM),
             vk::ImageUsageFlags::TRANSFER_SRC)
         );
@@ -251,11 +251,11 @@ mod tests {
         let group = manager.create_synchronization_group();
         let mut builder = manager.create_resource_object_set(group);
 
-        let image = builder.add_default_gpu_only_image(ImageCreateDesc::new_simple(
+        let image = builder.add_default_gpu_only_image(ImageDescription::new_simple(
             ImageSpec::new_single_sample(ImageSize::make_2d(32, 32), &objects::Format::R8_UNORM),
             vk::ImageUsageFlags::SAMPLED)
         );
-        let view = builder.add_internal_image_view(ImageViewCreateDesc {
+        let view = builder.add_internal_image_view(ImageViewDescription {
             view_type: vk::ImageViewType::TYPE_2D,
             format: &objects::Format::R8_UNORM,
             components: vk::ComponentMapping::default(),
