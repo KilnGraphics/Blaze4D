@@ -419,6 +419,13 @@ impl ResourceObjectData {
     }
 }
 
+/// Resource object sets are object sets specifically designed for resources that require backing
+/// memory and synchronization. (i.e. Buffers, BufferViews etc.)
+///
+/// All objects of a resource object set have the same synchronization group.
+///
+/// All of the objects are only created when then [`ResourceObjectSetBuilder::build`] function is
+/// called.
 pub struct ResourceObjectSetBuilder {
     set_id: ObjectSetId,
     manager: ObjectManager,
@@ -475,8 +482,8 @@ impl ResourceObjectSetBuilder {
     /// Adds a buffer view request for a buffer that is created as part of this object set.
     ///
     /// #Panics
-    /// If there are more requests than the max object set size.
-    /// If the source buffer id does not map to a buffer.
+    /// If there are more requests than the max object set size or if the source buffer id does not
+    /// map to a buffer.
     pub fn add_internal_buffer_view(&mut self, desc: BufferViewDescription, buffer: id::BufferId) -> id::BufferViewId {
         if buffer.get_set_id() != self.set_id {
             panic!("Buffer set id does not match builder set id");
@@ -498,7 +505,8 @@ impl ResourceObjectSetBuilder {
     /// Adds a buffer view request for a buffer that is part of a different object set.
     ///
     /// #Panics
-    /// If there are more requests than the max object set size.
+    /// If there are more requests than the max object set size or if the source buffer id is
+    /// invalid.
     pub fn add_external_buffer_view(&mut self, desc: BufferViewDescription, set: ObjectSet, buffer: id::BufferId) -> id::BufferViewId {
         if buffer.get_set_id() != set.get_id() {
             panic!("Buffer set id does not match object set id");
@@ -512,6 +520,10 @@ impl ResourceObjectSetBuilder {
         id::BufferViewId::new(self.set_id, index)
     }
 
+    /// Adds a request for a image that only needs to be accessed by the gpu.
+    ///
+    /// #Panics
+    /// If there are more requests than the max object set size.
     pub fn add_default_gpu_only_image(&mut self, desc: ImageDescription) -> id::ImageId {
         let index = self.get_next_index();
 
@@ -520,6 +532,10 @@ impl ResourceObjectSetBuilder {
         id::ImageId::new(self.set_id, index)
     }
 
+    /// Adds a request for a image that needs to be accessed by both the gpu and cpu.
+    ///
+    /// #Panics
+    /// If there are more requests than the max object set size.
     pub fn add_default_gpu_cpu_image(&mut self, desc: ImageDescription) -> id::ImageId {
         let index = self.get_next_index();
 
@@ -528,6 +544,11 @@ impl ResourceObjectSetBuilder {
         id::ImageId::new(self.set_id, index)
     }
 
+    /// Adds a image view request for a image that is created as part of this object set.
+    ///
+    /// #Panics
+    /// If there are more requests than the max object set size or if the source image id is
+    /// invalid.
     pub fn add_internal_image_view(&mut self, desc: ImageViewDescription, image: id::ImageId) -> id::ImageViewId {
         if image.get_set_id() != self.set_id {
             panic!("Image set id does not match builder set id");
@@ -546,6 +567,11 @@ impl ResourceObjectSetBuilder {
         id::ImageViewId::new(self.set_id, index)
     }
 
+    /// Adds a image view request for a image that is part of a different object set.
+    ///
+    /// #Panics
+    /// If there are more requests than the max object set size or if the source image id is
+    /// invalid.
     pub fn add_external_image_view(&mut self, desc: ImageViewDescription, set: ObjectSet, image: id::ImageId) -> id::ImageViewId {
         if image.get_set_id() != set.get_id() {
             panic!("Buffer set id does not match object set id");
@@ -559,6 +585,7 @@ impl ResourceObjectSetBuilder {
         id::ImageViewId::new(self.set_id, index)
     }
 
+    /// Creates all objects and returns the completed object set.
     pub fn build(self) -> ObjectSet {
         let (objects, allocations) = self.manager.build_resource_objects(self.requests.into_boxed_slice());
 
