@@ -36,9 +36,11 @@ use crate::util::slice_splitter::Splitter;
 
 pub use object_set::ObjectSetProvider;
 use crate::objects::manager::resource_object_set::{ObjectCreateError, ResourceObjectCreateMetadata, ResourceObjectCreator, ResourceObjectData, ResourceObjectSetBuilder};
+use crate::UUID;
 
 // Internal implementation of the object manager
 struct ObjectManagerImpl {
+    uuid: UUID,
     device: crate::rosella::DeviceContext,
     allocator: Allocator,
 }
@@ -48,6 +50,7 @@ impl ObjectManagerImpl {
         let allocator = Allocator::new(device.clone());
 
         Self{
+            uuid: UUID::new(),
             device,
             allocator,
         }
@@ -129,9 +132,14 @@ impl ObjectManager {
         SynchronizationGroup::new(self.clone(), self.0.create_group_semaphore(0u64))
     }
 
-    /// Creates a new object set builder
+    /// Creates a new resource object set builder
+    ///
+    /// #Panics
+    /// If the synchronization group belongs to a different object manager.
     pub fn create_resource_object_set(&self, synchronization_group: SynchronizationGroup) -> ResourceObjectSetBuilder {
-        // TODO test manager equality
+        if synchronization_group.get_manager() != self {
+            panic!("Synchronization group belongs to different object manager");
+        }
 
         ResourceObjectSetBuilder::new(synchronization_group)
     }
@@ -160,6 +168,15 @@ impl Clone for ObjectManager {
     fn clone(&self) -> Self {
         Self( self.0.clone() )
     }
+}
+
+impl PartialEq for ObjectManager {
+    fn eq(&self, other: &Self) -> bool {
+        self.0.uuid.eq(&other.0.uuid)
+    }
+}
+
+impl Eq for ObjectManager {
 }
 
 #[cfg(test)]
