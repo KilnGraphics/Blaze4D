@@ -167,6 +167,9 @@ impl ImageSubresourceRange {
     }
 }
 
+/// Contains a description for a vulkan image.
+///
+/// This only contains static information relevant to vulkan (i.e. size or supported usage flags).
 #[non_exhaustive]
 pub struct ImageDescription {
     pub spec: ImageSpec,
@@ -179,6 +182,11 @@ impl ImageDescription {
     }
 }
 
+/// Contains information about a vulkan image object.
+///
+/// This expands the [`ImageDescription`] struct with information relevant for rosella (i.e.
+/// synchronization group or other runtime information). Every instance of this struct will describe
+/// only one specific image object.
 pub struct ImageInfo {
     desc: ImageDescription,
     group: SynchronizationGroup,
@@ -201,6 +209,10 @@ impl ImageInfo {
     }
 }
 
+/// Contains a description for a vulkan image view.
+///
+/// This only contains static information relevant to vulkan (i.e. range or format, however not the
+/// source image as image views with different sources may have the same description).
 pub struct ImageViewDescription {
     pub view_type: vk::ImageViewType,
     pub format: &'static crate::objects::Format,
@@ -208,6 +220,11 @@ pub struct ImageViewDescription {
     pub subresource_range: ImageSubresourceRange,
 }
 
+/// Contains information about a vulkan image view object
+///
+/// This expands the [`ImageViewDescription`] struct with information relevant for rosella (i.e.
+/// the source image or other runtime information). Every instance of this struct will describe
+/// only one specific image view object.
 pub struct ImageViewInfo {
     desc: ImageViewDescription,
     source_image_id: id::ImageId,

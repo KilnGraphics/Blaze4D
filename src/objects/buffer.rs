@@ -23,6 +23,9 @@ pub struct BufferRange {
     pub length: u64,
 }
 
+/// Contains a description for a vulkan buffer.
+///
+/// This only contains static information relevant to vulkan (i.e. size or supported usage flags).
 #[non_exhaustive]
 pub struct BufferDescription {
     pub size: u64,
@@ -35,7 +38,11 @@ impl BufferDescription {
     }
 }
 
-/// Contains information about a vulkan buffer object
+/// Contains information about a vulkan buffer object.
+///
+/// This expands the [`BufferDescription`] struct with information relevant for rosella (i.e.
+/// synchronization group or other runtime information). Every instance of this struct will describe
+/// only one specific buffer object.
 pub struct BufferInfo {
     desc: BufferDescription,
     group: SynchronizationGroup,
@@ -58,6 +65,10 @@ impl BufferInfo {
     }
 }
 
+/// Contains a description for a vulkan buffer.
+///
+/// This only contains static information relevant to vulkan (i.e. range or format, however not the
+/// source buffer as buffer views with different sources may have the same description).
 #[non_exhaustive]
 pub struct BufferViewDescription {
     pub format: &'static crate::objects::Format,
@@ -71,6 +82,10 @@ impl BufferViewDescription {
 }
 
 /// Contains information about a vulkan buffer view object
+///
+/// This expands the [`BufferViewDescription`] struct with information relevant for rosella (i.e.
+/// the source buffer or other runtime information). Ever instance of this struct will describe
+/// only one specific buffer view.
 pub struct BufferViewInfo {
     desc: BufferViewDescription,
     source_buffer_id: id::BufferId,
