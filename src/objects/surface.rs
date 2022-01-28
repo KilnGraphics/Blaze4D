@@ -85,20 +85,12 @@ impl Ord for Surface {
 /// Contains information about the current non retired swapchain associated with the surface.
 pub enum SurfaceSwapchainInfo {
     Some {
-        id: SwapchainId,
         handle: vk::SwapchainKHR,
     },
     None
 }
 
 impl SurfaceSwapchainInfo {
-    pub fn get_current_id(&self) -> Option<SwapchainId> {
-        match self {
-            SurfaceSwapchainInfo::Some { id, .. } => Some(*id),
-            SurfaceSwapchainInfo::None => None
-        }
-    }
-
     pub fn get_current_handle(&self) -> Option<vk::SwapchainKHR> {
         match self {
             SurfaceSwapchainInfo::Some { handle, .. } => Some(*handle),
@@ -106,9 +98,8 @@ impl SurfaceSwapchainInfo {
         }
     }
 
-    pub fn set_swapchain(&mut self, id: SwapchainId, handle: vk::SwapchainKHR) {
+    pub fn set_swapchain(&mut self, handle: vk::SwapchainKHR) {
         *self = SurfaceSwapchainInfo::Some {
-            id,
             handle
         };
     }

@@ -66,6 +66,7 @@ impl SwapchainImageSpec {
 #[derive(Copy, Clone)]
 #[non_exhaustive]
 pub struct SwapchainCreateDesc {
+    pub min_image_count: u32,
     pub image_spec: SwapchainImageSpec,
     pub usage: vk::ImageUsageFlags,
     pub pre_transform: vk::SurfaceTransformFlagsKHR,
