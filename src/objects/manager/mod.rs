@@ -163,9 +163,10 @@ impl Clone for ObjectManager {
 
 #[cfg(test)]
 mod tests {
-    use crate::objects::{BufferRange, ImageSize, ImageSpec};
+    use crate::objects;
     use crate::objects::buffer::{BufferCreateDesc, BufferViewCreateDesc};
-    use crate::objects::image::ImageCreateDesc;
+    use crate::objects::{BufferRange, ImageSize, ImageSpec, ImageSubresourceRange};
+    use crate::objects::image::{ImageCreateDesc, ImageViewCreateDesc};
     use super::*;
 
     fn create() -> ObjectManager {
@@ -192,5 +193,84 @@ mod tests {
 
         drop(group2);
         drop(group);
+    }
+
+    #[test]
+    fn create_buffer() {
+        let manager = create();
+        let group = manager.create_synchronization_group();
+        let mut builder = manager.create_resource_object_set(group);
+
+        let id = builder.add_default_gpu_only_buffer(BufferCreateDesc::new_simple(1024, vk::BufferUsageFlags::TRANSFER_SRC));
+
+        let set = builder.build();
+
+        assert_ne!(set.get_handle(id), vk::Buffer::null());
+
+        drop(set);
+    }
+
+    #[test]
+    fn create_buffer_view() {
+        let manager = create();
+        let group = manager.create_synchronization_group();
+        let mut builder = manager.create_resource_object_set(group);
+
+        let buffer = builder.add_default_gpu_only_buffer(BufferCreateDesc::new_simple(1024, vk::BufferUsageFlags::UNIFORM_TEXEL_BUFFER));
+        let view = builder.add_internal_buffer_view(BufferViewCreateDesc::new_simple(BufferRange { offset: 0, length: 1024 }, &objects::Format::R16_UNORM), buffer);
+
+        let set = builder.build();
+
+        assert_ne!(set.get_handle(view), vk::BufferView::null());
+
+        drop(set);
+    }
+
+    #[test]
+    fn create_image() {
+        let manager = create();
+        let group = manager.create_synchronization_group();
+        let mut builder = manager.create_resource_object_set(group);
+
+        let image = builder.add_default_gpu_only_image(ImageCreateDesc::new_simple(
+            ImageSpec::new_single_sample(ImageSize::make_2d(32, 32), &objects::Format::R8_UNORM),
+            vk::ImageUsageFlags::TRANSFER_SRC)
+        );
+
+        let set = builder.build();
+
+        assert_ne!(set.get_handle(image), vk::Image::null());
+
+        drop(set);
+    }
+
+    #[test]
+    fn create_image_view() {
+        let manager = create();
+        let group = manager.create_synchronization_group();
+        let mut builder = manager.create_resource_object_set(group);
+
+        let image = builder.add_default_gpu_only_image(ImageCreateDesc::new_simple(
+            ImageSpec::new_single_sample(ImageSize::make_2d(32, 32), &objects::Format::R8_UNORM),
+            vk::ImageUsageFlags::SAMPLED)
+        );
+        let view = builder.add_internal_image_view(ImageViewCreateDesc {
+            view_type: vk::ImageViewType::TYPE_2D,
+            format: &objects::Format::R8_UNORM,
+            components: vk::ComponentMapping::default(),
+            subresource_range: ImageSubresourceRange {
+                aspect_mask: vk::ImageAspectFlags::COLOR,
+                base_mip_level: 0,
+                mip_level_count: 1,
+                base_array_layer: 0,
+                array_layer_count: 1,
+            }
+        }, image);
+
+        let set = builder.build();
+
+        assert_ne!(set.get_handle(view), vk::ImageView::null());
+
+        drop(set);
     }
 }
