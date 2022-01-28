@@ -4,7 +4,7 @@ use ash::vk::Handle;
 use winit::event::VirtualKeyCode::M;
 use crate::device::DeviceContext;
 
-use crate::objects::{id, ObjectManager, ObjectSet2, SynchronizationGroup};
+use crate::objects::{id, ObjectManager, ObjectSet, SynchronizationGroup};
 use crate::objects::buffer::{BufferCreateDesc, BufferViewCreateDesc};
 use crate::objects::id::{GenericId, ObjectSetId};
 use crate::objects::image::{ImageCreateDesc, ImageViewCreateDesc};
@@ -110,13 +110,13 @@ impl ResourceObjectCreator for BufferCreateMetadata {
 
 pub(super) struct BufferViewCreateMetadata {
     desc: BufferViewCreateDesc,
-    buffer_set: Option<ObjectSet2>,
+    buffer_set: Option<ObjectSet>,
     buffer_id: id::BufferId,
     handle: vk::BufferView,
 }
 
 impl BufferViewCreateMetadata {
-    fn new(desc: BufferViewCreateDesc, buffer_set: Option<ObjectSet2>, buffer_id: id::BufferId) -> Self {
+    fn new(desc: BufferViewCreateDesc, buffer_set: Option<ObjectSet>, buffer_id: id::BufferId) -> Self {
         Self {
             desc,
             buffer_set,
@@ -254,13 +254,13 @@ impl ResourceObjectCreator for ImageCreateMetadata {
 
 pub(super) struct ImageViewCreateMetadata {
     desc: ImageViewCreateDesc,
-    image_set: Option<ObjectSet2>,
+    image_set: Option<ObjectSet>,
     image_id: id::ImageId,
     handle: vk::ImageView,
 }
 
 impl ImageViewCreateMetadata {
-    fn new(desc: ImageViewCreateDesc, image_set: Option<ObjectSet2>, image_id: id::ImageId) -> Self {
+    fn new(desc: ImageViewCreateDesc, image_set: Option<ObjectSet>, image_id: id::ImageId) -> Self {
         Self {
             desc,
             image_set,
@@ -334,7 +334,7 @@ impl ResourceObjectCreateMetadata {
         Self::Buffer(BufferCreateMetadata::new(desc, strategy))
     }
 
-    fn make_buffer_view(desc: BufferViewCreateDesc, buffer_set: Option<ObjectSet2>, buffer_id: id::BufferId) -> Self {
+    fn make_buffer_view(desc: BufferViewCreateDesc, buffer_set: Option<ObjectSet>, buffer_id: id::BufferId) -> Self {
         Self::BufferView(BufferViewCreateMetadata::new(desc, buffer_set, buffer_id))
     }
 
@@ -342,7 +342,7 @@ impl ResourceObjectCreateMetadata {
         Self::Image(ImageCreateMetadata::new(desc, strategy))
     }
 
-    fn make_image_view(desc: ImageViewCreateDesc, image_set: Option<ObjectSet2>, image_id: id::ImageId) -> Self {
+    fn make_image_view(desc: ImageViewCreateDesc, image_set: Option<ObjectSet>, image_id: id::ImageId) -> Self {
         Self::ImageView(ImageViewCreateMetadata::new(desc, image_set, image_id))
     }
 }
@@ -386,7 +386,7 @@ pub(super) enum ResourceObjectType {
 pub(super) struct ResourceObjectData {
     object_type: ResourceObjectType,
     handle: u64,
-    source_set: Option<ObjectSet2>
+    source_set: Option<ObjectSet>
 }
 
 impl ResourceObjectData {
@@ -484,7 +484,7 @@ impl ResourceObjectSetBuilder {
     ///
     /// #Panics
     /// If there are more requests than the max object set size.
-    pub fn add_external_buffer_view(&mut self, desc: BufferViewCreateDesc, set: ObjectSet2, buffer: id::BufferId) -> id::BufferViewId {
+    pub fn add_external_buffer_view(&mut self, desc: BufferViewCreateDesc, set: ObjectSet, buffer: id::BufferId) -> id::BufferViewId {
         if buffer.get_set_id() != set.get_id() {
             panic!("Buffer set id does not match object set id");
         }
@@ -522,7 +522,7 @@ impl ResourceObjectSetBuilder {
         id::ImageViewId::new(self.set_id, index)
     }
 
-    pub fn add_external_image_view(&mut self, desc: ImageViewCreateDesc, set: ObjectSet2, image: id::ImageId) -> id::ImageViewId {
+    pub fn add_external_image_view(&mut self, desc: ImageViewCreateDesc, set: ObjectSet, image: id::ImageId) -> id::ImageViewId {
         if image.get_set_id() != set.get_id() {
             panic!("Buffer set id does not match object set id");
         }
@@ -533,10 +533,10 @@ impl ResourceObjectSetBuilder {
         id::ImageViewId::new(self.set_id, index)
     }
 
-    pub fn build(self) -> ObjectSet2 {
+    pub fn build(self) -> ObjectSet {
         let (objects, allocations) = self.manager.build_resource_objects(self.requests.into_boxed_slice());
 
-        ObjectSet2::new(ResourceObjectSet {
+        ObjectSet::new(ResourceObjectSet {
             set_id: self.set_id,
             manager: self.manager,
             synchronization_group: self.synchronization_group,

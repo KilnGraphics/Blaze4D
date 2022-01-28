@@ -41,9 +41,9 @@ pub trait ObjectSetProvider {
 ///
 /// Provides a uniform object set api.
 #[derive(Clone)]
-pub struct ObjectSet2(Arc<dyn ObjectSetProvider>);
+pub struct ObjectSet(Arc<dyn ObjectSetProvider>);
 
-impl ObjectSet2 {
+impl ObjectSet {
     /// Creates a new object set from the specified provider.
     pub fn new<T: ObjectSetProvider + 'static>(set: T) -> Self {
         Self(Arc::new(set))
@@ -81,28 +81,28 @@ impl ObjectSet2 {
     }
 }
 
-impl PartialEq for ObjectSet2 {
+impl PartialEq for ObjectSet {
     fn eq(&self, other: &Self) -> bool {
         self.0.get_id().eq(&other.0.get_id())
     }
 }
 
-impl Eq for ObjectSet2 {
+impl Eq for ObjectSet {
 }
 
-impl PartialOrd for ObjectSet2 {
+impl PartialOrd for ObjectSet {
     fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
         self.0.get_id().partial_cmp(&other.0.get_id())
     }
 }
 
-impl Ord for ObjectSet2 {
+impl Ord for ObjectSet {
     fn cmp(&self, other: &Self) -> Ordering {
         self.0.get_id().cmp(&other.0.get_id())
     }
 }
 
-impl Hash for ObjectSet2 {
+impl Hash for ObjectSet {
     fn hash<H: Hasher>(&self, state: &mut H) {
         self.0.get_id().hash(state)
     }
