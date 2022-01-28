@@ -1,17 +1,12 @@
 use std::any::Any;
 use std::cmp::Ordering;
 use std::hash::{Hash, Hasher};
-use std::mem::ManuallyDrop;
 use std::sync::Arc;
-use crate::objects::buffer::{BufferCreateDesc, BufferViewCreateDesc};
-use crate::objects::image::{ImageCreateDesc, ImageViewCreateDesc};
-use crate::objects::{id, ObjectManager};
 use crate::objects::manager::synchronization_group::SynchronizationGroup;
 
-use ash::vk;
 use ash::vk::Handle;
+use crate::objects::id;
 use crate::objects::id::{ObjectIdType, ObjectSetId};
-use crate::objects::manager::allocator::{Allocation, AllocationStrategy};
 
 /// A trait that must be implemented by any object set implementation.
 pub trait ObjectSetProvider {

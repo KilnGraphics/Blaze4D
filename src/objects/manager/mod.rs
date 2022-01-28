@@ -30,10 +30,6 @@ use std::sync::Arc;
 use ash::vk;
 
 use synchronization_group::*;
-use object_set::*;
-use crate::objects::buffer::{BufferCreateDesc, BufferViewCreateDesc};
-use crate::objects::id;
-use crate::objects::image::{ImageCreateDesc, ImageViewCreateDesc};
 use crate::objects::manager::allocator::*;
 use crate::util::slice_splitter::Splitter;
 
@@ -84,7 +80,9 @@ impl ObjectManagerImpl {
     }
 
     fn abort_resource_objects(&self, objects: &mut Box<[ResourceObjectCreateMetadata]>) {
-        objects.iter_mut().rev().map(|object| object.abort(&self.device, &self.allocator));
+        for object in objects.iter_mut().rev() {
+            object.abort(&self.device, &self.allocator)
+        }
     }
 
     fn reduce_resource_objects(&self, objects: Box<[ResourceObjectCreateMetadata]>) -> (Box<[ResourceObjectData]>, Box<[Allocation]>){
@@ -105,8 +103,12 @@ impl ObjectManagerImpl {
     }
 
     fn destroy_resource_objects(&self, objects: Box<[ResourceObjectData]>, allocations: Box<[Allocation]>) {
-        objects.into_vec().into_iter().rev().map(|object| object.destroy(&self.device));
-        allocations.into_vec().into_iter().map(|allocation| self.allocator.free(allocation));
+        for object in objects.into_vec().into_iter().rev() {
+            object.destroy(&self.device)
+        }
+        for allocation in allocations.into_vec() {
+            self.allocator.free(allocation)
+        }
     }
 }
 

@@ -1,7 +1,6 @@
 use std::any::Any;
 use ash::vk;
 use ash::vk::Handle;
-use winit::event::VirtualKeyCode::M;
 use crate::device::DeviceContext;
 
 use crate::objects::{id, ObjectManager, ObjectSet, SynchronizationGroup};
@@ -386,6 +385,7 @@ pub(super) enum ResourceObjectType {
 pub(super) struct ResourceObjectData {
     object_type: ResourceObjectType,
     handle: u64,
+    #[allow(unused)] // Only here to avoid destruction of source set
     source_set: Option<ObjectSet>
 }
 
