@@ -1,21 +1,48 @@
+use std::sync::Arc;
 use ash::prelude::VkResult;
 use ash::vk;
 use ash::vk::{ImageView, SwapchainKHR};
-use crate::objects::ObjectManager;
+use crate::objects::{ObjectManager, SynchronizationGroup};
 use crate::objects::id::{FenceId, ImageId, ImageViewId, ObjectSetId, SemaphoreId, SurfaceId, SwapchainId};
-use crate::objects::image::ImageViewDescription;
+use crate::objects::image::{ImageDescription, ImageInfo, ImageViewDescription, ImageViewInfo};
 use crate::objects::swapchain::SwapchainCreateDesc;
+
+struct ImageViewCreateMetadata {
+    info: Box<ImageViewInfo>,
+    handle: vk::ImageView,
+}
+
+struct BinarySemaphoreCreateMetadata {
+    handle: vk::Semaphore,
+}
+
+struct FenceCreateMetadata {
+    handle: vk::Fence,
+}
+
+enum DerivativeCreateMetadata {
+    ImageView(ImageViewCreateMetadata),
+    BinarySemaphore(BinarySemaphoreCreateMetadata),
+    Fence(FenceCreateMetadata),
+}
+
+struct SwapchainImage {
+    info: Arc<ImageInfo>,
+    handle: vk::Image,
+}
 
 pub struct SwapchainObjectSetBuilder {
     manager: ObjectManager,
     set_id: ObjectSetId,
     surface: SurfaceId,
     swapchain: vk::SwapchainKHR,
-    images: Box<[vk::Image]>,
+    images: Box<[SwapchainImage]>,
+    image_desc: ImageDescription,
+    object_index: u16,
 }
 
 impl SwapchainObjectSetBuilder {
-    fn new(manager: ObjectManager, surface_id: SurfaceId, desc: SwapchainCreateDesc) -> VkResult<Self> {
+    pub(super) fn new(manager: ObjectManager, surface_id: SurfaceId, desc: SwapchainCreateDesc, synchronization_group: Option<SynchronizationGroup>) -> VkResult<Self> {
         let device = &manager.0.device;
         let swapchain_fn = device.get_extension::<ash::extensions::khr::Swapchain>().unwrap();
 
@@ -44,19 +71,54 @@ impl SwapchainObjectSetBuilder {
         }?;
 
         swapchain_info.set_swapchain(new_swapchain);
-        drop(swapchain_info);
 
         let images = unsafe {
             swapchain_fn.get_swapchain_images(new_swapchain)
-        }?;
 
+        }.map_err(|err| {
+            // If there was an error destroy the swapchain and clear the surface swapchain info
+            unsafe {
+                swapchain_fn.destroy_swapchain(new_swapchain, None);
+            }
+            swapchain_info.clear();
+
+            err
+        })?;
+
+        // Need to keep this alive until we are done with all operations that could fail
+        drop(swapchain_info);
+
+        let image_desc = ImageDescription {
+            spec: desc.image_spec.as_image_spec(),
+            usage_flags: desc.usage,
+        };
+
+        let images : Box<_> = images.into_iter().map(|image| {
+            let group = match &synchronization_group {
+                None => manager.create_synchronization_group(),
+                Some(group) => group.clone(),
+            };
+
+            SwapchainImage {
+                info: Arc::new(ImageInfo::new(image_desc, group)),
+                handle: image,
+            }
+        }).collect();
+
+        // After this point errors are handled by the drop function of the SwapchainObjectSetBuilder
         Ok(Self {
             manager,
             set_id: ObjectSetId::new(),
             surface: surface_id,
             swapchain: new_swapchain,
-            images: images.into_boxed_slice(),
+            images,
+            image_desc,
+            object_index: 1,
         })
+    }
+
+    pub fn get_image_description(&self) -> &ImageDescription {
+        &self.image_desc
     }
 
     pub fn get_swapchain_id(&self) -> SwapchainId {
@@ -80,5 +142,26 @@ impl SwapchainObjectSetBuilder {
     /// Adds a set of fences for each image of the swapchain
     pub fn add_fences(&self) -> Box<[FenceId]> {
         todo!()
+    }
+}
+
+impl Drop for SwapchainObjectSetBuilder {
+    fn drop(&mut self) {
+        if self.swapchain != vk::SwapchainKHR::null() {
+            let device = &self.manager.0.device;
+            let swapchain_fn = device.get_extension::<ash::extensions::khr::Swapchain>().unwrap();
+
+            let surface = device.get_surface(self.surface).unwrap();
+            let mut swapchain_info = surface.lock_swapchain_info();
+
+            unsafe {
+                swapchain_fn.destroy_swapchain(self.swapchain, None)
+            };
+
+            if swapchain_info.get_current_handle() == Some(self.swapchain) {
+                swapchain_info.clear();
+            }
+            self.swapchain = vk::SwapchainKHR::null();
+        }
     }
 }

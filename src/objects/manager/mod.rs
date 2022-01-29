@@ -35,7 +35,12 @@ use crate::objects::manager::allocator::*;
 use crate::util::slice_splitter::Splitter;
 
 pub use object_set::ObjectSetProvider;
-use crate::objects::manager::resource_object_set::{ObjectCreateError, ResourceObjectCreateMetadata, ResourceObjectCreator, ResourceObjectData, ResourceObjectSetBuilder};
+pub use resource_object_set::ResourceObjectSetBuilder;
+pub use swapchain_object_set::SwapchainObjectSetBuilder;
+
+use crate::objects::id::SurfaceId;
+use crate::objects::manager::resource_object_set::{ObjectCreateError, ResourceObjectCreateMetadata, ResourceObjectCreator, ResourceObjectData};
+use crate::objects::swapchain::SwapchainCreateDesc;
 use crate::UUID;
 
 // Internal implementation of the object manager
@@ -142,6 +147,10 @@ impl ObjectManager {
         }
 
         ResourceObjectSetBuilder::new(synchronization_group)
+    }
+
+    pub fn create_swapchain_object_set(&self, surface: SurfaceId, desc: SwapchainCreateDesc) -> SwapchainObjectSetBuilder {
+        SwapchainObjectSetBuilder::new(self.clone(), surface, desc, None).unwrap()
     }
 
     // Internal function that destroys a semaphore created for a synchronization group

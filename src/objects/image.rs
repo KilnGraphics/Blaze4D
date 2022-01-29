@@ -171,6 +171,7 @@ impl ImageSubresourceRange {
 ///
 /// This only contains static information relevant to vulkan (i.e. size or supported usage flags).
 #[non_exhaustive]
+#[derive(Copy, Clone)]
 pub struct ImageDescription {
     pub spec: ImageSpec,
     pub usage_flags: vk::ImageUsageFlags,
@@ -213,6 +214,7 @@ impl ImageInfo {
 ///
 /// This only contains static information relevant to vulkan (i.e. range or format, however not the
 /// source image as image views with different sources may have the same description).
+#[derive(Copy, Clone)]
 pub struct ImageViewDescription {
     pub view_type: vk::ImageViewType,
     pub format: &'static crate::objects::Format,
