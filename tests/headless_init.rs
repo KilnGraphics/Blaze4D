@@ -16,7 +16,7 @@ fn init_no_feature() {
     };
 
     #[allow(unused)]
-    let device_context = match create_device(&mut registry, instance_context.clone()) {
+    let device_context = match create_device(&mut registry, instance_context.clone(), &[]) {
         Ok(res) => res,
         Err(err) => {
             panic!("Failed to create device {:?}", err);
@@ -37,7 +37,7 @@ fn init_rosella() {
     };
 
     #[allow(unused)]
-    let device_context = match create_device(&mut registry, instance_context.clone()) {
+    let device_context = match create_device(&mut registry, instance_context.clone(), &[]) {
         Ok(res) => res,
         Err(err) => {
             panic!("Failed to create device {:?}", err);

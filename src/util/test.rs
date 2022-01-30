@@ -20,7 +20,7 @@ pub fn make_headless_instance_device() -> (InstanceContext, DeviceContext) {
     register_rosella_debug(&mut registry, false);
 
     let instance = create_instance(&mut registry, "RosellaUnitTests", 1).unwrap();
-    let device = create_device(&mut registry, instance.clone()).unwrap();
+    let device = create_device(&mut registry, instance.clone(), &[]).unwrap();
 
     (instance, device)
 }

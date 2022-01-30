@@ -34,7 +34,11 @@ impl Drop for DeviceContextImpl {
 pub struct DeviceContext(Arc<DeviceContextImpl>);
 
 impl DeviceContext {
-    pub fn new(instance: InstanceContext, device: ash::Device, physical_device: vk::PhysicalDevice, extensions: ExtensionFunctionSet, features: EnabledFeatures) -> Self {
+    pub fn new(instance: InstanceContext, device: ash::Device, physical_device: vk::PhysicalDevice, extensions: ExtensionFunctionSet, features: EnabledFeatures, surfaces: &[Surface]) -> Self {
+        let surfaces : HashMap<_, _> = surfaces.iter().map(|surface| {
+            (surface.get_id(), (surface.clone(), SurfaceCapabilities::new(&instance, physical_device, surface.get_handle()).unwrap()))
+        }).collect();
+
         Self(Arc::new(DeviceContextImpl{
             id: NamedUUID::with_str("Device"),
             instance,
@@ -42,7 +46,7 @@ impl DeviceContext {
             physical_device,
             extensions,
             features,
-            surfaces: HashMap::new(),
+            surfaces,
         }))
     }
 

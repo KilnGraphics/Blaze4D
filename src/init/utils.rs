@@ -91,7 +91,7 @@ impl ExtensionProperties {
 }
 
 struct EnabledFeature {
-    data: Option<Box<dyn Any>>
+    data: Option<Box<dyn Any + Send + Sync>>
 }
 
 pub struct EnabledFeatures {
@@ -99,7 +99,7 @@ pub struct EnabledFeatures {
 }
 
 impl EnabledFeatures {
-    pub(super) fn new<T: Iterator<Item=(UUID, Option<Box<dyn Any>>)>>(data: T) -> Self {
+    pub(super) fn new<T: Iterator<Item=(UUID, Option<Box<dyn Any + Send + Sync>>)>>(data: T) -> Self {
         Self{ features: data.map(|(id, data)| (id, EnabledFeature{ data })).collect() }
     }
 
@@ -110,7 +110,7 @@ impl EnabledFeatures {
 
     /// Returns the data associated with some enabled feature.
     /// If either the feature is not enabled or it did not create any data None is returned.
-    pub fn get_feature_data(&self, id: &UUID) -> Option<&dyn Any> {
+    pub fn get_feature_data(&self, id: &UUID) -> Option<&(dyn Any + Send + Sync)> {
         match self.features.get(id) {
             None => None,
             Some(f) => {

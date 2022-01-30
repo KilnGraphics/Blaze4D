@@ -33,7 +33,7 @@ pub trait ApplicationInstanceFeature : FeatureBase {
     fn enable(&mut self, features: &mut dyn FeatureAccess, info: &instance::InstanceInfo, config: &mut instance::InstanceConfigurator);
 
     /// Performs any necessary post creation steps and generates the data that is sent back to the application
-    fn finish(&mut self, _: &ash::Instance, _: &ExtensionFunctionSet) -> Option<Box<dyn Any>> {
+    fn finish(&mut self, _: &ash::Instance, _: &ExtensionFunctionSet) -> Option<Box<dyn Any + Send + Sync>> {
         None
     }
 }
@@ -59,7 +59,7 @@ pub trait ApplicationDeviceFeature: Send + FeatureBase {
     /// Configures the device
     fn enable(&mut self, features: &mut dyn FeatureAccess, info: &device::DeviceInfo, config: &mut device::DeviceConfigurator);
 
-    fn finish(&mut self, _: &InstanceContext, _: &ash::Device, _: &ExtensionFunctionSet) -> Option<Box<dyn Any>> {
+    fn finish(&mut self, _: &InstanceContext, _: &ash::Device, _: &ExtensionFunctionSet) -> Option<Box<dyn Any + Sync + Send>> {
         None
     }
 }

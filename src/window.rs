@@ -1,14 +1,17 @@
 use ash::extensions::khr::Surface;
 use ash::vk::SurfaceKHR;
-use ash::{Entry, Instance};
+use ash::{Entry, Instance, vk};
 use winit::dpi::LogicalSize;
 use winit::event_loop::EventLoop;
 use winit::window::WindowBuilder;
+use crate::objects::surface::SurfaceProvider;
+
+use crate::rosella::InstanceContext;
 
 /// Represents a ash surface and a KHR surface
 pub struct RosellaSurface {
-    pub ash_surface: Surface,
-    pub khr_surface: SurfaceKHR,
+    instance: InstanceContext,
+    surface: vk::SurfaceKHR,
 }
 
 pub struct RosellaWindow {
@@ -17,12 +20,27 @@ pub struct RosellaWindow {
 }
 
 impl RosellaSurface {
-    pub fn new(instance: &Instance, vk: &Entry, window: &RosellaWindow) -> Self {
+    pub fn new(instance: &InstanceContext, window: &RosellaWindow) -> Self {
+        let surface = unsafe {
+            ash_window::create_surface(instance.get_entry(), instance.vk(), &window.handle, None)
+        }.unwrap();
+
         RosellaSurface {
-            ash_surface: Surface::new(vk, instance),
-            khr_surface: unsafe { ash_window::create_surface(vk, instance, &window.handle, None) }
-                .expect("Failed to create window surface."),
+            instance: instance.clone(),
+            surface,
         }
+    }
+}
+
+impl SurfaceProvider for RosellaSurface {
+    fn get_handle(&self) -> SurfaceKHR {
+        self.surface
+    }
+}
+
+impl Drop for RosellaSurface {
+    fn drop(&mut self) {
+        unsafe { self.instance.get_extension::<ash::extensions::khr::Surface>().unwrap().destroy_surface(self.surface, None) }
     }
 }
 

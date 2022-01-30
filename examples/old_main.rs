@@ -30,6 +30,7 @@ fn main() {
 
     let window = RosellaWindow::new("New New Rosella in Rust tm", 1396.0, 752.0);
     let rosella = setup_rosella(&window);
+    window.handle.set_visible(true);
 
     // Application Setup usually goes here. Anything in the window loop is either for closing or for looping.
     let basic_vertex_format = VertexFormatBuilder::new()
@@ -43,7 +44,7 @@ fn main() {
     });
     println!("Successfully created shaders.");
 
-    /*window.event_loop.run(move |event, _, control_flow| {
+    window.event_loop.run(move |event, _, control_flow| {
         *control_flow = ControlFlow::Wait;
 
         match event {
@@ -59,5 +60,5 @@ fn main() {
             }
             _ => (),
         }
-    });*/
+    });
 }

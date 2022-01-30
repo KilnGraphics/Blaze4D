@@ -41,6 +41,7 @@ use crate::init::initialization_registry::InitializationRegistry;
 use crate::init::utils::{ExtensionProperties, Feature, FeatureProcessor};
 use crate::{NamedUUID, UUID};
 use crate::init::EnabledFeatures;
+use crate::objects::surface::{Surface, SurfaceCapabilities};
 use crate::util::extensions::{DeviceExtensionLoader, DeviceExtensionLoaderFn, ExtensionFunctionSet, VkExtensionInfo};
 use crate::rosella::{DeviceContext, InstanceContext, VulkanVersion};
 
@@ -93,6 +94,7 @@ impl VulkanQueue {
 pub enum DeviceCreateError {
     VulkanError(vk::Result),
     RequiredFeatureNotSupported(NamedUUID),
+    SurfaceNotSupported,
     Utf8Error(std::str::Utf8Error),
     NulError(std::ffi::NulError),
     ExtensionNotSupported,
@@ -122,8 +124,7 @@ impl From<std::ffi::NulError> for DeviceCreateError {
 /// This function will consume the device features stored in the registry.
 ///
 /// All discovered physical devices will be processed and the most suitable device will be selected.
-/// (TODO not implemented yet)
-pub fn create_device(registry: &mut InitializationRegistry, instance: InstanceContext) -> Result<DeviceContext, DeviceCreateError> {
+pub fn create_device(registry: &mut InitializationRegistry, instance: InstanceContext, surfaces: &[Surface]) -> Result<DeviceContext, DeviceCreateError> {
     let (graph, features) : (Vec<_>, Vec<_>) = registry.take_device_features().into_iter().map(
         |(name, dependencies, feature, required)| {
             ((name.clone(), dependencies), (name, feature, required))
@@ -149,7 +150,7 @@ pub fn create_device(registry: &mut InitializationRegistry, instance: InstanceCo
                 (name.clone(), feature.make_instance(), *required)
             }).collect();
 
-        DeviceBuilder::new(instance.clone(), device, ordering.clone().into_boxed_slice(), feature_instances)
+        DeviceBuilder::new(instance.clone(), device, ordering.clone().into_boxed_slice(), feature_instances, surfaces)
     }).collect();
 
     let mut devices : Vec<_> = devices.into_iter().filter_map(|mut device| {
@@ -168,7 +169,7 @@ pub fn create_device(registry: &mut InitializationRegistry, instance: InstanceCo
 
     devices.sort_by(|a, b| b.get_enabled_feature_count().cmp(&a.get_enabled_feature_count())); // Need to reverse ordering to have highest first
 
-    let device = devices.remove(0).build()?;
+    let device = devices.remove(0).build(surfaces)?;
 
     Ok(device)
 }
@@ -224,13 +225,14 @@ struct DeviceBuilder {
     info: Option<DeviceInfo>,
     config: Option<DeviceConfigurator>,
     enabled_features: u32,
+    surfaces_supported: bool,
 }
 
 impl DeviceBuilder {
     /// Generates a new builder for some feature set and physical device.
     ///
     /// No vulkan functions will be called here.
-    fn new(instance: InstanceContext, physical_device: vk::PhysicalDevice, order: Box<[NamedUUID]>, features: Vec<(NamedUUID, Box<dyn ApplicationDeviceFeature>, bool)>) -> Self {
+    fn new(instance: InstanceContext, physical_device: vk::PhysicalDevice, order: Box<[NamedUUID]>, features: Vec<(NamedUUID, Box<dyn ApplicationDeviceFeature>, bool)>, surfaces: &[Surface]) -> Self {
         let processor = FeatureProcessor::new(features.into_iter().map(
             |(name, feature, required)|
                 (name.get_uuid(),
@@ -242,6 +244,8 @@ impl DeviceBuilder {
                 })
         ), order);
 
+        let surfaces_supported = surfaces.iter().map(|surface| SurfaceCapabilities::new(&instance, physical_device, surface.get_handle()).is_some()).all(|v| v);
+
         Self {
             processor,
             instance,
@@ -249,6 +253,7 @@ impl DeviceBuilder {
             info: None,
             config: None,
             enabled_features: 0,
+            surfaces_supported
         }
     }
 
@@ -267,6 +272,10 @@ impl DeviceBuilder {
 
         let device_name = unsafe { std::ffi::CStr::from_ptr(info.properties_1_0.device_name.as_ptr()).to_str()? };
         log::info!("Found vulkan device \"{}\"({:#8X}) {:?}", device_name, info.properties_1_0.device_id ,info.properties_1_0.device_type);
+
+        if !self.surfaces_supported {
+            return Err(DeviceCreateError::SurfaceNotSupported)
+        }
 
         let mut enabled_features = 0;
         self.processor.run_pass::<DeviceCreateError, _>(
@@ -332,7 +341,7 @@ impl DeviceBuilder {
     }
 
     /// Creates the vulkan device
-    fn build(self) -> Result<DeviceContext, DeviceCreateError> {
+    fn build(self, surfaces: &[Surface]) -> Result<DeviceContext, DeviceCreateError> {
         let instance = self.instance;
 
         let info = self.info.expect("Called build but info is none");
@@ -347,7 +356,7 @@ impl DeviceBuilder {
                 Some((info.name.get_uuid(), info.feature.as_mut().finish(&instance, &device, &function_set)))
             }));
 
-        Ok(DeviceContext::new(instance, device, self.physical_device, function_set, features))
+        Ok(DeviceContext::new(instance, device, self.physical_device, function_set, features, surfaces))
     }
 
     fn get_enabled_feature_count(&self) -> u32 {
