@@ -30,395 +30,6 @@ impl<'s> From<AllocationError> for ObjectCreateError {
     }
 }
 
-pub(in crate::objects) trait ResourceObjectCreator {
-    fn create(&mut self, device: &DeviceContext, split: &Splitter<ResourceObjectCreateMetadata>) -> Result<(), ObjectCreateError>;
-
-    fn abort(&mut self, device: &DeviceContext);
-
-    fn reduce(self) -> (ResourceObjectData, Option<Allocation>);
-}
-
-pub(in crate::objects) struct BufferCreateMetadata {
-    info: Arc<BufferInfo>,
-    strategy: AllocationStrategy,
-    handle: vk::Buffer,
-    allocation: Option<Allocation>,
-}
-
-impl BufferCreateMetadata {
-    fn new(desc: BufferDescription, strategy: AllocationStrategy, group: SynchronizationGroup) -> Self {
-        Self {
-            info: Arc::new(BufferInfo::new(desc, group)),
-            strategy,
-            handle: vk::Buffer::null(),
-            allocation: None,
-        }
-    }
-}
-
-impl ResourceObjectCreator for BufferCreateMetadata {
-    fn create(&mut self, device: &DeviceContext, _: &Splitter<ResourceObjectCreateMetadata>) -> Result<(), ObjectCreateError> {
-        if self.handle == vk::Buffer::null() {
-            let desc = self.info.get_description();
-            let create_info = vk::BufferCreateInfo::builder()
-                .size(desc.size)
-                .usage(desc.usage_flags)
-                .sharing_mode(vk::SharingMode::EXCLUSIVE);
-
-            self.handle = unsafe {
-                device.vk().create_buffer(&create_info, None)
-            }?;
-        }
-        if self.allocation.is_none() {
-            self.allocation = Some(device.get_allocator().allocate_buffer_memory(self.handle, &self.strategy)?);
-            let alloc = self.allocation.as_ref().unwrap();
-
-            unsafe {
-                device.vk().bind_buffer_memory(self.handle, alloc.memory(), alloc.offset())
-            }?;
-        }
-        Ok(())
-    }
-
-    fn abort(&mut self, device: &DeviceContext) {
-        if self.handle != vk::Buffer::null() {
-            unsafe { device.vk().destroy_buffer(self.handle, None) }
-            self.handle = vk::Buffer::null();
-        }
-        match self.allocation.take() {
-            Some(alloc) => {
-                device.get_allocator().free(alloc);
-            }
-            None => {}
-        }
-    }
-
-    fn reduce(self) -> (ResourceObjectData, Option<Allocation>) {
-        if self.handle == vk::Buffer::null() || self.allocation.is_none() {
-            panic!("Incomplete Buffer object")
-        }
-
-        let object = ResourceObjectData::Buffer {
-            handle: self.handle,
-            info: self.info,
-        };
-
-        (object , self.allocation)
-    }
-}
-
-pub(in crate::objects) struct BufferViewCreateMetadata {
-    info: Box<BufferViewInfo>,
-    buffer_set: Option<ObjectSet>,
-    buffer_id: id::BufferId,
-    handle: vk::BufferView,
-}
-
-impl BufferViewCreateMetadata {
-    fn new(desc: BufferViewDescription, buffer_set: Option<ObjectSet>, buffer_id: id::BufferId, buffer_info: Arc<BufferInfo>) -> Self {
-        Self {
-            info: Box::new(BufferViewInfo::new(desc, buffer_id, buffer_info)),
-            buffer_set,
-            buffer_id,
-            handle: vk::BufferView::null(),
-        }
-    }
-}
-
-impl ResourceObjectCreator for BufferViewCreateMetadata {
-    fn create(&mut self, device: &DeviceContext, split: &Splitter<ResourceObjectCreateMetadata>) -> Result<(), ObjectCreateError> {
-        if self.handle == vk::BufferView::null() {
-            let buffer = match self.buffer_set.as_ref() {
-                Some(set) => {
-                    set.get_buffer_handle(self.buffer_id)
-                }
-                None => {
-                    let index = self.buffer_id.get_index() as usize;
-                    match split.get(index).unwrap() {
-                        ResourceObjectCreateMetadata::Buffer(BufferCreateMetadata{ handle, .. }) => *handle,
-                        _ => return Err(ObjectCreateError::InvalidReference)
-                    }
-                }
-            };
-
-            let desc = self.info.get_description();
-            let create_info = vk::BufferViewCreateInfo::builder()
-                .buffer(buffer)
-                .format(desc.format.get_format())
-                .offset(desc.range.offset)
-                .range(desc.range.length);
-
-            self.handle = unsafe {
-                device.vk().create_buffer_view(&create_info.build(), None)?
-            }
-        }
-        Ok(())
-    }
-
-    fn abort(&mut self, device: &DeviceContext) {
-        if self.handle != vk::BufferView::null() {
-            unsafe { device.vk().destroy_buffer_view(self.handle, None) }
-            self.handle = vk::BufferView::null()
-        }
-    }
-
-    fn reduce(self) -> (ResourceObjectData, Option<Allocation>) {
-        if self.handle == vk::BufferView::null() {
-            panic!("Incomplete BufferView object")
-        }
-
-        let object = ResourceObjectData::BufferView {
-            handle: self.handle,
-            info: self.info,
-            source_set: self.buffer_set,
-        };
-
-        (object, None)
-    }
-}
-
-pub(in crate::objects) struct ImageCreateMetadata {
-    info: Arc<ImageInfo>,
-    strategy: AllocationStrategy,
-    handle: vk::Image,
-    allocation: Option<Allocation>,
-}
-
-impl ImageCreateMetadata {
-    fn new(desc: ImageDescription, strategy: AllocationStrategy, group: SynchronizationGroup) -> Self {
-        Self {
-            info: Arc::new(ImageInfo::new(desc, group)),
-            strategy,
-            handle: vk::Image::null(),
-            allocation: None,
-        }
-    }
-}
-
-impl ResourceObjectCreator for ImageCreateMetadata {
-    fn create(&mut self, device: &DeviceContext, _: &Splitter<ResourceObjectCreateMetadata>) -> Result<(), ObjectCreateError> {
-        if self.handle == vk::Image::null() {
-            let desc = self.info.get_description();
-            let create_info = vk::ImageCreateInfo::builder()
-                .image_type(desc.spec.size.get_vulkan_type())
-                .format(desc.spec.format.get_format())
-                .extent(desc.spec.size.as_extent_3d())
-                .mip_levels(desc.spec.size.get_mip_levels())
-                .array_layers(desc.spec.size.get_array_layers())
-                .samples(desc.spec.sample_count)
-                .tiling(vk::ImageTiling::OPTIMAL) // TODO we need some way to turn this linear
-                .usage(desc.usage_flags)
-                .sharing_mode(vk::SharingMode::EXCLUSIVE);
-
-            self.handle = unsafe {
-                device.vk().create_image(&create_info.build(), None)
-            }?;
-        }
-        if self.allocation.is_none() {
-            self.allocation = Some(device.get_allocator().allocate_image_memory(self.handle, &self.strategy)?);
-            let alloc = self.allocation.as_ref().unwrap();
-
-            unsafe {
-                device.vk().bind_image_memory(self.handle, alloc.memory(), alloc.offset())
-            }?;
-        }
-        Ok(())
-    }
-
-    fn abort(&mut self, device: &DeviceContext) {
-        if self.handle != vk::Image::null() {
-            unsafe { device.vk().destroy_image(self.handle, None) }
-            self.handle = vk::Image::null()
-        }
-        match self.allocation.take() {
-            Some(alloc) => {
-                device.get_allocator().free(alloc)
-            }
-            None => {}
-        }
-    }
-
-    fn reduce(self) -> (ResourceObjectData, Option<Allocation>) {
-        if self.handle == vk::Image::null() || self.allocation.is_none() {
-            panic!("Incomplete Image object")
-        }
-
-        let object = ResourceObjectData::Image {
-            handle: self.handle,
-            info: self.info
-        };
-
-        (object, self.allocation)
-    }
-}
-
-pub(in crate::objects) struct ImageViewCreateMetadata {
-    info: Box<ImageViewInfo>,
-    image_set: Option<ObjectSet>,
-    image_id: id::ImageId,
-    handle: vk::ImageView,
-}
-
-impl ImageViewCreateMetadata {
-    fn new(desc: ImageViewDescription, image_set: Option<ObjectSet>, image_id: id::ImageId, image_info: Arc<ImageInfo>) -> Self {
-        Self {
-            info: Box::new(ImageViewInfo::new(desc, image_id, image_info)),
-            image_set,
-            image_id,
-            handle: vk::ImageView::null(),
-        }
-    }
-}
-
-impl ResourceObjectCreator for ImageViewCreateMetadata {
-    fn create(&mut self, device: &DeviceContext, split: &Splitter<ResourceObjectCreateMetadata>) -> Result<(), ObjectCreateError> {
-        if self.handle == vk::ImageView::null() {
-            let image = match self.image_set.as_ref() {
-                Some(set) => {
-                    set.get_image_handle(self.image_id)
-                }
-                None => {
-                    let index = self.image_id.get_index() as usize;
-                    match split.get(index).ok_or(ObjectCreateError::InvalidReference)? {
-                        ResourceObjectCreateMetadata::Image(ImageCreateMetadata{ handle, .. }) => *handle,
-                        _ => return Err(ObjectCreateError::InvalidReference)
-                    }
-                }
-            };
-
-            let desc = self.info.get_description();
-            let create_info = vk::ImageViewCreateInfo::builder()
-                .image(image)
-                .view_type(desc.view_type)
-                .format(desc.format.get_format())
-                .components(desc.components)
-                .subresource_range(desc.subresource_range.as_vk_subresource_range());
-
-            self.handle = unsafe {
-                device.vk().create_image_view(&create_info, None)?
-            }
-        }
-        Ok(())
-    }
-
-    fn abort(&mut self, device: &DeviceContext) {
-        if self.handle != vk::ImageView::null() {
-            unsafe { device.vk().destroy_image_view(self.handle, None) }
-            self.handle = vk::ImageView::null()
-        }
-    }
-
-    fn reduce(self) -> (ResourceObjectData, Option<Allocation>) {
-        if self.handle == vk::ImageView::null() {
-            panic!("Incomplete ImageView object")
-        }
-
-        let object = ResourceObjectData::ImageView {
-            handle: self.handle,
-            info: self.info,
-            source_set: self.image_set
-        };
-
-        (object, None)
-    }
-}
-
-pub(in crate::objects) enum ResourceObjectCreateMetadata {
-    Buffer(BufferCreateMetadata),
-    BufferView(BufferViewCreateMetadata),
-    Image(ImageCreateMetadata),
-    ImageView(ImageViewCreateMetadata),
-}
-
-impl ResourceObjectCreateMetadata {
-    fn make_buffer(desc: BufferDescription, strategy: AllocationStrategy, group: SynchronizationGroup) -> Self {
-        Self::Buffer(BufferCreateMetadata::new(desc, strategy, group))
-    }
-
-    fn make_buffer_view(desc: BufferViewDescription, buffer_set: Option<ObjectSet>, buffer_id: id::BufferId, buffer_info: Arc<BufferInfo>) -> Self {
-        Self::BufferView(BufferViewCreateMetadata::new(desc, buffer_set, buffer_id, buffer_info))
-    }
-
-    fn make_image(desc: ImageDescription, strategy: AllocationStrategy, group: SynchronizationGroup) -> Self {
-        Self::Image(ImageCreateMetadata::new(desc, strategy, group))
-    }
-
-    fn make_image_view(desc: ImageViewDescription, image_set: Option<ObjectSet>, image_id: id::ImageId, image_info: Arc<ImageInfo>) -> Self {
-        Self::ImageView(ImageViewCreateMetadata::new(desc, image_set, image_id, image_info))
-    }
-}
-
-impl ResourceObjectCreator for ResourceObjectCreateMetadata {
-    fn create(&mut self, device: &DeviceContext, split: &Splitter<ResourceObjectCreateMetadata>) -> Result<(), ObjectCreateError> {
-        match self {
-            ResourceObjectCreateMetadata::Buffer(data) => data.create(device, split),
-            ResourceObjectCreateMetadata::BufferView(data) => data.create(device, split),
-            ResourceObjectCreateMetadata::Image(data) => data.create(device, split),
-            ResourceObjectCreateMetadata::ImageView(data) => data.create(device, split),
-        }
-    }
-
-    fn abort(&mut self, device: &DeviceContext) {
-        match self {
-            ResourceObjectCreateMetadata::Buffer(data) => data.abort(device),
-            ResourceObjectCreateMetadata::BufferView(data) => data.abort(device),
-            ResourceObjectCreateMetadata::Image(data) => data.abort(device),
-            ResourceObjectCreateMetadata::ImageView(data) => data.abort(device),
-        }
-    }
-
-    fn reduce(self) -> (ResourceObjectData, Option<Allocation>) {
-        match self {
-            ResourceObjectCreateMetadata::Buffer(data) => data.reduce(),
-            ResourceObjectCreateMetadata::BufferView(data) => data.reduce(),
-            ResourceObjectCreateMetadata::Image(data) => data.reduce(),
-            ResourceObjectCreateMetadata::ImageView(data) => data.reduce(),
-        }
-    }
-}
-
-pub(in crate::objects) enum ResourceObjectData {
-    Buffer {
-        handle: vk::Buffer,
-        info: Arc<BufferInfo>,
-    },
-    BufferView {
-        handle: vk::BufferView,
-        info: Box<BufferViewInfo>,
-        source_set: Option<ObjectSet>,
-    },
-    Image {
-        handle: vk::Image,
-        info: Arc<ImageInfo>,
-    },
-    ImageView {
-        handle: vk::ImageView,
-        info: Box<ImageViewInfo>,
-        source_set: Option<ObjectSet>,
-    }
-}
-
-impl ResourceObjectData {
-    pub fn destroy(self, device: &DeviceContext) {
-        match self {
-            ResourceObjectData::Buffer{ handle, .. } => {
-                unsafe { device.vk().destroy_buffer(handle, None) }
-            }
-            ResourceObjectData::BufferView{ handle, source_set, .. } => {
-                unsafe { device.vk().destroy_buffer_view(handle, None) }
-                drop(source_set); // Keep it alive until here
-            }
-            ResourceObjectData::Image{ handle, .. } => {
-                unsafe { device.vk().destroy_image(handle, None) }
-            }
-            ResourceObjectData::ImageView{ handle, source_set, .. } => {
-                unsafe { device.vk().destroy_image_view(handle, None) }
-                drop(source_set); // Keep it alive until here
-            }
-        }
-    }
-}
-
 /// Resource object sets are object sets specifically designed for resources that require backing
 /// memory and synchronization. (i.e. Buffers, BufferViews etc.)
 ///
@@ -434,6 +45,9 @@ pub struct ResourceObjectSetBuilder {
 }
 
 impl ResourceObjectSetBuilder {
+    /// Creates a new builder using the specified synchronization group
+    ///
+    /// The object set will use the device used for the synchronization group.
     pub fn new(synchronization_group: SynchronizationGroup) -> Self {
         let device = synchronization_group.get_device().clone();
         Self {
@@ -627,6 +241,377 @@ impl ResourceObjectSetBuilder {
             objects: objects.into_boxed_slice(),
             allocations: allocations.into_boxed_slice(),
         }))
+    }
+}
+
+struct BufferCreateMetadata {
+    info: Arc<BufferInfo>,
+    strategy: AllocationStrategy,
+    handle: vk::Buffer,
+    allocation: Option<Allocation>,
+}
+
+impl BufferCreateMetadata {
+    fn new(desc: BufferDescription, strategy: AllocationStrategy, group: SynchronizationGroup) -> Self {
+        Self {
+            info: Arc::new(BufferInfo::new(desc, group)),
+            strategy,
+            handle: vk::Buffer::null(),
+            allocation: None,
+        }
+    }
+
+    fn create(&mut self, device: &DeviceContext, _: &Splitter<ResourceObjectCreateMetadata>) -> Result<(), ObjectCreateError> {
+        if self.handle == vk::Buffer::null() {
+            let desc = self.info.get_description();
+            let create_info = vk::BufferCreateInfo::builder()
+                .size(desc.size)
+                .usage(desc.usage_flags)
+                .sharing_mode(vk::SharingMode::EXCLUSIVE);
+
+            self.handle = unsafe {
+                device.vk().create_buffer(&create_info, None)
+            }?;
+        }
+        if self.allocation.is_none() {
+            self.allocation = Some(device.get_allocator().allocate_buffer_memory(self.handle, &self.strategy)?);
+            let alloc = self.allocation.as_ref().unwrap();
+
+            unsafe {
+                device.vk().bind_buffer_memory(self.handle, alloc.memory(), alloc.offset())
+            }?;
+        }
+        Ok(())
+    }
+
+    fn abort(&mut self, device: &DeviceContext) {
+        if self.handle != vk::Buffer::null() {
+            unsafe { device.vk().destroy_buffer(self.handle, None) }
+            self.handle = vk::Buffer::null();
+        }
+        match self.allocation.take() {
+            Some(alloc) => {
+                device.get_allocator().free(alloc);
+            }
+            None => {}
+        }
+    }
+
+    fn reduce(self) -> (ResourceObjectData, Option<Allocation>) {
+        if self.handle == vk::Buffer::null() || self.allocation.is_none() {
+            panic!("Incomplete Buffer object")
+        }
+
+        let object = ResourceObjectData::Buffer {
+            handle: self.handle,
+            info: self.info,
+        };
+
+        (object , self.allocation)
+    }
+}
+
+struct BufferViewCreateMetadata {
+    info: Box<BufferViewInfo>,
+    buffer_set: Option<ObjectSet>,
+    buffer_id: id::BufferId,
+    handle: vk::BufferView,
+}
+
+impl BufferViewCreateMetadata {
+    fn new(desc: BufferViewDescription, buffer_set: Option<ObjectSet>, buffer_id: id::BufferId, buffer_info: Arc<BufferInfo>) -> Self {
+        Self {
+            info: Box::new(BufferViewInfo::new(desc, buffer_id, buffer_info)),
+            buffer_set,
+            buffer_id,
+            handle: vk::BufferView::null(),
+        }
+    }
+
+    fn create(&mut self, device: &DeviceContext, split: &Splitter<ResourceObjectCreateMetadata>) -> Result<(), ObjectCreateError> {
+        if self.handle == vk::BufferView::null() {
+            let buffer = match self.buffer_set.as_ref() {
+                Some(set) => {
+                    set.get_buffer_handle(self.buffer_id)
+                }
+                None => {
+                    let index = self.buffer_id.get_index() as usize;
+                    match split.get(index).unwrap() {
+                        ResourceObjectCreateMetadata::Buffer(BufferCreateMetadata{ handle, .. }) => *handle,
+                        _ => return Err(ObjectCreateError::InvalidReference)
+                    }
+                }
+            };
+
+            let desc = self.info.get_description();
+            let create_info = vk::BufferViewCreateInfo::builder()
+                .buffer(buffer)
+                .format(desc.format.get_format())
+                .offset(desc.range.offset)
+                .range(desc.range.length);
+
+            self.handle = unsafe {
+                device.vk().create_buffer_view(&create_info.build(), None)?
+            }
+        }
+        Ok(())
+    }
+
+    fn abort(&mut self, device: &DeviceContext) {
+        if self.handle != vk::BufferView::null() {
+            unsafe { device.vk().destroy_buffer_view(self.handle, None) }
+            self.handle = vk::BufferView::null()
+        }
+    }
+
+    fn reduce(self) -> (ResourceObjectData, Option<Allocation>) {
+        if self.handle == vk::BufferView::null() {
+            panic!("Incomplete BufferView object")
+        }
+
+        let object = ResourceObjectData::BufferView {
+            handle: self.handle,
+            info: self.info,
+            source_set: self.buffer_set,
+        };
+
+        (object, None)
+    }
+}
+
+struct ImageCreateMetadata {
+    info: Arc<ImageInfo>,
+    strategy: AllocationStrategy,
+    handle: vk::Image,
+    allocation: Option<Allocation>,
+}
+
+impl ImageCreateMetadata {
+    fn new(desc: ImageDescription, strategy: AllocationStrategy, group: SynchronizationGroup) -> Self {
+        Self {
+            info: Arc::new(ImageInfo::new(desc, group)),
+            strategy,
+            handle: vk::Image::null(),
+            allocation: None,
+        }
+    }
+
+    fn create(&mut self, device: &DeviceContext, _: &Splitter<ResourceObjectCreateMetadata>) -> Result<(), ObjectCreateError> {
+        if self.handle == vk::Image::null() {
+            let desc = self.info.get_description();
+            let create_info = vk::ImageCreateInfo::builder()
+                .image_type(desc.spec.size.get_vulkan_type())
+                .format(desc.spec.format.get_format())
+                .extent(desc.spec.size.as_extent_3d())
+                .mip_levels(desc.spec.size.get_mip_levels())
+                .array_layers(desc.spec.size.get_array_layers())
+                .samples(desc.spec.sample_count)
+                .tiling(vk::ImageTiling::OPTIMAL) // TODO we need some way to turn this linear
+                .usage(desc.usage_flags)
+                .sharing_mode(vk::SharingMode::EXCLUSIVE);
+
+            self.handle = unsafe {
+                device.vk().create_image(&create_info.build(), None)
+            }?;
+        }
+        if self.allocation.is_none() {
+            self.allocation = Some(device.get_allocator().allocate_image_memory(self.handle, &self.strategy)?);
+            let alloc = self.allocation.as_ref().unwrap();
+
+            unsafe {
+                device.vk().bind_image_memory(self.handle, alloc.memory(), alloc.offset())
+            }?;
+        }
+        Ok(())
+    }
+
+    fn abort(&mut self, device: &DeviceContext) {
+        if self.handle != vk::Image::null() {
+            unsafe { device.vk().destroy_image(self.handle, None) }
+            self.handle = vk::Image::null()
+        }
+        match self.allocation.take() {
+            Some(alloc) => {
+                device.get_allocator().free(alloc)
+            }
+            None => {}
+        }
+    }
+
+    fn reduce(self) -> (ResourceObjectData, Option<Allocation>) {
+        if self.handle == vk::Image::null() || self.allocation.is_none() {
+            panic!("Incomplete Image object")
+        }
+
+        let object = ResourceObjectData::Image {
+            handle: self.handle,
+            info: self.info
+        };
+
+        (object, self.allocation)
+    }
+}
+
+struct ImageViewCreateMetadata {
+    info: Box<ImageViewInfo>,
+    image_set: Option<ObjectSet>,
+    image_id: id::ImageId,
+    handle: vk::ImageView,
+}
+
+impl ImageViewCreateMetadata {
+    fn new(desc: ImageViewDescription, image_set: Option<ObjectSet>, image_id: id::ImageId, image_info: Arc<ImageInfo>) -> Self {
+        Self {
+            info: Box::new(ImageViewInfo::new(desc, image_id, image_info)),
+            image_set,
+            image_id,
+            handle: vk::ImageView::null(),
+        }
+    }
+
+    fn create(&mut self, device: &DeviceContext, split: &Splitter<ResourceObjectCreateMetadata>) -> Result<(), ObjectCreateError> {
+        if self.handle == vk::ImageView::null() {
+            let image = match self.image_set.as_ref() {
+                Some(set) => {
+                    set.get_image_handle(self.image_id)
+                }
+                None => {
+                    let index = self.image_id.get_index() as usize;
+                    match split.get(index).ok_or(ObjectCreateError::InvalidReference)? {
+                        ResourceObjectCreateMetadata::Image(ImageCreateMetadata{ handle, .. }) => *handle,
+                        _ => return Err(ObjectCreateError::InvalidReference)
+                    }
+                }
+            };
+
+            let desc = self.info.get_description();
+            let create_info = vk::ImageViewCreateInfo::builder()
+                .image(image)
+                .view_type(desc.view_type)
+                .format(desc.format.get_format())
+                .components(desc.components)
+                .subresource_range(desc.subresource_range.as_vk_subresource_range());
+
+            self.handle = unsafe {
+                device.vk().create_image_view(&create_info, None)?
+            }
+        }
+        Ok(())
+    }
+
+    fn abort(&mut self, device: &DeviceContext) {
+        if self.handle != vk::ImageView::null() {
+            unsafe { device.vk().destroy_image_view(self.handle, None) }
+            self.handle = vk::ImageView::null()
+        }
+    }
+
+    fn reduce(self) -> (ResourceObjectData, Option<Allocation>) {
+        if self.handle == vk::ImageView::null() {
+            panic!("Incomplete ImageView object")
+        }
+
+        let object = ResourceObjectData::ImageView {
+            handle: self.handle,
+            info: self.info,
+            source_set: self.image_set
+        };
+
+        (object, None)
+    }
+}
+
+enum ResourceObjectCreateMetadata {
+    Buffer(BufferCreateMetadata),
+    BufferView(BufferViewCreateMetadata),
+    Image(ImageCreateMetadata),
+    ImageView(ImageViewCreateMetadata),
+}
+
+impl ResourceObjectCreateMetadata {
+    fn make_buffer(desc: BufferDescription, strategy: AllocationStrategy, group: SynchronizationGroup) -> Self {
+        Self::Buffer(BufferCreateMetadata::new(desc, strategy, group))
+    }
+
+    fn make_buffer_view(desc: BufferViewDescription, buffer_set: Option<ObjectSet>, buffer_id: id::BufferId, buffer_info: Arc<BufferInfo>) -> Self {
+        Self::BufferView(BufferViewCreateMetadata::new(desc, buffer_set, buffer_id, buffer_info))
+    }
+
+    fn make_image(desc: ImageDescription, strategy: AllocationStrategy, group: SynchronizationGroup) -> Self {
+        Self::Image(ImageCreateMetadata::new(desc, strategy, group))
+    }
+
+    fn make_image_view(desc: ImageViewDescription, image_set: Option<ObjectSet>, image_id: id::ImageId, image_info: Arc<ImageInfo>) -> Self {
+        Self::ImageView(ImageViewCreateMetadata::new(desc, image_set, image_id, image_info))
+    }
+
+    fn create(&mut self, device: &DeviceContext, split: &Splitter<ResourceObjectCreateMetadata>) -> Result<(), ObjectCreateError> {
+        match self {
+            ResourceObjectCreateMetadata::Buffer(data) => data.create(device, split),
+            ResourceObjectCreateMetadata::BufferView(data) => data.create(device, split),
+            ResourceObjectCreateMetadata::Image(data) => data.create(device, split),
+            ResourceObjectCreateMetadata::ImageView(data) => data.create(device, split),
+        }
+    }
+
+    fn abort(&mut self, device: &DeviceContext) {
+        match self {
+            ResourceObjectCreateMetadata::Buffer(data) => data.abort(device),
+            ResourceObjectCreateMetadata::BufferView(data) => data.abort(device),
+            ResourceObjectCreateMetadata::Image(data) => data.abort(device),
+            ResourceObjectCreateMetadata::ImageView(data) => data.abort(device),
+        }
+    }
+
+    fn reduce(self) -> (ResourceObjectData, Option<Allocation>) {
+        match self {
+            ResourceObjectCreateMetadata::Buffer(data) => data.reduce(),
+            ResourceObjectCreateMetadata::BufferView(data) => data.reduce(),
+            ResourceObjectCreateMetadata::Image(data) => data.reduce(),
+            ResourceObjectCreateMetadata::ImageView(data) => data.reduce(),
+        }
+    }
+}
+
+enum ResourceObjectData {
+    Buffer {
+        handle: vk::Buffer,
+        info: Arc<BufferInfo>,
+    },
+    BufferView {
+        handle: vk::BufferView,
+        info: Box<BufferViewInfo>,
+        source_set: Option<ObjectSet>,
+    },
+    Image {
+        handle: vk::Image,
+        info: Arc<ImageInfo>,
+    },
+    ImageView {
+        handle: vk::ImageView,
+        info: Box<ImageViewInfo>,
+        source_set: Option<ObjectSet>,
+    }
+}
+
+impl ResourceObjectData {
+    pub fn destroy(self, device: &DeviceContext) {
+        match self {
+            ResourceObjectData::Buffer{ handle, .. } => {
+                unsafe { device.vk().destroy_buffer(handle, None) }
+            }
+            ResourceObjectData::BufferView{ handle, source_set, .. } => {
+                unsafe { device.vk().destroy_buffer_view(handle, None) }
+                drop(source_set); // Keep it alive until here
+            }
+            ResourceObjectData::Image{ handle, .. } => {
+                unsafe { device.vk().destroy_image(handle, None) }
+            }
+            ResourceObjectData::ImageView{ handle, source_set, .. } => {
+                unsafe { device.vk().destroy_image_view(handle, None) }
+                drop(source_set); // Keep it alive until here
+            }
+        }
     }
 }
 
