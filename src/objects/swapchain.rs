@@ -74,3 +74,17 @@ pub struct SwapchainCreateDesc {
     pub present_mode: vk::PresentModeKHR,
     pub clipped: bool,
 }
+
+impl SwapchainCreateDesc {
+    pub fn make(image_spec: SwapchainImageSpec, min_image_count: u32, usage: vk::ImageUsageFlags, present_mode: vk::PresentModeKHR) -> Self {
+        SwapchainCreateDesc {
+            min_image_count,
+            image_spec,
+            usage,
+            pre_transform: vk::SurfaceTransformFlagsKHR::IDENTITY,
+            composite_alpha: vk::CompositeAlphaFlagsKHR::OPAQUE,
+            present_mode,
+            clipped: false,
+        }
+    }
+}
