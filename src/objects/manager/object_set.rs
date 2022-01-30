@@ -83,6 +83,15 @@ pub trait ObjectSetProvider {
         panic!("ObjectSet does not support image views");
     }
 
+    /// Returns the handle of a swapchain that is part of this object set.
+    ///
+    /// #Panics
+    /// If the swapchain id does not belong to this object set or does not map to a swapchain
+    /// object.
+    fn get_swapchain_handle(&self, _: id::SwapchainId) -> vk::SwapchainKHR {
+        panic!("ObjectSet does not support swapchains");
+    }
+
     fn as_any(&self) -> &dyn Any;
 }
 

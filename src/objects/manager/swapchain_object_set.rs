@@ -1,10 +1,13 @@
+use std::any::Any;
 use std::sync::Arc;
 use ash::prelude::VkResult;
 use ash::vk;
-use ash::vk::{ImageView, SwapchainKHR};
-use crate::objects::{ObjectManager, SynchronizationGroup};
-use crate::objects::id::{FenceId, ImageId, ImageViewId, ObjectSetId, SemaphoreId, SurfaceId, SwapchainId};
+use ash::vk::{Buffer, BufferView, Image, ImageView, SwapchainKHR};
+use crate::objects::{ObjectManager, ObjectSet, SynchronizationGroup};
+use crate::objects::buffer::{BufferInfo, BufferViewInfo};
+use crate::objects::id::{BufferId, BufferViewId, FenceId, ImageId, ImageViewId, ObjectSetId, SemaphoreId, SurfaceId, SwapchainId};
 use crate::objects::image::{ImageDescription, ImageInfo, ImageViewDescription, ImageViewInfo};
+use crate::objects::manager::ObjectSetProvider;
 use crate::objects::swapchain::SwapchainCreateDesc;
 
 struct ImageViewCreateMetadata {
@@ -143,9 +146,69 @@ impl SwapchainObjectSetBuilder {
     pub fn add_fences(&self) -> Box<[FenceId]> {
         todo!()
     }
+
+    pub fn build(mut self) -> ObjectSet {
+        // This is beyond ugly but necessary since we implement drop
+        ObjectSet::new(SwapchainObjectSet {
+            manager: self.manager.clone(),
+            set_id: self.set_id,
+            surface: self.surface,
+            swapchain: std::mem::replace(&mut self.swapchain, vk::SwapchainKHR::null()),
+        })
+    }
 }
 
 impl Drop for SwapchainObjectSetBuilder {
+    fn drop(&mut self) {
+        if self.swapchain != vk::SwapchainKHR::null() {
+            let device = &self.manager.0.device;
+            let swapchain_fn = device.get_extension::<ash::extensions::khr::Swapchain>().unwrap();
+
+            let surface = device.get_surface(self.surface).unwrap();
+            let mut swapchain_info = surface.lock_swapchain_info();
+
+            unsafe {
+                swapchain_fn.destroy_swapchain(self.swapchain, None)
+            };
+
+            if swapchain_info.get_current_handle() == Some(self.swapchain) {
+                swapchain_info.clear();
+            }
+            self.swapchain = vk::SwapchainKHR::null();
+        }
+    }
+}
+
+struct SwapchainObjectSet {
+    manager: ObjectManager,
+    set_id: ObjectSetId,
+    surface: SurfaceId,
+    swapchain: vk::SwapchainKHR,
+}
+
+impl SwapchainObjectSet {
+
+}
+
+impl ObjectSetProvider for SwapchainObjectSet {
+    fn get_id(&self) -> ObjectSetId {
+        self.set_id
+    }
+
+    fn get_swapchain_handle(&self, id: SwapchainId) -> SwapchainKHR {
+        if id != SwapchainId::new(self.set_id, 0) {
+            panic!("Invalid SwapchainId")
+        }
+
+        self.swapchain
+    }
+    
+    fn as_any(&self) -> &dyn Any {
+        self
+    }
+}
+
+impl Drop for SwapchainObjectSet {
     fn drop(&mut self) {
         if self.swapchain != vk::SwapchainKHR::null() {
             let device = &self.manager.0.device;

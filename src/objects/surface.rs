@@ -3,7 +3,7 @@ use std::sync::{Arc, Mutex, MutexGuard};
 
 use ash::vk;
 
-use crate::objects::id::{ObjectSetId, SurfaceId, SwapchainId};
+use crate::objects::id::{ObjectSetId, SurfaceId};
 use crate::rosella::InstanceContext;
 
 /// Trait that provides access to a surface object.
