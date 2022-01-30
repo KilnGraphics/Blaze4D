@@ -11,30 +11,6 @@ use crate::objects::object_set::ObjectSetProvider;
 use crate::objects::swapchain::SwapchainCreateDesc;
 use crate::rosella::DeviceContext;
 
-struct ImageViewCreateMetadata {
-    info: Box<ImageViewInfo>,
-    handle: vk::ImageView,
-}
-
-struct BinarySemaphoreCreateMetadata {
-    handle: vk::Semaphore,
-}
-
-struct FenceCreateMetadata {
-    handle: vk::Fence,
-}
-
-enum DerivativeCreateMetadata {
-    ImageView(ImageViewCreateMetadata),
-    BinarySemaphore(BinarySemaphoreCreateMetadata),
-    Fence(FenceCreateMetadata),
-}
-
-struct SwapchainImage {
-    info: Arc<ImageInfo>,
-    handle: vk::Image,
-}
-
 pub struct SwapchainObjectSetBuilder {
     device: DeviceContext,
     set_id: ObjectSetId,
@@ -176,6 +152,30 @@ impl Drop for SwapchainObjectSetBuilder {
             self.swapchain = vk::SwapchainKHR::null();
         }
     }
+}
+
+struct ImageViewCreateMetadata {
+    info: Box<ImageViewInfo>,
+    handle: vk::ImageView,
+}
+
+struct BinarySemaphoreCreateMetadata {
+    handle: vk::Semaphore,
+}
+
+struct FenceCreateMetadata {
+    handle: vk::Fence,
+}
+
+enum DerivativeCreateMetadata {
+    ImageView(ImageViewCreateMetadata),
+    BinarySemaphore(BinarySemaphoreCreateMetadata),
+    Fence(FenceCreateMetadata),
+}
+
+struct SwapchainImage {
+    info: Arc<ImageInfo>,
+    handle: vk::Image,
 }
 
 struct SwapchainObjectSet {
