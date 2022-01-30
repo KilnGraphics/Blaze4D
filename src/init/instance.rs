@@ -30,7 +30,7 @@ use crate::init::application_feature::{ApplicationInstanceFeature, InitResult};
 use crate::init::initialization_registry::{InitializationRegistry};
 use crate::init::utils::{ExtensionProperties, Feature, FeatureProcessor, LayerProperties};
 
-use ash::vk;
+use ash::{LoadingError, vk};
 use ash::vk::{DebugUtilsMessageSeverityFlagsEXT, DebugUtilsMessageTypeFlagsEXT};
 use crate::init::EnabledFeatures;
 use crate::util::extensions::{ExtensionFunctionSet, InstanceExtensionLoader, InstanceExtensionLoaderFn, VkExtensionInfo};
@@ -40,6 +40,7 @@ use crate::rosella::{InstanceContext, VulkanVersion};
 #[derive(Debug)]
 pub enum InstanceCreateError {
     VulkanError(vk::Result),
+    LoadingError(ash::LoadingError),
     Utf8Error(std::str::Utf8Error),
     NulError(std::ffi::NulError),
     RequiredFeatureNotSupported(NamedUUID),
@@ -50,6 +51,12 @@ pub enum InstanceCreateError {
 impl From<vk::Result> for InstanceCreateError {
     fn from(err: vk::Result) -> Self {
         InstanceCreateError::VulkanError(err)
+    }
+}
+
+impl From<ash::LoadingError> for InstanceCreateError {
+    fn from(err: LoadingError) -> Self {
+        InstanceCreateError::LoadingError(err)
     }
 }
 
@@ -179,7 +186,7 @@ impl InstanceBuilder {
         if self.info.is_some() {
             panic!("Called run init pass but info is already some");
         }
-        self.info = Some(InstanceInfo::new(ash::Entry::new() )?);
+        self.info = Some(InstanceInfo::new(unsafe { ash::Entry::load() }? )?);
         let info = self.info.as_ref().unwrap();
 
         self.processor.run_pass::<InstanceCreateError, _>(
