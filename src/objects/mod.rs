@@ -5,6 +5,7 @@ pub mod id;
 pub mod manager;
 pub mod swapchain;
 pub mod surface;
+pub mod allocator;
 
 pub use format::Format;
 
@@ -15,7 +16,6 @@ pub use image::ImageSubresourceRange;
 pub use buffer::BufferSpec;
 pub use buffer::BufferRange;
 
-pub use manager::ObjectManager;
 pub use manager::synchronization_group::SynchronizationGroup;
 pub use manager::synchronization_group::SynchronizationGroupSet;
 pub use manager::object_set::ObjectSet;

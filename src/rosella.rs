@@ -4,7 +4,6 @@ use crate::init::instance::{create_instance, InstanceCreateError};
 use crate::window::{RosellaSurface, RosellaWindow};
 
 use crate::init::rosella_features::WindowSurface;
-use crate::objects::ObjectManager;
 
 pub use crate::instance::VulkanVersion;
 pub use crate::instance::InstanceContext;
@@ -16,7 +15,6 @@ pub struct Rosella {
     pub instance: InstanceContext,
     pub surface: SurfaceId,
     pub device: DeviceContext,
-    pub object_manager: ObjectManager,
 }
 
 #[derive(Debug)]
@@ -55,13 +53,10 @@ impl Rosella {
         let elapsed = now.elapsed();
         println!("Instance & Device Initialization took: {:.2?}", elapsed);
 
-        let object_manager = ObjectManager::new(device.clone());
-
         Ok(Rosella {
             instance,
             surface: surface_id,
             device,
-            object_manager,
         })
     }
 

@@ -1,6 +1,7 @@
 use std::cmp::Ordering;
 use std::collections::HashMap;
 use std::fmt::{Debug, Formatter, Pointer};
+use std::mem::ManuallyDrop;
 use std::sync::Arc;
 
 use ash::vk;
@@ -11,6 +12,7 @@ use crate::objects::id::SurfaceId;
 use crate::objects::surface::{Surface, SurfaceCapabilities};
 use crate::util::extensions::{AsRefOption, ExtensionFunctionSet, VkExtensionInfo, VkExtensionFunctions};
 use crate::{NamedUUID, UUID};
+use crate::objects::allocator::Allocator;
 
 struct DeviceContextImpl {
     id: NamedUUID,
@@ -18,6 +20,7 @@ struct DeviceContextImpl {
     device: ash::Device,
     physical_device: vk::PhysicalDevice,
     extensions: ExtensionFunctionSet,
+    allocator: ManuallyDrop<Allocator>, // We need manually drop to ensure it is dropped before the device
     features: EnabledFeatures,
     surfaces: HashMap<SurfaceId, (Surface, SurfaceCapabilities)>,
 }
@@ -25,6 +28,8 @@ struct DeviceContextImpl {
 impl Drop for DeviceContextImpl {
     fn drop(&mut self) {
         unsafe {
+            ManuallyDrop::drop(&mut self.allocator);
+
             self.device.destroy_device(None);
         }
     }
@@ -39,12 +44,15 @@ impl DeviceContext {
             (surface.get_id(), (surface.clone(), SurfaceCapabilities::new(&instance, physical_device, surface.get_handle()).unwrap()))
         }).collect();
 
+        let allocator = Allocator::new(instance.vk().clone(), device.clone(), physical_device);
+
         Self(Arc::new(DeviceContextImpl{
             id: NamedUUID::with_str("Device"),
             instance,
             device,
             physical_device,
             extensions,
+            allocator: ManuallyDrop::new(allocator),
             features,
             surfaces,
         }))
@@ -76,6 +84,10 @@ impl DeviceContext {
 
     pub fn is_extension_enabled(&self, uuid: UUID) -> bool {
         self.0.extensions.contains(uuid)
+    }
+
+    pub fn get_allocator(&self) -> &Allocator {
+        &self.0.allocator
     }
 
     pub fn get_enabled_features(&self) -> &EnabledFeatures {

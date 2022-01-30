@@ -29,26 +29,24 @@ pub enum AllocationStrategy {
 /// Manages memory allocation for vulkan object
 ///
 /// Currently just uses the [`gpu_allocator::vulkan::Allocator`] struct.
-pub(super) struct Allocator {
-    device: DeviceContext,
-
-    // We need to ensure the allocator is dropped before the instance and device are
-    allocator: ManuallyDrop<Mutex<gpu_allocator::vulkan::Allocator>>
+pub struct Allocator {
+    device: ash::Device,
+    allocator: Mutex<gpu_allocator::vulkan::Allocator>
 }
 
 impl Allocator {
-    pub fn new(device: DeviceContext) -> Self {
+    pub fn new(instance: ash::Instance, device: ash::Device, physical_device: vk::PhysicalDevice) -> Self {
         let allocator = gpu_allocator::vulkan::Allocator::new(&AllocatorCreateDesc{
-            instance: device.get_instance().vk().clone(),
-            device: device.vk().clone(),
-            physical_device: device.get_physical_device().clone(),
+            instance,
+            device: device.clone(),
+            physical_device,
             debug_settings: Default::default(),
             buffer_device_address: false
         }).unwrap();
 
         Self {
             device,
-            allocator: ManuallyDrop::new(Mutex::new(allocator)),
+            allocator: Mutex::new(allocator),
         }
     }
 
@@ -59,7 +57,7 @@ impl Allocator {
         };
 
         let requirements = unsafe {
-            self.device.vk().get_buffer_memory_requirements(buffer)
+            self.device.get_buffer_memory_requirements(buffer)
         };
 
         let alloc_desc = AllocationCreateDesc{
@@ -81,7 +79,7 @@ impl Allocator {
         };
 
         let requirements = unsafe {
-            self.device.vk().get_image_memory_requirements(image)
+            self.device.get_image_memory_requirements(image)
         };
 
         let alloc_desc = AllocationCreateDesc{
@@ -99,12 +97,6 @@ impl Allocator {
 
     pub fn free(&self, allocation: Allocation) {
         self.allocator.lock().unwrap().free(allocation.alloc).unwrap()
-    }
-}
-
-impl Drop for Allocator {
-    fn drop(&mut self) {
-        unsafe { ManuallyDrop::drop(&mut self.allocator) };
     }
 }
 

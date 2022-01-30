@@ -3,9 +3,8 @@ use std::fmt::{Debug, Formatter};
 use std::hash::{Hash, Hasher};
 use std::sync::{Arc, LockResult, Mutex, MutexGuard};
 
-use super::ObjectManager;
-
 use ash::vk;
+use crate::device::DeviceContext;
 use crate::UUID;
 
 // Internal struct containing the semaphore payload and metadata
@@ -32,12 +31,22 @@ impl SyncData {
 struct SynchronizationGroupImpl {
     group_id: UUID,
     sync_data: Mutex<SyncData>,
-    manager: ObjectManager,
+    device: DeviceContext,
 }
 
 impl SynchronizationGroupImpl {
-    fn new(manager: ObjectManager, semaphore: vk::Semaphore) -> Self {
-        Self{ group_id: UUID::new(), sync_data: Mutex::new(SyncData{ semaphore, last_access: 0u64 }), manager }
+    fn new(device: DeviceContext) -> Self {
+        let mut timeline_info = vk::SemaphoreTypeCreateInfo::builder()
+            .semaphore_type(vk::SemaphoreType::TIMELINE)
+            .initial_value(1);
+
+        let info = vk::SemaphoreCreateInfo::builder().push_next(&mut timeline_info);
+
+        let semaphore = unsafe {
+            device.vk().create_semaphore(&info.build(), None).unwrap()
+        };
+
+        Self{ group_id: UUID::new(), sync_data: Mutex::new(SyncData{ semaphore, last_access: 0u64 }), device }
     }
 
     fn get_group_id(&self) -> UUID {
@@ -51,7 +60,9 @@ impl SynchronizationGroupImpl {
 
 impl Drop for SynchronizationGroupImpl {
     fn drop(&mut self) {
-        self.manager.destroy_group_semaphore(self.sync_data.get_mut().unwrap().semaphore)
+        unsafe {
+            self.device.vk().destroy_semaphore(self.sync_data.get_mut().unwrap().semaphore, None)
+        }
     }
 }
 
@@ -88,17 +99,17 @@ impl Debug for SynchronizationGroup {
 pub struct SynchronizationGroup(Arc<SynchronizationGroupImpl>);
 
 impl SynchronizationGroup {
-    pub(super) fn new(manager: ObjectManager, semaphore: vk::Semaphore) -> Self {
-        Self(Arc::new(SynchronizationGroupImpl::new(manager, semaphore)))
+    pub fn new(device: DeviceContext) -> Self {
+        Self(Arc::new(SynchronizationGroupImpl::new(device)))
     }
 
     pub fn get_group_id(&self) -> UUID {
         self.0.get_group_id()
     }
 
-    /// Returns the object manager managing this synchronization group
-    pub fn get_manager(&self) -> &ObjectManager {
-        &self.0.manager
+    /// Returns the device of the group
+    pub fn get_device(&self) -> &DeviceContext {
+        &self.0.device
     }
 
     /// Enqueues an access to the resources protected by this group.

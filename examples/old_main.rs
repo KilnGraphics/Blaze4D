@@ -64,8 +64,6 @@ fn main() {
         *capabilities.get_present_modes().get(0).unwrap()
     );
 
-    let swapchain_set = rosella.object_manager.create_swapchain_object_set(rosella.surface, desc).build();
-
     window.event_loop.run(move |event, _, control_flow| {
         *control_flow = ControlFlow::Wait;
 
@@ -83,6 +81,4 @@ fn main() {
             _ => (),
         }
     });
-
-    drop(swapchain_set)
 }
