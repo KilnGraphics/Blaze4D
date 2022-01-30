@@ -109,12 +109,6 @@ pub struct Format {
     compatibility_class: CompatibilityClass,
 }
 
-macro_rules! define_format {
-    ($name:ident, $compatibility_class:expr, $channel_count:expr) => {
-        pub const $name : Format = Format::new(ash::vk::Format::$name, $compatibility_class, $channel_count);
-    }
-}
-
 macro_rules! define_formats {
     ($($name:ident, $compatibility_class:expr, $channel_count:expr);+) => {
         pub const fn format_for(format: vk::Format) -> &'static Format {

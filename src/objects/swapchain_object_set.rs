@@ -7,7 +7,7 @@ use crate::objects::{ObjectSet, SynchronizationGroup};
 use crate::objects::buffer::{BufferInfo, BufferViewInfo};
 use crate::objects::id::{BufferId, BufferViewId, FenceId, ImageId, ImageViewId, ObjectSetId, SemaphoreId, SurfaceId, SwapchainId};
 use crate::objects::image::{ImageDescription, ImageInfo, ImageViewDescription, ImageViewInfo};
-use crate::objects::manager::ObjectSetProvider;
+use crate::objects::object_set::ObjectSetProvider;
 use crate::objects::swapchain::SwapchainCreateDesc;
 use crate::rosella::DeviceContext;
 
@@ -46,7 +46,7 @@ pub struct SwapchainObjectSetBuilder {
 }
 
 impl SwapchainObjectSetBuilder {
-    pub(super) fn new(device: DeviceContext, surface_id: SurfaceId, desc: SwapchainCreateDesc, synchronization_group: Option<SynchronizationGroup>) -> VkResult<Self> {
+    pub fn new(device: DeviceContext, surface_id: SurfaceId, desc: SwapchainCreateDesc, synchronization_group: Option<SynchronizationGroup>) -> VkResult<Self> {
         let swapchain_fn = device.get_extension::<ash::extensions::khr::Swapchain>().unwrap();
 
         let surface = device.get_surface(surface_id).unwrap();

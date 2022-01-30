@@ -1,6 +1,5 @@
-use ash::extensions::khr::Surface;
 use ash::vk::SurfaceKHR;
-use ash::{Entry, Instance, vk};
+use ash::vk;
 use winit::dpi::LogicalSize;
 use winit::event_loop::EventLoop;
 use winit::window::WindowBuilder;

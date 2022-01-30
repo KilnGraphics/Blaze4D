@@ -1,11 +1,8 @@
-use std::mem::ManuallyDrop;
 use std::sync::Mutex;
 
 use ash::vk;
 use gpu_allocator::MemoryLocation;
 use gpu_allocator::vulkan::{AllocationCreateDesc, AllocatorCreateDesc};
-
-use crate::device::DeviceContext;
 
 #[derive(Debug)]
 pub enum AllocationError {

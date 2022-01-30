@@ -97,7 +97,7 @@ pub trait ObjectSetProvider {
 
 /// A wrapper type around the [`ObjectSetProvider`] trait.
 ///
-/// Provides a uniform object set api.
+/// Provides a universal object set api.
 #[derive(Clone)]
 pub struct ObjectSet(Arc<dyn ObjectSetProvider>);
 

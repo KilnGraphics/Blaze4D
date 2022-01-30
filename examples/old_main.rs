@@ -9,6 +9,7 @@ use rosella_rs::init::initialization_registry::InitializationRegistry;
 use rosella_rs::init::rosella_features::{register_rosella_debug, register_rosella_headless, register_rosella_present};
 use rosella_rs::objects::Format;
 use rosella_rs::objects::swapchain::{SwapchainCreateDesc, SwapchainImageSpec};
+use rosella_rs::objects::swapchain_object_set::SwapchainObjectSetBuilder;
 use rosella_rs::rosella::Rosella;
 use rosella_rs::window::RosellaWindow;
 use rosella_rs::shader::{GraphicsContext, GraphicsShader};
@@ -64,6 +65,8 @@ fn main() {
         *capabilities.get_present_modes().get(0).unwrap()
     );
 
+    let swapchain_set = SwapchainObjectSetBuilder::new(rosella.device.clone(), rosella.surface, desc, None);
+
     window.event_loop.run(move |event, _, control_flow| {
         *control_flow = ControlFlow::Wait;
 
@@ -81,4 +84,6 @@ fn main() {
             _ => (),
         }
     });
+
+    drop(swapchain_set);
 }

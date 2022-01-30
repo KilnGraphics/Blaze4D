@@ -7,8 +7,8 @@ use crate::objects::{id, ObjectSet, SynchronizationGroup};
 use crate::objects::buffer::{BufferDescription, BufferInfo, BufferViewDescription, BufferViewInfo};
 use crate::objects::id::{BufferId, BufferViewId, ImageId, ImageViewId, ObjectSetId};
 use crate::objects::image::{ImageDescription, ImageInfo, ImageViewDescription, ImageViewInfo};
-use crate::objects::allocator::{Allocation, AllocationError, AllocationStrategy, Allocator};
-use crate::objects::manager::ObjectSetProvider;
+use crate::objects::allocator::{Allocation, AllocationError, AllocationStrategy};
+use crate::objects::object_set::ObjectSetProvider;
 use crate::util::slice_splitter::Splitter;
 
 #[derive(Debug)]
@@ -30,7 +30,7 @@ impl<'s> From<AllocationError> for ObjectCreateError {
     }
 }
 
-pub(super) trait ResourceObjectCreator {
+pub(in crate::objects) trait ResourceObjectCreator {
     fn create(&mut self, device: &DeviceContext, split: &Splitter<ResourceObjectCreateMetadata>) -> Result<(), ObjectCreateError>;
 
     fn abort(&mut self, device: &DeviceContext);
@@ -38,7 +38,7 @@ pub(super) trait ResourceObjectCreator {
     fn reduce(self) -> (ResourceObjectData, Option<Allocation>);
 }
 
-pub(super) struct BufferCreateMetadata {
+pub(in crate::objects) struct BufferCreateMetadata {
     info: Arc<BufferInfo>,
     strategy: AllocationStrategy,
     handle: vk::Buffer,
@@ -107,7 +107,7 @@ impl ResourceObjectCreator for BufferCreateMetadata {
     }
 }
 
-pub(super) struct BufferViewCreateMetadata {
+pub(in crate::objects) struct BufferViewCreateMetadata {
     info: Box<BufferViewInfo>,
     buffer_set: Option<ObjectSet>,
     buffer_id: id::BufferId,
@@ -177,7 +177,7 @@ impl ResourceObjectCreator for BufferViewCreateMetadata {
     }
 }
 
-pub(super) struct ImageCreateMetadata {
+pub(in crate::objects) struct ImageCreateMetadata {
     info: Arc<ImageInfo>,
     strategy: AllocationStrategy,
     handle: vk::Image,
@@ -252,7 +252,7 @@ impl ResourceObjectCreator for ImageCreateMetadata {
     }
 }
 
-pub(super) struct ImageViewCreateMetadata {
+pub(in crate::objects) struct ImageViewCreateMetadata {
     info: Box<ImageViewInfo>,
     image_set: Option<ObjectSet>,
     image_id: id::ImageId,
@@ -323,7 +323,7 @@ impl ResourceObjectCreator for ImageViewCreateMetadata {
     }
 }
 
-pub(super) enum ResourceObjectCreateMetadata {
+pub(in crate::objects) enum ResourceObjectCreateMetadata {
     Buffer(BufferCreateMetadata),
     BufferView(BufferViewCreateMetadata),
     Image(ImageCreateMetadata),
@@ -377,7 +377,7 @@ impl ResourceObjectCreator for ResourceObjectCreateMetadata {
     }
 }
 
-pub(super) enum ResourceObjectData {
+pub(in crate::objects) enum ResourceObjectData {
     Buffer {
         handle: vk::Buffer,
         info: Arc<BufferInfo>,
