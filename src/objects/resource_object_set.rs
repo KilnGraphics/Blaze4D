@@ -703,3 +703,137 @@ impl ObjectSetProvider for ResourceObjectSet {
         self
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use crate::objects::{BufferRange, Format, ImageSize, ImageSpec};
+    use super::*;
+    use crate::test::make_headless_instance_device;
+
+    #[test]
+    fn test_buffer_create() {
+        let (_, device) = make_headless_instance_device();
+
+        let group = SynchronizationGroup::new(device);
+        let mut builder = ResourceObjectSetBuilder::new(group.clone());
+
+        let desc1 = BufferDescription::new_simple(1024, vk::BufferUsageFlags::TRANSFER_DST);
+        let desc2 = BufferDescription::new_simple(512, vk::BufferUsageFlags::TRANSFER_SRC);
+
+        let buffer1 = builder.add_default_gpu_only_buffer(desc1);
+        let buffer2 = builder.add_default_gpu_cpu_buffer(desc2);
+
+        let set = builder.build().unwrap();
+
+        assert_ne!(set.get_buffer_handle(buffer1), vk::Buffer::null());
+        assert_ne!(set.get_buffer_handle(buffer2), vk::Buffer::null());
+        assert_ne!(set.get_buffer_handle(buffer1), set.get_buffer_handle(buffer2));
+
+        assert_eq!(set.get_buffer_info(buffer1).get_synchronization_group(), &group);
+        assert_eq!(set.get_buffer_info(buffer2).get_synchronization_group(), &group);
+
+        assert_eq!(set.get_buffer_info(buffer1).get_description(), &desc1);
+        assert_eq!(set.get_buffer_info(buffer2).get_description(), &desc2);
+
+        drop(set);
+    }
+
+    #[test]
+    fn test_buffer_view_create() {
+        let (_, device) = make_headless_instance_device();
+
+        let group = SynchronizationGroup::new(device.clone());
+        let mut builder1 = ResourceObjectSetBuilder::new(group.clone());
+
+        let buffer_desc1 = BufferDescription::new_simple(1024, vk::BufferUsageFlags::UNIFORM_TEXEL_BUFFER);
+        let buffer_desc2 = BufferDescription::new_simple(512, vk::BufferUsageFlags::UNIFORM_TEXEL_BUFFER);
+
+        let buffer1 = builder1.add_default_gpu_only_buffer(buffer_desc1);
+        let buffer2 = builder1.add_default_gpu_cpu_buffer(buffer_desc2);
+
+        let view_desc1 = BufferViewDescription::new_simple(BufferRange { offset: 256, length: 256 }, &Format::R16_UNORM);
+        let view_desc2 = BufferViewDescription::new_simple(BufferRange { offset: 0, length: 256 }, &Format::R8_UNORM);
+
+        let view1 = builder1.add_internal_buffer_view(view_desc1, buffer1);
+        let view2 = builder1.add_internal_buffer_view(view_desc2, buffer2);
+
+        let set1 = builder1.build().unwrap();
+
+        assert_ne!(set1.get_buffer_view_handle(view1), vk::BufferView::null());
+        assert_ne!(set1.get_buffer_view_handle(view2), vk::BufferView::null());
+        assert_ne!(set1.get_buffer_view_handle(view1), set1.get_buffer_view_handle(view2));
+
+        assert_eq!(set1.get_buffer_view_info(view1).get_synchronization_group(), &group);
+        assert_eq!(set1.get_buffer_view_info(view2).get_synchronization_group(), &group);
+        assert_eq!(set1.get_buffer_view_info(view1).get_description(), &view_desc1);
+        assert_eq!(set1.get_buffer_view_info(view2).get_description(), &view_desc2);
+        assert_eq!(set1.get_buffer_view_info(view1).get_source_buffer_id(), buffer1);
+        assert_eq!(set1.get_buffer_view_info(view2).get_source_buffer_id(), buffer2);
+        assert_eq!(set1.get_buffer_view_info(view1).get_source_buffer_info().get_description(), &buffer_desc1);
+        assert_eq!(set1.get_buffer_view_info(view2).get_source_buffer_info().get_description(), &buffer_desc2);
+
+        let group2 = SynchronizationGroup::new(device);
+        let mut builder2 = ResourceObjectSetBuilder::new(group2.clone());
+
+        let view3 = builder2.add_external_buffer_view(view_desc2, set1.clone(), buffer1);
+        let view4 = builder2.add_external_buffer_view(view_desc1, set1.clone(), buffer2);
+
+        let set2 = builder2.build().unwrap();
+
+        assert_ne!(set2.get_buffer_view_handle(view3), vk::BufferView::null());
+        assert_ne!(set2.get_buffer_view_handle(view4), vk::BufferView::null());
+        assert_ne!(set2.get_buffer_view_handle(view3), set2.get_buffer_view_handle(view4));
+
+        assert_eq!(set2.get_buffer_view_info(view3).get_synchronization_group(), &group);
+        assert_eq!(set2.get_buffer_view_info(view4).get_synchronization_group(), &group);
+        assert_eq!(set2.get_buffer_view_info(view3).get_description(), &view_desc2);
+        assert_eq!(set2.get_buffer_view_info(view4).get_description(), &view_desc1);
+        assert_eq!(set2.get_buffer_view_info(view3).get_source_buffer_id(), buffer1);
+        assert_eq!(set2.get_buffer_view_info(view4).get_source_buffer_id(), buffer2);
+        assert_eq!(set2.get_buffer_view_info(view3).get_source_buffer_info().get_description(), &buffer_desc1);
+        assert_eq!(set2.get_buffer_view_info(view4).get_source_buffer_info().get_description(), &buffer_desc2);
+
+        drop(set1);
+        drop(set2);
+    }
+
+    #[test]
+    fn test_image_create() {
+        let (_, device) = make_headless_instance_device();
+
+        let group = SynchronizationGroup::new(device);
+        let mut builder = ResourceObjectSetBuilder::new(group.clone());
+
+        let desc1 = ImageDescription::new_simple(
+            ImageSpec::new_single_sample(
+                ImageSize::make_2d(128, 128),
+                &Format::B8G8R8A8_SRGB,
+            ),
+            vk::ImageUsageFlags::SAMPLED,
+        );
+        let desc2 = ImageDescription::new_simple(
+            ImageSpec::new_single_sample(
+                ImageSize::make_2d(256, 256),
+                &Format::B8G8R8A8_SRGB,
+            ),
+            vk::ImageUsageFlags::SAMPLED,
+        );
+
+        let image1 = builder.add_default_gpu_only_image(desc1);
+        let image2 = builder.add_default_gpu_only_image(desc2);
+
+        let set = builder.build().unwrap();
+
+        assert_ne!(set.get_image_handle(image1), vk::Image::null());
+        assert_ne!(set.get_image_handle(image2), vk::Image::null());
+        assert_ne!(set.get_image_handle(image1), set.get_image_handle(image2));
+
+        assert_eq!(set.get_image_info(image1).get_synchronization_group(), &group);
+        assert_eq!(set.get_image_info(image2).get_synchronization_group(), &group);
+
+        assert_eq!(set.get_image_info(image1).get_description(), &desc1);
+        assert_eq!(set.get_image_info(image2).get_description(), &desc2);
+
+        drop(set);
+    }
+}

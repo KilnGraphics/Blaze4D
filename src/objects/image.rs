@@ -4,7 +4,7 @@ use std::sync::Arc;
 use ash::vk;
 use crate::objects::{id, SynchronizationGroup};
 
-#[derive(Copy, Clone, Debug)]
+#[derive(Copy, Clone, Debug, PartialEq, Eq)]
 pub enum ImageSize {
     Type1D { width: u32, mip_levels: u32, array_layers: u32 },
     Type2D { width: u32, height: u32, mip_levels: u32, array_layers: u32 },
@@ -113,7 +113,7 @@ impl ImageSize {
     }
 }
 
-#[derive(Copy, Clone)]
+#[derive(Copy, Clone, Debug, PartialEq, Eq)]
 pub struct ImageSpec {
     pub format: &'static crate::objects::Format,
     pub sample_count: ash::vk::SampleCountFlags,
@@ -146,7 +146,7 @@ impl ImageSpec {
     }
 }
 
-#[derive(Copy, Clone)]
+#[derive(Copy, Clone, Debug, PartialEq, Eq)]
 pub struct ImageSubresourceRange {
     pub aspect_mask: ash::vk::ImageAspectFlags,
     pub base_mip_level: u32,
@@ -171,7 +171,7 @@ impl ImageSubresourceRange {
 ///
 /// This only contains static information relevant to vulkan (i.e. size or supported usage flags).
 #[non_exhaustive]
-#[derive(Copy, Clone)]
+#[derive(Copy, Clone, Debug, PartialEq, Eq)]
 pub struct ImageDescription {
     pub spec: ImageSpec,
     pub usage_flags: vk::ImageUsageFlags,
@@ -214,7 +214,7 @@ impl ImageInfo {
 ///
 /// This only contains static information relevant to vulkan (i.e. range or format, however not the
 /// source image as image views with different sources may have the same description).
-#[derive(Copy, Clone)]
+#[derive(Copy, Clone, Debug)]
 pub struct ImageViewDescription {
     pub view_type: vk::ImageViewType,
     pub format: &'static crate::objects::Format,

@@ -17,7 +17,7 @@ impl BufferSpec {
     }
 }
 
-#[derive(Copy, Clone, Debug)]
+#[derive(Copy, Clone, Debug, PartialEq, Eq)]
 pub struct BufferRange {
     pub offset: u64,
     pub length: u64,
@@ -27,6 +27,7 @@ pub struct BufferRange {
 ///
 /// This only contains static information relevant to vulkan (i.e. size or supported usage flags).
 #[non_exhaustive]
+#[derive(Copy, Clone, Debug, PartialEq, Eq)]
 pub struct BufferDescription {
     pub size: u64,
     pub usage_flags: vk::BufferUsageFlags,
@@ -70,6 +71,7 @@ impl BufferInfo {
 /// This only contains static information relevant to vulkan (i.e. range or format, however not the
 /// source buffer as buffer views with different sources may have the same description).
 #[non_exhaustive]
+#[derive(Copy, Clone, Debug, PartialEq, Eq)]
 pub struct BufferViewDescription {
     pub format: &'static crate::objects::Format,
     pub range: BufferRange,
