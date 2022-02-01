@@ -332,7 +332,7 @@ impl BufferViewCreateMetadata {
         if self.handle == vk::BufferView::null() {
             let buffer = match self.buffer_set.as_ref() {
                 Some(set) => {
-                    set.get_buffer_handle(self.buffer_id)
+                    unsafe { set.get_buffer_handle(self.buffer_id) }
                 }
                 None => {
                     let index = self.buffer_id.get_index() as usize;
@@ -473,7 +473,7 @@ impl ImageViewCreateMetadata {
         if self.handle == vk::ImageView::null() {
             let image = match self.image_set.as_ref() {
                 Some(set) => {
-                    set.get_image_handle(self.image_id)
+                    unsafe { set.get_image_handle(self.image_id) }
                 }
                 None => {
                     let index = self.image_id.get_index() as usize;
@@ -643,7 +643,7 @@ impl ObjectSetProvider for ResourceObjectSet {
         self.set_id
     }
 
-    fn get_buffer_handle(&self, id: BufferId) -> vk::Buffer {
+    unsafe fn get_buffer_handle(&self, id: BufferId) -> vk::Buffer {
         match self.objects.get(id.get_index() as usize).unwrap() {
             ResourceObjectData::Buffer { handle, .. } => *handle,
             _ => panic!("Id does not map to buffer")
@@ -657,7 +657,7 @@ impl ObjectSetProvider for ResourceObjectSet {
         }
     }
 
-    fn get_buffer_view_handle(&self, id: BufferViewId) -> vk::BufferView {
+    unsafe fn get_buffer_view_handle(&self, id: BufferViewId) -> vk::BufferView {
         match self.objects.get(id.get_index() as usize).unwrap() {
             ResourceObjectData::BufferView { handle, .. } => *handle,
             _ => panic!("Id does not map to buffer view")
@@ -671,7 +671,7 @@ impl ObjectSetProvider for ResourceObjectSet {
         }
     }
 
-    fn get_image_handle(&self, id: ImageId) -> vk::Image {
+    unsafe fn get_image_handle(&self, id: ImageId) -> vk::Image {
         match self.objects.get(id.get_index() as usize).unwrap() {
             ResourceObjectData::Image { handle, .. } => *handle,
             _ => panic!("Id does not map to image")
@@ -685,7 +685,7 @@ impl ObjectSetProvider for ResourceObjectSet {
         }
     }
 
-    fn get_image_view_handle(&self, id: ImageViewId) -> vk::ImageView {
+    unsafe fn get_image_view_handle(&self, id: ImageViewId) -> vk::ImageView {
         match self.objects.get(id.get_index() as usize).unwrap() {
             ResourceObjectData::ImageView { handle, .. } => *handle,
             _ => panic!("Id does not map to image view")

@@ -373,7 +373,7 @@ impl ObjectSetProvider for SwapchainObjectSet {
         self.set_id
     }
 
-    fn get_image_handle(&self, id: ImageId) -> Image {
+    unsafe fn get_image_handle(&self, id: ImageId) -> Image {
         if id.get_set_id() != self.set_id {
             panic!("Image belongs to different object set");
         }
@@ -391,7 +391,7 @@ impl ObjectSetProvider for SwapchainObjectSet {
         &self.images.get(index).unwrap().info
     }
 
-    fn get_image_view_handle(&self, id: ImageViewId) -> ImageView {
+    unsafe fn get_image_view_handle(&self, id: ImageViewId) -> ImageView {
         if id.get_set_id() != self.set_id {
             panic!("ImageView belongs to different object set");
         }
@@ -415,7 +415,7 @@ impl ObjectSetProvider for SwapchainObjectSet {
         }
     }
 
-    fn get_swapchain_handle(&self, id: SwapchainId) -> SwapchainKHR {
+    unsafe fn get_swapchain_handle(&self, id: SwapchainId) -> SwapchainKHR {
         if id != SwapchainId::new(self.set_id, 0) {
             panic!("Invalid SwapchainId")
         }
@@ -423,7 +423,7 @@ impl ObjectSetProvider for SwapchainObjectSet {
         self.swapchain
     }
 
-    fn get_semaphore_handle(&self, id: SemaphoreId) -> Semaphore {
+    unsafe fn get_semaphore_handle(&self, id: SemaphoreId) -> Semaphore {
         if id.get_set_id() != self.set_id {
             panic!("Semaphore belongs to different object set");
         }
@@ -435,7 +435,7 @@ impl ObjectSetProvider for SwapchainObjectSet {
         }
     }
 
-    fn get_fence_handle(&self, id: FenceId) -> Fence {
+    unsafe fn get_fence_handle(&self, id: FenceId) -> Fence {
         if id.get_set_id() != self.set_id {
             panic!("Fence belongs to different object set");
         }

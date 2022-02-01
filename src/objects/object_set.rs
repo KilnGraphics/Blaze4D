@@ -19,7 +19,7 @@ pub trait ObjectSetProvider {
     ///
     /// #Panics
     /// If the buffer id does not belong to this object set or does not map to a buffer object.
-    fn get_buffer_handle(&self, _: id::BufferId) -> vk::Buffer {
+    unsafe fn get_buffer_handle(&self, _: id::BufferId) -> vk::Buffer {
         panic!("ObjectSet does not support buffers");
     }
 
@@ -36,7 +36,7 @@ pub trait ObjectSetProvider {
     /// #Panics
     /// If the buffer view id does not belong to this object set or does not map to a buffer view
     /// object.
-    fn get_buffer_view_handle(&self, _: id::BufferViewId) -> vk::BufferView {
+    unsafe fn get_buffer_view_handle(&self, _: id::BufferViewId) -> vk::BufferView {
         panic!("ObjectSet does not support buffer views");
     }
 
@@ -53,7 +53,7 @@ pub trait ObjectSetProvider {
     ///
     /// #Panics
     /// If the image id does not belong to this object set or does not map to a image object.
-    fn get_image_handle(&self, _: id::ImageId) -> vk::Image {
+    unsafe fn get_image_handle(&self, _: id::ImageId) -> vk::Image {
         panic!("ObjectSet does not support images");
     }
 
@@ -70,7 +70,7 @@ pub trait ObjectSetProvider {
     /// #Panics
     /// If the image view id does not belong to this object set or does not map to a image view
     /// object.
-    fn get_image_view_handle(&self, _: id::ImageViewId) -> vk::ImageView {
+    unsafe fn get_image_view_handle(&self, _: id::ImageViewId) -> vk::ImageView {
         panic!("ObjectSet does not support image views");
     }
 
@@ -88,15 +88,15 @@ pub trait ObjectSetProvider {
     /// #Panics
     /// If the swapchain id does not belong to this object set or does not map to a swapchain
     /// object.
-    fn get_swapchain_handle(&self, _: id::SwapchainId) -> vk::SwapchainKHR {
+    unsafe fn get_swapchain_handle(&self, _: id::SwapchainId) -> vk::SwapchainKHR {
         panic!("ObjectSet does not support swapchains");
     }
 
-    fn get_semaphore_handle(&self, _: id::SemaphoreId) -> vk::Semaphore {
+    unsafe fn get_semaphore_handle(&self, _: id::SemaphoreId) -> vk::Semaphore {
         panic!("ObjectSet does not support semaphores");
     }
 
-    fn get_fence_handle(&self, _: id::FenceId) -> vk::Fence {
+    unsafe fn get_fence_handle(&self, _: id::FenceId) -> vk::Fence {
         panic!("ObjectSet does not support fences");
     }
 
