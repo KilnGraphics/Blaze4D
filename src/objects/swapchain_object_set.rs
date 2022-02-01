@@ -3,7 +3,7 @@ use std::sync::Arc;
 use ash::prelude::VkResult;
 use ash::vk;
 use ash::vk::{Fence, Image, ImageView, Semaphore, SwapchainKHR};
-use crate::objects::{ObjectSet, SynchronizationGroup};
+use crate::objects::{id, ObjectSet, SynchronizationGroup};
 use crate::objects::id::{FenceId, ImageId, ImageViewId, ObjectSetId, SemaphoreId, SurfaceId, SwapchainId};
 use crate::objects::image::{ImageDescription, ImageInfo, ImageViewDescription, ImageViewInfo};
 use crate::objects::object_set::ObjectSetProvider;
@@ -116,8 +116,18 @@ impl SwapchainObjectSetBuilder {
     }
 
     /// Adds a set of image views for each image of the swapchain
-    pub fn add_views(&self, desc: ImageViewDescription) -> Box<[ImageViewId]> {
-        todo!()
+    pub fn add_views(&mut self, desc: ImageViewDescription) -> Box<[ImageViewId]> {
+        self.derivatives.reserve(self.images.len());
+        let mut ids = Vec::with_capacity(self.images.len());
+
+        for (index, image) in self.images.as_ref().iter().enumerate() {
+            ids.push(ImageViewId::new(self.set_id, self.get_next_index()));
+
+            let image_id = ImageId::new(self.set_id, index as u16);
+            self.derivatives.push(DerivativeData::make_image_view(desc, image_id, image.info.clone()));
+        }
+
+        ids.into_boxed_slice()
     }
 
     /// Adds a set of binary semaphores for each image of the swapchain
@@ -204,6 +214,13 @@ struct ImageViewData {
 }
 
 impl ImageViewData {
+    fn new(desc: ImageViewDescription, image_id: id::ImageId, image_info: Arc<ImageInfo>) -> Self {
+        Self {
+            info: Box::new(ImageViewInfo::new(desc, image_id, image_info)),
+            handle: vk::ImageView::null(),
+        }
+    }
+
     fn create(&mut self, device: &DeviceContext, images: &Box<[SwapchainImage]>) -> Result<(), vk::Result> {
         if self.handle == vk::ImageView::null() {
             let index = self.info.get_source_image_id().get_index() as usize;
@@ -304,6 +321,10 @@ enum DerivativeData {
 }
 
 impl DerivativeData {
+    fn make_image_view(desc: ImageViewDescription, image_id: id::ImageId, image_info: Arc<ImageInfo>) -> Self {
+        Self::ImageView(ImageViewData::new(desc, image_id, image_info))
+    }
+
     fn make_binary_semaphore() -> Self {
         Self::BinarySemaphore(BinarySemaphoreData::new())
     }
