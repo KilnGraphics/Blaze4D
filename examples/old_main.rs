@@ -8,6 +8,7 @@ use winit::event_loop::ControlFlow;
 use rosella_rs::init::initialization_registry::InitializationRegistry;
 use rosella_rs::init::rosella_features::{register_rosella_debug, register_rosella_headless, register_rosella_present};
 use rosella_rs::objects::Format;
+use rosella_rs::objects::image::ImageViewDescription;
 use rosella_rs::objects::swapchain::{SwapchainCreateDesc, SwapchainImageSpec};
 use rosella_rs::objects::swapchain_object_set::SwapchainObjectSetBuilder;
 use rosella_rs::rosella::Rosella;
@@ -65,7 +66,11 @@ fn main() {
         *capabilities.get_present_modes().get(0).unwrap()
     );
 
-    let swapchain_set = SwapchainObjectSetBuilder::new(rosella.device.clone(), rosella.surface, desc, None);
+    let mut swapchain_set_builder = SwapchainObjectSetBuilder::new(rosella.device.clone(), rosella.surface, desc, None).unwrap();
+
+    swapchain_set_builder.add_views(ImageViewDescription::make_full(vk::ImageViewType::TYPE_2D, Format::format_for(surface_format.format), vk::ImageAspectFlags::COLOR));
+
+    let swapchain_set = swapchain_set_builder.build();
 
     window.event_loop.run(move |event, _, control_flow| {
         *control_flow = ControlFlow::Wait;
