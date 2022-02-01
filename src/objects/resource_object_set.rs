@@ -836,4 +836,73 @@ mod tests {
 
         drop(set);
     }
+
+    #[test]
+    fn test_image_view_create() {
+        let (_, device) = make_headless_instance_device();
+
+        let group = SynchronizationGroup::new(device.clone());
+        let mut builder1 = ResourceObjectSetBuilder::new(group.clone());
+
+        let image_desc1 = ImageDescription::new_simple(
+            ImageSpec::new_single_sample(
+                ImageSize::make_2d(128, 128),
+                &Format::B8G8R8A8_SRGB,
+            ),
+            vk::ImageUsageFlags::SAMPLED,
+        );
+        let image_desc2 = ImageDescription::new_simple(
+            ImageSpec::new_single_sample(
+                ImageSize::make_2d(256, 256),
+                &Format::B8G8R8A8_SRGB,
+            ),
+            vk::ImageUsageFlags::SAMPLED,
+        );
+
+        let image1 = builder1.add_default_gpu_only_image(image_desc1);
+        let image2 = builder1.add_default_gpu_only_image(image_desc2);
+
+        let view_desc1 = ImageViewDescription::make_full(vk::ImageViewType::TYPE_2D, &Format::B8G8R8A8_SRGB, vk::ImageAspectFlags::COLOR);
+        let view_desc2 = ImageViewDescription::make_full(vk::ImageViewType::TYPE_2D, &Format::R8G8B8A8_SRGB, vk::ImageAspectFlags::COLOR);
+
+        let view1 = builder1.add_internal_image_view(view_desc1, image1);
+        let view2 = builder1.add_internal_image_view(view_desc2, image2);
+
+        let set1 = builder1.build().unwrap();
+
+        assert_ne!(set1.get_image_view_handle(view1), vk::ImageView::null());
+        assert_ne!(set1.get_image_view_handle(view2), vk::ImageView::null());
+        assert_ne!(set1.get_image_view_handle(view1), set1.get_image_view_handle(view2));
+
+        assert_eq!(set1.get_image_view_info(view1).get_synchronization_group(), &group);
+        assert_eq!(set1.get_image_view_info(view2).get_synchronization_group(), &group);
+        // TODO description equality test
+        assert_eq!(set1.get_image_view_info(view1).get_source_image_id(), image1);
+        assert_eq!(set1.get_image_view_info(view2).get_source_image_id(), image2);
+        assert_eq!(set1.get_image_view_info(view1).get_source_image_info().get_description(), &image_desc1);
+        assert_eq!(set1.get_image_view_info(view2).get_source_image_info().get_description(), &image_desc2);
+
+        let group2 = SynchronizationGroup::new(device);
+        let mut builder2 = ResourceObjectSetBuilder::new(group2.clone());
+
+        let view3 = builder2.add_external_image_view(view_desc2, set1.clone(), image1);
+        let view4 = builder2.add_external_image_view(view_desc1, set1.clone(), image2);
+
+        let set2 = builder2.build().unwrap();
+
+        assert_ne!(set2.get_image_view_handle(view3), vk::ImageView::null());
+        assert_ne!(set2.get_image_view_handle(view4), vk::ImageView::null());
+        assert_ne!(set2.get_image_view_handle(view3), set2.get_image_view_handle(view4));
+
+        assert_eq!(set2.get_image_view_info(view3).get_synchronization_group(), &group);
+        assert_eq!(set2.get_image_view_info(view4).get_synchronization_group(), &group);
+        // TODO description equality test
+        assert_eq!(set2.get_image_view_info(view3).get_source_image_id(), image1);
+        assert_eq!(set2.get_image_view_info(view4).get_source_image_id(), image2);
+        assert_eq!(set2.get_image_view_info(view3).get_source_image_info().get_description(), &image_desc1);
+        assert_eq!(set2.get_image_view_info(view4).get_source_image_info().get_description(), &image_desc2);
+
+        drop(set1);
+        drop(set2);
+    }
 }

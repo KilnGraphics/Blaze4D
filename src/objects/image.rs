@@ -2,7 +2,7 @@ use std::fmt::Debug;
 use std::sync::Arc;
 
 use ash::vk;
-use crate::objects::{id, SynchronizationGroup};
+use crate::objects::{Format, id, SynchronizationGroup};
 
 #[derive(Copy, Clone, Debug, PartialEq, Eq)]
 pub enum ImageSize {
@@ -214,12 +214,51 @@ impl ImageInfo {
 ///
 /// This only contains static information relevant to vulkan (i.e. range or format, however not the
 /// source image as image views with different sources may have the same description).
+#[non_exhaustive]
 #[derive(Copy, Clone, Debug)]
 pub struct ImageViewDescription {
     pub view_type: vk::ImageViewType,
-    pub format: &'static crate::objects::Format,
+    pub format: &'static Format,
     pub components: vk::ComponentMapping,
     pub subresource_range: ImageSubresourceRange,
+}
+
+impl ImageViewDescription {
+    /// Creates a image view description with identity component mapping and subresource range
+    /// covering all mip levels and array layers.
+    pub fn make_full(view_type: vk::ImageViewType, format: &'static Format, aspect_mask: vk::ImageAspectFlags) -> Self {
+        Self {
+            view_type,
+            format,
+            components: vk::ComponentMapping {
+                r: vk::ComponentSwizzle::IDENTITY,
+                g: vk::ComponentSwizzle::IDENTITY,
+                b: vk::ComponentSwizzle::IDENTITY,
+                a: vk::ComponentSwizzle::IDENTITY
+            },
+            subresource_range: ImageSubresourceRange {
+                aspect_mask,
+                base_mip_level: 0,
+                mip_level_count: vk::REMAINING_MIP_LEVELS,
+                base_array_layer: 0,
+                array_layer_count: vk::REMAINING_ARRAY_LAYERS,
+            }
+        }
+    }
+
+    pub fn make_range(view_type: vk::ImageViewType, format: &'static Format, subresource_range: ImageSubresourceRange) -> Self {
+        Self {
+            view_type,
+            format,
+            components: vk::ComponentMapping {
+                r: vk::ComponentSwizzle::IDENTITY,
+                g: vk::ComponentSwizzle::IDENTITY,
+                b: vk::ComponentSwizzle::IDENTITY,
+                a: vk::ComponentSwizzle::IDENTITY
+            },
+            subresource_range
+        }
+    }
 }
 
 /// Contains information about a vulkan image view object
