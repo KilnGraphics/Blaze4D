@@ -246,6 +246,7 @@ impl ImageViewDescription {
         }
     }
 
+    /// Creates a image view description with identity component mapping
     pub fn make_range(view_type: vk::ImageViewType, format: &'static Format, subresource_range: ImageSubresourceRange) -> Self {
         Self {
             view_type,

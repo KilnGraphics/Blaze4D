@@ -2,10 +2,9 @@ use std::any::Any;
 use std::sync::Arc;
 use ash::prelude::VkResult;
 use ash::vk;
-use ash::vk::{Buffer, BufferView, Image, ImageView, SwapchainKHR};
+use ash::vk::{Fence, Image, ImageView, Semaphore, SwapchainKHR};
 use crate::objects::{ObjectSet, SynchronizationGroup};
-use crate::objects::buffer::{BufferInfo, BufferViewInfo};
-use crate::objects::id::{BufferId, BufferViewId, FenceId, ImageId, ImageViewId, ObjectSetId, SemaphoreId, SurfaceId, SwapchainId};
+use crate::objects::id::{FenceId, ImageId, ImageViewId, ObjectSetId, SemaphoreId, SurfaceId, SwapchainId};
 use crate::objects::image::{ImageDescription, ImageInfo, ImageViewDescription, ImageViewInfo};
 use crate::objects::object_set::ObjectSetProvider;
 use crate::objects::swapchain::SwapchainCreateDesc;
@@ -18,7 +17,7 @@ pub struct SwapchainObjectSetBuilder {
     swapchain: vk::SwapchainKHR,
     images: Box<[SwapchainImage]>,
     image_desc: ImageDescription,
-    object_index: u16,
+    derivatives: Vec<DerivativeData>,
 }
 
 impl SwapchainObjectSetBuilder {
@@ -92,7 +91,7 @@ impl SwapchainObjectSetBuilder {
             swapchain: new_swapchain,
             images,
             image_desc,
-            object_index: 1,
+            derivatives: Vec::new(),
         })
     }
 
@@ -108,29 +107,74 @@ impl SwapchainObjectSetBuilder {
         (0..self.images.len()).map(|index| ImageId::new(self.set_id, index as u16)).collect()
     }
 
+    fn get_next_index(&self) -> u16 {
+        let index = self.derivatives.len();
+        if index > u16::MAX as usize {
+            panic!("Too many objects in object set");
+        }
+        index as u16
+    }
+
     /// Adds a set of image views for each image of the swapchain
     pub fn add_views(&self, desc: ImageViewDescription) -> Box<[ImageViewId]> {
         todo!()
     }
 
     /// Adds a set of binary semaphores for each image of the swapchain
-    pub fn add_binary_semaphores(&self) -> Box<[SemaphoreId]> {
-        todo!()
+    pub fn add_binary_semaphores(&mut self) -> Box<[SemaphoreId]> {
+        self.derivatives.reserve(self.images.len());
+        let mut ids = Vec::with_capacity(self.images.len());
+
+        for _ in self.images.as_ref() {
+            ids.push(SemaphoreId::new(self.set_id, self.get_next_index()));
+            self.derivatives.push(DerivativeData::make_binary_semaphore())
+        }
+
+        ids.into_boxed_slice()
     }
 
     /// Adds a set of fences for each image of the swapchain
-    pub fn add_fences(&self) -> Box<[FenceId]> {
-        todo!()
+    pub fn add_fences(&mut self) -> Box<[FenceId]> {
+        self.derivatives.reserve(self.images.len());
+        let mut ids = Vec::with_capacity(self.images.len());
+
+        for _ in self.images.as_ref() {
+            ids.push(FenceId::new(self.set_id, self.get_next_index()));
+            self.derivatives.push(DerivativeData::make_fence())
+        }
+
+        ids.into_boxed_slice()
     }
 
-    pub fn build(mut self) -> ObjectSet {
+    fn create(&mut self) -> Result<(), vk::Result> {
+        for derivative in &mut self.derivatives {
+            derivative.create(&self.device, &self.images)?;
+        }
+
+        Ok(())
+    }
+
+    fn destroy(&mut self) {
+        for derivative in &mut self.derivatives {
+            derivative.destroy(&self.device);
+        }
+    }
+
+    pub fn build(mut self) -> Result<ObjectSet, vk::Result> {
+        if let Err(err) = self.create() {
+            self.destroy();
+            return Err(err);
+        }
+
         // This is beyond ugly but necessary since we implement drop
-        ObjectSet::new(SwapchainObjectSet {
+        Ok(ObjectSet::new(SwapchainObjectSet {
             device: self.device.clone(),
             set_id: self.set_id,
             surface: self.surface,
             swapchain: std::mem::replace(&mut self.swapchain, vk::SwapchainKHR::null()),
-        })
+            images: std::mem::replace(&mut self.images, Box::new([])),
+            derivatives: std::mem::replace(&mut self.derivatives, Vec::new()).into_boxed_slice(),
+        }))
     }
 }
 
@@ -154,23 +198,135 @@ impl Drop for SwapchainObjectSetBuilder {
     }
 }
 
-struct ImageViewCreateMetadata {
+struct ImageViewData {
     info: Box<ImageViewInfo>,
     handle: vk::ImageView,
 }
 
-struct BinarySemaphoreCreateMetadata {
+impl ImageViewData {
+    fn create(&mut self, device: &DeviceContext, images: &Box<[SwapchainImage]>) -> Result<(), vk::Result> {
+        if self.handle == vk::ImageView::null() {
+            let index = self.info.get_source_image_id().get_index() as usize;
+
+            let description = self.info.get_description();
+
+            let info = vk::ImageViewCreateInfo::builder()
+                .image(images.get(index).unwrap().handle)
+                .view_type(description.view_type)
+                .format(description.format.get_format())
+                .components(description.components)
+                .subresource_range(description.subresource_range.as_vk_subresource_range());
+
+            self.handle = unsafe {
+                device.vk().create_image_view(&info, None)
+            }?;
+        }
+
+        Ok(())
+    }
+
+    fn destroy(&mut self, device: &DeviceContext) {
+        if self.handle != vk::ImageView::null() {
+            unsafe { device.vk().destroy_image_view(self.handle, None) };
+            self.handle = vk::ImageView::null();
+        }
+    }
+}
+
+struct BinarySemaphoreData {
     handle: vk::Semaphore,
 }
 
-struct FenceCreateMetadata {
+impl BinarySemaphoreData {
+    fn new() -> Self {
+        Self {
+            handle: vk::Semaphore::null(),
+        }
+    }
+
+    fn create(&mut self, device: &DeviceContext) -> Result<(), vk::Result> {
+        if self.handle == vk::Semaphore::null() {
+            let info = vk::SemaphoreCreateInfo::builder();
+
+            let handle = unsafe {
+                device.vk().create_semaphore(&info, None)
+            }?;
+            self.handle = handle;
+        }
+
+        Ok(())
+    }
+
+    fn destroy(&mut self, device: &DeviceContext) {
+        if self.handle != vk::Semaphore::null() {
+            unsafe { device.vk().destroy_semaphore(self.handle, None) };
+            self.handle = vk::Semaphore::null();
+        }
+    }
+}
+
+struct FenceData {
     handle: vk::Fence,
 }
 
-enum DerivativeCreateMetadata {
-    ImageView(ImageViewCreateMetadata),
-    BinarySemaphore(BinarySemaphoreCreateMetadata),
-    Fence(FenceCreateMetadata),
+impl FenceData {
+    fn new() -> Self {
+        Self {
+            handle: vk::Fence::null(),
+        }
+    }
+
+    fn create(&mut self, device: &DeviceContext) -> Result<(), vk::Result> {
+        if self.handle == vk::Fence::null() {
+            let info = vk::FenceCreateInfo::builder();
+
+            let handle = unsafe {
+                device.vk().create_fence(&info, None)
+            }?;
+            self.handle = handle;
+        }
+
+        Ok(())
+    }
+
+    fn destroy(&mut self, device: &DeviceContext) {
+        if self.handle != vk::Fence::null() {
+            unsafe { device.vk().destroy_fence(self.handle, None) };
+            self.handle = vk::Fence::null();
+        }
+    }
+}
+
+enum DerivativeData {
+    ImageView(ImageViewData),
+    BinarySemaphore(BinarySemaphoreData),
+    Fence(FenceData),
+}
+
+impl DerivativeData {
+    fn make_binary_semaphore() -> Self {
+        Self::BinarySemaphore(BinarySemaphoreData::new())
+    }
+
+    fn make_fence() -> Self {
+        Self::Fence(FenceData::new())
+    }
+
+    fn create(&mut self, device: &DeviceContext, images: &Box<[SwapchainImage]>) -> Result<(), vk::Result> {
+        match self {
+            DerivativeData::ImageView(data) => data.create(device, images),
+            DerivativeData::BinarySemaphore(data) => data.create(device),
+            DerivativeData::Fence(data) => data.create(device)
+        }
+    }
+
+    fn destroy(&mut self, device: &DeviceContext) {
+        match self {
+            DerivativeData::ImageView(data) => data.destroy(device),
+            DerivativeData::BinarySemaphore(data) => data.destroy(device),
+            DerivativeData::Fence(data) => data.destroy(device),
+        }
+    }
 }
 
 struct SwapchainImage {
@@ -183,6 +339,8 @@ struct SwapchainObjectSet {
     set_id: ObjectSetId,
     surface: SurfaceId,
     swapchain: vk::SwapchainKHR,
+    images: Box<[SwapchainImage]>,
+    derivatives: Box<[DerivativeData]>,
 }
 
 impl SwapchainObjectSet {
@@ -194,12 +352,78 @@ impl ObjectSetProvider for SwapchainObjectSet {
         self.set_id
     }
 
+    fn get_image_handle(&self, id: ImageId) -> Image {
+        if id.get_set_id() != self.set_id {
+            panic!("Image belongs to different object set");
+        }
+
+        let index = id.get_index() as usize;
+        self.images.get(index).unwrap().handle
+    }
+
+    fn get_image_info(&self, id: ImageId) -> &Arc<ImageInfo> {
+        if id.get_set_id() != self.set_id {
+            panic!("Image belongs to different object set");
+        }
+
+        let index = id.get_index() as usize;
+        &self.images.get(index).unwrap().info
+    }
+
+    fn get_image_view_handle(&self, id: ImageViewId) -> ImageView {
+        if id.get_set_id() != self.set_id {
+            panic!("ImageView belongs to different object set");
+        }
+
+        let index = id.get_index() as usize;
+        match self.derivatives.get(index).unwrap() {
+            DerivativeData::ImageView(data) => data.handle,
+            _ => panic!("Id does not map to image view"),
+        }
+    }
+
+    fn get_image_view_info(&self, id: ImageViewId) -> &ImageViewInfo {
+        if id.get_set_id() != self.set_id {
+            panic!("ImageView belongs to different object set");
+        }
+
+        let index = id.get_index() as usize;
+        match self.derivatives.get(index).unwrap() {
+            DerivativeData::ImageView(data) => data.info.as_ref(),
+            _ => panic!("Id does not map to image view"),
+        }
+    }
+
     fn get_swapchain_handle(&self, id: SwapchainId) -> SwapchainKHR {
         if id != SwapchainId::new(self.set_id, 0) {
             panic!("Invalid SwapchainId")
         }
 
         self.swapchain
+    }
+
+    fn get_semaphore_handle(&self, id: SemaphoreId) -> Semaphore {
+        if id.get_set_id() != self.set_id {
+            panic!("Semaphore belongs to different object set");
+        }
+
+        let index = id.get_index() as usize;
+        match self.derivatives.get(index).unwrap() {
+            DerivativeData::BinarySemaphore(data) => data.handle,
+            _ => panic!("Id does not map to semaphore"),
+        }
+    }
+
+    fn get_fence_handle(&self, id: FenceId) -> Fence {
+        if id.get_set_id() != self.set_id {
+            panic!("Fence belongs to different object set");
+        }
+
+        let index = id.get_index() as usize;
+        match self.derivatives.get(index).unwrap() {
+            DerivativeData::Fence(data) => data.handle,
+            _ => panic!("Id does not map to fence"),
+        }
     }
     
     fn as_any(&self) -> &dyn Any {
@@ -209,6 +433,10 @@ impl ObjectSetProvider for SwapchainObjectSet {
 
 impl Drop for SwapchainObjectSet {
     fn drop(&mut self) {
+        for derivative in self.derivatives.as_mut() {
+            derivative.destroy(&self.device);
+        }
+
         if self.swapchain != vk::SwapchainKHR::null() {
             let swapchain_fn = self.device.get_extension::<ash::extensions::khr::Swapchain>().unwrap();
 
@@ -225,4 +453,9 @@ impl Drop for SwapchainObjectSet {
             self.swapchain = vk::SwapchainKHR::null();
         }
     }
+}
+
+#[cfg(test)]
+mod tests {
+    // TODO how on earth do we test this???
 }

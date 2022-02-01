@@ -92,6 +92,14 @@ pub trait ObjectSetProvider {
         panic!("ObjectSet does not support swapchains");
     }
 
+    fn get_semaphore_handle(&self, _: id::SemaphoreId) -> vk::Semaphore {
+        panic!("ObjectSet does not support semaphores");
+    }
+
+    fn get_fence_handle(&self, _: id::FenceId) -> vk::Fence {
+        panic!("ObjectSet does not support fences");
+    }
+
     fn as_any(&self) -> &dyn Any;
 }
 
