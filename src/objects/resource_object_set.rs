@@ -37,6 +37,59 @@ impl<'s> From<AllocationError> for ObjectCreateError {
 ///
 /// All of the objects are only created when then [`ResourceObjectSetBuilder::build`] function is
 /// called.
+///
+/// # Examples
+///
+/// ```
+/// # use rosella_rs::objects::buffer::BufferDescription;
+/// # use rosella_rs::objects::image::{ImageDescription, ImageViewDescription};
+/// # use rosella_rs::objects::resource_object_set::ResourceObjectSetBuilder;
+/// # use rosella_rs::objects::{Format, ImageSize, ImageSpec, SynchronizationGroup};
+/// # let (_, device) = rosella_rs::test::make_headless_instance_device();
+/// use ash::vk;
+///
+/// // We need a synchronization group for our objects
+/// let synchronization_group = SynchronizationGroup::new(device);
+///
+/// // Create a builder. It will use the synchronization group for all objects
+/// let mut builder = ResourceObjectSetBuilder::new(synchronization_group);
+///
+/// // Add a request for a device only buffer. The buffer wont be created yet.
+/// let buffer_id = builder.add_default_gpu_only_buffer(
+///     BufferDescription::new_simple(1024, vk::BufferUsageFlags::VERTEX_BUFFER)
+/// );
+///
+/// // Add a request for a device only image. Again the image wont be created just yet.
+/// let image_id = builder.add_default_gpu_only_image(
+///     ImageDescription::new_simple(
+///         ImageSpec::new_single_sample(ImageSize::make_2d(128, 128), &Format::R8G8B8A8_UNORM),
+///         vk::ImageUsageFlags::SAMPLED,
+///     )
+/// );
+///
+/// // We can add a image view for a previously requested image.
+/// let image_view_id = builder.add_internal_image_view(
+///     ImageViewDescription::make_full(
+///         vk::ImageViewType::TYPE_2D,
+///         &Format::R8G8B8A8_UNORM,
+///         vk::ImageAspectFlags::COLOR
+///     ),
+///     image_id
+/// );
+///
+/// // During the build call all of the objects will be created
+/// let object_set = builder.build().unwrap();
+///
+/// // Now we can access the objects
+/// let image_handle = unsafe { object_set.get_image_handle(image_id) };
+///
+/// // Or query information about them
+/// let buffer_size = object_set.get_buffer_info(buffer_id).get_description().size;
+///
+/// // The objects will be destroyed when the object set is dropped. The object set type uses Arc
+/// // internally so it can be cloned and the objects will only be dropped when all references
+/// // have been dropped.
+/// ```
 pub struct ResourceObjectSetBuilder {
     set_id: ObjectSetId,
     device: DeviceContext,
@@ -725,15 +778,17 @@ mod tests {
 
         let set = builder.build().unwrap();
 
-        assert_ne!(set.get_buffer_handle(buffer1), vk::Buffer::null());
-        assert_ne!(set.get_buffer_handle(buffer2), vk::Buffer::null());
-        assert_ne!(set.get_buffer_handle(buffer1), set.get_buffer_handle(buffer2));
+        unsafe {
+            assert_ne!(set.get_buffer_handle(buffer1), vk::Buffer::null());
+            assert_ne!(set.get_buffer_handle(buffer2), vk::Buffer::null());
+            assert_ne!(set.get_buffer_handle(buffer1), set.get_buffer_handle(buffer2));
 
-        assert_eq!(set.get_buffer_info(buffer1).get_synchronization_group(), &group);
-        assert_eq!(set.get_buffer_info(buffer2).get_synchronization_group(), &group);
+            assert_eq!(set.get_buffer_info(buffer1).get_synchronization_group(), &group);
+            assert_eq!(set.get_buffer_info(buffer2).get_synchronization_group(), &group);
 
-        assert_eq!(set.get_buffer_info(buffer1).get_description(), &desc1);
-        assert_eq!(set.get_buffer_info(buffer2).get_description(), &desc2);
+            assert_eq!(set.get_buffer_info(buffer1).get_description(), &desc1);
+            assert_eq!(set.get_buffer_info(buffer2).get_description(), &desc2);
+        }
 
         drop(set);
     }
@@ -759,18 +814,20 @@ mod tests {
 
         let set1 = builder1.build().unwrap();
 
-        assert_ne!(set1.get_buffer_view_handle(view1), vk::BufferView::null());
-        assert_ne!(set1.get_buffer_view_handle(view2), vk::BufferView::null());
-        assert_ne!(set1.get_buffer_view_handle(view1), set1.get_buffer_view_handle(view2));
+        unsafe {
+            assert_ne!(set1.get_buffer_view_handle(view1), vk::BufferView::null());
+            assert_ne!(set1.get_buffer_view_handle(view2), vk::BufferView::null());
+            assert_ne!(set1.get_buffer_view_handle(view1), set1.get_buffer_view_handle(view2));
 
-        assert_eq!(set1.get_buffer_view_info(view1).get_synchronization_group(), &group);
-        assert_eq!(set1.get_buffer_view_info(view2).get_synchronization_group(), &group);
-        assert_eq!(set1.get_buffer_view_info(view1).get_description(), &view_desc1);
-        assert_eq!(set1.get_buffer_view_info(view2).get_description(), &view_desc2);
-        assert_eq!(set1.get_buffer_view_info(view1).get_source_buffer_id(), buffer1);
-        assert_eq!(set1.get_buffer_view_info(view2).get_source_buffer_id(), buffer2);
-        assert_eq!(set1.get_buffer_view_info(view1).get_source_buffer_info().get_description(), &buffer_desc1);
-        assert_eq!(set1.get_buffer_view_info(view2).get_source_buffer_info().get_description(), &buffer_desc2);
+            assert_eq!(set1.get_buffer_view_info(view1).get_synchronization_group(), &group);
+            assert_eq!(set1.get_buffer_view_info(view2).get_synchronization_group(), &group);
+            assert_eq!(set1.get_buffer_view_info(view1).get_description(), &view_desc1);
+            assert_eq!(set1.get_buffer_view_info(view2).get_description(), &view_desc2);
+            assert_eq!(set1.get_buffer_view_info(view1).get_source_buffer_id(), buffer1);
+            assert_eq!(set1.get_buffer_view_info(view2).get_source_buffer_id(), buffer2);
+            assert_eq!(set1.get_buffer_view_info(view1).get_source_buffer_info().get_description(), &buffer_desc1);
+            assert_eq!(set1.get_buffer_view_info(view2).get_source_buffer_info().get_description(), &buffer_desc2);
+        }
 
         let group2 = SynchronizationGroup::new(device);
         let mut builder2 = ResourceObjectSetBuilder::new(group2.clone());
@@ -780,18 +837,20 @@ mod tests {
 
         let set2 = builder2.build().unwrap();
 
-        assert_ne!(set2.get_buffer_view_handle(view3), vk::BufferView::null());
-        assert_ne!(set2.get_buffer_view_handle(view4), vk::BufferView::null());
-        assert_ne!(set2.get_buffer_view_handle(view3), set2.get_buffer_view_handle(view4));
+        unsafe {
+            assert_ne!(set2.get_buffer_view_handle(view3), vk::BufferView::null());
+            assert_ne!(set2.get_buffer_view_handle(view4), vk::BufferView::null());
+            assert_ne!(set2.get_buffer_view_handle(view3), set2.get_buffer_view_handle(view4));
 
-        assert_eq!(set2.get_buffer_view_info(view3).get_synchronization_group(), &group);
-        assert_eq!(set2.get_buffer_view_info(view4).get_synchronization_group(), &group);
-        assert_eq!(set2.get_buffer_view_info(view3).get_description(), &view_desc2);
-        assert_eq!(set2.get_buffer_view_info(view4).get_description(), &view_desc1);
-        assert_eq!(set2.get_buffer_view_info(view3).get_source_buffer_id(), buffer1);
-        assert_eq!(set2.get_buffer_view_info(view4).get_source_buffer_id(), buffer2);
-        assert_eq!(set2.get_buffer_view_info(view3).get_source_buffer_info().get_description(), &buffer_desc1);
-        assert_eq!(set2.get_buffer_view_info(view4).get_source_buffer_info().get_description(), &buffer_desc2);
+            assert_eq!(set2.get_buffer_view_info(view3).get_synchronization_group(), &group);
+            assert_eq!(set2.get_buffer_view_info(view4).get_synchronization_group(), &group);
+            assert_eq!(set2.get_buffer_view_info(view3).get_description(), &view_desc2);
+            assert_eq!(set2.get_buffer_view_info(view4).get_description(), &view_desc1);
+            assert_eq!(set2.get_buffer_view_info(view3).get_source_buffer_id(), buffer1);
+            assert_eq!(set2.get_buffer_view_info(view4).get_source_buffer_id(), buffer2);
+            assert_eq!(set2.get_buffer_view_info(view3).get_source_buffer_info().get_description(), &buffer_desc1);
+            assert_eq!(set2.get_buffer_view_info(view4).get_source_buffer_info().get_description(), &buffer_desc2);
+        }
 
         drop(set1);
         drop(set2);
@@ -824,15 +883,17 @@ mod tests {
 
         let set = builder.build().unwrap();
 
-        assert_ne!(set.get_image_handle(image1), vk::Image::null());
-        assert_ne!(set.get_image_handle(image2), vk::Image::null());
-        assert_ne!(set.get_image_handle(image1), set.get_image_handle(image2));
+        unsafe {
+            assert_ne!(set.get_image_handle(image1), vk::Image::null());
+            assert_ne!(set.get_image_handle(image2), vk::Image::null());
+            assert_ne!(set.get_image_handle(image1), set.get_image_handle(image2));
 
-        assert_eq!(set.get_image_info(image1).get_synchronization_group(), &group);
-        assert_eq!(set.get_image_info(image2).get_synchronization_group(), &group);
+            assert_eq!(set.get_image_info(image1).get_synchronization_group(), &group);
+            assert_eq!(set.get_image_info(image2).get_synchronization_group(), &group);
 
-        assert_eq!(set.get_image_info(image1).get_description(), &desc1);
-        assert_eq!(set.get_image_info(image2).get_description(), &desc2);
+            assert_eq!(set.get_image_info(image1).get_description(), &desc1);
+            assert_eq!(set.get_image_info(image2).get_description(), &desc2);
+        }
 
         drop(set);
     }
@@ -870,17 +931,19 @@ mod tests {
 
         let set1 = builder1.build().unwrap();
 
-        assert_ne!(set1.get_image_view_handle(view1), vk::ImageView::null());
-        assert_ne!(set1.get_image_view_handle(view2), vk::ImageView::null());
-        assert_ne!(set1.get_image_view_handle(view1), set1.get_image_view_handle(view2));
+        unsafe {
+            assert_ne!(set1.get_image_view_handle(view1), vk::ImageView::null());
+            assert_ne!(set1.get_image_view_handle(view2), vk::ImageView::null());
+            assert_ne!(set1.get_image_view_handle(view1), set1.get_image_view_handle(view2));
 
-        assert_eq!(set1.get_image_view_info(view1).get_synchronization_group(), &group);
-        assert_eq!(set1.get_image_view_info(view2).get_synchronization_group(), &group);
-        // TODO description equality test
-        assert_eq!(set1.get_image_view_info(view1).get_source_image_id(), image1);
-        assert_eq!(set1.get_image_view_info(view2).get_source_image_id(), image2);
-        assert_eq!(set1.get_image_view_info(view1).get_source_image_info().get_description(), &image_desc1);
-        assert_eq!(set1.get_image_view_info(view2).get_source_image_info().get_description(), &image_desc2);
+            assert_eq!(set1.get_image_view_info(view1).get_synchronization_group(), &group);
+            assert_eq!(set1.get_image_view_info(view2).get_synchronization_group(), &group);
+            // TODO description equality test
+            assert_eq!(set1.get_image_view_info(view1).get_source_image_id(), image1);
+            assert_eq!(set1.get_image_view_info(view2).get_source_image_id(), image2);
+            assert_eq!(set1.get_image_view_info(view1).get_source_image_info().get_description(), &image_desc1);
+            assert_eq!(set1.get_image_view_info(view2).get_source_image_info().get_description(), &image_desc2);
+        }
 
         let group2 = SynchronizationGroup::new(device);
         let mut builder2 = ResourceObjectSetBuilder::new(group2.clone());
@@ -890,17 +953,19 @@ mod tests {
 
         let set2 = builder2.build().unwrap();
 
-        assert_ne!(set2.get_image_view_handle(view3), vk::ImageView::null());
-        assert_ne!(set2.get_image_view_handle(view4), vk::ImageView::null());
-        assert_ne!(set2.get_image_view_handle(view3), set2.get_image_view_handle(view4));
+        unsafe {
+            assert_ne!(set2.get_image_view_handle(view3), vk::ImageView::null());
+            assert_ne!(set2.get_image_view_handle(view4), vk::ImageView::null());
+            assert_ne!(set2.get_image_view_handle(view3), set2.get_image_view_handle(view4));
 
-        assert_eq!(set2.get_image_view_info(view3).get_synchronization_group(), &group);
-        assert_eq!(set2.get_image_view_info(view4).get_synchronization_group(), &group);
-        // TODO description equality test
-        assert_eq!(set2.get_image_view_info(view3).get_source_image_id(), image1);
-        assert_eq!(set2.get_image_view_info(view4).get_source_image_id(), image2);
-        assert_eq!(set2.get_image_view_info(view3).get_source_image_info().get_description(), &image_desc1);
-        assert_eq!(set2.get_image_view_info(view4).get_source_image_info().get_description(), &image_desc2);
+            assert_eq!(set2.get_image_view_info(view3).get_synchronization_group(), &group);
+            assert_eq!(set2.get_image_view_info(view4).get_synchronization_group(), &group);
+            // TODO description equality test
+            assert_eq!(set2.get_image_view_info(view3).get_source_image_id(), image1);
+            assert_eq!(set2.get_image_view_info(view4).get_source_image_id(), image2);
+            assert_eq!(set2.get_image_view_info(view3).get_source_image_info().get_description(), &image_desc1);
+            assert_eq!(set2.get_image_view_info(view4).get_source_image_info().get_description(), &image_desc2);
+        }
 
         drop(set1);
         drop(set2);

@@ -11,5 +11,5 @@ mod device;
 pub use util::id::UUID;
 pub use util::id::NamedUUID;
 
-#[cfg(test)]
+#[cfg(any(test, feature = "__internal_doc_test"))]
 pub use util::test;
