@@ -62,7 +62,7 @@ impl<'s> From<AllocationError> for ObjectCreateError {
 /// // Add a request for a device only image. Again the image wont be created just yet.
 /// let image_id = builder.add_default_gpu_only_image(
 ///     ImageDescription::new_simple(
-///         ImageSpec::new_single_sample(ImageSize::make_2d(128, 128), &Format::R8G8B8A8_UNORM),
+///         ImageSpec::new_single_sample(ImageSize::make_2d(128, 128), &Format::R8G8B8A8_SRGB),
 ///         vk::ImageUsageFlags::SAMPLED,
 ///     )
 /// );
@@ -71,7 +71,7 @@ impl<'s> From<AllocationError> for ObjectCreateError {
 /// let image_view_id = builder.add_internal_image_view(
 ///     ImageViewDescription::make_full(
 ///         vk::ImageViewType::TYPE_2D,
-///         &Format::R8G8B8A8_UNORM,
+///         &Format::R8G8B8A8_SRGB,
 ///         vk::ImageAspectFlags::COLOR
 ///     ),
 ///     image_id

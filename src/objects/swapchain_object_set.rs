@@ -10,6 +10,68 @@ use crate::objects::object_set::ObjectSetProvider;
 use crate::objects::swapchain::SwapchainCreateDesc;
 use crate::rosella::DeviceContext;
 
+/// Swapchain object sets manage the creation of swapchains and have utilities for some common
+/// objects needed for each image.
+///
+/// Derivative objects can be added in which case a object is created for each swapchain image.
+/// ImageViews, binary Semaphores and Fences are currently supported as derivative objects.
+///
+/// The swapchain itself is created during the creation of the builder (this is necessary because
+/// the builder needs to know the number of images that are in the swapchain). Just like with
+/// resource object sets the derivative objects are only created during the
+/// [`SwapchainObjectSetBuilder::build`] call.
+///
+/// # Examples
+///
+/// ```
+/// # use rosella_rs::objects::swapchain::{SwapchainCreateDesc, SwapchainImageSpec};
+/// # use rosella_rs::objects::{Format, ImageViewDescription, SwapchainObjectSetBuilder};
+/// use ash::vk;
+///
+/// // Create a builder. The swapchain will be immediately created.
+/// let mut builder = SwapchainObjectSetBuilder::new(
+///     device,
+///     surface_id,
+///     SwapchainCreateDesc::make(
+///         SwapchainImageSpec::make(
+///             &Format::R8G8B8A8_SRGB,
+///             vk::ColorSpaceKHR::SRGB_NONLINEAR,
+///             1920, 1080
+///         ),
+///         1,
+///         vk::ImageUsageFlags::SAMPLED,
+///         vk::PresentModeKHR::MAILBOX
+///     ),
+///     None
+/// ).unwrap();
+///
+/// // We can query information about the already created swapchain
+/// let swapchain_id = builder.get_swapchain_id();
+/// let image_count = builder.get_image_ids().len();
+///
+/// // Add a image view. One will be created for each image of the swapchain
+/// let image_views = builder.add_views(ImageViewDescription::make_full(
+///     vk::ImageViewType::TYPE_2D,
+///     &Format::R8G8B8A8_SRGB,
+///     vk::ImageAspectFlags::COLOR
+/// ));
+///
+/// // Similar to image views one semaphore will be created for each swapchain image
+/// let semaphores = builder.add_binary_semaphores();
+///
+/// // During the build call all derivative objects will be created.
+/// let object_set = builder.build().unwrap();
+///
+/// // Now we can access the objects and swapchain
+/// let swapchain = unsafe { object_set.get_swapchain_handle(swapchain_id) };
+/// for view in image_views.iter() {
+///     unsafe { object_set.get_image_view_handle(*view) };
+/// }
+///
+/// // The swapchain and derivative objects will be destroyed when the object set is dropped. The
+/// // object set type uses Arc internally so it can be cloned and the objects will only be dropped
+/// // when all references have been dropped.
+/// ```
 pub struct SwapchainObjectSetBuilder {
     device: DeviceContext,
     set_id: ObjectSetId,
@@ -21,6 +83,11 @@ pub struct SwapchainObjectSetBuilder {
 }
 
 impl SwapchainObjectSetBuilder {
+    /// Creates a new swapchain object set builder.
+    ///
+    /// The swapchain will be immediately created. If a synchronization group is specified it will
+    /// be used for all images. Otherwise a new synchronization group will be created for each
+    /// individual image.
     pub fn new(device: DeviceContext, surface_id: SurfaceId, desc: SwapchainCreateDesc, synchronization_group: Option<SynchronizationGroup>) -> VkResult<Self> {
         let swapchain_fn = device.get_extension::<ash::extensions::khr::Swapchain>().unwrap();
 
