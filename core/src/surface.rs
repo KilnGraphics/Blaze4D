@@ -1,6 +1,7 @@
 use std::ffi::CString;
 use ash::vk;
 
+#[derive(Debug)]
 pub enum SurfaceInitError {
     /// A vulkan error
     Vulkan(vk::Result),

@@ -1,46 +1,22 @@
-use rosella_rs::init::device::create_device;
-use rosella_rs::init::InitializationRegistry;
-use rosella_rs::init::instance::create_instance;
-use rosella_rs::init::rosella_features::register_rosella_headless;
+use std::ffi::{CStr, CString};
+use vk_profiles_rs::vp;
+use ash::vk;
+
+use b4d_core::init::instance::*;
+use b4d_core::rosella::VulkanVersion;
 
 mod test_common;
 
 #[test]
 fn init_no_feature() {
-    let mut registry = InitializationRegistry::new();
-    let instance_context = match create_instance(&mut registry, "Rosella Test", 1) {
-        Ok(res) => res,
-        Err(err) => {
-            panic!("Failed to create instance {:?}", err);
-        }
-    };
+    let profile = vp::LunargDesktopPortability2021::profile_properties();
 
-    #[allow(unused)]
-    let device_context = match create_device(&mut registry, instance_context.clone(), &[]) {
-        Ok(res) => res,
-        Err(err) => {
-            panic!("Failed to create device {:?}", err);
-        }
-    };
-}
+    let config = InstanceCreateConfig::new(
+        profile,
+        VulkanVersion::VK_1_1,
+        CString::from(CStr::from_bytes_with_nul(b"B4D_Test\0").unwrap()),
+        vk::make_api_version(0, 0, 1, 0)
+    );
 
-#[test]
-fn init_rosella() {
-    let mut registry = InitializationRegistry::new();
-    register_rosella_headless(&mut registry);
-
-    let instance_context = match create_instance(&mut registry, "Rosella Test", 1) {
-        Ok(res) => res,
-        Err(err) => {
-            panic!("Failed to create instance {:?}", err);
-        }
-    };
-
-    #[allow(unused)]
-    let device_context = match create_device(&mut registry, instance_context.clone(), &[]) {
-        Ok(res) => res,
-        Err(err) => {
-            panic!("Failed to create device {:?}", err);
-        }
-    };
+    let instance = create_instance(config).unwrap();
 }

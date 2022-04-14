@@ -8,6 +8,7 @@ use crate::instance::{VulkanVersion, InstanceContextImpl, InstanceContext};
 use crate::surface::{SurfaceInitError, SurfaceProvider};
 use crate::util::debug_messenger::DebugMessengerCallback;
 
+#[derive(Debug)]
 pub enum SurfaceAttachError {
     NameAlreadyExists,
 }
@@ -59,6 +60,7 @@ impl InstanceCreateConfig {
     }
 }
 
+#[derive(Debug)]
 pub enum InstanceCreateError {
     Vulkan(vk::Result),
     ProfileNotSupported,
