@@ -4,7 +4,7 @@ use std::sync::{Arc, Mutex, MutexGuard};
 use ash::vk;
 
 use crate::objects::id::{ObjectSetId, SurfaceId};
-use crate::rosella::InstanceContext;
+use crate::rosella::InstanceContextImpl;
 
 /// Trait that provides access to a surface object.
 ///
@@ -117,8 +117,8 @@ pub struct SurfaceCapabilities {
 }
 
 impl SurfaceCapabilities {
-    pub fn new(instance: &InstanceContext, physical_device: vk::PhysicalDevice, surface: vk::SurfaceKHR) -> Option<Self> {
-        let surface_fn = instance.get_extension::<ash::extensions::khr::Surface>()?;
+    pub fn new(instance: &InstanceContextImpl, physical_device: vk::PhysicalDevice, surface: vk::SurfaceKHR) -> Option<Self> {
+        let surface_fn = instance.surface_khr()?;
         let family_count = unsafe {
             instance.vk().get_physical_device_queue_family_properties(physical_device).len()
         } as u32;

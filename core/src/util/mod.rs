@@ -1,5 +1,5 @@
+pub mod debug_messenger;
 pub mod id;
-pub mod extensions;
 pub mod slice_splitter;
 pub mod rand;
 

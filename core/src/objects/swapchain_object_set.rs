@@ -89,7 +89,7 @@ impl SwapchainObjectSetBuilder {
     /// be used for all images. Otherwise a new synchronization group will be created for each
     /// individual image.
     pub fn new(device: DeviceContext, surface_id: SurfaceId, desc: SwapchainCreateDesc, synchronization_group: Option<SynchronizationGroup>) -> VkResult<Self> {
-        let swapchain_fn = device.get_extension::<ash::extensions::khr::Swapchain>().unwrap();
+        let swapchain_fn = device.swapchain_khr().unwrap();
 
         let surface = device.get_surface(surface_id).unwrap();
         let mut swapchain_info = surface.lock_swapchain_info();
@@ -258,7 +258,7 @@ impl SwapchainObjectSetBuilder {
 impl Drop for SwapchainObjectSetBuilder {
     fn drop(&mut self) {
         if self.swapchain != vk::SwapchainKHR::null() {
-            let swapchain_fn = self.device.get_extension::<ash::extensions::khr::Swapchain>().unwrap();
+            let swapchain_fn = self.device.swapchain_khr().unwrap();
 
             let surface = self.device.get_surface(self.surface).unwrap();
             let mut swapchain_info = surface.lock_swapchain_info();
@@ -526,7 +526,7 @@ impl Drop for SwapchainObjectSet {
         }
 
         if self.swapchain != vk::SwapchainKHR::null() {
-            let swapchain_fn = self.device.get_extension::<ash::extensions::khr::Swapchain>().unwrap();
+            let swapchain_fn = self.device.swapchain_khr().unwrap();
 
             let surface = self.device.get_surface(self.surface).unwrap();
             let mut swapchain_info = surface.lock_swapchain_info();

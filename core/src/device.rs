@@ -6,22 +6,19 @@ use std::sync::Arc;
 
 use ash::vk;
 
-use crate::init::EnabledFeatures;
-use crate::instance::InstanceContext;
+use crate::instance::InstanceContextImpl;
 use crate::objects::id::SurfaceId;
 use crate::objects::surface::{Surface, SurfaceCapabilities};
-use crate::util::extensions::{AsRefOption, ExtensionFunctionSet, VkExtensionInfo, VkExtensionFunctions};
-use crate::{NamedUUID, UUID};
+use crate::NamedUUID;
 use crate::objects::allocator::Allocator;
 
 struct DeviceContextImpl {
     id: NamedUUID,
-    instance: InstanceContext,
+    instance: InstanceContextImpl,
     device: ash::Device,
+    swapchain_khr: Option<ash::extensions::khr::Swapchain>,
     physical_device: vk::PhysicalDevice,
-    extensions: ExtensionFunctionSet,
     allocator: ManuallyDrop<Allocator>, // We need manually drop to ensure it is dropped before the device
-    features: EnabledFeatures,
     surfaces: HashMap<SurfaceId, (Surface, SurfaceCapabilities)>,
 }
 
@@ -39,7 +36,7 @@ impl Drop for DeviceContextImpl {
 pub struct DeviceContext(Arc<DeviceContextImpl>);
 
 impl DeviceContext {
-    pub fn new(instance: InstanceContext, device: ash::Device, physical_device: vk::PhysicalDevice, extensions: ExtensionFunctionSet, features: EnabledFeatures, surfaces: &[Surface]) -> Self {
+    pub fn new(instance: InstanceContextImpl, device: ash::Device, physical_device: vk::PhysicalDevice, swapchain_khr: Option<ash::extensions::khr::Swapchain>, surfaces: &[Surface]) -> Self {
         let surfaces : HashMap<_, _> = surfaces.iter().map(|surface| {
             (surface.get_id(), (surface.clone(), SurfaceCapabilities::new(&instance, physical_device, surface.get_handle()).unwrap()))
         }).collect();
@@ -50,10 +47,9 @@ impl DeviceContext {
             id: NamedUUID::with_str("Device"),
             instance,
             device,
+            swapchain_khr,
             physical_device,
-            extensions,
             allocator: ManuallyDrop::new(allocator),
-            features,
             surfaces,
         }))
     }
@@ -66,7 +62,7 @@ impl DeviceContext {
         self.0.instance.get_entry()
     }
 
-    pub fn get_instance(&self) -> &InstanceContext {
+    pub fn get_instance(&self) -> &InstanceContextImpl {
         &self.0.instance
     }
 
@@ -74,24 +70,16 @@ impl DeviceContext {
         &self.0.device
     }
 
+    pub fn swapchain_khr(&self) -> Option<&ash::extensions::khr::Swapchain> {
+        self.0.swapchain_khr.as_ref()
+    }
+
     pub fn get_physical_device(&self) -> &vk::PhysicalDevice {
         &self.0.physical_device
     }
 
-    pub fn get_extension<T: VkExtensionInfo>(&self) -> Option<&T> where VkExtensionFunctions: AsRefOption<T> {
-        self.0.extensions.get()
-    }
-
-    pub fn is_extension_enabled(&self, uuid: UUID) -> bool {
-        self.0.extensions.contains(uuid)
-    }
-
     pub fn get_allocator(&self) -> &Allocator {
         &self.0.allocator
-    }
-
-    pub fn get_enabled_features(&self) -> &EnabledFeatures {
-        &self.0.features
     }
 
     pub fn get_surface(&self, id: SurfaceId) -> Option<Surface> {

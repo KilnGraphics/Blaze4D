@@ -1,502 +1,202 @@
-//! Instance initialization utilities
-//!
-//! An application can control how a vulkan instance is created by using
-//! [`ApplicationInstanceFeature`]s. Each feature represents some capability or set of capabilities
-//! that a vulkan instance may or may not support. The initialization code will call each feature
-//! and enable it if it is supported. An application can mark features as required in which case
-//! the init process will fail with [`InstanceCreateError::RequiredFeatureNotSupported`]  if any
-//! required feature is not supported.
-//!
-//! Features can return data to the application if they are enabled. (This is not implemented yet)
-//!
-//! Features are processed in multiple stages. First [`ApplicationInstanceFeature::init`] is called
-//! to query if a feature is supported. On any supported feature
-//! [`ApplicationInstanceFeature::enable`] will then be called to enable it and configure the
-//! instance. Finally after the vulkan instance has been created
-//! [`ApplicationInstanceFeature::finish`] is called to generate the data that can be returned to
-//! the application.
-//!
-//! Features can access other features during any of these stages. The ensure that dependencies have
-//! already completed processing the respective stage these dependencies must be declared when
-//! registering the feature into the [`InitializationRegistry`].
-
-use std::any::Any;
 use std::collections::{HashMap, HashSet};
-use std::ffi::CString;
+use std::ffi::{c_void, CStr, CString};
+use std::str::Utf8Error;
+use std::sync::Arc;
+use ash::vk;
+use vk_profiles_rs::vp;
+use crate::instance::{VulkanVersion, InstanceContextImpl, InstanceContext};
+use crate::surface::{SurfaceInitError, SurfaceProvider};
+use crate::util::debug_messenger::DebugMessengerCallback;
 
-use crate::{ UUID, NamedUUID };
-use crate::init::application_feature::{ApplicationInstanceFeature, InitResult};
+pub enum SurfaceAttachError {
+    NameAlreadyExists,
+}
 
-use crate::init::initialization_registry::{InitializationRegistry};
-use crate::init::utils::{ExtensionProperties, Feature, FeatureProcessor, LayerProperties};
+pub struct InstanceCreateConfig {
+    profile: vp::ProfileProperties,
+    min_api_version: VulkanVersion,
+    application_name: CString,
+    application_version: u32,
+    surfaces: HashMap<String, Box<dyn SurfaceProvider>>,
+    debug_messengers: Vec<DebugUtilsMessengerWrapper>,
+    enable_validation: bool,
+}
 
-use ash::{LoadingError, vk};
-use ash::vk::{DebugUtilsMessageSeverityFlagsEXT, DebugUtilsMessageTypeFlagsEXT};
-use crate::init::EnabledFeatures;
-use crate::util::extensions::{ExtensionFunctionSet, InstanceExtensionLoader, InstanceExtensionLoaderFn, VkExtensionInfo};
-use crate::rosella::{InstanceContext, VulkanVersion};
+impl InstanceCreateConfig {
+    pub fn new(profile: vp::ProfileProperties, min_api_version: VulkanVersion, application_name: CString, application_version: u32) -> Self {
+        Self {
+            profile,
+            min_api_version,
+            application_name,
+            application_version,
+            surfaces: HashMap::new(),
+            debug_messengers: Vec::new(),
+            enable_validation: false,
+        }
+    }
 
-/// An error that may occur during the instance initialization process.
-#[derive(Debug)]
+    pub fn request_min_api_version(&mut self, version: VulkanVersion) {
+        if self.min_api_version < version {
+            self.min_api_version = version;
+        }
+    }
+
+    pub fn add_surface_provider(&mut self, name: String, surface: Box<dyn SurfaceProvider>) -> Result<(), SurfaceAttachError> {
+        if self.surfaces.contains_key(&name) {
+            Err(SurfaceAttachError::NameAlreadyExists)
+        } else {
+            self.surfaces.insert(name, surface);
+            Ok(())
+        }
+    }
+
+    pub fn add_debug_messenger(&mut self, messenger: Box<dyn DebugMessengerCallback>) {
+        self.debug_messengers.push(DebugUtilsMessengerWrapper{ callback: messenger });
+    }
+
+    pub fn enable_validation(&mut self) {
+        self.enable_validation = true;
+    }
+}
+
 pub enum InstanceCreateError {
-    VulkanError(vk::Result),
-    LoadingError(ash::LoadingError),
-    Utf8Error(std::str::Utf8Error),
-    NulError(std::ffi::NulError),
-    RequiredFeatureNotSupported(NamedUUID),
-    LayerNotSupported,
-    ExtensionNotSupported,
+    Vulkan(vk::Result),
+    ProfileNotSupported,
+    MissingExtension(CString),
+    Utf8Error(Utf8Error),
+    SurfaceInitError(SurfaceInitError),
 }
 
 impl From<vk::Result> for InstanceCreateError {
-    fn from(err: vk::Result) -> Self {
-        InstanceCreateError::VulkanError(err)
+    fn from(result: vk::Result) -> Self {
+        InstanceCreateError::Vulkan(result)
     }
 }
 
-impl From<ash::LoadingError> for InstanceCreateError {
-    fn from(err: LoadingError) -> Self {
-        InstanceCreateError::LoadingError(err)
-    }
-}
-
-impl From<std::str::Utf8Error> for InstanceCreateError {
-    fn from(err: std::str::Utf8Error) -> Self {
+impl From<Utf8Error> for InstanceCreateError {
+    fn from(err: Utf8Error) -> Self {
         InstanceCreateError::Utf8Error(err)
     }
 }
 
-impl From<std::ffi::NulError> for InstanceCreateError {
-    fn from(err: std::ffi::NulError) -> Self {
-        InstanceCreateError::NulError(err)
-    }
-}
+pub fn create_instance(config: InstanceCreateConfig) -> Result<InstanceContext, InstanceCreateError> {
+    let entry = ash::Entry::linked();
+    let vp_fn = vk_profiles_rs::VulkanProfiles::linked();
 
-/// Creates a new instance based on the features declared in the provided registry.
-///
-/// This function will consume the instance features stored in the registry.
-pub fn create_instance(registry: &mut InitializationRegistry, application_name: &str, application_version: u32) -> Result<InstanceContext, InstanceCreateError> {
-    let application_info = ApplicationInfo{
-        application_name: CString::new(application_name)?,
-        application_version,
-        engine_name: CString::new("Rosella")?,
-        engine_version: 0, // TODO
-        api_version: vk::API_VERSION_1_2
+    if !unsafe { vp_fn.get_instance_profile_support(None, &config.profile)? } {
+        return Err(InstanceCreateError::ProfileNotSupported)
+    }
+
+    let mut required_extensions = HashSet::new();
+    for surface in config.surfaces.values() {
+        required_extensions.extend(surface.get_required_instance_extensions());
+    }
+
+    if !config.debug_messengers.is_empty() {
+        required_extensions.insert(CString::from(CStr::from_bytes_with_nul(b"VK_EXT_debug_utils\0").unwrap()));
+    }
+
+    let available_extensions: HashSet<_> = entry.enumerate_instance_extension_properties(None)?
+        .into_iter().map(|ext| {
+            CString::from(unsafe { CStr::from_ptr(ext.extension_name.as_ptr()) })
+        }).collect();
+
+    let mut required_extensions_str = Vec::with_capacity(required_extensions.len());
+    for name in &required_extensions {
+        if available_extensions.contains(name) {
+            required_extensions_str.push(name.as_c_str().as_ptr())
+        } else {
+            return Err(InstanceCreateError::MissingExtension(name.clone()));
+        }
+    }
+
+    let required_layers = if config.enable_validation {
+        vec![CStr::from_bytes_with_nul(b"VK_LAYER_KHRONOS_validation\0").unwrap().as_ptr()]
+    } else {
+        Vec::new()
     };
 
-    log::info!("Creating instance for \"{}\" {}", application_name, application_version);
+    let application_info = vk::ApplicationInfo::builder()
+        .application_name(config.application_name.as_c_str())
+        .application_version(config.application_version)
+        .engine_name(CStr::from_bytes_with_nul(b"Blaze4D\0").unwrap())
+        .engine_version(vk::make_api_version(0, 0, 1, 0))
+        .api_version(config.min_api_version.into());
 
-    let mut builder = InstanceBuilder::new(application_info, registry.take_instance_features());
-    builder.run_init_pass()?;
-    builder.run_enable_pass()?;
-    builder.build()
+    let mut instance_create_info = vk::InstanceCreateInfo::builder()
+        .application_info(&application_info)
+        .enabled_layer_names(required_layers.as_slice())
+        .enabled_extension_names(required_extensions_str.as_slice());
+
+    let debug_messengers = config.debug_messengers.into_boxed_slice();
+    let mut debug_messenger_create_infos: Vec<_> = debug_messengers.iter().map(|messenger| {
+        vk::DebugUtilsMessengerCreateInfoEXT::builder()
+            .message_severity(vk::DebugUtilsMessageSeverityFlagsEXT::INFO | vk::DebugUtilsMessageSeverityFlagsEXT::WARNING | vk::DebugUtilsMessageSeverityFlagsEXT::ERROR)
+            .message_type(vk::DebugUtilsMessageTypeFlagsEXT::VALIDATION | vk::DebugUtilsMessageTypeFlagsEXT::PERFORMANCE | vk::DebugUtilsMessageTypeFlagsEXT::GENERAL)
+            .pfn_user_callback(Some(debug_utils_messenger_callback_wrapper))
+            // Sadly this const to mut cast is necessary since the callback provides a mut pointer
+            .user_data(messenger as *const DebugUtilsMessengerWrapper as *mut DebugUtilsMessengerWrapper as *mut c_void)
+    }).collect();
+    for debug_messenger in debug_messenger_create_infos.iter_mut() {
+        instance_create_info = instance_create_info.push_next(debug_messenger);
+    }
+
+    let vp_instance_create_info = vp::InstanceCreateInfo::builder()
+        .profile(&config.profile)
+        .create_info(&instance_create_info)
+        .flags(vp::InstanceCreateFlagBits::MERGE_EXTENSIONS);
+
+    let instance = unsafe { vp_fn.create_instance(&entry, &vp_instance_create_info, None) }?;
+
+    let surface_khr = if required_extensions.contains(CStr::from_bytes_with_nul(b"VK_KHR_surface\0").unwrap()) {
+        Some(ash::extensions::khr::Surface::new(&entry, &instance))
+    } else {
+        None
+    };
+
+    let mut surfaces = config.surfaces;
+    if let Err(error) = init_surfaces(&entry, &instance, &mut surfaces) {
+        // Destroy initialized surfaces first then destroy the instance
+        drop(surfaces);
+        unsafe { instance.destroy_instance(None) };
+        return Err(InstanceCreateError::SurfaceInitError(error));
+    }
+
+    Ok(Arc::new(InstanceContextImpl::new(
+        config.min_api_version,
+        entry,
+        instance,
+        surface_khr,
+        surfaces,
+        debug_messengers
+    )))
 }
 
-struct ApplicationInfo {
-    application_name: CString,
-    application_version: u32,
-    engine_name: CString,
-    engine_version: u32,
-    api_version: u32,
+fn init_surfaces(entry: &ash::Entry, instance: &ash::Instance, surfaces: &mut HashMap<String, Box<dyn SurfaceProvider>>) -> Result<(), SurfaceInitError> {
+    for surface in surfaces.values_mut() {
+        surface.init(entry, instance)?;
+    }
+    Ok(())
 }
 
-/// Represents the current state of some feature in the instance initialization process
-#[derive(Copy, Clone, Eq, PartialEq, Debug)]
-pub enum InstanceFeatureState {
-    Uninitialized,
-    Initialized,
-    Enabled,
-    Disabled,
+pub struct DebugUtilsMessengerWrapper {
+    callback: Box<dyn DebugMessengerCallback>
 }
 
-/// Meta information of a feature needed during the initialization process
-struct InstanceFeatureInfo {
-    feature: Box<dyn ApplicationInstanceFeature>,
-    state: InstanceFeatureState,
-    name: NamedUUID,
-    required: bool,
-}
+extern "system" fn debug_utils_messenger_callback_wrapper(
+    message_severity: vk::DebugUtilsMessageSeverityFlagsEXT,
+    message_types: vk::DebugUtilsMessageTypeFlagsEXT,
+    p_callback_data: *const vk::DebugUtilsMessengerCallbackDataEXT,
+    p_user_data: *mut c_void
+) -> vk::Bool32 {
+    if let Some(callback) = unsafe { (p_user_data as *const DebugUtilsMessengerWrapper).as_ref() } {
+        let data = unsafe { p_callback_data.as_ref().unwrap() };
+        let message = unsafe { CStr::from_ptr(data.p_message) };
 
-impl Feature for InstanceFeatureInfo {
-    type State = InstanceFeatureState;
-
-    fn get_payload(&self, pass_state: &Self::State) -> Option<&dyn Any> {
-        if self.state == InstanceFeatureState::Disabled {
-            return None;
-        }
-        if &self.state != pass_state {
-            panic!("Attempted to access feature in invalid state");
-        }
-
-        Some(self.feature.as_ref().as_any())
+        callback.callback.on_message(message_severity, message_types, message, data);
+    } else {
+        log::warn!("Wrapped debug utils messenger was called with null user data!");
     }
 
-    fn get_payload_mut(&mut self, pass_state: &Self::State) -> Option<&mut dyn Any> {
-        if self.state == InstanceFeatureState::Disabled {
-            return None;
-        }
-        if &self.state != pass_state {
-            panic!("Attempted to access feature in invalid state");
-        }
-
-        Some(self.feature.as_mut().as_any_mut())
-    }
-}
-
-/// High level implementation of the instance init process.
-struct InstanceBuilder {
-    processor: FeatureProcessor<InstanceFeatureInfo>,
-    info: Option<InstanceInfo>,
-    config: Option<InstanceConfigurator>,
-    application_info: ApplicationInfo,
-}
-
-impl InstanceBuilder {
-    /// Generates a new builder for some feature set.
-    ///
-    /// No vulkan functions will be called here.
-    fn new(application_info: ApplicationInfo, features: Vec<(NamedUUID, Box<[NamedUUID]>, Box<dyn ApplicationInstanceFeature>, bool)>) -> Self {
-        let processor = FeatureProcessor::from_graph(features.into_iter().map(
-            |(name, deps, feature, required)| {
-                log::debug!("Instance feature {:?}", name);
-                let info = InstanceFeatureInfo {
-                    feature,
-                    state: InstanceFeatureState::Uninitialized,
-                    name: name.clone(),
-                    required
-                };
-                (name, deps, info)
-            }));
-
-        Self {
-            processor,
-            info: None,
-            config: None,
-            application_info,
-        }
-    }
-
-    /// Runs the init pass.
-    ///
-    /// First collects information about the capabilities of the vulkan environment and then calls
-    /// [`ApplicationInstanceFeature::init`] on all registered features in topological order.
-    fn run_init_pass(&mut self) -> Result<(), InstanceCreateError> {
-        log::debug!("Starting init pass");
-
-        if self.info.is_some() {
-            panic!("Called run init pass but info is already some");
-        }
-        self.info = Some(InstanceInfo::new(unsafe { ash::Entry::load() }? )?);
-        let info = self.info.as_ref().unwrap();
-
-        self.processor.run_pass::<InstanceCreateError, _>(
-            InstanceFeatureState::Initialized,
-            |feature, access| {
-                if feature.state != InstanceFeatureState::Uninitialized {
-                    panic!("Feature is not in uninitialized state in init pass");
-                }
-                match feature.feature.init(access, info) {
-                    InitResult::Ok => feature.state = InstanceFeatureState::Initialized,
-                    InitResult::Disable => {
-                        feature.state = InstanceFeatureState::Disabled;
-                        log::debug!("Disabled feature {:?}", feature.name);
-                        if feature.required {
-                            log::warn!("Failed to initialize required feature {:?}", feature.name);
-                            return Err(InstanceCreateError::RequiredFeatureNotSupported(feature.name.clone()))
-                        }
-                    },
-                }
-                log::debug!("Initialized feature {:?}", feature.name);
-                Ok(())
-            }
-        )?;
-
-        Ok(())
-    }
-
-    /// Runs the enable pass
-    ///
-    /// Creates a [`InstanceConfigurator`] instance and calls [`ApplicationInstanceFeature::enable`]
-    /// on all supported features to configure the instance. This function does not create the
-    /// vulkan instance.
-    fn run_enable_pass(&mut self) -> Result<(), InstanceCreateError> {
-        log::debug!("Starting enable pass");
-
-        if self.config.is_some() {
-            panic!("Called run enable pass but config is already some");
-        }
-        self.config = Some(InstanceConfigurator::new());
-        let config = self.config.as_mut().unwrap();
-
-        let info = self.info.as_ref().expect("Called run enable pass but info is none");
-
-        self.processor.run_pass::<InstanceCreateError, _>(
-            InstanceFeatureState::Enabled,
-            |feature, access| {
-                if feature.state == InstanceFeatureState::Disabled {
-                    return Ok(())
-                }
-                if feature.state != InstanceFeatureState::Initialized {
-                    panic!("Feature is not in initialized state in enable pass");
-                }
-                feature.feature.enable(access, info, config);
-                feature.state = InstanceFeatureState::Enabled;
-                Ok(())
-            }
-        )?;
-
-        Ok(())
-    }
-
-    /// Creates the vulkan instance
-    fn build(self) -> Result<InstanceContext, InstanceCreateError> {
-        log::debug!("Building instance");
-
-        let app_info = vk::ApplicationInfo::builder()
-            .application_name(self.application_info.application_name.as_c_str())
-            .application_version(self.application_info.application_version)
-            .engine_name(self.application_info.engine_name.as_c_str())
-            .engine_version(self.application_info.engine_version)
-            .api_version(self.application_info.api_version);
-
-        let info = self.info.expect("Called build but info is none");
-        let (instance, function_set) = self.config.expect("Called build but config is none")
-            .build_instance(&info, &app_info.build())?;
-
-        let features = EnabledFeatures::new(self.processor.into_iter().filter_map(
-            |mut info| {
-                Some((info.name.get_uuid(), info.feature.as_mut().finish(&instance, &function_set)))
-            }));
-
-        Ok(InstanceContext::new(info.get_vulkan_version(), info.entry, instance, function_set, features))
-    }
-}
-
-
-/// Contains information about the vulkan environment.
-pub struct InstanceInfo {
-    entry: ash::Entry,
-    version: VulkanVersion,
-    layers: HashMap<UUID, LayerProperties>,
-    extensions: HashMap<UUID, ExtensionProperties>,
-}
-
-impl InstanceInfo {
-    fn new(entry: ash::Entry) -> Result<Self, InstanceCreateError> {
-        let version = match entry.try_enumerate_instance_version()? {
-            None => VulkanVersion::VK_1_0,
-            Some(version) => VulkanVersion::from_raw(version),
-        };
-
-        let layers_raw = entry.enumerate_instance_layer_properties()?;
-        let mut layers = HashMap::new();
-        for layer in layers_raw {
-            let layer = LayerProperties::new(&layer)?;
-            let uuid = NamedUUID::uuid_for(layer.get_name().as_str());
-
-            layers.insert(uuid, layer);
-        }
-
-        let extensions_raw = entry.enumerate_instance_extension_properties()?;
-        let mut extensions = HashMap::new();
-        for extension in extensions_raw {
-            let extension = ExtensionProperties::new(&extension)?;
-            let uuid = NamedUUID::uuid_for(extension.get_name().as_str());
-
-            extensions.insert(uuid, extension);
-        }
-
-        Ok(Self{
-            entry,
-            version,
-            layers,
-            extensions,
-        })
-    }
-
-    /// Returns an [`ash::Entry`] instance that can be used to access entry functions.
-    pub fn get_entry(&self) -> &ash::Entry {
-        &self.entry
-    }
-
-    /// Returns the version advertised by the vulkan environment
-    pub fn get_vulkan_version(&self) -> VulkanVersion {
-        self.version
-    }
-
-    /// Queries if a instance layer is supported
-    pub fn is_layer_supported_str(&self, name: &str) -> bool {
-        let uuid = NamedUUID::uuid_for(name);
-        self.layers.contains_key(&uuid)
-    }
-
-    /// Queries if a instance layer is supported
-    pub fn is_layer_supported_uuid(&self, uuid: &UUID) -> bool {
-        self.layers.contains_key(uuid)
-    }
-
-    /// Returns the properties of a instance layer
-    pub fn get_layer_properties_str(&self, name: &str) -> Option<&LayerProperties> {
-        let uuid = NamedUUID::uuid_for(name);
-        self.layers.get(&uuid)
-    }
-
-    /// Returns the properties of a instance layer
-    pub fn get_layer_properties_uuid(&self, uuid: &UUID) -> Option<&LayerProperties> {
-        self.layers.get(uuid)
-    }
-
-    /// Queries if a instance extension is supported
-    pub fn is_extension_supported<T: VkExtensionInfo>(&self) -> bool {
-        self.extensions.contains_key(&T::UUID.get_uuid())
-    }
-
-    /// Queries if a instance extension is supported
-    pub fn is_extension_supported_str(&self, name: &str) -> bool {
-        let uuid = NamedUUID::uuid_for(name);
-        self.extensions.contains_key(&uuid)
-    }
-
-    /// Queries if a instance extension is supported
-    pub fn is_extension_supported_uuid(&self, uuid: &UUID) -> bool {
-        self.extensions.contains_key(uuid)
-    }
-
-    /// Returns the properties of a instance extension
-    ///
-    /// If the extension is not supported returns [`None`]
-    pub fn get_extension_properties<T: VkExtensionInfo>(&self) -> Option<&ExtensionProperties> {
-        self.extensions.get(&T::UUID.get_uuid())
-    }
-
-    /// Returns the properties of a instance extension
-    ///
-    /// If the extension is not supported returns [`None`]
-    pub fn get_extension_properties_str(&self, name: &str) -> Option<&ExtensionProperties> {
-        let uuid = NamedUUID::uuid_for(name);
-        self.extensions.get(&uuid)
-    }
-
-    /// Returns the properties of a instance extension
-    ///
-    /// If the extension is not supported returns [`None`]
-    pub fn get_extension_properties_uuid(&self, uuid: &UUID) -> Option<&ExtensionProperties> {
-        self.extensions.get(uuid)
-    }
-}
-
-/// Used by features to configure the created vulkan instance.
-pub struct InstanceConfigurator {
-    enabled_layers: HashSet<UUID>,
-    enabled_extensions: HashMap<UUID, Option<&'static InstanceExtensionLoaderFn>>,
-
-    /// Temporary hack until extensions can be properly handled
-    debug_util_messenger: vk::PFN_vkDebugUtilsMessengerCallbackEXT, // TODO Make this flexible somehow, probably requires general overhaul of p_next pushing
-}
-
-impl InstanceConfigurator {
-    fn new() -> Self {
-        Self{
-            enabled_layers: HashSet::new(),
-            enabled_extensions: HashMap::new(),
-            debug_util_messenger: None,
-        }
-    }
-
-    /// Enables a instance layer
-    pub fn enable_layer(&mut self, name: &str) {
-        let uuid = NamedUUID::uuid_for(name);
-        self.enabled_layers.insert(uuid);
-    }
-
-    /// Enables a instance layer
-    pub fn enable_layer_uuid(&mut self, uuid: UUID) {
-        self.enabled_layers.insert(uuid);
-    }
-
-    /// Enables a instance extension and registers the extension for automatic function loading
-    pub fn enable_extension<EXT: VkExtensionInfo + InstanceExtensionLoader + 'static>(&mut self) {
-        let uuid = EXT::UUID.get_uuid();
-        self.enabled_extensions.insert(uuid, Some(&EXT::load_extension));
-    }
-
-    /// Enables a instance extension without automatic function loading
-    pub fn enable_extension_no_load<EXT: VkExtensionInfo>(&mut self) {
-        let uuid = EXT::UUID.get_uuid();
-        self.enabled_extensions.insert(uuid, None);
-    }
-
-    /// Enables a instance extension without automatic function loading
-    pub fn enable_extension_str_no_load(&mut self, str: &str) {
-        let uuid = NamedUUID::uuid_for(str);
-
-        // Do not override a variant where the loader is potentially set
-        if !self.enabled_extensions.contains_key(&uuid) {
-            self.enabled_extensions.insert(uuid, None);
-        }
-    }
-
-    /// Sets the debug messenger for VK_EXT_debug_utils
-    ///
-    /// This is a temporary hack until extension configuration can be properly handled.
-    pub fn set_debug_messenger(&mut self, messenger: vk::PFN_vkDebugUtilsMessengerCallbackEXT) {
-        self.debug_util_messenger = messenger;
-    }
-
-    /// Creates a vulkan instance based on the configuration stored in this InstanceConfigurator
-    fn build_instance(self, info: &InstanceInfo, application_info: &vk::ApplicationInfo) -> Result<(ash::Instance, ExtensionFunctionSet), InstanceCreateError> {
-        let mut layers = Vec::with_capacity(self.enabled_layers.len());
-        for layer in &self.enabled_layers {
-            let layer = info.get_layer_properties_uuid(layer)
-                .ok_or(InstanceCreateError::LayerNotSupported)?;
-
-            log::debug!("Enabling layer \"{}\"", layer.get_name());
-
-            layers.push(layer.get_c_name().as_ptr());
-        }
-
-        let mut extensions = Vec::with_capacity(self.enabled_extensions.len());
-        for (uuid, loader) in &self.enabled_extensions {
-            let extension = info.get_extension_properties_uuid(uuid)
-                .ok_or(InstanceCreateError::ExtensionNotSupported)?;
-
-            if loader.is_some() {
-                log::debug!("Enabling extension \"{}\"", extension.get_name());
-            } else {
-                log::debug!("Enabling no load extension \"{}\"", extension.get_name());
-            }
-
-            extensions.push(extension.get_c_name().as_ptr());
-        }
-
-        let mut create_info = vk::InstanceCreateInfo::builder()
-            .application_info(application_info)
-            .enabled_layer_names(layers.as_slice())
-            .enabled_extension_names(extensions.as_slice());
-
-        let mut messenger;
-        if self.debug_util_messenger.is_some() {
-            messenger = vk::DebugUtilsMessengerCreateInfoEXT::builder()
-                .message_severity(DebugUtilsMessageSeverityFlagsEXT::VERBOSE | DebugUtilsMessageSeverityFlagsEXT::INFO | DebugUtilsMessageSeverityFlagsEXT::WARNING | DebugUtilsMessageSeverityFlagsEXT::ERROR)
-                .message_type(DebugUtilsMessageTypeFlagsEXT::GENERAL | DebugUtilsMessageTypeFlagsEXT::PERFORMANCE | DebugUtilsMessageTypeFlagsEXT::VALIDATION)
-                .pfn_user_callback(self.debug_util_messenger);
-
-            create_info = create_info.push_next(&mut messenger);
-        }
-
-        let instance = unsafe {
-            info.get_entry().create_instance(&create_info, None)
-        }?;
-
-        let mut function_set = ExtensionFunctionSet::new();
-        for (_, extension) in &self.enabled_extensions {
-            if let Some(extension) = extension {
-                extension(&mut function_set, info.get_entry(), &instance);
-            }
-        }
-
-        log::debug!("Instance creation successful");
-
-        Ok((instance, function_set))
-    }
+    return vk::FALSE;
 }

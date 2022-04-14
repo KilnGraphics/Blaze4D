@@ -1,20 +1,22 @@
 use std::cmp::Ordering;
+use std::collections::HashMap;
 use std::fmt::{Debug, Formatter};
+use std::mem::ManuallyDrop;
 use std::sync::Arc;
 
 use ash::vk;
 
-use crate::init::EnabledFeatures;
-use crate::util::extensions::{AsRefOption, ExtensionFunctionSet, VkExtensionInfo, VkExtensionFunctions};
-use crate::{NamedUUID, UUID};
+use crate::NamedUUID;
+use crate::surface::SurfaceProvider;
 
-#[derive(Copy, Clone, Debug)]
+#[derive(Copy, Clone, Eq, PartialEq, Ord, PartialOrd)]
 pub struct VulkanVersion(u32);
 
 impl VulkanVersion {
     pub const VK_1_0: VulkanVersion = VulkanVersion(vk::API_VERSION_1_0);
     pub const VK_1_1: VulkanVersion = VulkanVersion(vk::API_VERSION_1_1);
     pub const VK_1_2: VulkanVersion = VulkanVersion(vk::API_VERSION_1_2);
+    pub const VK_1_3: VulkanVersion = VulkanVersion(vk::API_VERSION_1_3);
 
     pub const fn from_raw(value: u32) -> Self {
         Self(value)
@@ -29,90 +31,109 @@ impl VulkanVersion {
     }
 }
 
-struct InstanceContextImpl {
+impl From<VulkanVersion> for u32 {
+    fn from(version: VulkanVersion) -> Self {
+        version.0
+    }
+}
+
+impl Debug for VulkanVersion {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        f.write_str(&format!("VulkanVersion([{}] {}.{}.{})", vk::api_version_variant(self.0), vk::api_version_major(self.0), vk::api_version_minor(self.0), vk::api_version_patch(self.0)))
+    }
+}
+
+/// Implementation of the instance context.
+///
+/// Since we need to control drop order most of the fields are ManuallyDrop
+pub struct InstanceContextImpl {
     id: NamedUUID,
     version: VulkanVersion,
     entry: ash::Entry,
     instance: ash::Instance,
-    extensions: ExtensionFunctionSet,
-    features: EnabledFeatures,
+    surface_khr: Option<ash::extensions::khr::Surface>,
+    _surfaces: ManuallyDrop<HashMap<String, Box<dyn SurfaceProvider>>>,
+    _debug_messengers: ManuallyDrop<Box<[crate::init::instance::DebugUtilsMessengerWrapper]>>,
+}
+
+impl InstanceContextImpl {
+    pub fn new(
+        version: VulkanVersion,
+        entry: ash::Entry,
+        instance: ash::Instance,
+        surface_khr: Option<ash::extensions::khr::Surface>,
+        surfaces: HashMap<String, Box<dyn SurfaceProvider>>,
+        debug_messengers: Box<[crate::init::instance::DebugUtilsMessengerWrapper]>
+    ) -> Self {
+        Self {
+            id: NamedUUID::with_str("Instance"),
+            version,
+            entry,
+            instance,
+            surface_khr,
+            _surfaces: ManuallyDrop::new(surfaces),
+            _debug_messengers: ManuallyDrop::new(debug_messengers),
+        }
+    }
+
+    pub fn get_uuid(&self) -> &NamedUUID {
+        &self.id
+    }
+
+    pub fn get_entry(&self) -> &ash::Entry {
+        &self.entry
+    }
+
+    pub fn vk(&self) -> &ash::Instance {
+        &self.instance
+    }
+
+    pub fn surface_khr(&self) -> Option<&ash::extensions::khr::Surface> {
+        self.surface_khr.as_ref()
+    }
+
+    pub fn get_version(&self) -> VulkanVersion {
+        self.version
+    }
 }
 
 impl Drop for InstanceContextImpl {
     fn drop(&mut self) {
         unsafe {
+            ManuallyDrop::drop(&mut self._surfaces);
+
             self.instance.destroy_instance(None);
+
+            ManuallyDrop::drop(&mut self._debug_messengers);
         }
     }
 }
 
-#[derive(Clone)]
-pub struct InstanceContext(Arc<InstanceContextImpl>);
-
-impl InstanceContext {
-    pub fn new(version: VulkanVersion, entry: ash::Entry, instance: ash::Instance, extensions: ExtensionFunctionSet, features: EnabledFeatures) -> Self {
-        Self(Arc::new(InstanceContextImpl{
-            id: NamedUUID::with_str("Instance"),
-            version,
-            entry,
-            instance,
-            extensions,
-            features,
-        }))
-    }
-
-    pub fn get_uuid(&self) -> &NamedUUID {
-        &self.0.id
-    }
-
-    pub fn get_entry(&self) -> &ash::Entry {
-        &self.0.entry
-    }
-
-    pub fn vk(&self) -> &ash::Instance {
-        &self.0.instance
-    }
-
-    pub fn get_version(&self) -> VulkanVersion {
-        self.0.version
-    }
-
-    pub fn get_extension<T: VkExtensionInfo>(&self) -> Option<&T> where VkExtensionFunctions: AsRefOption<T> {
-        self.0.extensions.get()
-    }
-
-    pub fn is_extension_enabled(&self, uuid: UUID) -> bool {
-        self.0.extensions.contains(uuid)
-    }
-
-    pub fn get_enabled_features(&self) -> &EnabledFeatures {
-        &self.0.features
-    }
-}
-
-impl PartialEq for InstanceContext {
+impl PartialEq for InstanceContextImpl {
     fn eq(&self, other: &Self) -> bool {
-        self.0.id.eq(&other.0.id)
+        self.id.eq(&other.id)
     }
 }
 
-impl Eq for InstanceContext {
+impl Eq for InstanceContextImpl {
 }
 
-impl PartialOrd for InstanceContext {
+impl PartialOrd for InstanceContextImpl {
     fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
-        self.0.id.partial_cmp(&other.0.id)
+        self.id.partial_cmp(&other.id)
     }
 }
 
-impl Ord for InstanceContext {
+impl Ord for InstanceContextImpl {
     fn cmp(&self, other: &Self) -> Ordering {
-        self.0.id.cmp(&other.0.id)
+        self.id.cmp(&other.id)
     }
 }
 
-impl Debug for InstanceContext {
+impl Debug for InstanceContextImpl {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        self.0.id.fmt(f)
+        self.id.fmt(f)
     }
 }
+
+pub type InstanceContext = Arc<InstanceContextImpl>;
