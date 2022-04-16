@@ -1,4 +1,4 @@
-/*use std::any::Any;
+use std::any::Any;
 use std::sync::Arc;
 use ash::prelude::VkResult;
 use ash::vk;
@@ -8,8 +8,8 @@ use crate::objects::id::{FenceId, ImageId, ImageViewId, ObjectSetId, SemaphoreId
 use crate::objects::image::{ImageDescription, ImageInfo, ImageViewDescription, ImageViewInfo};
 use crate::objects::object_set::ObjectSetProvider;
 use crate::objects::swapchain::SwapchainCreateDesc;
-use crate::rosella::DeviceContext;*/
-/*
+use crate::rosella::DeviceContext;
+
 /// Swapchain object sets manage the creation of swapchains and have utilities for some common
 /// objects needed for each image.
 ///
@@ -24,8 +24,8 @@ use crate::rosella::DeviceContext;*/
 /// # Examples
 ///
 /// ```
-/// # use rosella_rs::objects::swapchain::{SwapchainCreateDesc, SwapchainImageSpec};
-/// # use rosella_rs::objects::{Format, ImageViewDescription, SwapchainObjectSetBuilder};
+/// # use b4d_core::objects::swapchain::{SwapchainCreateDesc, SwapchainImageSpec};
+/// # use b4d_core::objects::{Format, ImageViewDescription, SwapchainObjectSetBuilder};
 /// use ash::vk;
 ///
 /// // Create a builder. The swapchain will be immediately created.
@@ -91,13 +91,13 @@ impl SwapchainObjectSetBuilder {
     pub fn new(device: DeviceContext, surface_id: SurfaceId, desc: SwapchainCreateDesc, synchronization_group: Option<SynchronizationGroup>) -> VkResult<Self> {
         let swapchain_fn = device.swapchain_khr().unwrap();
 
-        let surface = device.get_surface(surface_id).unwrap();
-        let mut swapchain_info = surface.lock_swapchain_info();
+        let (surface, swapchain_info) = device.get_surface(surface_id).unwrap();
+        let mut swapchain_info = swapchain_info.lock().unwrap();
 
         let old_swapchain = swapchain_info.get_current_handle().unwrap_or(SwapchainKHR::null());
 
         let create_info = vk::SwapchainCreateInfoKHR::builder()
-            .surface(surface.get_handle())
+            .surface(surface)
             .min_image_count(desc.min_image_count)
             .image_format(desc.image_spec.format.get_format())
             .image_color_space(desc.image_spec.color_space)
@@ -260,8 +260,8 @@ impl Drop for SwapchainObjectSetBuilder {
         if self.swapchain != vk::SwapchainKHR::null() {
             let swapchain_fn = self.device.swapchain_khr().unwrap();
 
-            let surface = self.device.get_surface(self.surface).unwrap();
-            let mut swapchain_info = surface.lock_swapchain_info();
+            let (surface, swapchain_info) = self.device.get_surface(self.surface).unwrap();
+            let mut swapchain_info = swapchain_info.lock().unwrap();
 
             unsafe {
                 swapchain_fn.destroy_swapchain(self.swapchain, None)
@@ -528,8 +528,8 @@ impl Drop for SwapchainObjectSet {
         if self.swapchain != vk::SwapchainKHR::null() {
             let swapchain_fn = self.device.swapchain_khr().unwrap();
 
-            let surface = self.device.get_surface(self.surface).unwrap();
-            let mut swapchain_info = surface.lock_swapchain_info();
+            let (surface, swapchain_info) = self.device.get_surface(self.surface).unwrap();
+            let mut swapchain_info = swapchain_info.lock().unwrap();
 
             unsafe {
                 swapchain_fn.destroy_swapchain(self.swapchain, None)
@@ -546,4 +546,4 @@ impl Drop for SwapchainObjectSet {
 #[cfg(test)]
 mod tests {
     // TODO how on earth do we test this???
-}*/
+}

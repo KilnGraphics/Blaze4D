@@ -69,7 +69,7 @@ pub fn create_device(config: DeviceCreateConfig, instance: InstanceContext) -> R
 
     let mut surfaces = Vec::with_capacity(config.surfaces.len());
     for id in &config.surfaces {
-        if let Some(surface) = instance.get_surface(*id) {
+        if let Some(surface) = instance.take_surface(*id) {
             surfaces.push((*id, surface));
         } else {
             return Err(DeviceCreateError::SurfaceNotFound);
@@ -144,7 +144,7 @@ fn filter_devices(
     devices: Vec<vk::PhysicalDevice>,
     instance: &InstanceContext,
     required_extensions: &HashSet<CString>,
-    surfaces: &Vec<(SurfaceId, &dyn SurfaceProvider)>,
+    surfaces: &Vec<(SurfaceId, Box<dyn SurfaceProvider>)>,
     rating_fn: &DeviceRatingFn
 ) -> Result<PhysicalDeviceConfig, DeviceCreateError> {
     let vk_vp = vk_profiles_rs::VulkanProfiles::linked();
@@ -172,7 +172,7 @@ fn process_device(
     instance: &InstanceContext,
     device: vk::PhysicalDevice,
     required_extensions: &HashSet<CString>,
-    surfaces: &Vec<(SurfaceId, &dyn SurfaceProvider)>,
+    surfaces: &Vec<(SurfaceId, Box<dyn SurfaceProvider>)>,
     rating_fn: &DeviceRatingFn,
 ) -> Result<Option<PhysicalDeviceConfig>, DeviceCreateError> {
     if !unsafe { vk_vp.get_physical_device_profile_support(instance.vk(), device, instance.get_profile())? } {

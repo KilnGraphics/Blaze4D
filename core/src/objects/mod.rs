@@ -29,4 +29,4 @@ pub use synchronization_group::SynchronizationGroupSet;
 pub use object_set::ObjectSet;
 
 pub use resource_object_set::ResourceObjectSetBuilder;
-// pub use swapchain_object_set::SwapchainObjectSetBuilder;
+pub use swapchain_object_set::SwapchainObjectSetBuilder;

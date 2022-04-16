@@ -21,7 +21,7 @@ pub struct DeviceContextImpl {
     physical_device: vk::PhysicalDevice,
     main_queue: VkQueueTemplate,
     transfer_queue: VkQueueTemplate,
-    surfaces: HashMap<SurfaceId, (SurfaceCapabilities, VkQueueTemplate)>,
+    surfaces: ManuallyDrop<HashMap<SurfaceId, DeviceSurface>>,
     allocator: ManuallyDrop<Allocator>, // We need manually drop to ensure it is dropped before the device
 }
 
@@ -33,9 +33,19 @@ impl DeviceContextImpl {
         swapchain_khr: Option<ash::extensions::khr::Swapchain>,
         main_queue: VkQueueTemplate,
         transfer_queue: VkQueueTemplate,
-        surfaces: HashMap<SurfaceId, (SurfaceCapabilities, VkQueueTemplate)>,
+        surfaces: HashMap<SurfaceId, (SurfaceCapabilities, Box<dyn SurfaceProvider>, VkQueueTemplate)>,
     ) -> Self {
         let allocator = Allocator::new(instance.vk().clone(), device.clone(), physical_device);
+
+        let surfaces = surfaces.into_iter().map(|(id, (caps, prov, queue))| {
+            (id, DeviceSurface {
+                id,
+                handle: prov.get_handle().unwrap(),
+                capabilities: caps,
+                swapchain_info: Mutex::new(SurfaceSwapchainInfo::None),
+                provider: prov
+            })
+        }).collect();
 
         Self{
             id: NamedUUID::with_str("Device"),
@@ -45,7 +55,7 @@ impl DeviceContextImpl {
             physical_device,
             main_queue,
             transfer_queue,
-            surfaces,
+            surfaces: ManuallyDrop::new(surfaces),
             allocator: ManuallyDrop::new(allocator),
         }
     }
@@ -78,22 +88,21 @@ impl DeviceContextImpl {
         &self.allocator
     }
 
-    pub fn get_surface(&self, id: SurfaceId) -> Option<&dyn SurfaceProvider> {
-        if !self.surfaces.contains_key(&id) {
-            None
-        } else {
-            self.instance.get_surface(id)
-        }
+    pub fn get_surface_capabilities(&self, id: SurfaceId) -> Option<&SurfaceCapabilities> {
+        self.surfaces.get(&id).map(|s| &s.capabilities)
     }
 
-    pub fn get_surface_capabilities(&self, id: SurfaceId) -> Option<&SurfaceCapabilities> {
-        self.surfaces.get(&id).map(|(cap, _)| cap)
+    pub(crate) fn get_surface(&self, id: SurfaceId) -> Option<(vk::SurfaceKHR, &Mutex<SurfaceSwapchainInfo>)> {
+        self.surfaces.get(&id).map(|s| {
+            (s.handle, &s.swapchain_info)
+        })
     }
 }
 
 impl Drop for DeviceContextImpl {
     fn drop(&mut self) {
         unsafe {
+            ManuallyDrop::drop(&mut self.surfaces);
             ManuallyDrop::drop(&mut self.allocator);
 
             self.device.destroy_device(None);
@@ -197,5 +206,42 @@ impl VkQueue {
     pub fn present(&self, present_info: &vk::PresentInfoKHR) -> VkResult<bool> {
         let queue = self.queue.lock().unwrap();
         unsafe { self.device.swapchain_khr().unwrap().queue_present(*queue, present_info) }
+    }
+}
+
+struct DeviceSurface {
+    id: SurfaceId,
+    handle: vk::SurfaceKHR,
+    capabilities: SurfaceCapabilities,
+    swapchain_info: Mutex<SurfaceSwapchainInfo>,
+
+    #[allow(unused)] // We just need to keep the provider alive
+    provider: Box<dyn SurfaceProvider>,
+}
+
+/// Contains information about the current non retired swapchain associated with the surface.
+pub(crate) enum SurfaceSwapchainInfo {
+    Some {
+        handle: vk::SwapchainKHR,
+    },
+    None
+}
+
+impl SurfaceSwapchainInfo {
+    pub fn get_current_handle(&self) -> Option<vk::SwapchainKHR> {
+        match self {
+            SurfaceSwapchainInfo::Some { handle, .. } => Some(*handle),
+            SurfaceSwapchainInfo::None => None
+        }
+    }
+
+    pub fn set_swapchain(&mut self, handle: vk::SwapchainKHR) {
+        *self = SurfaceSwapchainInfo::Some {
+            handle
+        };
+    }
+
+    pub fn clear(&mut self) {
+        *self = SurfaceSwapchainInfo::None;
     }
 }

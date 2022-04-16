@@ -5,6 +5,7 @@ use std::sync::Arc;
 use ash::vk;
 use vk_profiles_rs::vp;
 use crate::instance::{VulkanVersion, InstanceContextImpl, InstanceContext};
+use crate::objects::id::{ObjectSetId, SurfaceId};
 use crate::objects::surface::{SurfaceInitError, SurfaceProvider};
 use crate::util::debug_messenger::DebugMessengerCallback;
 
@@ -13,7 +14,8 @@ pub struct InstanceCreateConfig {
     min_api_version: VulkanVersion,
     application_name: CString,
     application_version: u32,
-    surfaces: HashMap<String, Box<dyn SurfaceProvider>>,
+    set_id: ObjectSetId,
+    surfaces: Vec<(SurfaceId, Box<dyn SurfaceProvider>)>,
     debug_messengers: Vec<DebugUtilsMessengerWrapper>,
     enable_validation: bool,
 }
@@ -25,7 +27,8 @@ impl InstanceCreateConfig {
             min_api_version,
             application_name,
             application_version,
-            surfaces: HashMap::new(),
+            set_id: ObjectSetId::new(),
+            surfaces: Vec::new(),
             debug_messengers: Vec::new(),
             enable_validation: false,
         }
@@ -37,13 +40,13 @@ impl InstanceCreateConfig {
         }
     }
 
-    pub fn add_surface_provider(&mut self, name: String, surface: Box<dyn SurfaceProvider>) -> Result<(), ()> {
-        if self.surfaces.contains_key(&name) {
-            Err(())
-        } else {
-            self.surfaces.insert(name, surface);
-            Ok(())
-        }
+    pub fn add_surface_provider(&mut self, surface: Box<dyn SurfaceProvider>) -> SurfaceId {
+        let index = self.surfaces.len() as u16;
+        let id = SurfaceId::new(self.set_id, index);
+
+        self.surfaces.push((id, surface));
+
+        id
     }
 
     pub fn add_debug_messenger(&mut self, messenger: Box<dyn DebugMessengerCallback>) {
@@ -85,7 +88,7 @@ pub fn create_instance(config: InstanceCreateConfig) -> Result<InstanceContext, 
     }
 
     let mut required_extensions = HashSet::new();
-    for surface in config.surfaces.values() {
+    for (_, surface) in &config.surfaces {
         required_extensions.extend(surface.get_required_instance_extensions());
     }
 
@@ -165,13 +168,13 @@ pub fn create_instance(config: InstanceCreateConfig) -> Result<InstanceContext, 
         entry,
         instance,
         surface_khr,
-        surfaces,
+        surfaces.into_iter().collect(),
         debug_messengers
     )))
 }
 
-fn init_surfaces(entry: &ash::Entry, instance: &ash::Instance, surfaces: &mut HashMap<String, Box<dyn SurfaceProvider>>) -> Result<(), SurfaceInitError> {
-    for surface in surfaces.values_mut() {
+fn init_surfaces(entry: &ash::Entry, instance: &ash::Instance, surfaces: &mut Vec<(SurfaceId, Box<dyn SurfaceProvider>)>) -> Result<(), SurfaceInitError> {
+    for (_, surface) in surfaces.iter_mut() {
         surface.init(entry, instance)?;
     }
     Ok(())

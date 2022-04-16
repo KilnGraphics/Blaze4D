@@ -1,9 +1,9 @@
 use std::cmp::Ordering;
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 use std::fmt::{Debug, Formatter};
 use std::mem::ManuallyDrop;
 use std::ops::Deref;
-use std::sync::Arc;
+use std::sync::{Arc, Mutex};
 use std::sync::atomic::AtomicBool;
 
 use ash::vk;
@@ -47,102 +47,6 @@ impl Debug for VulkanVersion {
     }
 }
 
-struct InstanceSurface {
-    /// Set to true if the surface is currently owned by a device
-    is_owned: AtomicBool,
-    id: SurfaceId,
-    surface: Box<dyn SurfaceProvider>,
-}
-
-impl InstanceSurface {
-    fn new(surface: Box<dyn SurfaceProvider>, id: SurfaceId) -> Self {
-        Self {
-            is_owned: AtomicBool::new(false),
-            id,
-            surface,
-        }
-    }
-
-    pub fn try_acquire(&self) -> Option<SurfaceGuard> {
-        return if self.is_owned.compare_exchange(
-            false, true,
-            std::sync::atomic::Ordering::SeqCst,
-            std::sync::atomic::Ordering::SeqCst
-        ).is_err() {
-            None
-        } else {
-            Some(SurfaceGuard::new(self))
-        }
-    }
-}
-
-pub(crate) struct SurfaceGuard<'a> {
-    surface: &'a InstanceSurface,
-}
-
-impl<'a> SurfaceGuard<'a> {
-    fn new(surface: &'a InstanceSurface) -> Self {
-        Self {
-            surface,
-        }
-    }
-
-    pub fn get_id(&self) -> SurfaceId {
-        self.surface.id
-    }
-}
-
-impl<'a> Deref for SurfaceGuard<'a> {
-    type Target = dyn SurfaceProvider;
-
-    fn deref(&self) -> &Self::Target {
-        self.surface.surface.as_ref()
-    }
-}
-
-impl<'a> Drop for SurfaceGuard<'a> {
-    fn drop(&mut self) {
-        self.surface.is_owned.store(false, std::sync::atomic::Ordering::SeqCst);
-    }
-}
-
-struct InstanceSurfaceProviderSet {
-    names: HashMap<String, SurfaceId>,
-    surfaces: HashMap<SurfaceId, InstanceSurface>,
-}
-
-impl InstanceSurfaceProviderSet {
-    fn new(surfaces: HashMap<String, Box<dyn SurfaceProvider>>) -> Self {
-        let set_id = ObjectSetId::new();
-
-        let mut names = HashMap::new();
-        let mut id_surfaces = HashMap::new();
-        for (index, (name, surface)) in surfaces.into_iter().enumerate() {
-            let id = SurfaceId::new(set_id, index as u16);
-
-            names.insert(name, id);
-            id_surfaces.insert(id, InstanceSurface::new(surface, id));
-        }
-
-        Self {
-            names,
-            surfaces: id_surfaces,
-        }
-    }
-
-    fn get_surface_id(&self, name: &String) -> Option<SurfaceId> {
-        self.names.get(name).map(|id| *id)
-    }
-
-    fn get_surface(&self, id: SurfaceId) -> Option<&dyn SurfaceProvider> {
-        self.surfaces.get(&id).map(|s| s.surface.as_ref())
-    }
-
-    fn try_acquire_surface(&self, id: SurfaceId) -> Option<SurfaceGuard> {
-        self.surfaces.get(&id).map(|s| s.try_acquire()).flatten()
-    }
-}
-
 /// Implementation of the instance context.
 ///
 /// Since we need to control drop order most of the fields are ManuallyDrop
@@ -153,7 +57,7 @@ pub struct InstanceContextImpl {
     entry: ash::Entry,
     instance: ash::Instance,
     surface_khr: Option<ash::extensions::khr::Surface>,
-    surfaces: ManuallyDrop<InstanceSurfaceProviderSet>,
+    surfaces: ManuallyDrop<Mutex<HashMap<SurfaceId, Box<dyn SurfaceProvider>>>>,
     _debug_messengers: ManuallyDrop<Box<[crate::init::instance::DebugUtilsMessengerWrapper]>>,
 }
 
@@ -164,7 +68,7 @@ impl InstanceContextImpl {
         entry: ash::Entry,
         instance: ash::Instance,
         surface_khr: Option<ash::extensions::khr::Surface>,
-        surfaces: HashMap<String, Box<dyn SurfaceProvider>>,
+        surfaces: HashMap<SurfaceId, Box<dyn SurfaceProvider>>,
         debug_messengers: Box<[crate::init::instance::DebugUtilsMessengerWrapper]>
     ) -> Self {
         Self {
@@ -174,7 +78,7 @@ impl InstanceContextImpl {
             entry,
             instance,
             surface_khr,
-            surfaces: ManuallyDrop::new(InstanceSurfaceProviderSet::new(surfaces)),
+            surfaces: ManuallyDrop::new(Mutex::new(surfaces)),
             _debug_messengers: ManuallyDrop::new(debug_messengers),
         }
     }
@@ -203,16 +107,9 @@ impl InstanceContextImpl {
         &self.profile
     }
 
-    pub fn get_surface_id(&self, name: &String) -> Option<SurfaceId> {
-        self.surfaces.get_surface_id(name)
-    }
-
-    pub fn get_surface(&self, id: SurfaceId) -> Option<&dyn SurfaceProvider> {
-        self.surfaces.get_surface(id)
-    }
-
-    fn try_acquire_surface(&self, id: SurfaceId) -> Option<SurfaceGuard> {
-        self.surfaces.try_acquire_surface(id)
+    pub(crate) fn take_surface(&self, surface: SurfaceId) -> Option<Box<dyn SurfaceProvider>> {
+        let mut surfaces = self.surfaces.lock().unwrap();
+        surfaces.remove(&surface)
     }
 }
 
