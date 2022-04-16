@@ -41,11 +41,11 @@ impl<'s> From<AllocationError> for ObjectCreateError {
 /// # Examples
 ///
 /// ```
-/// # use rosella_rs::objects::buffer::BufferDescription;
-/// # use rosella_rs::objects::image::{ImageDescription, ImageViewDescription};
-/// # use rosella_rs::objects::resource_object_set::ResourceObjectSetBuilder;
-/// # use rosella_rs::objects::{Format, ImageSize, ImageSpec, SynchronizationGroup};
-/// # let (_, device) = rosella_rs::test::make_headless_instance_device();
+/// # use b4d_core::objects::buffer::BufferDescription;
+/// # use b4d_core::objects::image::{ImageDescription, ImageViewDescription};
+/// # use b4d_core::objects::resource_object_set::ResourceObjectSetBuilder;
+/// # use b4d_core::objects::{Format, ImageSize, ImageSpec, SynchronizationGroup};
+/// # let (_, device) = b4d_core::test::make_headless_instance_device();
 /// use ash::vk;
 ///
 /// // We need a synchronization group for our objects
