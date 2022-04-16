@@ -121,7 +121,16 @@ pub fn create_device(config: DeviceCreateConfig, instance: InstanceContext) -> R
     let main_queue = queue_map.get_queue(selected_device.graphics_compute_queue);
     let transfer_queue = queue_map.get_queue(selected_device.transfer_queue);
 
+    // TODO clean this shit up
+    let mut surfaces_raw: HashMap<_, _> = surfaces.into_iter().collect();
+    let mut surfaces = HashMap::new();
+    for (id, allocation) in selected_device.present_queues {
+        let surface = surfaces_raw.remove(&id).unwrap();
+        let queue = queue_map.get_queue(allocation);
+        let capabilities = SurfaceCapabilities::new(&instance, selected_device.device, surface.get_handle().unwrap()).unwrap();
 
+        surfaces.insert(id, (capabilities, surface, queue));
+    }
 
     let swapchain_khr = if has_swapchain {
         Some(ash::extensions::khr::Swapchain::new(instance.vk(), &device))
@@ -136,7 +145,7 @@ pub fn create_device(config: DeviceCreateConfig, instance: InstanceContext) -> R
         swapchain_khr,
         main_queue,
         transfer_queue,
-        HashMap::new()
+        surfaces
     ))))
 }
 

@@ -142,6 +142,10 @@ impl DeviceContext {
     pub fn get_transfer_queue(&self) -> VkQueue {
         self.0.transfer_queue.promote(self.clone())
     }
+
+    pub fn get_surface_queue(&self, id: SurfaceId) -> Option<VkQueue> {
+        self.0.surfaces.get(&id).map(|s| s.queue.promote(self.clone()))
+    }
 }
 
 impl Deref for DeviceContext {
