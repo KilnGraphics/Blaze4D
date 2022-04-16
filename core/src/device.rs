@@ -39,11 +39,11 @@ impl DeviceContextImpl {
 
         let surfaces = surfaces.into_iter().map(|(id, (caps, prov, queue))| {
             (id, DeviceSurface {
-                id,
                 handle: prov.get_handle().unwrap(),
                 capabilities: caps,
                 swapchain_info: Mutex::new(SurfaceSwapchainInfo::None),
-                provider: prov
+                provider: prov,
+                queue,
             })
         }).collect();
 
@@ -207,13 +207,17 @@ impl VkQueue {
         let queue = self.queue.lock().unwrap();
         unsafe { self.device.swapchain_khr().unwrap().queue_present(*queue, present_info) }
     }
+
+    pub fn get_queue_family_index(&self) -> u32 {
+        self.family
+    }
 }
 
 struct DeviceSurface {
-    id: SurfaceId,
     handle: vk::SurfaceKHR,
     capabilities: SurfaceCapabilities,
     swapchain_info: Mutex<SurfaceSwapchainInfo>,
+    queue: VkQueueTemplate,
 
     #[allow(unused)] // We just need to keep the provider alive
     provider: Box<dyn SurfaceProvider>,

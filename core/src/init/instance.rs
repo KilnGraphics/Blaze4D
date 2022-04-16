@@ -1,4 +1,4 @@
-use std::collections::{HashMap, HashSet};
+use std::collections::HashSet;
 use std::ffi::{c_void, CStr, CString};
 use std::str::Utf8Error;
 use std::sync::Arc;

@@ -1,16 +1,14 @@
 use std::cmp::Ordering;
-use std::collections::{HashMap, HashSet};
+use std::collections::HashMap;
 use std::fmt::{Debug, Formatter};
 use std::mem::ManuallyDrop;
-use std::ops::Deref;
 use std::sync::{Arc, Mutex};
-use std::sync::atomic::AtomicBool;
 
 use ash::vk;
 use vk_profiles_rs::vp;
 
 use crate::NamedUUID;
-use crate::objects::id::{ObjectSetId, SurfaceId};
+use crate::objects::id::SurfaceId;
 use crate::objects::surface::SurfaceProvider;
 
 #[derive(Copy, Clone, Eq, PartialEq, Ord, PartialOrd)]

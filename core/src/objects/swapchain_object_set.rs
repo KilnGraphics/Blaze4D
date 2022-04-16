@@ -260,7 +260,7 @@ impl Drop for SwapchainObjectSetBuilder {
         if self.swapchain != vk::SwapchainKHR::null() {
             let swapchain_fn = self.device.swapchain_khr().unwrap();
 
-            let (surface, swapchain_info) = self.device.get_surface(self.surface).unwrap();
+            let (_, swapchain_info) = self.device.get_surface(self.surface).unwrap();
             let mut swapchain_info = swapchain_info.lock().unwrap();
 
             unsafe {
@@ -528,7 +528,7 @@ impl Drop for SwapchainObjectSet {
         if self.swapchain != vk::SwapchainKHR::null() {
             let swapchain_fn = self.device.swapchain_khr().unwrap();
 
-            let (surface, swapchain_info) = self.device.get_surface(self.surface).unwrap();
+            let (_, swapchain_info) = self.device.get_surface(self.surface).unwrap();
             let mut swapchain_info = swapchain_info.lock().unwrap();
 
             unsafe {
