@@ -1,4 +1,5 @@
 use std::cmp::Ordering;
+use std::ffi::CString;
 use std::sync::{Arc, Mutex, MutexGuard};
 
 use ash::vk;
@@ -6,18 +7,22 @@ use ash::vk;
 use crate::objects::id::{ObjectSetId, SurfaceId};
 use crate::rosella::InstanceContextImpl;
 
-/// Trait that provides access to a surface object.
-///
-/// Since many possible surface objects exits and management of these can differ this trait is
-/// used to abstract those differences away. Rosella will only access surfaces using a trait object
-/// of this type. Once the trait object is dropped it may assume that the surface is no longer used
-/// by rosella and is safe to be destroyed.
-///
-/// Note: While dropping of a surface typically is a rare occurrence it *may* happen synchronously
-/// with other engine operations. As such extensive computations or blocking operations should be
-/// avoided in the drop function.
-pub trait SurfaceProvider : Sync {
-    fn get_handle(&self) -> vk::SurfaceKHR;
+#[derive(Debug)]
+pub enum SurfaceInitError {
+    /// A vulkan error
+    Vulkan(vk::Result),
+    /// A generic error with attached message
+    Message(String),
+    /// A generic error
+    Generic(),
+}
+
+pub trait SurfaceProvider {
+    fn get_required_instance_extensions(&self) -> Vec<CString>;
+
+    fn init(&mut self, entry: &ash::Entry, instance: &ash::Instance) -> Result<vk::SurfaceKHR, SurfaceInitError>;
+
+    fn get_handle(&self) -> Option<vk::SurfaceKHR>;
 }
 
 struct SurfaceImpl {
@@ -39,7 +44,7 @@ impl Surface {
     pub fn new(surface: Box<dyn SurfaceProvider>) -> Self {
         Self(Arc::new(SurfaceImpl{
             id: SurfaceId::new(ObjectSetId::new(), 0),
-            handle: surface.get_handle(),
+            handle: surface.get_handle().unwrap(),
             swapchain_info: Mutex::new(SurfaceSwapchainInfo::None),
             surface
         }))

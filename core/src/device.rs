@@ -1,25 +1,94 @@
 use std::cmp::Ordering;
 use std::collections::HashMap;
-use std::fmt::{Debug, Formatter, Pointer};
 use std::mem::ManuallyDrop;
-use std::sync::Arc;
+use std::ops::Deref;
+use std::sync::{Arc, Mutex};
+use ash::prelude::VkResult;
 
 use ash::vk;
 
-use crate::instance::InstanceContextImpl;
+use crate::instance::{InstanceContext, InstanceContextImpl};
 use crate::objects::id::SurfaceId;
-use crate::objects::surface::{Surface, SurfaceCapabilities};
+use crate::objects::surface::{SurfaceCapabilities, SurfaceProvider};
 use crate::NamedUUID;
 use crate::objects::allocator::Allocator;
 
-struct DeviceContextImpl {
+pub struct DeviceContextImpl {
     id: NamedUUID,
-    instance: InstanceContextImpl,
+    instance: InstanceContext,
     device: ash::Device,
     swapchain_khr: Option<ash::extensions::khr::Swapchain>,
     physical_device: vk::PhysicalDevice,
+    main_queue: VkQueueTemplate,
+    transfer_queue: VkQueueTemplate,
+    surfaces: HashMap<SurfaceId, (SurfaceCapabilities, VkQueueTemplate)>,
     allocator: ManuallyDrop<Allocator>, // We need manually drop to ensure it is dropped before the device
-    surfaces: HashMap<SurfaceId, (Surface, SurfaceCapabilities)>,
+}
+
+impl DeviceContextImpl {
+    pub(crate) fn new(
+        instance: InstanceContext,
+        device: ash::Device,
+        physical_device: vk::PhysicalDevice,
+        swapchain_khr: Option<ash::extensions::khr::Swapchain>,
+        main_queue: VkQueueTemplate,
+        transfer_queue: VkQueueTemplate,
+        surfaces: HashMap<SurfaceId, (SurfaceCapabilities, VkQueueTemplate)>,
+    ) -> Self {
+        let allocator = Allocator::new(instance.vk().clone(), device.clone(), physical_device);
+
+        Self{
+            id: NamedUUID::with_str("Device"),
+            instance,
+            device,
+            swapchain_khr,
+            physical_device,
+            main_queue,
+            transfer_queue,
+            surfaces,
+            allocator: ManuallyDrop::new(allocator),
+        }
+    }
+
+    pub fn get_uuid(&self) -> &NamedUUID {
+        &self.id
+    }
+
+    pub fn get_entry(&self) -> &ash::Entry {
+        self.instance.get_entry()
+    }
+
+    pub fn get_instance(&self) -> &InstanceContextImpl {
+        &self.instance
+    }
+
+    pub fn vk(&self) -> &ash::Device {
+        &self.device
+    }
+
+    pub fn swapchain_khr(&self) -> Option<&ash::extensions::khr::Swapchain> {
+        self.swapchain_khr.as_ref()
+    }
+
+    pub fn get_physical_device(&self) -> &vk::PhysicalDevice {
+        &self.physical_device
+    }
+
+    pub fn get_allocator(&self) -> &Allocator {
+        &self.allocator
+    }
+
+    pub fn get_surface(&self, id: SurfaceId) -> Option<&dyn SurfaceProvider> {
+        if !self.surfaces.contains_key(&id) {
+            None
+        } else {
+            self.instance.get_surface(id)
+        }
+    }
+
+    pub fn get_surface_capabilities(&self, id: SurfaceId) -> Option<&SurfaceCapabilities> {
+        self.surfaces.get(&id).map(|(cap, _)| cap)
+    }
 }
 
 impl Drop for DeviceContextImpl {
@@ -32,88 +101,101 @@ impl Drop for DeviceContextImpl {
     }
 }
 
+impl PartialEq for DeviceContextImpl {
+    fn eq(&self, other: &Self) -> bool {
+        self.id.eq(&other.id)
+    }
+}
+
+impl Eq for DeviceContextImpl {
+}
+
+impl PartialOrd for DeviceContextImpl {
+    fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
+        self.id.partial_cmp(&other.id)
+    }
+}
+
+impl Ord for DeviceContextImpl {
+    fn cmp(&self, other: &Self) -> Ordering {
+        self.id.cmp(&other.id)
+    }
+}
+
 #[derive(Clone)]
-pub struct DeviceContext(Arc<DeviceContextImpl>);
+pub struct DeviceContext(pub(crate) Arc<DeviceContextImpl>);
 
 impl DeviceContext {
-    pub fn new(instance: InstanceContextImpl, device: ash::Device, physical_device: vk::PhysicalDevice, swapchain_khr: Option<ash::extensions::khr::Swapchain>, surfaces: &[Surface]) -> Self {
-        let surfaces : HashMap<_, _> = surfaces.iter().map(|surface| {
-            (surface.get_id(), (surface.clone(), SurfaceCapabilities::new(&instance, physical_device, surface.get_handle()).unwrap()))
-        }).collect();
+    pub fn get_main_queue(&self) -> VkQueue {
+        self.0.main_queue.promote(self.clone())
+    }
 
-        let allocator = Allocator::new(instance.vk().clone(), device.clone(), physical_device);
+    pub fn get_transfer_queue(&self) -> VkQueue {
+        self.0.transfer_queue.promote(self.clone())
+    }
+}
 
-        Self(Arc::new(DeviceContextImpl{
-            id: NamedUUID::with_str("Device"),
-            instance,
+impl Deref for DeviceContext {
+    type Target = DeviceContextImpl;
+
+    fn deref(&self) -> &Self::Target {
+        self.0.as_ref()
+    }
+}
+
+/// Internal struct used to prevent a cyclic dependency between the DeviceContext and the Queue
+#[derive(Clone)]
+pub(crate) struct VkQueueTemplate {
+    queue: Arc<Mutex<vk::Queue>>,
+    family: u32,
+}
+
+impl VkQueueTemplate {
+    pub fn new(queue: vk::Queue, family: u32) -> Self {
+        Self {
+            queue: Arc::new(Mutex::new(queue)),
+            family,
+        }
+    }
+
+    pub fn promote(&self, device: DeviceContext) -> VkQueue {
+        VkQueue {
             device,
-            swapchain_khr,
-            physical_device,
-            allocator: ManuallyDrop::new(allocator),
-            surfaces,
-        }))
-    }
-
-    pub fn get_uuid(&self) -> &NamedUUID {
-        &self.0.id
-    }
-
-    pub fn get_entry(&self) -> &ash::Entry {
-        self.0.instance.get_entry()
-    }
-
-    pub fn get_instance(&self) -> &InstanceContextImpl {
-        &self.0.instance
-    }
-
-    pub fn vk(&self) -> &ash::Device {
-        &self.0.device
-    }
-
-    pub fn swapchain_khr(&self) -> Option<&ash::extensions::khr::Swapchain> {
-        self.0.swapchain_khr.as_ref()
-    }
-
-    pub fn get_physical_device(&self) -> &vk::PhysicalDevice {
-        &self.0.physical_device
-    }
-
-    pub fn get_allocator(&self) -> &Allocator {
-        &self.0.allocator
-    }
-
-    pub fn get_surface(&self, id: SurfaceId) -> Option<Surface> {
-        self.0.surfaces.get(&id).map(|data| data.0.clone())
-    }
-
-    pub fn get_surface_capabilities(&self, id: SurfaceId) -> Option<&SurfaceCapabilities> {
-        self.0.surfaces.get(&id).map(|(_, cap)| cap)
+            queue: self.queue.clone(),
+            family: self.family
+        }
     }
 }
 
-impl PartialEq for DeviceContext {
-    fn eq(&self, other: &Self) -> bool {
-        self.0.id.eq(&other.0.id)
+#[derive(Clone)]
+pub struct VkQueue {
+    device: DeviceContext,
+    queue: Arc<Mutex<vk::Queue>>,
+    family: u32,
+}
+
+impl VkQueue {
+    pub fn submit_2(&self, submits: &[vk::SubmitInfo2], fence: Option<vk::Fence>) -> VkResult<()> {
+        let fence = fence.unwrap_or(vk::Fence::null());
+
+        let queue = self.queue.lock().unwrap();
+        unsafe { self.device.vk().queue_submit2(*queue, submits, fence) }
     }
-}
 
-impl Eq for DeviceContext {
-}
-
-impl PartialOrd for DeviceContext {
-    fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
-        self.0.id.partial_cmp(&other.0.id)
+    pub fn wait_idle(&self) -> VkResult<()> {
+        let queue = self.queue.lock().unwrap();
+        unsafe { self.device.vk().queue_wait_idle(*queue) }
     }
-}
 
-impl Ord for DeviceContext {
-    fn cmp(&self, other: &Self) -> Ordering {
-        self.0.id.cmp(&other.0.id)
+    pub fn bind_sparse(&self, bindings: &[vk::BindSparseInfo], fence: Option<vk::Fence>) -> VkResult<()> {
+        let fence = fence.unwrap_or(vk::Fence::null());
+
+        let queue = self.queue.lock().unwrap();
+        unsafe { self.device.vk().queue_bind_sparse(*queue, bindings, fence) }
     }
-}
 
-impl Debug for DeviceContext {
-    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        self.0.fmt(f)
+    pub fn present(&self, present_info: &vk::PresentInfoKHR) -> VkResult<bool> {
+        let queue = self.queue.lock().unwrap();
+        unsafe { self.device.swapchain_khr().unwrap().queue_present(*queue, present_info) }
     }
 }

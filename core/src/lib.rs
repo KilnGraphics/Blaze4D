@@ -7,7 +7,6 @@ pub mod window;
 
 mod instance;
 mod device;
-mod surface;
 
 pub use util::id::UUID;
 pub use util::id::NamedUUID;

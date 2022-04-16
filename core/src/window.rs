@@ -1,11 +1,6 @@
-use ash::vk::SurfaceKHR;
-use ash::vk;
 use winit::dpi::LogicalSize;
 use winit::event_loop::EventLoop;
 use winit::window::WindowBuilder;
-use crate::objects::surface::SurfaceProvider;
-
-use crate::rosella::InstanceContextImpl;
 
 pub struct RosellaWindow {
     pub event_loop: EventLoop<()>,

@@ -5,13 +5,8 @@ use std::sync::Arc;
 use ash::vk;
 use vk_profiles_rs::vp;
 use crate::instance::{VulkanVersion, InstanceContextImpl, InstanceContext};
-use crate::surface::{SurfaceInitError, SurfaceProvider};
+use crate::objects::surface::{SurfaceInitError, SurfaceProvider};
 use crate::util::debug_messenger::DebugMessengerCallback;
-
-#[derive(Debug)]
-pub enum SurfaceAttachError {
-    NameAlreadyExists,
-}
 
 pub struct InstanceCreateConfig {
     profile: vp::ProfileProperties,
@@ -42,9 +37,9 @@ impl InstanceCreateConfig {
         }
     }
 
-    pub fn add_surface_provider(&mut self, name: String, surface: Box<dyn SurfaceProvider>) -> Result<(), SurfaceAttachError> {
+    pub fn add_surface_provider(&mut self, name: String, surface: Box<dyn SurfaceProvider>) -> Result<(), ()> {
         if self.surfaces.contains_key(&name) {
-            Err(SurfaceAttachError::NameAlreadyExists)
+            Err(())
         } else {
             self.surfaces.insert(name, surface);
             Ok(())
@@ -166,6 +161,7 @@ pub fn create_instance(config: InstanceCreateConfig) -> Result<InstanceContext, 
 
     Ok(Arc::new(InstanceContextImpl::new(
         config.min_api_version,
+        config.profile,
         entry,
         instance,
         surface_khr,

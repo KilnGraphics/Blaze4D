@@ -23,7 +23,7 @@ impl RustLogDebugMessenger {
 }
 
 impl DebugMessengerCallback for RustLogDebugMessenger {
-    fn on_message(&self, message_severity: DebugUtilsMessageSeverityFlagsEXT, message_types: DebugUtilsMessageTypeFlagsEXT, message: &CStr, data: &DebugUtilsMessengerCallbackDataEXT) {
+    fn on_message(&self, message_severity: DebugUtilsMessageSeverityFlagsEXT, _: DebugUtilsMessageTypeFlagsEXT, message: &CStr, _: &DebugUtilsMessengerCallbackDataEXT) {
         if message_severity.contains(DebugUtilsMessageSeverityFlagsEXT::ERROR) {
             log::error!("{:?}", message);
         } else if message_severity.contains(DebugUtilsMessageSeverityFlagsEXT::WARNING) {

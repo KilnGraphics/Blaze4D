@@ -1,6 +1,7 @@
 use std::ffi::{CStr, CString};
 use vk_profiles_rs::vp;
 use ash::vk;
+use b4d_core::init::device::{create_device, DeviceCreateConfig};
 
 use b4d_core::init::instance::*;
 use b4d_core::rosella::VulkanVersion;
@@ -23,4 +24,9 @@ fn init_no_feature() {
     config.add_debug_messenger(Box::new(RustLogDebugMessenger::new()));
 
     let instance = create_instance(config).unwrap();
+
+
+    let mut config = DeviceCreateConfig::new();
+
+    let device = create_device(config, instance.clone()).unwrap();
 }
