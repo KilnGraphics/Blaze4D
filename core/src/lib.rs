@@ -7,6 +7,7 @@ pub mod window;
 
 mod instance;
 mod device;
+mod stream_executor;
 
 pub use util::id::UUID;
 pub use util::id::NamedUUID;

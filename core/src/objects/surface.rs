@@ -14,6 +14,12 @@ pub enum SurfaceInitError {
     Generic(),
 }
 
+impl From<vk::Result> for SurfaceInitError {
+    fn from(res: vk::Result) -> Self {
+        SurfaceInitError::Vulkan(res)
+    }
+}
+
 pub trait SurfaceProvider {
     fn get_required_instance_extensions(&self) -> Vec<CString>;
 

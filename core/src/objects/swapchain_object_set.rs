@@ -431,10 +431,6 @@ struct SwapchainObjectSet {
     derivatives: Box<[DerivativeData]>,
 }
 
-impl SwapchainObjectSet {
-
-}
-
 impl ObjectSetProvider for SwapchainObjectSet {
     fn get_id(&self) -> ObjectSetId {
         self.set_id
