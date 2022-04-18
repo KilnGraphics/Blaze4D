@@ -8,7 +8,7 @@ import net.minecraft.client.renderer.ShaderInstance;
 
 @Mixin(ShaderInstance.class)
 public interface ShaderAccessor {
-
-    @Accessor(value = "uniforms")
-    List<Uniform> blaze4d$getUniforms();
+//
+//    @Accessor(value = "uniforms")
+//    List<Uniform> blaze4d$getUniforms();
 }

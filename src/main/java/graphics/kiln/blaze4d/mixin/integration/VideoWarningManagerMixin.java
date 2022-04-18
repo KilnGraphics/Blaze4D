@@ -12,8 +12,8 @@ import net.minecraft.client.renderer.GpuWarnlistManager;
 @Mixin(GpuWarnlistManager.Preparations.class)
 public class VideoWarningManagerMixin {
 
-    @Inject(method = "matchAny", at = @At("HEAD"), cancellable = true)
-    private static void whatWarningsAreYouTalkinAbout(List<Pattern> warningPattern, String info, CallbackInfoReturnable<String> cir) {
-        cir.setReturnValue("warning");
-    }
+//    @Inject(method = "matchAny", at = @At("HEAD"), cancellable = true)
+//    private static void whatWarningsAreYouTalkinAbout(List<Pattern> warningPattern, String info, CallbackInfoReturnable<String> cir) {
+//        cir.setReturnValue("warning");
+//    }
 }

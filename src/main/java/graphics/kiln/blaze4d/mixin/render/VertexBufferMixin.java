@@ -3,11 +3,6 @@ package graphics.kiln.blaze4d.mixin.render;
 import com.mojang.blaze3d.systems.RenderSystem;
 import com.mojang.blaze3d.vertex.BufferBuilder;
 import com.mojang.blaze3d.vertex.VertexBuffer;
-import graphics.kiln.blaze4d.impl.render.BasicVertexBufferWrapper;
-import graphics.kiln.rosella.render.shader.RawShaderProgram;
-import graphics.kiln.rosella.render.shader.ShaderProgram;
-import graphics.kiln.blaze4d.Blaze4D;
-import graphics.kiln.blaze4d.impl.GlobalRenderSystem;
 import net.minecraft.client.renderer.ShaderInstance;
 import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.Overwrite;
@@ -21,47 +16,47 @@ import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
  */
 @Mixin(VertexBuffer.class)
 public class VertexBufferMixin {
-
-    private final BasicVertexBufferWrapper wrapper = new BasicVertexBufferWrapper(Blaze4D.rosella);
-
-    /**
-     * @author Blaze4D
-     * @reason Allow for uploading Vertex Buffers
-     */
-    @Overwrite
-    private void upload_(BufferBuilder bufferBuilder) {
-        wrapper.create(bufferBuilder);
-    }
-
-    /**
-     * @author Blaze4D
-     * @reason Allows rendering things such as the sky.
-     */
-    @Overwrite
-    public void _drawWithShader(com.mojang.math.Matrix4f mcModelViewMatrix, com.mojang.math.Matrix4f mcProjectionMatrix, ShaderInstance shader) {
-        GlobalRenderSystem.updateUniforms(shader, mcModelViewMatrix, mcProjectionMatrix);
-        callWrapperRender(shader);
-    }
-
-    /**
-     * @author Blaze4D
-     * @reason Allows rendering things such as Chunks within a World.
-     */
-    @Overwrite
-    public void drawChunkLayer() {
-        wrapper.render(GlobalRenderSystem.activeShader, GlobalRenderSystem.getShaderUbo(RenderSystem.getShader()));
-    }
-
-    @Unique
-    private void callWrapperRender(ShaderInstance mcShader) {
-        RawShaderProgram rawProgram = GlobalRenderSystem.SHADER_PROGRAM_MAP.get(mcShader.getId());
-        ShaderProgram rosellaShaderProgram = Blaze4D.rosella.common.shaderManager.getOrCreateShader(rawProgram);
-        wrapper.render(rosellaShaderProgram, GlobalRenderSystem.getShaderUbo(mcShader));
-    }
-
-    @Inject(method = "close", at = @At("HEAD"), cancellable = true)
-    private void close(CallbackInfo ci) {
-        wrapper.clean();
-        ci.cancel();
-    }
+//
+//    private final BasicVertexBufferWrapper wrapper = new BasicVertexBufferWrapper(Blaze4D.rosella);
+//
+//    /**
+//     * @author Blaze4D
+//     * @reason Allow for uploading Vertex Buffers
+//     */
+//    @Overwrite
+//    private void upload_(BufferBuilder bufferBuilder) {
+//        wrapper.create(bufferBuilder);
+//    }
+//
+//    /**
+//     * @author Blaze4D
+//     * @reason Allows rendering things such as the sky.
+//     */
+//    @Overwrite
+//    public void _drawWithShader(com.mojang.math.Matrix4f mcModelViewMatrix, com.mojang.math.Matrix4f mcProjectionMatrix, ShaderInstance shader) {
+//        GlobalRenderSystem.updateUniforms(shader, mcModelViewMatrix, mcProjectionMatrix);
+//        callWrapperRender(shader);
+//    }
+//
+//    /**
+//     * @author Blaze4D
+//     * @reason Allows rendering things such as Chunks within a World.
+//     */
+//    @Overwrite
+//    public void drawChunkLayer() {
+//        wrapper.render(GlobalRenderSystem.activeShader, GlobalRenderSystem.getShaderUbo(RenderSystem.getShader()));
+//    }
+//
+//    @Unique
+//    private void callWrapperRender(ShaderInstance mcShader) {
+//        RawShaderProgram rawProgram = GlobalRenderSystem.SHADER_PROGRAM_MAP.get(mcShader.getId());
+//        ShaderProgram rosellaShaderProgram = Blaze4D.rosella.common.shaderManager.getOrCreateShader(rawProgram);
+//        wrapper.render(rosellaShaderProgram, GlobalRenderSystem.getShaderUbo(mcShader));
+//    }
+//
+//    @Inject(method = "close", at = @At("HEAD"), cancellable = true)
+//    private void close(CallbackInfo ci) {
+//        wrapper.clean();
+//        ci.cancel();
+//    }
 }

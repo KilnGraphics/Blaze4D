@@ -8,7 +8,6 @@ import com.mojang.blaze3d.vertex.VertexBuffer;
 import com.mojang.math.Matrix4f;
 import it.unimi.dsi.fastutil.objects.ObjectArrayList;
 import it.unimi.dsi.fastutil.objects.ObjectListIterator;
-import graphics.kiln.blaze4d.impl.GlobalRenderSystem;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.renderer.LevelRenderer;
 import net.minecraft.client.renderer.RenderType;
@@ -22,11 +21,11 @@ import org.spongepowered.asm.mixin.Shadow;
 
 @Mixin(LevelRenderer.class)
 public class WorldRendererMixin {
-    @Shadow private double xTransparentOld;
-
-    @Shadow private double yTransparentOld;
-
-    @Shadow private double zTransparentOld;
+//    @Shadow private double xTransparentOld;
+//
+//    @Shadow private double yTransparentOld;
+//
+//    @Shadow private double zTransparentOld;
 
 /*    *//**
      * This is one of three places where it actually renders a shader.

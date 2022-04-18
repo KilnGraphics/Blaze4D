@@ -1,8 +1,8 @@
 import org.gradle.internal.os.OperatingSystem
 
 plugins {
-	id("fabric-loom") version "0.10-SNAPSHOT"
-	id("io.github.juuxel.loom-quiltflower-mini") version "1.1.0"
+	id("fabric-loom") version "0.11-SNAPSHOT"
+	//id("io.github.juuxel.loom-quiltflower-mini") version "1.2.1"
 	`maven-publish`
 }
 
@@ -27,19 +27,8 @@ val lwjglNatives = when (OperatingSystem.current()) {
 	else -> throw Error("Unrecognized or unsupported Operating system. Please set \"lwjglNatives\" manually")
 }
 
-// If we're building Rosella in-tree, look that project up here
-// The idea here is that you can clone a copy of Rosella into the project directly and settings.gradle.kts will
-// find it and load it as a subproject. With this we can make it easy to work on both at once, being able to
-// modify and debug across both projects without having to manually publish to maven local.
-val rosellaProject = subprojects.firstOrNull { it.path == ":rosella" }
-
 repositories {
 	mavenCentral()
-
-    maven {
-        name = "hydos"
-        url = uri("https://maven.hydos.cf/snapshots/")
-    }
 
 	maven {
 		name = "Sonatype Snapshots"
@@ -56,18 +45,10 @@ dependencies {
 	minecraft("net.minecraft", "minecraft", properties["minecraft_version"].toString())
 	mappings(loom.layered {
 		officialMojangMappings()
-		parchment("org.parchmentmc.data:parchment-1.17.1:2021.10.31@zip")
+		//parchment("org.parchmentmc.data:parchment-1.17.1:2021.10.31@zip")
 	})
 	modImplementation("net.fabricmc", "fabric-loader", properties["loader_version"].toString())
-	modImplementation("net.fabricmc", "fabric-language-kotlin", "1.6.4+kotlin.1.5.30")
-
-	// If we're building Rosella as part of the project for debugging, use that
-	// Otherwise, fetch it from Maven
-	if (rosellaProject != null) {
-		implementation(rosellaProject)
-	} else {
-		include(implementation("graphics.kiln", "rosella", "1.2.0-SNAPSHOT"))
-	}
+	//modImplementation("net.fabricmc", "fabric-language-kotlin", "1.6.4+kotlin.1.5.30")
 
 	include(implementation("com.oroarmor", "aftermath", "1.0.0-beta"))
 	
@@ -121,8 +102,8 @@ base {
 }
 
 java {
-	sourceCompatibility = JavaVersion.VERSION_16
-	targetCompatibility = JavaVersion.VERSION_16
+	sourceCompatibility = JavaVersion.VERSION_17
+	targetCompatibility = JavaVersion.VERSION_17
 
 	withSourcesJar()
 }
@@ -153,10 +134,10 @@ loom {
 		}
 	}
 }
-
+/*
 quiltflower {
 	addToRuntimeClasspath.set(true)
-}
+}*/
 
 tasks {
 	test {
@@ -165,7 +146,8 @@ tasks {
 
 	withType<JavaCompile> {
 		options.encoding = "UTF-8"
-		options.release.set(16)
+		options.release.set(17)
+		options.compilerArgs.add("--add-modules=jdk.incubator.foreign")
 	}
 
 	withType<AbstractArchiveTask> {

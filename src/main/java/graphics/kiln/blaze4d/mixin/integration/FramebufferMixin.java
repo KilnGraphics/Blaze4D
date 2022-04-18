@@ -10,6 +10,7 @@ import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 @Mixin(RenderTarget.class)
 public class FramebufferMixin {
 
+    /*
     @Shadow
     public int width;
 
@@ -39,5 +40,5 @@ public class FramebufferMixin {
     @Inject(method = "clear", at = @At("HEAD"), cancellable = true)
     private void thisMessesUpSkyColor(boolean clearError, CallbackInfo ci) {
         ci.cancel();
-    }
+    }*/
 }

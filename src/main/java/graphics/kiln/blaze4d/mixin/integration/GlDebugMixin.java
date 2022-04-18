@@ -9,8 +9,10 @@ import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 @Mixin(GlDebug.class)
 public class GlDebugMixin {
 
+    /*
     @Inject(method = "enableDebugCallback", at = @At("HEAD"), cancellable = true)
     private static void debuggingIsForTheWeak(int verbosity, boolean sync, CallbackInfo ci) {
         ci.cancel();
     }
+    */
 }

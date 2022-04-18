@@ -1,2 +1,0 @@
-type: fragment
-uniforms: ProjMat, 10; ModelViewMat, 10; ColorModulator, 7
