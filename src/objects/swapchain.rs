@@ -88,3 +88,7 @@ impl SwapchainCreateDesc {
         }
     }
 }
+
+pub struct SwapchainInstanceData {
+
+}

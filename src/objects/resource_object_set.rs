@@ -3,9 +3,9 @@ use std::sync::Arc;
 use ash::vk;
 use crate::device::DeviceContext;
 
-use crate::objects::{id, ObjectSet, SynchronizationGroup};
+use crate::objects::{types, ObjectSet, SynchronizationGroup};
 use crate::objects::buffer::{BufferDescription, BufferInfo, BufferViewDescription, BufferViewInfo};
-use crate::objects::id::{BufferId, BufferViewId, ImageId, ImageViewId, ObjectSetId};
+use crate::objects::types::{BufferId, BufferViewId, GenericId, ImageId, ImageViewId, ObjectInstanceData, ObjectSetId};
 use crate::objects::image::{ImageDescription, ImageInfo, ImageViewDescription, ImageViewInfo};
 use crate::objects::allocator::{Allocation, AllocationError, AllocationStrategy};
 use crate::objects::object_set::ObjectSetProvider;
@@ -41,11 +41,11 @@ impl<'s> From<AllocationError> for ObjectCreateError {
 /// # Examples
 ///
 /// ```
-/// # use rosella_rs::objects::buffer::BufferDescription;
-/// # use rosella_rs::objects::image::{ImageDescription, ImageViewDescription};
-/// # use rosella_rs::objects::resource_object_set::ResourceObjectSetBuilder;
-/// # use rosella_rs::objects::{Format, ImageSize, ImageSpec, SynchronizationGroup};
-/// # let (_, device) = rosella_rs::test::make_headless_instance_device();
+/// # use b4d_core::objects::buffer::BufferDescription;
+/// # use b4d_core::objects::image::{ImageDescription, ImageViewDescription};
+/// # use b4d_core::objects::resource_object_set::ResourceObjectSetBuilder;
+/// # use b4d_core::objects::{Format, ImageSize, ImageSpec, SynchronizationGroup};
+/// # let (_, device) = b4d_core::test::make_headless_instance_device();
 /// use ash::vk;
 ///
 /// // We need a synchronization group for our objects
@@ -127,23 +127,23 @@ impl ResourceObjectSetBuilder {
     ///
     /// #Panics
     /// If there are more requests than the max object set size.
-    pub fn add_default_gpu_only_buffer(&mut self, desc: BufferDescription) -> id::BufferId {
+    pub fn add_default_gpu_only_buffer(&mut self, desc: BufferDescription) -> types::BufferId {
         let index = self.get_next_index();
         self.requests.push(ResourceObjectCreateMetadata::make_buffer(desc, AllocationStrategy::AutoGpuOnly, self.synchronization_group.clone()));
 
-        id::BufferId::new(self.set_id, index)
+        types::BufferId::new(self.set_id, index)
     }
 
     /// Adds a request for a buffer that needs to be accessed by both the gpu and cpu.
     ///
     /// #Panics
     /// If there are more requests than the max object set size.
-    pub fn add_default_gpu_cpu_buffer(&mut self, desc: BufferDescription) -> id::BufferId {
+    pub fn add_default_gpu_cpu_buffer(&mut self, desc: BufferDescription) -> types::BufferId {
         let index = self.get_next_index();
 
         self.requests.push(ResourceObjectCreateMetadata::make_buffer(desc, AllocationStrategy::AutoGpuCpu, self.synchronization_group.clone()));
 
-        id::BufferId::new(self.set_id, index)
+        types::BufferId::new(self.set_id, index)
     }
 
     /// Adds a buffer view request for a buffer that is created as part of this object set.
@@ -151,7 +151,7 @@ impl ResourceObjectSetBuilder {
     /// #Panics
     /// If there are more requests than the max object set size or if the source buffer id does not
     /// map to a buffer.
-    pub fn add_internal_buffer_view(&mut self, desc: BufferViewDescription, buffer: id::BufferId) -> id::BufferViewId {
+    pub fn add_internal_buffer_view(&mut self, desc: BufferViewDescription, buffer: types::BufferId) -> types::BufferViewId {
         if buffer.get_set_id() != self.set_id {
             panic!("Buffer set id does not match builder set id");
         }
@@ -166,7 +166,7 @@ impl ResourceObjectSetBuilder {
 
         self.requests.push(ResourceObjectCreateMetadata::make_buffer_view(desc, None, buffer, info));
 
-        id::BufferViewId::new(self.set_id, index)
+        types::BufferViewId::new(self.set_id, index)
     }
 
     /// Adds a buffer view request for a buffer that is part of a different object set.
@@ -174,7 +174,7 @@ impl ResourceObjectSetBuilder {
     /// #Panics
     /// If there are more requests than the max object set size or if the source buffer id is
     /// invalid.
-    pub fn add_external_buffer_view(&mut self, desc: BufferViewDescription, set: ObjectSet, buffer: id::BufferId) -> id::BufferViewId {
+    pub fn add_external_buffer_view(&mut self, desc: BufferViewDescription, set: ObjectSet, buffer: types::BufferId) -> types::BufferViewId {
         if buffer.get_set_id() != set.get_id() {
             panic!("Buffer set id does not match object set id");
         }
@@ -184,31 +184,31 @@ impl ResourceObjectSetBuilder {
 
         self.requests.push(ResourceObjectCreateMetadata::make_buffer_view(desc, Some(set), buffer, info));
 
-        id::BufferViewId::new(self.set_id, index)
+        types::BufferViewId::new(self.set_id, index)
     }
 
     /// Adds a request for a image that only needs to be accessed by the gpu.
     ///
     /// #Panics
     /// If there are more requests than the max object set size.
-    pub fn add_default_gpu_only_image(&mut self, desc: ImageDescription) -> id::ImageId {
+    pub fn add_default_gpu_only_image(&mut self, desc: ImageDescription) -> types::ImageId {
         let index = self.get_next_index();
 
         self.requests.push(ResourceObjectCreateMetadata::make_image(desc, AllocationStrategy::AutoGpuOnly, self.synchronization_group.clone()));
 
-        id::ImageId::new(self.set_id, index)
+        types::ImageId::new(self.set_id, index)
     }
 
     /// Adds a request for a image that needs to be accessed by both the gpu and cpu.
     ///
     /// #Panics
     /// If there are more requests than the max object set size.
-    pub fn add_default_gpu_cpu_image(&mut self, desc: ImageDescription) -> id::ImageId {
+    pub fn add_default_gpu_cpu_image(&mut self, desc: ImageDescription) -> types::ImageId {
         let index = self.get_next_index();
 
         self.requests.push(ResourceObjectCreateMetadata::make_image(desc, AllocationStrategy::AutoGpuCpu, self.synchronization_group.clone()));
 
-        id::ImageId::new(self.set_id, index)
+        types::ImageId::new(self.set_id, index)
     }
 
     /// Adds a image view request for a image that is created as part of this object set.
@@ -216,7 +216,7 @@ impl ResourceObjectSetBuilder {
     /// #Panics
     /// If there are more requests than the max object set size or if the source image id is
     /// invalid.
-    pub fn add_internal_image_view(&mut self, desc: ImageViewDescription, image: id::ImageId) -> id::ImageViewId {
+    pub fn add_internal_image_view(&mut self, desc: ImageViewDescription, image: types::ImageId) -> types::ImageViewId {
         if image.get_set_id() != self.set_id {
             panic!("Image set id does not match builder set id");
         }
@@ -231,7 +231,7 @@ impl ResourceObjectSetBuilder {
 
         self.requests.push(ResourceObjectCreateMetadata::make_image_view(desc, None, image, info));
 
-        id::ImageViewId::new(self.set_id, index)
+        types::ImageViewId::new(self.set_id, index)
     }
 
     /// Adds a image view request for a image that is part of a different object set.
@@ -239,7 +239,7 @@ impl ResourceObjectSetBuilder {
     /// #Panics
     /// If there are more requests than the max object set size or if the source image id is
     /// invalid.
-    pub fn add_external_image_view(&mut self, desc: ImageViewDescription, set: ObjectSet, image: id::ImageId) -> id::ImageViewId {
+    pub fn add_external_image_view(&mut self, desc: ImageViewDescription, set: ObjectSet, image: types::ImageId) -> types::ImageViewId {
         if image.get_set_id() != set.get_id() {
             panic!("Buffer set id does not match object set id");
         }
@@ -249,7 +249,7 @@ impl ResourceObjectSetBuilder {
 
         self.requests.push(ResourceObjectCreateMetadata::make_image_view(desc, Some(set), image, info));
 
-        id::ImageViewId::new(self.set_id, index)
+        types::ImageViewId::new(self.set_id, index)
     }
 
     fn create_objects(&mut self) -> Result<(), ObjectCreateError> {
@@ -367,12 +367,12 @@ impl BufferCreateMetadata {
 struct BufferViewCreateMetadata {
     info: Box<BufferViewInfo>,
     buffer_set: Option<ObjectSet>,
-    buffer_id: id::BufferId,
+    buffer_id: types::BufferId,
     handle: vk::BufferView,
 }
 
 impl BufferViewCreateMetadata {
-    fn new(desc: BufferViewDescription, buffer_set: Option<ObjectSet>, buffer_id: id::BufferId, buffer_info: Arc<BufferInfo>) -> Self {
+    fn new(desc: BufferViewDescription, buffer_set: Option<ObjectSet>, buffer_id: types::BufferId, buffer_info: Arc<BufferInfo>) -> Self {
         Self {
             info: Box::new(BufferViewInfo::new(desc, buffer_id, buffer_info)),
             buffer_set,
@@ -508,12 +508,12 @@ impl ImageCreateMetadata {
 struct ImageViewCreateMetadata {
     info: Box<ImageViewInfo>,
     image_set: Option<ObjectSet>,
-    image_id: id::ImageId,
+    image_id: types::ImageId,
     handle: vk::ImageView,
 }
 
 impl ImageViewCreateMetadata {
-    fn new(desc: ImageViewDescription, image_set: Option<ObjectSet>, image_id: id::ImageId, image_info: Arc<ImageInfo>) -> Self {
+    fn new(desc: ImageViewDescription, image_set: Option<ObjectSet>, image_id: types::ImageId, image_info: Arc<ImageInfo>) -> Self {
         Self {
             info: Box::new(ImageViewInfo::new(desc, image_id, image_info)),
             image_set,
@@ -586,7 +586,7 @@ impl ResourceObjectCreateMetadata {
         Self::Buffer(BufferCreateMetadata::new(desc, strategy, group))
     }
 
-    fn make_buffer_view(desc: BufferViewDescription, buffer_set: Option<ObjectSet>, buffer_id: id::BufferId, buffer_info: Arc<BufferInfo>) -> Self {
+    fn make_buffer_view(desc: BufferViewDescription, buffer_set: Option<ObjectSet>, buffer_id: types::BufferId, buffer_info: Arc<BufferInfo>) -> Self {
         Self::BufferView(BufferViewCreateMetadata::new(desc, buffer_set, buffer_id, buffer_info))
     }
 
@@ -594,7 +594,7 @@ impl ResourceObjectCreateMetadata {
         Self::Image(ImageCreateMetadata::new(desc, strategy, group))
     }
 
-    fn make_image_view(desc: ImageViewDescription, image_set: Option<ObjectSet>, image_id: id::ImageId, image_info: Arc<ImageInfo>) -> Self {
+    fn make_image_view(desc: ImageViewDescription, image_set: Option<ObjectSet>, image_id: types::ImageId, image_info: Arc<ImageInfo>) -> Self {
         Self::ImageView(ImageViewCreateMetadata::new(desc, image_set, image_id, image_info))
     }
 
@@ -694,6 +694,15 @@ impl Drop for ResourceObjectSet {
 impl ObjectSetProvider for ResourceObjectSet {
     fn get_id(&self) -> ObjectSetId {
         self.set_id
+    }
+
+    fn get_object_data(&self, id: GenericId) -> ObjectInstanceData {
+        match id.get_type() {
+            types::ObjectType::BUFFER => {
+
+            }
+            _ => panic!("Unsupported id"),
+        }
     }
 
     unsafe fn get_buffer_handle(&self, id: BufferId) -> vk::Buffer {

@@ -1,5 +1,4 @@
 pub mod init;
-pub mod rosella;
 pub mod shader;
 pub mod objects;
 pub mod util;
@@ -10,6 +9,9 @@ mod device;
 
 pub use util::id::UUID;
 pub use util::id::NamedUUID;
+
+pub use instance::InstanceContext;
+pub use device::DeviceContext;
 
 #[cfg(any(test, feature = "__internal_doc_test"))]
 pub use util::test;

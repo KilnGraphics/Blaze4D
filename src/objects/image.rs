@@ -2,7 +2,7 @@ use std::fmt::Debug;
 use std::sync::Arc;
 
 use ash::vk;
-use crate::objects::{Format, id, SynchronizationGroup};
+use crate::objects::{Format, types, SynchronizationGroup};
 
 #[derive(Copy, Clone, Debug, PartialEq, Eq)]
 pub enum ImageSize {
@@ -269,12 +269,12 @@ impl ImageViewDescription {
 /// only one specific image view object.
 pub struct ImageViewInfo {
     desc: ImageViewDescription,
-    source_image_id: id::ImageId,
+    source_image_id: types::ImageId,
     source_image_info: Arc<ImageInfo>,
 }
 
 impl ImageViewInfo {
-    pub fn new(desc: ImageViewDescription, source_image_id: id::ImageId, source_image_info: Arc<ImageInfo>) -> Self {
+    pub fn new(desc: ImageViewDescription, source_image_id: types::ImageId, source_image_info: Arc<ImageInfo>) -> Self {
         Self {
             desc,
             source_image_id,
@@ -286,7 +286,7 @@ impl ImageViewInfo {
         &self.desc
     }
 
-    pub fn get_source_image_id(&self) -> id::ImageId {
+    pub fn get_source_image_id(&self) -> types::ImageId {
         self.source_image_id
     }
 
@@ -299,4 +299,12 @@ impl ImageViewInfo {
     pub fn get_synchronization_group(&self) -> &SynchronizationGroup {
         self.source_image_info.get_synchronization_group()
     }
+}
+
+pub struct ImageInstanceData {
+
+}
+
+pub struct ImageViewInstanceData {
+
 }

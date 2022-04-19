@@ -3,12 +3,12 @@ use std::sync::Arc;
 use ash::prelude::VkResult;
 use ash::vk;
 use ash::vk::{Fence, Image, ImageView, Semaphore, SwapchainKHR};
-use crate::objects::{id, ObjectSet, SynchronizationGroup};
-use crate::objects::id::{FenceId, ImageId, ImageViewId, ObjectSetId, SemaphoreId, SurfaceId, SwapchainId};
+use crate::objects::{types, ObjectSet, SynchronizationGroup};
+use crate::objects::types::{FenceId, ImageId, ImageViewId, ObjectSetId, SemaphoreId, SurfaceId, SwapchainId};
 use crate::objects::image::{ImageDescription, ImageInfo, ImageViewDescription, ImageViewInfo};
 use crate::objects::object_set::ObjectSetProvider;
 use crate::objects::swapchain::SwapchainCreateDesc;
-use crate::rosella::DeviceContext;
+use crate::device::DeviceContext;
 
 /// Swapchain object sets manage the creation of swapchains and have utilities for some common
 /// objects needed for each image.
@@ -24,8 +24,8 @@ use crate::rosella::DeviceContext;
 /// # Examples
 ///
 /// ```
-/// # use rosella_rs::objects::swapchain::{SwapchainCreateDesc, SwapchainImageSpec};
-/// # use rosella_rs::objects::{Format, ImageViewDescription, SwapchainObjectSetBuilder};
+/// # use b4d_core::objects::swapchain::{SwapchainCreateDesc, SwapchainImageSpec};
+/// # use b4d_core::objects::{Format, ImageViewDescription, SwapchainObjectSetBuilder};
 /// use ash::vk;
 ///
 /// // Create a builder. The swapchain will be immediately created.
@@ -89,15 +89,15 @@ impl SwapchainObjectSetBuilder {
     /// be used for all images. Otherwise a new synchronization group will be created for each
     /// individual image.
     pub fn new(device: DeviceContext, surface_id: SurfaceId, desc: SwapchainCreateDesc, synchronization_group: Option<SynchronizationGroup>) -> VkResult<Self> {
-        let swapchain_fn = device.get_extension::<ash::extensions::khr::Swapchain>().unwrap();
+        let swapchain_fn = device.swapchain_khr().unwrap();
 
-        let surface = device.get_surface(surface_id).unwrap();
-        let mut swapchain_info = surface.lock_swapchain_info();
+        let (surface, swapchain_info) = device.get_surface(surface_id).unwrap();
+        let mut swapchain_info = swapchain_info.lock().unwrap();
 
         let old_swapchain = swapchain_info.get_current_handle().unwrap_or(SwapchainKHR::null());
 
         let create_info = vk::SwapchainCreateInfoKHR::builder()
-            .surface(surface.get_handle())
+            .surface(surface)
             .min_image_count(desc.min_image_count)
             .image_format(desc.image_spec.format.get_format())
             .image_color_space(desc.image_spec.color_space)
@@ -258,10 +258,10 @@ impl SwapchainObjectSetBuilder {
 impl Drop for SwapchainObjectSetBuilder {
     fn drop(&mut self) {
         if self.swapchain != vk::SwapchainKHR::null() {
-            let swapchain_fn = self.device.get_extension::<ash::extensions::khr::Swapchain>().unwrap();
+            let swapchain_fn = self.device.swapchain_khr().unwrap();
 
-            let surface = self.device.get_surface(self.surface).unwrap();
-            let mut swapchain_info = surface.lock_swapchain_info();
+            let (_, swapchain_info) = self.device.get_surface(self.surface).unwrap();
+            let mut swapchain_info = swapchain_info.lock().unwrap();
 
             unsafe {
                 swapchain_fn.destroy_swapchain(self.swapchain, None)
@@ -281,7 +281,7 @@ struct ImageViewData {
 }
 
 impl ImageViewData {
-    fn new(desc: ImageViewDescription, image_id: id::ImageId, image_info: Arc<ImageInfo>) -> Self {
+    fn new(desc: ImageViewDescription, image_id: types::ImageId, image_info: Arc<ImageInfo>) -> Self {
         Self {
             info: Box::new(ImageViewInfo::new(desc, image_id, image_info)),
             handle: vk::ImageView::null(),
@@ -388,7 +388,7 @@ enum DerivativeData {
 }
 
 impl DerivativeData {
-    fn make_image_view(desc: ImageViewDescription, image_id: id::ImageId, image_info: Arc<ImageInfo>) -> Self {
+    fn make_image_view(desc: ImageViewDescription, image_id: types::ImageId, image_info: Arc<ImageInfo>) -> Self {
         Self::ImageView(ImageViewData::new(desc, image_id, image_info))
     }
 
@@ -429,10 +429,6 @@ struct SwapchainObjectSet {
     swapchain: vk::SwapchainKHR,
     images: Box<[SwapchainImage]>,
     derivatives: Box<[DerivativeData]>,
-}
-
-impl SwapchainObjectSet {
-
 }
 
 impl ObjectSetProvider for SwapchainObjectSet {
@@ -526,10 +522,10 @@ impl Drop for SwapchainObjectSet {
         }
 
         if self.swapchain != vk::SwapchainKHR::null() {
-            let swapchain_fn = self.device.get_extension::<ash::extensions::khr::Swapchain>().unwrap();
+            let swapchain_fn = self.device.swapchain_khr().unwrap();
 
-            let surface = self.device.get_surface(self.surface).unwrap();
-            let mut swapchain_info = surface.lock_swapchain_info();
+            let (_, swapchain_info) = self.device.get_surface(self.surface).unwrap();
+            let mut swapchain_info = swapchain_info.lock().unwrap();
 
             unsafe {
                 swapchain_fn.destroy_swapchain(self.swapchain, None)

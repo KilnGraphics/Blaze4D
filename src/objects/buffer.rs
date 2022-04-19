@@ -1,6 +1,6 @@
 use std::sync::Arc;
 use ash::vk;
-use crate::objects::{id, SynchronizationGroup};
+use crate::objects::{types, SynchronizationGroup};
 
 #[derive(Copy, Clone, Debug)]
 pub struct BufferSpec {
@@ -90,12 +90,12 @@ impl BufferViewDescription {
 /// only one specific buffer view.
 pub struct BufferViewInfo {
     desc: BufferViewDescription,
-    source_buffer_id: id::BufferId,
+    source_buffer_id: types::BufferId,
     source_buffer_info: Arc<BufferInfo>,
 }
 
 impl BufferViewInfo {
-    pub fn new(desc: BufferViewDescription, source_buffer_id: id::BufferId, source_buffer_info: Arc<BufferInfo>) -> Self {
+    pub fn new(desc: BufferViewDescription, source_buffer_id: types::BufferId, source_buffer_info: Arc<BufferInfo>) -> Self {
         Self {
             desc,
             source_buffer_id,
@@ -107,7 +107,7 @@ impl BufferViewInfo {
         &self.desc
     }
 
-    pub fn get_source_buffer_id(&self) -> id::BufferId {
+    pub fn get_source_buffer_id(&self) -> types::BufferId {
         self.source_buffer_id
     }
 
@@ -120,4 +120,12 @@ impl BufferViewInfo {
     pub fn get_synchronization_group(&self) -> &SynchronizationGroup {
         &self.source_buffer_info.get_synchronization_group()
     }
+}
+
+pub struct BufferInstanceData {
+    handle: vk::Buffer,
+}
+
+pub struct BufferViewInstanceData {
+    handle: vk::BufferView,
 }

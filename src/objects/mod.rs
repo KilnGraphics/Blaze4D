@@ -1,7 +1,9 @@
+use paste::paste;
+
 pub mod format;
 pub mod image;
 pub mod buffer;
-pub mod id;
+pub mod types;
 pub mod swapchain;
 pub mod surface;
 pub mod allocator;

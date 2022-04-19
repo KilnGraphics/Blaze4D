@@ -5,7 +5,7 @@ use shaderc::{CompileOptions, Compiler, ShaderKind, TargetEnv};
 use std::collections::HashSet;
 use std::rc::Rc;
 use std::sync::Arc;
-use crate::rosella::DeviceContext;
+use crate::DeviceContext;
 
 #[derive(Debug, PartialEq, Eq, Hash)]
 pub struct Uniform {
