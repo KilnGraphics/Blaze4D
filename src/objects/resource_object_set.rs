@@ -286,7 +286,7 @@ impl Objects {
     unsafe fn destroy(&mut self, device: &DeviceContext) {
         // Need to destroy objects in reverse to account for potential dependencies
         let objects = std::mem::replace(&mut self.objects, Vec::new());
-        for object in objects.into_iter() {
+        for object in objects.into_iter().rev() {
             object.destroy(device);
         }
 
@@ -439,7 +439,7 @@ mod tests {
 
     #[test]
     fn test_buffer() {
-        let (instance, device) = crate::test::make_headless_instance_device();
+        let (_, device) = crate::test::make_headless_instance_device();
 
         let group = SynchronizationGroup::new(device.clone());
         let set = ResourceObjectSet::new(device);

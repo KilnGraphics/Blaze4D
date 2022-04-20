@@ -90,5 +90,17 @@ impl SwapchainCreateDesc {
 }
 
 pub struct SwapchainInstanceData {
+    handle: vk::SwapchainKHR,
+}
 
+impl SwapchainInstanceData {
+    pub fn new(handle: vk::SwapchainKHR) -> Self {
+        Self {
+            handle,
+        }
+    }
+
+    pub unsafe fn get_handle(&self) -> vk::SwapchainKHR {
+        self.handle
+    }
 }

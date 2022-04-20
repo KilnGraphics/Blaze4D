@@ -10,7 +10,7 @@ pub mod allocator;
 pub mod object_set;
 pub mod synchronization_group;
 pub mod resource_object_set;
-//pub mod swapchain_object_set;
+pub mod swapchain_object_set;
 
 pub use format::Format;
 

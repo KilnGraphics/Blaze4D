@@ -1,13 +1,13 @@
 use std::any::Any;
-use std::sync::Arc;
+use std::ptr::drop_in_place;
+use std::sync::Mutex;
 use ash::prelude::VkResult;
 use ash::vk;
-use ash::vk::{Fence, Image, ImageView, Semaphore, SwapchainKHR};
-use crate::objects::{types, ObjectSet, SynchronizationGroup};
-use crate::objects::types::{FenceId, ImageId, ImageViewId, ObjectSetId, SemaphoreId, SurfaceId, SwapchainId};
-use crate::objects::image::{ImageDescription, ImageViewDescription};
+use crate::objects::SynchronizationGroup;
+use crate::objects::types::{GenericId, ImageId, ImageViewId, ObjectInstanceData, ObjectSetId, ObjectType, SurfaceId, SwapchainId, UnwrapToInstanceData};
+use crate::objects::image::{ImageInstanceData, ImageViewDescription, ImageViewInstanceData};
 use crate::objects::object_set::ObjectSetProvider;
-use crate::objects::swapchain::SwapchainCreateDesc;
+use crate::objects::swapchain::{SwapchainCreateDesc, SwapchainInstanceData};
 use crate::device::DeviceContext;
 
 /// Swapchain object sets manage the creation of swapchains and have utilities for some common
@@ -24,77 +24,24 @@ use crate::device::DeviceContext;
 /// # Examples
 ///
 /// ```
-/// # use b4d_core::objects::swapchain::{SwapchainCreateDesc, SwapchainImageSpec};
-/// # use b4d_core::objects::{Format, ImageViewDescription, SwapchainObjectSetBuilder};
-/// use ash::vk;
-///
-/// // Create a builder. The swapchain will be immediately created.
-/// let mut builder = SwapchainObjectSetBuilder::new(
-///     device,
-///     surface_id,
-///     SwapchainCreateDesc::make(
-///         SwapchainImageSpec::make(
-///             &Format::R8G8B8A8_SRGB,
-///             vk::ColorSpaceKHR::SRGB_NONLINEAR,
-///             1920, 1080
-///         ),
-///         1,
-///         vk::ImageUsageFlags::SAMPLED,
-///         vk::PresentModeKHR::MAILBOX
-///     ),
-///     None
-/// ).unwrap();
-///
-/// // We can query information about the already created swapchain
-/// let swapchain_id = builder.get_swapchain_id();
-/// let image_count = builder.get_image_ids().len();
-///
-/// // Add a image view. One will be created for each image of the swapchain
-/// let image_views = builder.add_views(ImageViewDescription::make_full(
-///     vk::ImageViewType::TYPE_2D,
-///     &Format::R8G8B8A8_SRGB,
-///     vk::ImageAspectFlags::COLOR
-/// ));
-///
-/// // Similar to image views one semaphore will be created for each swapchain image
-/// let semaphores = builder.add_binary_semaphores();
-///
-/// // During the build call all derivative objects will be created.
-/// let object_set = builder.build().unwrap();
-///
-/// // Now we can access the objects and swapchain
-/// let swapchain = unsafe { object_set.get_swapchain_handle(swapchain_id) };
-/// for view in image_views.iter() {
-///     unsafe { object_set.get_image_view_handle(*view) };
-/// }
-///
-/// // The swapchain and derivative objects will be destroyed when the object set is dropped. The
-/// // object set type uses Arc internally so it can be cloned and the objects will only be dropped
-/// // when all references have been dropped.
 /// ```
-pub struct SwapchainObjectSetBuilder {
-    device: DeviceContext,
+pub struct SwapchainObjectSet {
     set_id: ObjectSetId,
-    surface: SurfaceId,
-    swapchain: vk::SwapchainKHR,
-    images: Box<[SwapchainImage]>,
-    image_desc: ImageDescription,
-    derivatives: Vec<DerivativeData>,
+    device: DeviceContext,
+    objects: Mutex<Objects>,
+    image_ids: Box<[ImageId]>,
+    source_surface: SurfaceId,
+    swapchain_data: SwapchainInstanceData,
 }
 
-impl SwapchainObjectSetBuilder {
-    /// Creates a new swapchain object set builder.
-    ///
-    /// The swapchain will be immediately created. If a synchronization group is specified it will
-    /// be used for all images. Otherwise a new synchronization group will be created for each
-    /// individual image.
-    pub fn new(device: DeviceContext, surface_id: SurfaceId, desc: SwapchainCreateDesc, synchronization_group: Option<SynchronizationGroup>) -> VkResult<Self> {
+impl SwapchainObjectSet {
+    pub fn new(device: DeviceContext, source_surface: SurfaceId, desc: &SwapchainCreateDesc) -> VkResult<Self> {
         let swapchain_fn = device.swapchain_khr().unwrap();
 
-        let (surface, swapchain_info) = device.get_surface(surface_id).unwrap();
+        let (surface, swapchain_info) = device.get_surface(source_surface).unwrap();
         let mut swapchain_info = swapchain_info.lock().unwrap();
 
-        let old_swapchain = swapchain_info.get_current_handle().unwrap_or(SwapchainKHR::null());
+        let old_swapchain = swapchain_info.get_current_handle().unwrap_or(vk::SwapchainKHR::null());
 
         let create_info = vk::SwapchainCreateInfoKHR::builder()
             .surface(surface)
@@ -130,305 +77,82 @@ impl SwapchainObjectSetBuilder {
             err
         })?;
 
-        // Need to keep this alive until we are done with all operations that could fail
+        // Needed to keep this alive until we are done with all operations that could fail
         drop(swapchain_info);
 
-        let image_desc = ImageDescription {
-            spec: desc.image_spec.as_image_spec(),
-            usage_flags: desc.usage,
-        };
-
-        let images : Box<_> = images.into_iter().map(|image| {
-            let group = match &synchronization_group {
-                None => SynchronizationGroup::new(device.clone()),
-                Some(group) => group.clone(),
-            };
-
-            SwapchainImage {
-                info: Arc::new(ImageInfo::new(image_desc, group)),
-                handle: image,
-            }
+        let images: Vec<_> = images.into_iter().map(|image| {
+            (image, SynchronizationGroup::new(device.clone()))
         }).collect();
 
-        // After this point errors are handled by the drop function of the SwapchainObjectSetBuilder
+        let set_id = ObjectSetId::new();
+        let image_ids: Vec<_> = (0u16..(images.len() as u16)).map(|index| ImageId::new(set_id, index)).collect();
+
         Ok(Self {
+            set_id,
             device,
-            set_id: ObjectSetId::new(),
-            surface: surface_id,
-            swapchain: new_swapchain,
-            images,
-            image_desc,
-            derivatives: Vec::new(),
+            objects: Mutex::new(Objects::new(images)),
+            image_ids: image_ids.into_boxed_slice(),
+            swapchain_data: SwapchainInstanceData::new(new_swapchain),
+            source_surface,
         })
     }
 
-    pub fn get_image_description(&self) -> &ImageDescription {
-        &self.image_desc
-    }
-
     pub fn get_swapchain_id(&self) -> SwapchainId {
-        SwapchainId::new(self.set_id, 0)
+        SwapchainId::new(self.set_id, u16::MAX)
     }
 
-    pub fn get_image_ids(&self) -> Box<[ImageId]> {
-        (0..self.images.len()).map(|index| ImageId::new(self.set_id, index as u16)).collect()
+    pub fn get_image_ids(&self) -> &[ImageId] {
+        self.image_ids.as_ref()
     }
 
-    fn get_next_index(&self) -> u16 {
-        let index = self.derivatives.len();
-        if index > u16::MAX as usize {
-            panic!("Too many objects in object set");
+    pub fn add_image_views(&self, desc: &ImageViewDescription) -> Box<[ImageViewId]> {
+        let mut image_views = Vec::with_capacity(self.image_ids.len());
+        for image in self.image_ids.iter() {
+            let source = self.try_get_image_data(*image).unwrap();
+            let handle = unsafe { source.get_handle() };
+            let group = source.get_synchronization_group().clone();
+
+            image_views.push((unsafe { self.create_image_view(desc, handle) }.unwrap(), group));
         }
-        index as u16
-    }
 
-    /// Adds a set of image views for each image of the swapchain
-    pub fn add_views(&mut self, desc: ImageViewDescription) -> Box<[ImageViewId]> {
-        self.derivatives.reserve(self.images.len());
-        let mut ids = Vec::with_capacity(self.images.len());
+        let start_index = self.objects.lock().unwrap().insert_image_views(image_views);
 
-        for (index, image) in self.images.as_ref().iter().enumerate() {
-            ids.push(ImageViewId::new(self.set_id, self.get_next_index()));
-
-            let image_id = ImageId::new(self.set_id, index as u16);
-            self.derivatives.push(DerivativeData::make_image_view(desc, image_id, image.info.clone()));
+        let mut ids = Vec::with_capacity(self.image_ids.len());
+        for index in start_index..(start_index + (self.image_ids.len() as u16)) {
+            ids.push(ImageViewId::new(self.set_id, index));
         }
 
         ids.into_boxed_slice()
     }
 
-    /// Adds a set of binary semaphores for each image of the swapchain
-    pub fn add_binary_semaphores(&mut self) -> Box<[SemaphoreId]> {
-        self.derivatives.reserve(self.images.len());
-        let mut ids = Vec::with_capacity(self.images.len());
+    unsafe fn create_image_view(&self, desc: &ImageViewDescription, source: vk::Image) -> VkResult<vk::ImageView> {
+        let create_info = vk::ImageViewCreateInfo::builder()
+            .image(source)
+            .view_type(desc.view_type)
+            .format(desc.format.get_format())
+            .components(desc.components)
+            .subresource_range(desc.subresource_range.as_vk_subresource_range());
 
-        for _ in self.images.as_ref() {
-            ids.push(SemaphoreId::new(self.set_id, self.get_next_index()));
-            self.derivatives.push(DerivativeData::make_binary_semaphore())
+        let handle = self.device.vk().create_image_view(&create_info, None)?;
+
+        Ok(handle)
+    }
+
+    fn try_get_image_data(&self, id: ImageId) -> Option<&ImageInstanceData> {
+        self.try_get_object_data(id.into()).map(|d| d.unwrap())
+    }
+
+    fn try_get_object_data(&self, id: GenericId) -> Option<ObjectInstanceData> {
+        if id.get_type() == ObjectType::SWAPCHAIN && id.get_index() == u16::MAX {
+            return Some(ObjectInstanceData::Swapchain(&self.swapchain_data));
         }
 
-        ids.into_boxed_slice()
+        let index = id.get_index() as usize;
+        let object_type = id.get_type();
+
+        let guard = self.objects.lock().unwrap();
+        unsafe { guard.objects.get(index)?.as_object_instance_data(object_type) }
     }
-
-    /// Adds a set of fences for each image of the swapchain
-    pub fn add_fences(&mut self) -> Box<[FenceId]> {
-        self.derivatives.reserve(self.images.len());
-        let mut ids = Vec::with_capacity(self.images.len());
-
-        for _ in self.images.as_ref() {
-            ids.push(FenceId::new(self.set_id, self.get_next_index()));
-            self.derivatives.push(DerivativeData::make_fence())
-        }
-
-        ids.into_boxed_slice()
-    }
-
-    fn create(&mut self) -> Result<(), vk::Result> {
-        for derivative in &mut self.derivatives {
-            derivative.create(&self.device, &self.images)?;
-        }
-
-        Ok(())
-    }
-
-    fn destroy(&mut self) {
-        for derivative in &mut self.derivatives {
-            derivative.destroy(&self.device);
-        }
-    }
-
-    pub fn build(mut self) -> Result<ObjectSet, vk::Result> {
-        if let Err(err) = self.create() {
-            self.destroy();
-            return Err(err);
-        }
-
-        // This is beyond ugly but necessary since we implement drop
-        Ok(ObjectSet::new(SwapchainObjectSet {
-            device: self.device.clone(),
-            set_id: self.set_id,
-            surface: self.surface,
-            swapchain: std::mem::replace(&mut self.swapchain, vk::SwapchainKHR::null()),
-            images: std::mem::replace(&mut self.images, Box::new([])),
-            derivatives: std::mem::replace(&mut self.derivatives, Vec::new()).into_boxed_slice(),
-        }))
-    }
-}
-
-impl Drop for SwapchainObjectSetBuilder {
-    fn drop(&mut self) {
-        if self.swapchain != vk::SwapchainKHR::null() {
-            let swapchain_fn = self.device.swapchain_khr().unwrap();
-
-            let (_, swapchain_info) = self.device.get_surface(self.surface).unwrap();
-            let mut swapchain_info = swapchain_info.lock().unwrap();
-
-            unsafe {
-                swapchain_fn.destroy_swapchain(self.swapchain, None)
-            };
-
-            if swapchain_info.get_current_handle() == Some(self.swapchain) {
-                swapchain_info.clear();
-            }
-            self.swapchain = vk::SwapchainKHR::null();
-        }
-    }
-}
-
-struct ImageViewData {
-    info: Box<ImageViewInfo>,
-    handle: vk::ImageView,
-}
-
-impl ImageViewData {
-    fn new(desc: ImageViewDescription, image_id: types::ImageId, image_info: Arc<ImageInfo>) -> Self {
-        Self {
-            info: Box::new(ImageViewInfo::new(desc, image_id, image_info)),
-            handle: vk::ImageView::null(),
-        }
-    }
-
-    fn create(&mut self, device: &DeviceContext, images: &Box<[SwapchainImage]>) -> Result<(), vk::Result> {
-        if self.handle == vk::ImageView::null() {
-            let index = self.info.get_source_image_id().get_index() as usize;
-
-            let description = self.info.get_description();
-
-            let info = vk::ImageViewCreateInfo::builder()
-                .image(images.get(index).unwrap().handle)
-                .view_type(description.view_type)
-                .format(description.format.get_format())
-                .components(description.components)
-                .subresource_range(description.subresource_range.as_vk_subresource_range());
-
-            self.handle = unsafe {
-                device.vk().create_image_view(&info, None)
-            }?;
-        }
-
-        Ok(())
-    }
-
-    fn destroy(&mut self, device: &DeviceContext) {
-        if self.handle != vk::ImageView::null() {
-            unsafe { device.vk().destroy_image_view(self.handle, None) };
-            self.handle = vk::ImageView::null();
-        }
-    }
-}
-
-struct BinarySemaphoreData {
-    handle: vk::Semaphore,
-}
-
-impl BinarySemaphoreData {
-    fn new() -> Self {
-        Self {
-            handle: vk::Semaphore::null(),
-        }
-    }
-
-    fn create(&mut self, device: &DeviceContext) -> Result<(), vk::Result> {
-        if self.handle == vk::Semaphore::null() {
-            let info = vk::SemaphoreCreateInfo::builder();
-
-            let handle = unsafe {
-                device.vk().create_semaphore(&info, None)
-            }?;
-            self.handle = handle;
-        }
-
-        Ok(())
-    }
-
-    fn destroy(&mut self, device: &DeviceContext) {
-        if self.handle != vk::Semaphore::null() {
-            unsafe { device.vk().destroy_semaphore(self.handle, None) };
-            self.handle = vk::Semaphore::null();
-        }
-    }
-}
-
-struct FenceData {
-    handle: vk::Fence,
-}
-
-impl FenceData {
-    fn new() -> Self {
-        Self {
-            handle: vk::Fence::null(),
-        }
-    }
-
-    fn create(&mut self, device: &DeviceContext) -> Result<(), vk::Result> {
-        if self.handle == vk::Fence::null() {
-            let info = vk::FenceCreateInfo::builder();
-
-            let handle = unsafe {
-                device.vk().create_fence(&info, None)
-            }?;
-            self.handle = handle;
-        }
-
-        Ok(())
-    }
-
-    fn destroy(&mut self, device: &DeviceContext) {
-        if self.handle != vk::Fence::null() {
-            unsafe { device.vk().destroy_fence(self.handle, None) };
-            self.handle = vk::Fence::null();
-        }
-    }
-}
-
-enum DerivativeData {
-    ImageView(ImageViewData),
-    BinarySemaphore(BinarySemaphoreData),
-    Fence(FenceData),
-}
-
-impl DerivativeData {
-    fn make_image_view(desc: ImageViewDescription, image_id: types::ImageId, image_info: Arc<ImageInfo>) -> Self {
-        Self::ImageView(ImageViewData::new(desc, image_id, image_info))
-    }
-
-    fn make_binary_semaphore() -> Self {
-        Self::BinarySemaphore(BinarySemaphoreData::new())
-    }
-
-    fn make_fence() -> Self {
-        Self::Fence(FenceData::new())
-    }
-
-    fn create(&mut self, device: &DeviceContext, images: &Box<[SwapchainImage]>) -> Result<(), vk::Result> {
-        match self {
-            DerivativeData::ImageView(data) => data.create(device, images),
-            DerivativeData::BinarySemaphore(data) => data.create(device),
-            DerivativeData::Fence(data) => data.create(device)
-        }
-    }
-
-    fn destroy(&mut self, device: &DeviceContext) {
-        match self {
-            DerivativeData::ImageView(data) => data.destroy(device),
-            DerivativeData::BinarySemaphore(data) => data.destroy(device),
-            DerivativeData::Fence(data) => data.destroy(device),
-        }
-    }
-}
-
-struct SwapchainImage {
-    info: Arc<ImageInfo>,
-    handle: vk::Image,
-}
-
-struct SwapchainObjectSet {
-    device: DeviceContext,
-    set_id: ObjectSetId,
-    surface: SurfaceId,
-    swapchain: vk::SwapchainKHR,
-    images: Box<[SwapchainImage]>,
-    derivatives: Box<[DerivativeData]>,
 }
 
 impl ObjectSetProvider for SwapchainObjectSet {
@@ -436,80 +160,10 @@ impl ObjectSetProvider for SwapchainObjectSet {
         self.set_id
     }
 
-    unsafe fn get_image_handle(&self, id: ImageId) -> Image {
-        if id.get_set_id() != self.set_id {
-            panic!("Image belongs to different object set");
-        }
-
-        let index = id.get_index() as usize;
-        self.images.get(index).unwrap().handle
+    fn get_object_data(&self, id: GenericId) -> ObjectInstanceData {
+        self.try_get_object_data(id).unwrap()
     }
 
-    fn get_image_info(&self, id: ImageId) -> &Arc<ImageInfo> {
-        if id.get_set_id() != self.set_id {
-            panic!("Image belongs to different object set");
-        }
-
-        let index = id.get_index() as usize;
-        &self.images.get(index).unwrap().info
-    }
-
-    unsafe fn get_image_view_handle(&self, id: ImageViewId) -> ImageView {
-        if id.get_set_id() != self.set_id {
-            panic!("ImageView belongs to different object set");
-        }
-
-        let index = id.get_index() as usize;
-        match self.derivatives.get(index).unwrap() {
-            DerivativeData::ImageView(data) => data.handle,
-            _ => panic!("Id does not map to image view"),
-        }
-    }
-
-    fn get_image_view_info(&self, id: ImageViewId) -> &ImageViewInfo {
-        if id.get_set_id() != self.set_id {
-            panic!("ImageView belongs to different object set");
-        }
-
-        let index = id.get_index() as usize;
-        match self.derivatives.get(index).unwrap() {
-            DerivativeData::ImageView(data) => data.info.as_ref(),
-            _ => panic!("Id does not map to image view"),
-        }
-    }
-
-    unsafe fn get_swapchain_handle(&self, id: SwapchainId) -> SwapchainKHR {
-        if id != SwapchainId::new(self.set_id, 0) {
-            panic!("Invalid SwapchainId")
-        }
-
-        self.swapchain
-    }
-
-    unsafe fn get_semaphore_handle(&self, id: SemaphoreId) -> Semaphore {
-        if id.get_set_id() != self.set_id {
-            panic!("Semaphore belongs to different object set");
-        }
-
-        let index = id.get_index() as usize;
-        match self.derivatives.get(index).unwrap() {
-            DerivativeData::BinarySemaphore(data) => data.handle,
-            _ => panic!("Id does not map to semaphore"),
-        }
-    }
-
-    unsafe fn get_fence_handle(&self, id: FenceId) -> Fence {
-        if id.get_set_id() != self.set_id {
-            panic!("Fence belongs to different object set");
-        }
-
-        let index = id.get_index() as usize;
-        match self.derivatives.get(index).unwrap() {
-            DerivativeData::Fence(data) => data.handle,
-            _ => panic!("Id does not map to fence"),
-        }
-    }
-    
     fn as_any(&self) -> &dyn Any {
         self
     }
@@ -517,29 +171,109 @@ impl ObjectSetProvider for SwapchainObjectSet {
 
 impl Drop for SwapchainObjectSet {
     fn drop(&mut self) {
-        for derivative in self.derivatives.as_mut() {
-            derivative.destroy(&self.device);
-        }
+        unsafe { self.objects.get_mut().unwrap().destroy(&self.device) };
 
-        if self.swapchain != vk::SwapchainKHR::null() {
-            let swapchain_fn = self.device.swapchain_khr().unwrap();
+        let (_, swapchain_info) = self.device.get_surface(self.source_surface).unwrap();
+        let mut swapchain_info = swapchain_info.lock().unwrap();
 
-            let (_, swapchain_info) = self.device.get_surface(self.surface).unwrap();
-            let mut swapchain_info = swapchain_info.lock().unwrap();
+        unsafe { self.device.swapchain_khr().unwrap().destroy_swapchain(self.swapchain_data.get_handle(), None) };
 
-            unsafe {
-                swapchain_fn.destroy_swapchain(self.swapchain, None)
-            };
-
-            if swapchain_info.get_current_handle() == Some(self.swapchain) {
+        if let Some(current) = swapchain_info.get_current_handle() {
+            if current == unsafe { self.swapchain_data.get_handle() } {
                 swapchain_info.clear();
             }
-            self.swapchain = vk::SwapchainKHR::null();
         }
     }
 }
 
-#[cfg(test)]
-mod tests {
-    // TODO how on earth do we test this???
+struct Objects {
+    allocator: bumpalo::Bump,
+    objects: Vec<Object>,
+}
+
+impl Objects {
+    fn new(images: Vec<(vk::Image, SynchronizationGroup)>) -> Self {
+        let mut result = Self {
+            allocator: bumpalo::Bump::new(),
+            objects: Vec::with_capacity(images.len()),
+        };
+
+        for (image, group) in images {
+            let data = result.allocator.alloc(ImageInstanceData::new(image, group));
+            result.objects.push(Object::Image(data));
+        }
+
+        result
+    }
+
+    unsafe fn destroy(&mut self, device: &DeviceContext) {
+        let objects = std::mem::replace(&mut self.objects, Vec::new());
+        for object in objects.into_iter().rev() {
+            object.destroy(device);
+        }
+    }
+
+    fn insert_image_views(&mut self, image_views: Vec<(vk::ImageView, SynchronizationGroup)>) -> u16 {
+        let index = self.objects.len() as u16;
+
+        self.objects.reserve(image_views.len());
+        for (image_view, group) in image_views {
+            let data = self.allocator.alloc(ImageViewInstanceData::new(image_view, group));
+            self.objects.push(Object::ImageView(data));
+        }
+
+        index
+    }
+}
+
+enum Object {
+    Image(*const ImageInstanceData),
+    ImageView(*const ImageViewInstanceData),
+}
+
+impl Object {
+    /// Creates a [`ObjectInstanceData`] for this object.
+    ///
+    /// # Safety
+    ///
+    /// The caller must ensure that the assigned lifetime is smaller than the lifetime of this
+    /// object.
+    unsafe fn as_object_instance_data<'a>(&self, id_type: u8) -> Option<ObjectInstanceData<'a>> {
+        match self {
+            Object::Image(d) => {
+                if id_type != ObjectType::IMAGE {
+                    return None;
+                }
+                Some(ObjectInstanceData::Image(d.as_ref().unwrap()))
+            }
+            Object::ImageView(d) => {
+                if id_type != ObjectType::IMAGE_VIEW {
+                    return None;
+                }
+                Some(ObjectInstanceData::ImageView(d.as_ref().unwrap()))
+            }
+        }
+    }
+
+    unsafe fn destroy(&self, device: &DeviceContext) {
+        match self {
+            Object::Image(_) => {} // Images belong to the swapchain so nothing to do here
+            Object::ImageView(d) => {
+                device.vk().destroy_image_view(d.as_ref().unwrap().get_handle(), None);
+            }
+        }
+    }
+}
+
+impl Drop for Object {
+    fn drop(&mut self) {
+        match self {
+            Object::Image(d) => {
+                unsafe { drop_in_place(*d as *mut ImageInstanceData) };
+            }
+            Object::ImageView(d) => {
+                unsafe { drop_in_place(*d as *mut ImageViewInstanceData) };
+            }
+        }
+    }
 }
