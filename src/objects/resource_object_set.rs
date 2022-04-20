@@ -42,54 +42,6 @@ impl<'s> From<AllocationError> for ObjectCreateError {
 /// # Examples
 ///
 /// ```
-/// # use b4d_core::objects::buffer::BufferDescription;
-/// # use b4d_core::objects::image::{ImageDescription, ImageViewDescription};
-/// # use b4d_core::objects::resource_object_set::ResourceObjectSetBuilder;
-/// # use b4d_core::objects::{Format, ImageSize, ImageSpec, SynchronizationGroup};
-/// # let (_, device) = b4d_core::test::make_headless_instance_device();
-/// use ash::vk;
-///
-/// // We need a synchronization group for our objects
-/// let synchronization_group = SynchronizationGroup::new(device);
-///
-/// // Create a builder. It will use the synchronization group for all objects
-/// let mut builder = ResourceObjectSetBuilder::new(synchronization_group);
-///
-/// // Add a request for a device only buffer. The buffer wont be created yet.
-/// let buffer_id = builder.add_default_gpu_only_buffer(
-///     BufferDescription::new_simple(1024, vk::BufferUsageFlags::VERTEX_BUFFER)
-/// );
-///
-/// // Add a request for a device only image. Again the image wont be created just yet.
-/// let image_id = builder.add_default_gpu_only_image(
-///     ImageDescription::new_simple(
-///         ImageSpec::new_single_sample(ImageSize::make_2d(128, 128), &Format::R8G8B8A8_SRGB),
-///         vk::ImageUsageFlags::SAMPLED,
-///     )
-/// );
-///
-/// // We can add a image view for a previously requested image.
-/// let image_view_id = builder.add_internal_image_view(
-///     ImageViewDescription::make_full(
-///         vk::ImageViewType::TYPE_2D,
-///         &Format::R8G8B8A8_SRGB,
-///         vk::ImageAspectFlags::COLOR
-///     ),
-///     image_id
-/// );
-///
-/// // During the build call all of the objects will be created
-/// let object_set = builder.build().unwrap();
-///
-/// // Now we can access the objects
-/// let image_handle = unsafe { object_set.get_image_handle(image_id) };
-///
-/// // Or query information about them
-/// let buffer_size = object_set.get_buffer_info(buffer_id).get_description().size;
-///
-/// // The objects will be destroyed when the object set is dropped. The object set type uses Arc
-/// // internally so it can be cloned and the objects will only be dropped when all references
-/// // have been dropped.
 /// ```
 pub struct ResourceObjectSet {
     set_id: ObjectSetId,
@@ -98,6 +50,14 @@ pub struct ResourceObjectSet {
 }
 
 impl ResourceObjectSet {
+    pub fn new(device: DeviceContext) -> Self {
+        Self {
+            set_id: ObjectSetId::new(),
+            device,
+            objects: Mutex::new(Objects::new()),
+        }
+    }
+
     pub fn add_default_gpu_only_buffer(&self, desc: &BufferDescription, synchronization_group: SynchronizationGroup) -> BufferId {
         let (buffer, allocation) = unsafe { self.create_buffer(desc, AllocationStrategy::AutoGpuOnly) }.unwrap();
         self.insert_buffer(buffer, synchronization_group, allocation)
@@ -307,6 +267,14 @@ struct Objects {
 }
 
 impl Objects {
+    fn new() -> Self {
+        Self {
+            allocator: bumpalo::Bump::new(),
+            objects: Vec::new(),
+            allocations: Vec::new(),
+        }
+    }
+
     /// Destroys all objects inside this set and frees all memory allocations. Any instance data for
     /// objects is dropped.
     ///
@@ -365,6 +333,15 @@ impl Objects {
         self.objects.push(Object::ImageView(data, source_set));
 
         index
+    }
+}
+
+impl Drop for Objects {
+    fn drop(&mut self) {
+        if !self.objects.is_empty() {
+            // This is fully in our control so this implies a bug insider the resource object set code
+            panic!("Drop functions for resource object set objects has been called while there are still objects inside");
+        }
     }
 }
 
@@ -452,5 +429,27 @@ impl Drop for Object {
                 unsafe { drop_in_place(*d as *mut ImageViewInstanceData) };
             }
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use ash::vk::BufferUsageFlags;
+    use super::*;
+
+    #[test]
+    fn test_buffer() {
+        let (instance, device) = crate::test::make_headless_instance_device();
+
+        let group = SynchronizationGroup::new(device.clone());
+        let set = ResourceObjectSet::new(device);
+
+        let buffer_desc = BufferDescription::new_simple(1024, BufferUsageFlags::TRANSFER_DST);
+        let id = set.add_default_gpu_only_buffer(&buffer_desc, group.clone());
+
+        let set = ObjectSet::new(set);
+
+        assert_ne!(unsafe { set.get_data(id).get_handle() }, vk::Buffer::null());
+        assert_eq!(set.get_data(id).get_synchronization_group(), &group);
     }
 }
