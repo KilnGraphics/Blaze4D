@@ -3,7 +3,7 @@ use std::cmp::Ordering;
 use std::hash::{Hash, Hasher};
 use std::sync::Arc;
 
-use crate::objects::types::{GenericId, ObjectIdType, ObjectInstanceData, ObjectSetId, UnwrapToInstanceData};
+use crate::vk::objects::types::{GenericId, ObjectIdType, ObjectInstanceData, ObjectSetId, UnwrapToInstanceData};
 
 /// A trait that must be implemented by any object set implementation.
 pub trait ObjectSetProvider {

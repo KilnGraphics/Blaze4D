@@ -1,7 +1,7 @@
 use std::fmt::Debug;
 
 use ash::vk;
-use crate::objects::{Format, SynchronizationGroup};
+use crate::vk::objects::{Format, SynchronizationGroup};
 
 #[derive(Copy, Clone, Debug, PartialEq, Eq)]
 pub enum ImageSize {
@@ -114,17 +114,17 @@ impl ImageSize {
 
 #[derive(Copy, Clone, Debug, PartialEq, Eq)]
 pub struct ImageSpec {
-    pub format: &'static crate::objects::Format,
+    pub format: &'static Format,
     pub sample_count: ash::vk::SampleCountFlags,
     pub size: ImageSize,
 }
 
 impl ImageSpec {
-    pub const fn new(size: ImageSize, format: &'static crate::objects::Format, sample_count: vk::SampleCountFlags) -> Self {
+    pub const fn new(size: ImageSize, format: &'static Format, sample_count: vk::SampleCountFlags) -> Self {
         ImageSpec { format, size, sample_count }
     }
 
-    pub const fn new_single_sample(size: ImageSize, format: &'static crate::objects::Format) -> Self {
+    pub const fn new_single_sample(size: ImageSize, format: &'static Format) -> Self {
         ImageSpec { format, size, sample_count: vk::SampleCountFlags::TYPE_1 }
     }
 
@@ -136,7 +136,7 @@ impl ImageSpec {
         &self.size
     }
 
-    pub const fn get_format(&self) -> &'static crate::objects::Format {
+    pub const fn get_format(&self) -> &'static Format {
         self.format
     }
 

@@ -4,8 +4,9 @@ use std::hash::{Hash, Hasher};
 use std::sync::{Arc, LockResult, Mutex, MutexGuard};
 
 use ash::vk;
-use crate::device::DeviceContext;
+
 use crate::UUID;
+use crate::vk::device::DeviceContext;
 
 // Internal struct containing the semaphore payload and metadata
 struct SyncData {

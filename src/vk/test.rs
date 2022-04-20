@@ -1,11 +1,11 @@
 use std::ffi::{CString};
 use ash::{Entry, Instance, vk};
 use vk_profiles_rs::vp;
-use crate::{DeviceContext, InstanceContext};
-use crate::init::device::{create_device, DeviceCreateConfig};
-use crate::init::instance::{create_instance, InstanceCreateConfig};
-use crate::instance::VulkanVersion;
-use crate::objects::surface::{SurfaceInitError, SurfaceProvider};
+use crate::vk::{DeviceContext, InstanceContext};
+use crate::vk::init::device::{create_device, DeviceCreateConfig};
+use crate::vk::init::instance::{create_instance, InstanceCreateConfig};
+use crate::vk::instance::VulkanVersion;
+use crate::vk::objects::surface::{SurfaceInitError, SurfaceProvider};
 
 pub fn make_headless_instance() -> InstanceContext {
     let mut config = InstanceCreateConfig::new(

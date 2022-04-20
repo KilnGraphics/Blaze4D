@@ -7,11 +7,11 @@ use ash::prelude::VkResult;
 
 use ash::vk;
 
-use crate::instance::{InstanceContext, InstanceContextImpl};
-use crate::objects::types::SurfaceId;
-use crate::objects::surface::{SurfaceCapabilities, SurfaceProvider};
 use crate::NamedUUID;
-use crate::objects::allocator::Allocator;
+use crate::vk::instance::{InstanceContext, InstanceContextImpl};
+use crate::vk::objects::types::SurfaceId;
+use crate::vk::objects::surface::{SurfaceCapabilities, SurfaceProvider};
+use crate::vk::objects::allocator::Allocator;
 
 pub struct DeviceContextImpl {
     id: NamedUUID,

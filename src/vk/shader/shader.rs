@@ -1,11 +1,11 @@
-use crate::shader::vertex::VertexFormat;
+use crate::vk::shader::vertex::VertexFormat;
 use ash::vk::{ShaderModule, ShaderModuleCreateInfo};
 use ash::{Device, Entry};
 use shaderc::{CompileOptions, Compiler, ShaderKind, TargetEnv};
 use std::collections::HashSet;
 use std::rc::Rc;
 use std::sync::Arc;
-use crate::DeviceContext;
+use crate::vk::DeviceContext;
 
 #[derive(Debug, PartialEq, Eq, Hash)]
 pub struct Uniform {

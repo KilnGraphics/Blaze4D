@@ -8,8 +8,8 @@ use ash::vk;
 use vk_profiles_rs::vp;
 
 use crate::NamedUUID;
-use crate::objects::types::SurfaceId;
-use crate::objects::surface::SurfaceProvider;
+use crate::vk::objects::types::SurfaceId;
+use crate::vk::objects::surface::SurfaceProvider;
 
 #[derive(Copy, Clone, Eq, PartialEq, Ord, PartialOrd)]
 pub struct VulkanVersion(u32);
@@ -56,7 +56,7 @@ pub struct InstanceContextImpl {
     instance: ash::Instance,
     surface_khr: Option<ash::extensions::khr::Surface>,
     surfaces: ManuallyDrop<Mutex<HashMap<SurfaceId, Box<dyn SurfaceProvider>>>>,
-    _debug_messengers: ManuallyDrop<Box<[crate::init::instance::DebugUtilsMessengerWrapper]>>,
+    _debug_messengers: ManuallyDrop<Box<[crate::vk::init::instance::DebugUtilsMessengerWrapper]>>,
 }
 
 impl InstanceContextImpl {
@@ -67,7 +67,7 @@ impl InstanceContextImpl {
         instance: ash::Instance,
         surface_khr: Option<ash::extensions::khr::Surface>,
         surfaces: HashMap<SurfaceId, Box<dyn SurfaceProvider>>,
-        debug_messengers: Box<[crate::init::instance::DebugUtilsMessengerWrapper]>
+        debug_messengers: Box<[crate::vk::init::instance::DebugUtilsMessengerWrapper]>
     ) -> Self {
         Self {
             id: NamedUUID::with_str("Instance"),

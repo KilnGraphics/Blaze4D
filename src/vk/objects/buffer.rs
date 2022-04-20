@@ -1,5 +1,5 @@
 use ash::vk;
-use crate::objects::SynchronizationGroup;
+use crate::vk::objects::{Format, SynchronizationGroup};
 
 #[derive(Copy, Clone, Debug)]
 pub struct BufferSpec {
@@ -45,12 +45,12 @@ impl BufferDescription {
 #[non_exhaustive]
 #[derive(Copy, Clone, Debug, PartialEq, Eq)]
 pub struct BufferViewDescription {
-    pub format: &'static crate::objects::Format,
+    pub format: &'static Format,
     pub range: BufferRange,
 }
 
 impl BufferViewDescription {
-    pub fn new_simple(range: BufferRange, format: &'static crate::objects::Format) -> Self {
+    pub fn new_simple(range: BufferRange, format: &'static Format) -> Self {
         Self { range, format }
     }
 }

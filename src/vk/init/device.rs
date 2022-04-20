@@ -4,10 +4,10 @@ use std::sync::Arc;
 use ash::vk;
 use ash::vk::PhysicalDeviceType;
 use vk_profiles_rs::vp;
-use crate::device::{DeviceContext, DeviceContextImpl, VkQueueTemplate};
-use crate::instance::InstanceContext;
-use crate::objects::types::SurfaceId;
-use crate::objects::surface::{SurfaceCapabilities, SurfaceProvider};
+use crate::vk::device::{DeviceContext, DeviceContextImpl, VkQueueTemplate};
+use crate::vk::instance::InstanceContext;
+use crate::vk::objects::types::SurfaceId;
+use crate::vk::objects::surface::{SurfaceCapabilities, SurfaceProvider};
 
 pub type DeviceRatingFn = dyn Fn(&InstanceContext, vk::PhysicalDevice) -> Option<f32>;
 

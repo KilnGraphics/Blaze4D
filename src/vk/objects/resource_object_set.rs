@@ -3,14 +3,13 @@ use std::ptr::drop_in_place;
 use std::sync::Mutex;
 use ash::vk;
 
-use crate::device::DeviceContext;
-
-use crate::objects::{ObjectSet, SynchronizationGroup};
-use crate::objects::buffer::{BufferDescription, BufferInstanceData, BufferViewDescription, BufferViewInstanceData};
-use crate::objects::types::{BufferId, BufferViewId, GenericId, ImageId, ImageViewId, ObjectInstanceData, ObjectSetId, ObjectType, UnwrapToInstanceData};
-use crate::objects::image::{ImageDescription, ImageInstanceData, ImageViewDescription, ImageViewInstanceData};
-use crate::objects::allocator::{Allocation, AllocationError, AllocationStrategy};
-use crate::objects::object_set::ObjectSetProvider;
+use crate::vk::device::DeviceContext;
+use crate::vk::objects::{ObjectSet, SynchronizationGroup};
+use crate::vk::objects::buffer::{BufferDescription, BufferInstanceData, BufferViewDescription, BufferViewInstanceData};
+use crate::vk::objects::types::{BufferId, BufferViewId, GenericId, ImageId, ImageViewId, ObjectInstanceData, ObjectSetId, ObjectType, UnwrapToInstanceData};
+use crate::vk::objects::image::{ImageDescription, ImageInstanceData, ImageViewDescription, ImageViewInstanceData};
+use crate::vk::objects::allocator::{Allocation, AllocationError, AllocationStrategy};
+use crate::vk::objects::object_set::ObjectSetProvider;
 
 #[derive(Debug)]
 pub enum ObjectCreateError {
@@ -439,7 +438,7 @@ mod tests {
 
     #[test]
     fn test_buffer() {
-        let (_, device) = crate::test::make_headless_instance_device();
+        let (_, device) = crate::vk::test::make_headless_instance_device();
 
         let group = SynchronizationGroup::new(device.clone());
         let set = ResourceObjectSet::new(device);

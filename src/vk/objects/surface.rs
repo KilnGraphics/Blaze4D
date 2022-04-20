@@ -1,7 +1,7 @@
 use std::ffi::CString;
 
 use ash::vk;
-use crate::instance::InstanceContextImpl;
+use crate::vk::instance::InstanceContextImpl;
 
 #[derive(Debug)]
 pub enum SurfaceInitError {

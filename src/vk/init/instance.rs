@@ -4,10 +4,10 @@ use std::str::Utf8Error;
 use std::sync::Arc;
 use ash::vk;
 use vk_profiles_rs::vp;
-use crate::instance::{VulkanVersion, InstanceContextImpl, InstanceContext};
-use crate::objects::types::{ObjectSetId, SurfaceId};
-use crate::objects::surface::{SurfaceInitError, SurfaceProvider};
-use crate::util::debug_messenger::DebugMessengerCallback;
+use crate::vk::instance::{VulkanVersion, InstanceContextImpl, InstanceContext};
+use crate::vk::objects::types::{ObjectSetId, SurfaceId};
+use crate::vk::objects::surface::{SurfaceInitError, SurfaceProvider};
+use crate::vk::debug_messenger::DebugMessengerCallback;
 
 pub struct InstanceCreateConfig {
     profile: vp::ProfileProperties,
