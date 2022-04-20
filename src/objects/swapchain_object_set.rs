@@ -226,6 +226,15 @@ impl Objects {
     }
 }
 
+impl Drop for Objects {
+    fn drop(&mut self) {
+        if !self.objects.is_empty() {
+            // This is fully in our control so this implies a bug insider the swapchain object set code
+            panic!("Drop function for swapchain object set objects has been called while there are still objects inside");
+        }
+    }
+}
+
 enum Object {
     Image(*const ImageInstanceData),
     ImageView(*const ImageViewInstanceData),

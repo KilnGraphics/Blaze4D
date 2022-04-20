@@ -1,10 +1,11 @@
-use std::ffi::CString;
-use ash::vk;
+use std::ffi::{CString};
+use ash::{Entry, Instance, vk};
 use vk_profiles_rs::vp;
 use crate::{DeviceContext, InstanceContext};
 use crate::init::device::{create_device, DeviceCreateConfig};
 use crate::init::instance::{create_instance, InstanceCreateConfig};
 use crate::instance::VulkanVersion;
+use crate::objects::surface::{SurfaceInitError, SurfaceProvider};
 
 pub fn make_headless_instance() -> InstanceContext {
     let mut config = InstanceCreateConfig::new(
@@ -22,8 +23,51 @@ pub fn make_headless_instance() -> InstanceContext {
 pub fn make_headless_instance_device() -> (InstanceContext, DeviceContext) {
     let instance = make_headless_instance();
 
-    let mut config = DeviceCreateConfig::new();
+    let config = DeviceCreateConfig::new();
     let device = create_device(config, instance.clone()).unwrap();
 
     (instance, device)
+}
+
+pub struct HeadlessSurfaceProvider {
+    surface_khr: Option<ash::extensions::khr::Surface>,
+    surface: vk::SurfaceKHR,
+}
+
+impl HeadlessSurfaceProvider {
+    pub fn new() -> Self {
+        Self {
+            surface_khr: None,
+            surface: vk::SurfaceKHR::null(),
+        }
+    }
+}
+
+impl SurfaceProvider for HeadlessSurfaceProvider {
+    fn get_required_instance_extensions(&self) -> Vec<CString> {
+        vec![CString::new("VK_EXT_headless_surface").unwrap(), CString::new("VK_KHR_surface").unwrap()]
+    }
+
+    fn init(&mut self, entry: &Entry, instance: &Instance) -> Result<vk::SurfaceKHR, SurfaceInitError> {
+        self.surface_khr = Some(ash::extensions::khr::Surface::new(entry, instance));
+
+        Err(SurfaceInitError::Generic())
+    }
+
+    fn get_handle(&self) -> Option<vk::SurfaceKHR> {
+        if self.surface == vk::SurfaceKHR::null() {
+            None
+        } else {
+            Some(self.surface)
+        }
+    }
+}
+
+impl Drop for HeadlessSurfaceProvider {
+    fn drop(&mut self) {
+        if self.surface != vk::SurfaceKHR::null() {
+            unsafe { self.surface_khr.as_ref().unwrap().destroy_surface(self.surface, None) };
+            self.surface = vk::SurfaceKHR::null();
+        }
+    }
 }

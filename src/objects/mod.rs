@@ -1,5 +1,3 @@
-use paste::paste;
-
 pub mod format;
 pub mod image;
 pub mod buffer;
@@ -29,5 +27,5 @@ pub use synchronization_group::SynchronizationGroup;
 pub use synchronization_group::SynchronizationGroupSet;
 
 pub use object_set::ObjectSet;
-
-//pub use swapchain_object_set::SwapchainObjectSetBuilder;
+pub use resource_object_set::ResourceObjectSet;
+pub use swapchain_object_set::SwapchainObjectSet;
