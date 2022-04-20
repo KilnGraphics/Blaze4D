@@ -1,14 +1,9 @@
 use std::any::Any;
 use std::cmp::Ordering;
 use std::hash::{Hash, Hasher};
-use std::ops::Deref;
 use std::sync::Arc;
-use ash::vk;
 
-use crate::objects::buffer::{BufferInfo, BufferViewInfo};
-use crate::objects::types;
-use crate::objects::types::{GenericId, ObjectInstanceData, ObjectSetId};
-use crate::objects::image::{ImageInfo, ImageViewInfo};
+use crate::objects::types::{GenericId, ObjectIdType, ObjectInstanceData, ObjectSetId, UnwrapToInstanceData};
 
 /// A trait that must be implemented by any object set implementation.
 pub trait ObjectSetProvider {
@@ -36,8 +31,8 @@ impl ObjectSet {
         self.0.get_id()
     }
 
-    pub fn get_data<T: super::types::ObjectIdType>(&self, id: T) -> &T::InstanceInfo {
-        self.get_data(id.into()).unwrap::<T>()
+    pub fn get_data<'a, T: super::types::ObjectIdType>(&'a self, id: T) -> &T::InstanceInfo where GenericId: From<T>, ObjectInstanceData<'a>: UnwrapToInstanceData<'a, <T as ObjectIdType>::InstanceInfo> {
+        self.0.get_object_data(id.into()).unwrap()
     }
 
     pub fn as_any(&self) -> &dyn Any {

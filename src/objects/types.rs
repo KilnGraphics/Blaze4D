@@ -3,8 +3,6 @@ use std::hash::{Hash, Hasher};
 use std::num::NonZeroU64;
 use std::sync::atomic::{AtomicU64, Ordering};
 
-use ash::vk;
-
 /// An identifier for object sets
 #[derive(Copy, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct ObjectSetId(NonZeroU64);
@@ -147,11 +145,15 @@ pub trait ObjectIdType {
     fn as_generic(&self) -> GenericId;
 }
 
+pub trait UnwrapToInstanceData<'a, I> {
+    fn unwrap(self) -> &'a I;
+}
+
 macro_rules! declare_object_types {
     ($($name:ident, $id_value:expr, $instance_type:ty;)+) => {
         $(
             impl ObjectId<{$id_value}> {
-                pub fn new2(set_id: ObjectSetId, index: u16) -> Self {
+                pub fn new(set_id: ObjectSetId, index: u16) -> Self {
                     Self::make(set_id, index, $id_value)
                 }
             }
@@ -177,16 +179,16 @@ macro_rules! declare_object_types {
             )+
         }
 
-        impl<'a> ObjectInstanceData<'a> {
-            $(
-                pub fn unwrap<T: ObjectId<{$id_value}>>(self) -> &'a $instance_type {
+        $(
+            impl<'a> UnwrapToInstanceData<'a, $instance_type> for ObjectInstanceData<'a> {
+                fn unwrap(self) -> &'a $instance_type {
                     match self {
                         ObjectInstanceData::$name(data) => data,
                         _ => panic!("Invalid object type"),
                     }
                 }
-            )+
-        }
+            }
+        )+
 
         $(
             impl<'a> From<&'a $instance_type> for ObjectInstanceData<'a> {

@@ -5,7 +5,7 @@ use ash::vk;
 use ash::vk::{Fence, Image, ImageView, Semaphore, SwapchainKHR};
 use crate::objects::{types, ObjectSet, SynchronizationGroup};
 use crate::objects::types::{FenceId, ImageId, ImageViewId, ObjectSetId, SemaphoreId, SurfaceId, SwapchainId};
-use crate::objects::image::{ImageDescription, ImageInfo, ImageViewDescription, ImageViewInfo};
+use crate::objects::image::{ImageDescription, ImageViewDescription};
 use crate::objects::object_set::ObjectSetProvider;
 use crate::objects::swapchain::SwapchainCreateDesc;
 use crate::device::DeviceContext;

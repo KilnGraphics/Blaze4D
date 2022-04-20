@@ -1,6 +1,5 @@
-use std::sync::Arc;
 use ash::vk;
-use crate::objects::{types, SynchronizationGroup};
+use crate::objects::SynchronizationGroup;
 
 #[derive(Copy, Clone, Debug)]
 pub struct BufferSpec {
@@ -39,33 +38,6 @@ impl BufferDescription {
     }
 }
 
-/// Contains information about a vulkan buffer object.
-///
-/// This expands the [`BufferDescription`] struct with information relevant for rosella (i.e.
-/// synchronization group or other runtime information). Every instance of this struct will describe
-/// only one specific buffer object.
-pub struct BufferInfo {
-    desc: BufferDescription,
-    group: SynchronizationGroup,
-}
-
-impl BufferInfo {
-    pub fn new(desc: BufferDescription, group: SynchronizationGroup) -> Self {
-        Self {
-            desc,
-            group
-        }
-    }
-
-    pub fn get_description(&self) -> &BufferDescription {
-        &self.desc
-    }
-
-    pub fn get_synchronization_group(&self) -> &SynchronizationGroup {
-        &self.group
-    }
-}
-
 /// Contains a description for a vulkan buffer.
 ///
 /// This only contains static information relevant to vulkan (i.e. range or format, however not the
@@ -83,49 +55,46 @@ impl BufferViewDescription {
     }
 }
 
-/// Contains information about a vulkan buffer view object
-///
-/// This expands the [`BufferViewDescription`] struct with information relevant for rosella (i.e.
-/// the source buffer or other runtime information). Ever instance of this struct will describe
-/// only one specific buffer view.
-pub struct BufferViewInfo {
-    desc: BufferViewDescription,
-    source_buffer_id: types::BufferId,
-    source_buffer_info: Arc<BufferInfo>,
+pub struct BufferInstanceData {
+    handle: vk::Buffer,
+    synchronization_group: SynchronizationGroup,
 }
 
-impl BufferViewInfo {
-    pub fn new(desc: BufferViewDescription, source_buffer_id: types::BufferId, source_buffer_info: Arc<BufferInfo>) -> Self {
+impl BufferInstanceData {
+    pub fn new(handle: vk::Buffer, synchronization_group: SynchronizationGroup) -> Self {
         Self {
-            desc,
-            source_buffer_id,
-            source_buffer_info,
+            handle,
+            synchronization_group,
         }
     }
 
-    pub fn get_description(&self) -> &BufferViewDescription {
-        &self.desc
-    }
-
-    pub fn get_source_buffer_id(&self) -> types::BufferId {
-        self.source_buffer_id
-    }
-
-    pub fn get_source_buffer_info(&self) -> &BufferInfo {
-        self.source_buffer_info.as_ref()
-    }
-
-    /// Utility function to get the synchronization group for this buffer view.
-    /// Is equivalent to calling `get_source_buffer_info().get_synchronization_group()`.
     pub fn get_synchronization_group(&self) -> &SynchronizationGroup {
-        &self.source_buffer_info.get_synchronization_group()
+        &self.synchronization_group
     }
-}
 
-pub struct BufferInstanceData {
-    handle: vk::Buffer,
+    pub unsafe fn get_handle(&self) -> vk::Buffer {
+        self.handle
+    }
 }
 
 pub struct BufferViewInstanceData {
     handle: vk::BufferView,
+    synchronization_group: SynchronizationGroup,
+}
+
+impl BufferViewInstanceData {
+    pub fn new(handle: vk::BufferView, synchronization_group: SynchronizationGroup) -> Self {
+        Self {
+            handle,
+            synchronization_group,
+        }
+    }
+
+    pub fn get_synchronization_group(&self) -> &SynchronizationGroup {
+        &self.synchronization_group
+    }
+
+    pub unsafe fn get_handle(&self) -> vk::BufferView {
+        self.handle
+    }
 }

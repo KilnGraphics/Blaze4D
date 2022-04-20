@@ -9,11 +9,13 @@ __internal_doc_test = []
 [dependencies]
 ash = { version="0.36.0", features=["debug", "linked"] }
 ash-window = "0.9.0"
+bumpalo = { version="3.9.1", features=["boxed"] }
 concurrent-queue = "1.2.2"
 gpu-allocator = "0.17.0"
 lazy_static = "1.4.0"
 log = "0.4.14"
 nalgebra = "0.29.0"
+ouroboros = "0.15.0"
 paste = "1.0.6"
 shaderc = "0.7.3"
 vk-profiles-rs = { git="https://github.com/CodingRays/vk-profiles-rs.git", branch="ash-0.36" }

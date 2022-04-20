@@ -1,3 +1,5 @@
+extern crate core;
+
 pub mod init;
 pub mod shader;
 pub mod objects;

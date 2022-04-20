@@ -1,34 +1,16 @@
 use std::any::Any;
-use std::sync::Arc;
+use std::ptr::drop_in_place;
+use std::sync::Mutex;
 use ash::vk;
+
 use crate::device::DeviceContext;
 
-use crate::objects::{types, ObjectSet, SynchronizationGroup};
-use crate::objects::buffer::{BufferDescription, BufferInfo, BufferViewDescription, BufferViewInfo};
-use crate::objects::types::{BufferId, BufferViewId, GenericId, ImageId, ImageViewId, ObjectInstanceData, ObjectSetId};
-use crate::objects::image::{ImageDescription, ImageInfo, ImageViewDescription, ImageViewInfo};
+use crate::objects::{ObjectSet, SynchronizationGroup};
+use crate::objects::buffer::{BufferDescription, BufferInstanceData, BufferViewDescription, BufferViewInstanceData};
+use crate::objects::types::{BufferId, BufferViewId, GenericId, ImageId, ImageViewId, ObjectInstanceData, ObjectSetId, ObjectType, UnwrapToInstanceData};
+use crate::objects::image::{ImageDescription, ImageInstanceData, ImageViewDescription, ImageViewInstanceData};
 use crate::objects::allocator::{Allocation, AllocationError, AllocationStrategy};
 use crate::objects::object_set::ObjectSetProvider;
-use crate::util::slice_splitter::Splitter;
-
-#[derive(Debug)]
-pub enum ObjectCreateError {
-    Vulkan(vk::Result),
-    Allocation(AllocationError),
-    InvalidReference,
-}
-
-impl<'s> From<ash::vk::Result> for ObjectCreateError {
-    fn from(err: vk::Result) -> Self {
-        ObjectCreateError::Vulkan(err)
-    }
-}
-
-impl<'s> From<AllocationError> for ObjectCreateError {
-    fn from(err: AllocationError) -> Self {
-        ObjectCreateError::Allocation(err)
-    }
-}
 
 /// Resource object sets are object sets specifically designed for resources that require backing
 /// memory and synchronization. (i.e. Buffers, BufferViews etc.)
@@ -90,7 +72,7 @@ impl<'s> From<AllocationError> for ObjectCreateError {
 /// // internally so it can be cloned and the objects will only be dropped when all references
 /// // have been dropped.
 /// ```
-pub struct ResourceObjectSetBuilder {
+/*pub struct ResourceObjectSetBuilder {
     set_id: ObjectSetId,
     device: DeviceContext,
     synchronization_group: SynchronizationGroup,
@@ -297,73 +279,6 @@ impl ResourceObjectSetBuilder {
     }
 }
 
-struct BufferCreateMetadata {
-    info: Arc<BufferInfo>,
-    strategy: AllocationStrategy,
-    handle: vk::Buffer,
-    allocation: Option<Allocation>,
-}
-
-impl BufferCreateMetadata {
-    fn new(desc: BufferDescription, strategy: AllocationStrategy, group: SynchronizationGroup) -> Self {
-        Self {
-            info: Arc::new(BufferInfo::new(desc, group)),
-            strategy,
-            handle: vk::Buffer::null(),
-            allocation: None,
-        }
-    }
-
-    fn create(&mut self, device: &DeviceContext, _: &Splitter<ResourceObjectCreateMetadata>) -> Result<(), ObjectCreateError> {
-        if self.handle == vk::Buffer::null() {
-            let desc = self.info.get_description();
-            let create_info = vk::BufferCreateInfo::builder()
-                .size(desc.size)
-                .usage(desc.usage_flags)
-                .sharing_mode(vk::SharingMode::EXCLUSIVE);
-
-            self.handle = unsafe {
-                device.vk().create_buffer(&create_info, None)
-            }?;
-        }
-        if self.allocation.is_none() {
-            self.allocation = Some(device.get_allocator().allocate_buffer_memory(self.handle, &self.strategy)?);
-            let alloc = self.allocation.as_ref().unwrap();
-
-            unsafe {
-                device.vk().bind_buffer_memory(self.handle, alloc.memory(), alloc.offset())
-            }?;
-        }
-        Ok(())
-    }
-
-    fn abort(&mut self, device: &DeviceContext) {
-        if self.handle != vk::Buffer::null() {
-            unsafe { device.vk().destroy_buffer(self.handle, None) }
-            self.handle = vk::Buffer::null();
-        }
-        match self.allocation.take() {
-            Some(alloc) => {
-                device.get_allocator().free(alloc);
-            }
-            None => {}
-        }
-    }
-
-    fn reduce(self) -> (ResourceObjectData, Option<Allocation>) {
-        if self.handle == vk::Buffer::null() || self.allocation.is_none() {
-            panic!("Incomplete Buffer object")
-        }
-
-        let object = ResourceObjectData::Buffer {
-            handle: self.handle,
-            info: self.info,
-        };
-
-        (object , self.allocation)
-    }
-}
-
 struct BufferViewCreateMetadata {
     info: Box<BufferViewInfo>,
     buffer_set: Option<ObjectSet>,
@@ -382,30 +297,6 @@ impl BufferViewCreateMetadata {
     }
 
     fn create(&mut self, device: &DeviceContext, split: &Splitter<ResourceObjectCreateMetadata>) -> Result<(), ObjectCreateError> {
-        if self.handle == vk::BufferView::null() {
-            let buffer = match self.buffer_set.as_ref() {
-                Some(set) => {
-                    unsafe { set.get_buffer_handle(self.buffer_id) }
-                }
-                None => {
-                    let index = self.buffer_id.get_index() as usize;
-                    match split.get(index).unwrap() {
-                        ResourceObjectCreateMetadata::Buffer(BufferCreateMetadata{ handle, .. }) => *handle,
-                        _ => return Err(ObjectCreateError::InvalidReference)
-                    }
-                }
-            };
-
-            let desc = self.info.get_description();
-            let create_info = vk::BufferViewCreateInfo::builder()
-                .buffer(buffer)
-                .format(desc.format.get_format())
-                .offset(desc.range.offset)
-                .range(desc.range.length);
-
-            self.handle = unsafe {
-                device.vk().create_buffer_view(&create_info.build(), None)?
-            }
         }
         Ok(())
     }
@@ -624,70 +515,213 @@ impl ResourceObjectCreateMetadata {
             ResourceObjectCreateMetadata::ImageView(data) => data.reduce(),
         }
     }
+}*/
+
+#[derive(Debug)]
+pub enum ObjectCreateError {
+    Vulkan(vk::Result),
+    Allocation(AllocationError),
+    InvalidReference,
 }
 
-enum ResourceObjectData {
-    Buffer {
-        handle: vk::Buffer,
-        info: Arc<BufferInfo>,
-    },
-    BufferView {
-        handle: vk::BufferView,
-        info: Box<BufferViewInfo>,
-        source_set: Option<ObjectSet>,
-    },
-    Image {
-        handle: vk::Image,
-        info: Arc<ImageInfo>,
-    },
-    ImageView {
-        handle: vk::ImageView,
-        info: Box<ImageViewInfo>,
-        source_set: Option<ObjectSet>,
+impl<'s> From<ash::vk::Result> for ObjectCreateError {
+    fn from(err: vk::Result) -> Self {
+        ObjectCreateError::Vulkan(err)
     }
 }
 
-impl ResourceObjectData {
-    pub fn destroy(self, device: &DeviceContext) {
-        match self {
-            ResourceObjectData::Buffer{ handle, .. } => {
-                unsafe { device.vk().destroy_buffer(handle, None) }
-            }
-            ResourceObjectData::BufferView{ handle, source_set, .. } => {
-                unsafe { device.vk().destroy_buffer_view(handle, None) }
-                drop(source_set); // Keep it alive until here
-            }
-            ResourceObjectData::Image{ handle, .. } => {
-                unsafe { device.vk().destroy_image(handle, None) }
-            }
-            ResourceObjectData::ImageView{ handle, source_set, .. } => {
-                unsafe { device.vk().destroy_image_view(handle, None) }
-                drop(source_set); // Keep it alive until here
-            }
-        }
+impl<'s> From<AllocationError> for ObjectCreateError {
+    fn from(err: AllocationError) -> Self {
+        ObjectCreateError::Allocation(err)
     }
 }
 
-struct ResourceObjectSet {
+pub struct ResourceObjectSet {
     set_id: ObjectSetId,
     device: DeviceContext,
-    objects: Box<[ResourceObjectData]>,
-    allocations: Box<[Allocation]>
+    objects: Mutex<Objects>,
 }
 
-impl Drop for ResourceObjectSet {
-    fn drop(&mut self) {
-        let objects = std::mem::replace(&mut self.objects, Box::new([]));
-        let allocations = std::mem::replace(&mut self.allocations, Box::new([]));
+impl ResourceObjectSet {
+    pub fn add_default_gpu_only_buffer(&self, desc: &BufferDescription, synchronization_group: SynchronizationGroup) -> BufferId {
+        let (buffer, allocation) = unsafe { self.create_buffer(desc, AllocationStrategy::AutoGpuOnly) }.unwrap();
+        self.insert_buffer(buffer, synchronization_group, allocation)
+    }
 
-        for object in objects.into_vec().into_iter().rev() {
-            object.destroy(&self.device)
-        }
+    pub fn add_default_gpu_cpu_buffer(&self, desc: &BufferDescription, synchronization_group: SynchronizationGroup) -> BufferId {
+        let (buffer, allocation) = unsafe { self.create_buffer(desc, AllocationStrategy::AutoGpuCpu) }.unwrap();
+        self.insert_buffer(buffer, synchronization_group, allocation)
+    }
 
-        let allocator = self.device.get_allocator();
-        for allocation in allocations.into_vec() {
-            allocator.free(allocation);
+    pub fn add_internal_buffer_view(&self, desc: &BufferViewDescription, source_id: BufferId) -> BufferViewId {
+        if self.set_id != source_id.get_set_id() {
+            panic!("source_id set id does not match object set id");
         }
+        let source_data = self.try_get_buffer_data(source_id).unwrap();
+        let buffer_view = unsafe { self.create_buffer_view(desc, source_data.get_handle()) }.unwrap();
+
+        self.insert_buffer_view(buffer_view, source_data.get_synchronization_group().clone(), None)
+    }
+
+    pub fn add_external_buffer_view(&self, desc: &BufferViewDescription, source_id: BufferId, source_set: ObjectSet) -> BufferViewId {
+        if self.set_id == source_set.get_id() {
+            self.add_internal_buffer_view(desc, source_id)
+
+        } else {
+            let source_data = source_set.get_data(source_id);
+            let buffer_view = unsafe { self.create_buffer_view(desc, source_data.get_handle()) }.unwrap();
+
+            self.insert_buffer_view(buffer_view, source_data.get_synchronization_group().clone(), Some(source_set))
+        }
+    }
+
+    pub fn add_default_gpu_only_image(&self, desc: &ImageDescription, synchronization_group: SynchronizationGroup) -> ImageId {
+        let (image, allocation) = unsafe { self.create_image(desc, AllocationStrategy::AutoGpuOnly) }.unwrap();
+        self.insert_image(image, synchronization_group, allocation)
+    }
+
+    pub fn add_default_gpu_cpu_image(&self, desc: &ImageDescription, synchronization_group: SynchronizationGroup) -> ImageId {
+        let (image, allocation) = unsafe { self.create_image(desc, AllocationStrategy::AutoGpuCpu) }.unwrap();
+        self.insert_image(image, synchronization_group, allocation)
+    }
+
+    pub fn add_internal_image_view(&self, desc: &ImageViewDescription, source_id: ImageId) -> ImageViewId {
+        if self.set_id != source_id.get_set_id() {
+            panic!("source_id set id does not match object set id");
+        }
+        let source_data = self.try_get_image_data(source_id).unwrap();
+        let image_view = unsafe { self.create_image_view(desc, source_data.get_handle()) }.unwrap();
+
+        self.insert_image_view(image_view, source_data.get_synchronization_group().clone(), None)
+    }
+
+    pub fn add_external_image_view(&self, desc: &ImageViewDescription, source_id: ImageId, source_set: ObjectSet) -> ImageViewId {
+        if self.set_id == source_set.get_id() {
+            self.add_internal_image_view(desc, source_id)
+
+        } else {
+            let source_data = source_set.get_data(source_id);
+            let image_view = unsafe { self.create_image_view(desc, source_data.get_handle()) }.unwrap();
+
+            self.insert_image_view(image_view, source_data.get_synchronization_group().clone(), Some(source_set))
+        }
+    }
+
+    unsafe fn create_buffer(&self, desc: &BufferDescription, strategy: AllocationStrategy) -> Result<(vk::Buffer, Allocation), ObjectCreateError> {
+        let create_info = vk::BufferCreateInfo::builder()
+            .size(desc.size)
+            .usage(desc.usage_flags)
+            .sharing_mode(vk::SharingMode::EXCLUSIVE);
+
+        let handle = self.device.vk().create_buffer(&create_info, None)?;
+
+        let allocation = self.device.get_allocator().allocate_buffer_memory(handle, &strategy)?;
+
+        self.device.vk().bind_buffer_memory(handle, allocation.memory(), allocation.offset())?;
+
+        // TODO free resources on failure
+
+        Ok((handle, allocation))
+    }
+
+    unsafe fn create_buffer_view(&self, desc: &BufferViewDescription, source: vk::Buffer) -> Result<vk::BufferView, ObjectCreateError> {
+        let create_info = vk::BufferViewCreateInfo::builder()
+            .buffer(source)
+            .format(desc.format.get_format())
+            .offset(desc.range.offset)
+            .range(desc.range.length);
+
+        let handle = self.device.vk().create_buffer_view(&create_info.build(), None)?;
+
+        Ok(handle)
+    }
+
+    unsafe fn create_image(&self, desc: &ImageDescription, strategy: AllocationStrategy) -> Result<(vk::Image, Allocation), ObjectCreateError> {
+        let create_info = vk::ImageCreateInfo::builder()
+            .image_type(desc.spec.size.get_vulkan_type())
+            .format(desc.spec.format.get_format())
+            .extent(desc.spec.size.as_extent_3d())
+            .mip_levels(desc.spec.size.get_mip_levels())
+            .array_layers(desc.spec.size.get_array_layers())
+            .samples(desc.spec.sample_count)
+            .tiling(vk::ImageTiling::OPTIMAL) // TODO we need some way to turn this linear
+            .usage(desc.usage_flags)
+            .sharing_mode(vk::SharingMode::EXCLUSIVE);
+
+        let handle = self.device.vk().create_image(&create_info.build(), None)?;
+
+        let allocation = self.device.get_allocator().allocate_image_memory(handle, &strategy)?;
+
+        self.device.vk().bind_image_memory(handle, allocation.memory(), allocation.offset())?;
+
+        // TODO free resources on failure
+
+        Ok((handle, allocation))
+    }
+
+    unsafe fn create_image_view(&self, desc: &ImageViewDescription, source: vk::Image) -> Result<vk::ImageView, ObjectCreateError> {
+        let create_info = vk::ImageViewCreateInfo::builder()
+            .image(source)
+            .view_type(desc.view_type)
+            .format(desc.format.get_format())
+            .components(desc.components)
+            .subresource_range(desc.subresource_range.as_vk_subresource_range());
+
+        let handle = self.device.vk().create_image_view(&create_info, None)?;
+
+        Ok(handle)
+    }
+
+    fn insert_buffer(&self, buffer: vk::Buffer, group: SynchronizationGroup, allocation: Allocation) -> BufferId {
+        let index = {
+            let mut guard = self.objects.lock().unwrap();
+            guard.insert_buffer(buffer, group, allocation)
+        };
+
+        BufferId::new(self.set_id, index)
+    }
+
+    fn insert_buffer_view(&self, buffer_view: vk::BufferView, group: SynchronizationGroup, source_set: Option<ObjectSet>) -> BufferViewId {
+        let index = {
+            let mut guard = self.objects.lock().unwrap();
+            guard.insert_buffer_view(buffer_view, group, source_set)
+        };
+
+        BufferViewId::new(self.set_id, index)
+    }
+
+    fn insert_image(&self, image: vk::Image, group: SynchronizationGroup, allocation: Allocation) -> ImageId {
+        let index = {
+            let mut guard = self.objects.lock().unwrap();
+            guard.insert_image(image, group, allocation)
+        };
+
+        ImageId::new(self.set_id, index)
+    }
+
+    fn insert_image_view(&self, image_view: vk::ImageView, group: SynchronizationGroup, source_set: Option<ObjectSet>) -> ImageViewId {
+        let index = {
+            let mut guard = self.objects.lock().unwrap();
+            guard.insert_image_view(image_view, group, source_set)
+        };
+
+        ImageViewId::new(self.set_id, index)
+    }
+
+    fn try_get_buffer_data(&self, id: BufferId) -> Option<&BufferInstanceData> {
+        self.try_get_object_data(id.into()).map(|d| d.unwrap())
+    }
+
+    fn try_get_image_data(&self, id: ImageId) -> Option<&ImageInstanceData> {
+        self.try_get_object_data(id.into()).map(|d| d.unwrap())
+    }
+
+    fn try_get_object_data(&self, id: GenericId) -> Option<ObjectInstanceData> {
+        let index = id.get_index() as usize;
+        let object_type = id.get_type();
+
+        let guard = self.objects.lock().unwrap();
+        unsafe { guard.objects.get(index)?.as_object_instance_data(object_type) }
     }
 }
 
@@ -697,68 +731,7 @@ impl ObjectSetProvider for ResourceObjectSet {
     }
 
     fn get_object_data(&self, id: GenericId) -> ObjectInstanceData {
-        match id.get_type() {
-            types::ObjectType::BUFFER => {
-
-            }
-            _ => panic!("Unsupported id"),
-        }
-    }
-
-    unsafe fn get_buffer_handle(&self, id: BufferId) -> vk::Buffer {
-        match self.objects.get(id.get_index() as usize).unwrap() {
-            ResourceObjectData::Buffer { handle, .. } => *handle,
-            _ => panic!("Id does not map to buffer")
-        }
-    }
-
-    fn get_buffer_info(&self, id: BufferId) -> &Arc<BufferInfo> {
-        match self.objects.get(id.get_index() as usize).unwrap() {
-            ResourceObjectData::Buffer { info, .. } => info,
-            _ => panic!("Id does not map to buffer")
-        }
-    }
-
-    unsafe fn get_buffer_view_handle(&self, id: BufferViewId) -> vk::BufferView {
-        match self.objects.get(id.get_index() as usize).unwrap() {
-            ResourceObjectData::BufferView { handle, .. } => *handle,
-            _ => panic!("Id does not map to buffer view")
-        }
-    }
-
-    fn get_buffer_view_info(&self, id: BufferViewId) -> &BufferViewInfo {
-        match self.objects.get(id.get_index() as usize).unwrap() {
-            ResourceObjectData::BufferView { info, .. } => info.as_ref(),
-            _ => panic!("Id does not map to buffer view")
-        }
-    }
-
-    unsafe fn get_image_handle(&self, id: ImageId) -> vk::Image {
-        match self.objects.get(id.get_index() as usize).unwrap() {
-            ResourceObjectData::Image { handle, .. } => *handle,
-            _ => panic!("Id does not map to image")
-        }
-    }
-
-    fn get_image_info(&self, id: ImageId) -> &Arc<ImageInfo> {
-        match self.objects.get(id.get_index() as usize).unwrap() {
-            ResourceObjectData::Image { info, .. } => info,
-            _ => panic!("Id does not map to image")
-        }
-    }
-
-    unsafe fn get_image_view_handle(&self, id: ImageViewId) -> vk::ImageView {
-        match self.objects.get(id.get_index() as usize).unwrap() {
-            ResourceObjectData::ImageView { handle, .. } => *handle,
-            _ => panic!("Id does not map to image view")
-        }
-    }
-
-    fn get_image_view_info(&self, id: ImageViewId) -> &ImageViewInfo {
-        match self.objects.get(id.get_index() as usize).unwrap() {
-            ResourceObjectData::ImageView { info, .. } => info.as_ref(),
-            _ => panic!("Id does not map to image view")
-        }
+        self.try_get_object_data(id).unwrap()
     }
 
     fn as_any(&self) -> &dyn Any {
@@ -766,217 +739,143 @@ impl ObjectSetProvider for ResourceObjectSet {
     }
 }
 
-#[cfg(test)]
-mod tests {
-    use crate::objects::{BufferRange, Format, ImageSize, ImageSpec};
-    use super::*;
-    use crate::test::make_headless_instance_device;
+impl Drop for ResourceObjectSet {
+    fn drop(&mut self) {
+        unsafe { self.objects.get_mut().unwrap().destroy(&self.device) };
+    }
+}
 
-    #[test]
-    fn test_buffer_create() {
-        let (_, device) = make_headless_instance_device();
+struct Objects {
+    allocator: bumpalo::Bump,
+    objects: Vec<Object>,
+    allocations: Vec<Allocation>
+}
 
-        let group = SynchronizationGroup::new(device);
-        let mut builder = ResourceObjectSetBuilder::new(group.clone());
-
-        let desc1 = BufferDescription::new_simple(1024, vk::BufferUsageFlags::TRANSFER_DST);
-        let desc2 = BufferDescription::new_simple(512, vk::BufferUsageFlags::TRANSFER_SRC);
-
-        let buffer1 = builder.add_default_gpu_only_buffer(desc1);
-        let buffer2 = builder.add_default_gpu_cpu_buffer(desc2);
-
-        let set = builder.build().unwrap();
-
-        unsafe {
-            assert_ne!(set.get_buffer_handle(buffer1), vk::Buffer::null());
-            assert_ne!(set.get_buffer_handle(buffer2), vk::Buffer::null());
-            assert_ne!(set.get_buffer_handle(buffer1), set.get_buffer_handle(buffer2));
-
-            assert_eq!(set.get_buffer_info(buffer1).get_synchronization_group(), &group);
-            assert_eq!(set.get_buffer_info(buffer2).get_synchronization_group(), &group);
-
-            assert_eq!(set.get_buffer_info(buffer1).get_description(), &desc1);
-            assert_eq!(set.get_buffer_info(buffer2).get_description(), &desc2);
+impl Objects {
+    unsafe fn destroy(&mut self, device: &DeviceContext) {
+        // Need to destroy objects in reverse to account for potential dependencies
+        let objects = std::mem::replace(&mut self.objects, Vec::new());
+        for object in objects.into_iter() {
+            object.destroy(device);
         }
 
-        drop(set);
+        let device_allocator = device.get_allocator();
+        let allocations = std::mem::replace(&mut self.allocations, Vec::new());
+        for allocation in allocations.into_iter() {
+            device_allocator.free(allocation);
+        }
     }
 
-    #[test]
-    fn test_buffer_view_create() {
-        let (_, device) = make_headless_instance_device();
+    fn insert_buffer(&mut self, buffer: vk::Buffer, group: SynchronizationGroup, allocation: Allocation) -> u16 {
+        let data = self.allocator.alloc(BufferInstanceData::new(buffer, group));
+        let index = self.objects.len() as u16;
 
-        let group = SynchronizationGroup::new(device.clone());
-        let mut builder1 = ResourceObjectSetBuilder::new(group.clone());
+        self.objects.push(Object::Buffer(data));
+        self.allocations.push(allocation);
 
-        let buffer_desc1 = BufferDescription::new_simple(1024, vk::BufferUsageFlags::UNIFORM_TEXEL_BUFFER);
-        let buffer_desc2 = BufferDescription::new_simple(512, vk::BufferUsageFlags::UNIFORM_TEXEL_BUFFER);
-
-        let buffer1 = builder1.add_default_gpu_only_buffer(buffer_desc1);
-        let buffer2 = builder1.add_default_gpu_cpu_buffer(buffer_desc2);
-
-        let view_desc1 = BufferViewDescription::new_simple(BufferRange { offset: 256, length: 256 }, &Format::R16_UNORM);
-        let view_desc2 = BufferViewDescription::new_simple(BufferRange { offset: 0, length: 256 }, &Format::R8_UNORM);
-
-        let view1 = builder1.add_internal_buffer_view(view_desc1, buffer1);
-        let view2 = builder1.add_internal_buffer_view(view_desc2, buffer2);
-
-        let set1 = builder1.build().unwrap();
-
-        unsafe {
-            assert_ne!(set1.get_buffer_view_handle(view1), vk::BufferView::null());
-            assert_ne!(set1.get_buffer_view_handle(view2), vk::BufferView::null());
-            assert_ne!(set1.get_buffer_view_handle(view1), set1.get_buffer_view_handle(view2));
-
-            assert_eq!(set1.get_buffer_view_info(view1).get_synchronization_group(), &group);
-            assert_eq!(set1.get_buffer_view_info(view2).get_synchronization_group(), &group);
-            assert_eq!(set1.get_buffer_view_info(view1).get_description(), &view_desc1);
-            assert_eq!(set1.get_buffer_view_info(view2).get_description(), &view_desc2);
-            assert_eq!(set1.get_buffer_view_info(view1).get_source_buffer_id(), buffer1);
-            assert_eq!(set1.get_buffer_view_info(view2).get_source_buffer_id(), buffer2);
-            assert_eq!(set1.get_buffer_view_info(view1).get_source_buffer_info().get_description(), &buffer_desc1);
-            assert_eq!(set1.get_buffer_view_info(view2).get_source_buffer_info().get_description(), &buffer_desc2);
-        }
-
-        let group2 = SynchronizationGroup::new(device);
-        let mut builder2 = ResourceObjectSetBuilder::new(group2.clone());
-
-        let view3 = builder2.add_external_buffer_view(view_desc2, set1.clone(), buffer1);
-        let view4 = builder2.add_external_buffer_view(view_desc1, set1.clone(), buffer2);
-
-        let set2 = builder2.build().unwrap();
-
-        unsafe {
-            assert_ne!(set2.get_buffer_view_handle(view3), vk::BufferView::null());
-            assert_ne!(set2.get_buffer_view_handle(view4), vk::BufferView::null());
-            assert_ne!(set2.get_buffer_view_handle(view3), set2.get_buffer_view_handle(view4));
-
-            assert_eq!(set2.get_buffer_view_info(view3).get_synchronization_group(), &group);
-            assert_eq!(set2.get_buffer_view_info(view4).get_synchronization_group(), &group);
-            assert_eq!(set2.get_buffer_view_info(view3).get_description(), &view_desc2);
-            assert_eq!(set2.get_buffer_view_info(view4).get_description(), &view_desc1);
-            assert_eq!(set2.get_buffer_view_info(view3).get_source_buffer_id(), buffer1);
-            assert_eq!(set2.get_buffer_view_info(view4).get_source_buffer_id(), buffer2);
-            assert_eq!(set2.get_buffer_view_info(view3).get_source_buffer_info().get_description(), &buffer_desc1);
-            assert_eq!(set2.get_buffer_view_info(view4).get_source_buffer_info().get_description(), &buffer_desc2);
-        }
-
-        drop(set1);
-        drop(set2);
+        index
     }
 
-    #[test]
-    fn test_image_create() {
-        let (_, device) = make_headless_instance_device();
+    fn insert_buffer_view(&mut self, buffer_view: vk::BufferView, group: SynchronizationGroup, source_set: Option<ObjectSet>) -> u16 {
+        let data = self.allocator.alloc(BufferViewInstanceData::new(buffer_view, group));
+        let index = self.objects.len() as u16;
 
-        let group = SynchronizationGroup::new(device);
-        let mut builder = ResourceObjectSetBuilder::new(group.clone());
+        self.objects.push(Object::BufferView(data, source_set));
 
-        let desc1 = ImageDescription::new_simple(
-            ImageSpec::new_single_sample(
-                ImageSize::make_2d(128, 128),
-                &Format::B8G8R8A8_SRGB,
-            ),
-            vk::ImageUsageFlags::SAMPLED,
-        );
-        let desc2 = ImageDescription::new_simple(
-            ImageSpec::new_single_sample(
-                ImageSize::make_2d(256, 256),
-                &Format::B8G8R8A8_SRGB,
-            ),
-            vk::ImageUsageFlags::SAMPLED,
-        );
-
-        let image1 = builder.add_default_gpu_only_image(desc1);
-        let image2 = builder.add_default_gpu_only_image(desc2);
-
-        let set = builder.build().unwrap();
-
-        unsafe {
-            assert_ne!(set.get_image_handle(image1), vk::Image::null());
-            assert_ne!(set.get_image_handle(image2), vk::Image::null());
-            assert_ne!(set.get_image_handle(image1), set.get_image_handle(image2));
-
-            assert_eq!(set.get_image_info(image1).get_synchronization_group(), &group);
-            assert_eq!(set.get_image_info(image2).get_synchronization_group(), &group);
-
-            assert_eq!(set.get_image_info(image1).get_description(), &desc1);
-            assert_eq!(set.get_image_info(image2).get_description(), &desc2);
-        }
-
-        drop(set);
+        index
     }
 
-    #[test]
-    fn test_image_view_create() {
-        let (_, device) = make_headless_instance_device();
+    fn insert_image(&mut self, image: vk::Image, group: SynchronizationGroup, allocation: Allocation) -> u16 {
+        let data = self.allocator.alloc(ImageInstanceData::new(image, group));
+        let index = self.objects.len() as u16;
 
-        let group = SynchronizationGroup::new(device.clone());
-        let mut builder1 = ResourceObjectSetBuilder::new(group.clone());
+        self.objects.push(Object::Image(data));
+        self.allocations.push(allocation);
 
-        let image_desc1 = ImageDescription::new_simple(
-            ImageSpec::new_single_sample(
-                ImageSize::make_2d(128, 128),
-                &Format::B8G8R8A8_SRGB,
-            ),
-            vk::ImageUsageFlags::SAMPLED,
-        );
-        let image_desc2 = ImageDescription::new_simple(
-            ImageSpec::new_single_sample(
-                ImageSize::make_2d(256, 256),
-                &Format::B8G8R8A8_SRGB,
-            ),
-            vk::ImageUsageFlags::SAMPLED,
-        );
+        index
+    }
 
-        let image1 = builder1.add_default_gpu_only_image(image_desc1);
-        let image2 = builder1.add_default_gpu_only_image(image_desc2);
+    fn insert_image_view(&mut self, image_view: vk::ImageView, group: SynchronizationGroup, source_set: Option<ObjectSet>) -> u16 {
+        let data = self.allocator.alloc(ImageViewInstanceData::new(image_view, group));
+        let index = self.objects.len() as u16;
 
-        let view_desc1 = ImageViewDescription::make_full(vk::ImageViewType::TYPE_2D, &Format::B8G8R8A8_SRGB, vk::ImageAspectFlags::COLOR);
-        let view_desc2 = ImageViewDescription::make_full(vk::ImageViewType::TYPE_2D, &Format::R8G8B8A8_SRGB, vk::ImageAspectFlags::COLOR);
+        self.objects.push(Object::ImageView(data, source_set));
 
-        let view1 = builder1.add_internal_image_view(view_desc1, image1);
-        let view2 = builder1.add_internal_image_view(view_desc2, image2);
+        index
+    }
+}
 
-        let set1 = builder1.build().unwrap();
+enum Object {
+    Buffer(*const BufferInstanceData),
+    BufferView(*const BufferViewInstanceData, Option<ObjectSet>),
+    Image(*const ImageInstanceData),
+    ImageView(*const ImageViewInstanceData, Option<ObjectSet>),
+}
 
-        unsafe {
-            assert_ne!(set1.get_image_view_handle(view1), vk::ImageView::null());
-            assert_ne!(set1.get_image_view_handle(view2), vk::ImageView::null());
-            assert_ne!(set1.get_image_view_handle(view1), set1.get_image_view_handle(view2));
-
-            assert_eq!(set1.get_image_view_info(view1).get_synchronization_group(), &group);
-            assert_eq!(set1.get_image_view_info(view2).get_synchronization_group(), &group);
-            // TODO description equality test
-            assert_eq!(set1.get_image_view_info(view1).get_source_image_id(), image1);
-            assert_eq!(set1.get_image_view_info(view2).get_source_image_id(), image2);
-            assert_eq!(set1.get_image_view_info(view1).get_source_image_info().get_description(), &image_desc1);
-            assert_eq!(set1.get_image_view_info(view2).get_source_image_info().get_description(), &image_desc2);
+impl Object {
+    unsafe fn as_object_instance_data<'a>(&self, id_type: u8) -> Option<ObjectInstanceData<'a>> {
+        // The to pointer conversion is necessary due to lifetimes
+        match self {
+            Self::Buffer(d, ..) => {
+                if id_type != ObjectType::BUFFER {
+                    return None;
+                }
+                Some(ObjectInstanceData::Buffer(d.as_ref().unwrap()))
+            }
+            Self::BufferView(d, ..) => {
+                if id_type != ObjectType::BUFFER_VIEW {
+                    return None;
+                }
+                Some(ObjectInstanceData::BufferView(d.as_ref().unwrap()))
+            }
+            Self::Image(d, ..) => {
+                if id_type != ObjectType::IMAGE {
+                    return None;
+                }
+                Some(ObjectInstanceData::Image(d.as_ref().unwrap()))
+            }
+            Self::ImageView(d, ..) => {
+                if id_type != ObjectType::IMAGE_VIEW {
+                    return None;
+                }
+                Some(ObjectInstanceData::ImageView(d.as_ref().unwrap()))
+            }
         }
+    }
 
-        let group2 = SynchronizationGroup::new(device);
-        let mut builder2 = ResourceObjectSetBuilder::new(group2.clone());
-
-        let view3 = builder2.add_external_image_view(view_desc2, set1.clone(), image1);
-        let view4 = builder2.add_external_image_view(view_desc1, set1.clone(), image2);
-
-        let set2 = builder2.build().unwrap();
-
-        unsafe {
-            assert_ne!(set2.get_image_view_handle(view3), vk::ImageView::null());
-            assert_ne!(set2.get_image_view_handle(view4), vk::ImageView::null());
-            assert_ne!(set2.get_image_view_handle(view3), set2.get_image_view_handle(view4));
-
-            assert_eq!(set2.get_image_view_info(view3).get_synchronization_group(), &group);
-            assert_eq!(set2.get_image_view_info(view4).get_synchronization_group(), &group);
-            // TODO description equality test
-            assert_eq!(set2.get_image_view_info(view3).get_source_image_id(), image1);
-            assert_eq!(set2.get_image_view_info(view4).get_source_image_id(), image2);
-            assert_eq!(set2.get_image_view_info(view3).get_source_image_info().get_description(), &image_desc1);
-            assert_eq!(set2.get_image_view_info(view4).get_source_image_info().get_description(), &image_desc2);
+    unsafe fn destroy(&self, device: &DeviceContext) {
+        match self {
+            Self::Buffer(d, ..) => {
+                device.vk().destroy_buffer(d.as_ref().unwrap().get_handle(), None);
+            }
+            Self::BufferView(d, ..) => {
+                device.vk().destroy_buffer_view(d.as_ref().unwrap().get_handle(), None);
+            }
+            Self::Image(d, ..) => {
+                device.vk().destroy_image(d.as_ref().unwrap().get_handle(), None);
+            }
+            Self::ImageView(d, ..) => {
+                device.vk().destroy_image_view(d.as_ref().unwrap().get_handle(), None);
+            }
         }
+    }
+}
 
-        drop(set1);
-        drop(set2);
+impl Drop for Object {
+    fn drop(&mut self) {
+        match self {
+            Self::Buffer(d) => {
+                unsafe { drop_in_place(*d as *mut BufferInstanceData) };
+            }
+            Self::BufferView(d, _) => {
+                unsafe { drop_in_place(*d as *mut BufferViewInstanceData) };
+            }
+            Self::Image(d) => {
+                unsafe { drop_in_place(*d as *mut ImageInstanceData) };
+            }
+            Self::ImageView(d, _) => {
+                unsafe { drop_in_place(*d as *mut ImageViewInstanceData) };
+            }
+        }
     }
 }

@@ -1,8 +1,7 @@
 use std::fmt::Debug;
-use std::sync::Arc;
 
 use ash::vk;
-use crate::objects::{Format, types, SynchronizationGroup};
+use crate::objects::{Format, SynchronizationGroup};
 
 #[derive(Copy, Clone, Debug, PartialEq, Eq)]
 pub enum ImageSize {
@@ -183,33 +182,6 @@ impl ImageDescription {
     }
 }
 
-/// Contains information about a vulkan image object.
-///
-/// This expands the [`ImageDescription`] struct with information relevant for rosella (i.e.
-/// synchronization group or other runtime information). Every instance of this struct will describe
-/// only one specific image object.
-pub struct ImageInfo {
-    desc: ImageDescription,
-    group: SynchronizationGroup,
-}
-
-impl ImageInfo {
-    pub fn new(desc: ImageDescription, group: SynchronizationGroup) -> Self {
-        Self {
-            desc,
-            group,
-        }
-    }
-
-    pub fn get_description(&self) -> &ImageDescription {
-        &self.desc
-    }
-
-    pub fn get_synchronization_group(&self) -> &SynchronizationGroup {
-        &self.group
-    }
-}
-
 /// Contains a description for a vulkan image view.
 ///
 /// This only contains static information relevant to vulkan (i.e. range or format, however not the
@@ -262,49 +234,46 @@ impl ImageViewDescription {
     }
 }
 
-/// Contains information about a vulkan image view object
-///
-/// This expands the [`ImageViewDescription`] struct with information relevant for rosella (i.e.
-/// the source image or other runtime information). Every instance of this struct will describe
-/// only one specific image view object.
-pub struct ImageViewInfo {
-    desc: ImageViewDescription,
-    source_image_id: types::ImageId,
-    source_image_info: Arc<ImageInfo>,
+pub struct ImageInstanceData {
+    handle: vk::Image,
+    synchronization_group: SynchronizationGroup,
 }
 
-impl ImageViewInfo {
-    pub fn new(desc: ImageViewDescription, source_image_id: types::ImageId, source_image_info: Arc<ImageInfo>) -> Self {
+impl ImageInstanceData {
+    pub fn new(handle: vk::Image, synchronization_group: SynchronizationGroup) -> Self {
         Self {
-            desc,
-            source_image_id,
-            source_image_info
+            handle,
+            synchronization_group
         }
     }
 
-    pub fn get_description(&self) -> &ImageViewDescription {
-        &self.desc
-    }
-
-    pub fn get_source_image_id(&self) -> types::ImageId {
-        self.source_image_id
-    }
-
-    pub fn get_source_image_info(&self) -> &ImageInfo {
-        self.source_image_info.as_ref()
-    }
-
-    /// Utility function to get the synchronization group for this image view.
-    /// Is equivalent to calling `get_source_image_info().get_synchronization_group()`.
     pub fn get_synchronization_group(&self) -> &SynchronizationGroup {
-        self.source_image_info.get_synchronization_group()
+        &self.synchronization_group
     }
-}
 
-pub struct ImageInstanceData {
-
+    pub unsafe fn get_handle(&self) -> vk::Image {
+        self.handle
+    }
 }
 
 pub struct ImageViewInstanceData {
+    handle: vk::ImageView,
+    synchronization_group: SynchronizationGroup,
+}
 
+impl ImageViewInstanceData {
+    pub fn new(handle: vk::ImageView, synchronization_group: SynchronizationGroup) -> Self {
+        Self {
+            handle,
+            synchronization_group
+        }
+    }
+
+    pub fn get_synchronization_group(&self) -> &SynchronizationGroup {
+        &self.synchronization_group
+    }
+
+    pub unsafe fn get_handle(&self) -> vk::ImageView {
+        self.handle
+    }
 }
