@@ -116,6 +116,14 @@ pub fn create_instance(config: InstanceCreateConfig) -> Result<InstanceContext, 
         Vec::new()
     };
 
+    log::error!("Creating vulkan instance for {:?} version {:?}.{:?}.{:?}\n    Requested vulkan version: {:?}",
+        config.application_name,
+        vk::api_version_major(config.application_version),
+        vk::api_version_minor(config.application_version),
+        vk::api_version_patch(config.application_version),
+        config.min_api_version
+    );
+
     let application_info = vk::ApplicationInfo::builder()
         .application_name(config.application_name.as_c_str())
         .application_version(config.application_version)

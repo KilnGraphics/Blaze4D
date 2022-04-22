@@ -19,7 +19,7 @@ impl From<vk::Result> for SurfaceInitError {
     }
 }
 
-pub trait SurfaceProvider {
+pub trait SurfaceProvider: Send + Sync {
     fn get_required_instance_extensions(&self) -> Vec<CString>;
 
     fn init(&mut self, entry: &ash::Entry, instance: &ash::Instance) -> Result<vk::SurfaceKHR, SurfaceInitError>;

@@ -2,7 +2,7 @@ use std::ffi::CStr;
 use ash::vk;
 use ash::vk::{DebugUtilsMessageSeverityFlagsEXT, DebugUtilsMessageTypeFlagsEXT, DebugUtilsMessengerCallbackDataEXT};
 
-pub trait DebugMessengerCallback {
+pub trait DebugMessengerCallback: Send + Sync {
     fn on_message(
         &self,
         message_severity: vk::DebugUtilsMessageSeverityFlagsEXT,

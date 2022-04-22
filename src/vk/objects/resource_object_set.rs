@@ -1,4 +1,4 @@
-use std::any::Any;
+/*use std::any::Any;
 use std::ptr::drop_in_place;
 use std::sync::Mutex;
 use ash::vk;
@@ -28,7 +28,9 @@ impl<'s> From<AllocationError> for ObjectCreateError {
     fn from(err: AllocationError) -> Self {
         ObjectCreateError::Allocation(err)
     }
-}
+}*/
+
+/*
 
 /// Resource object sets are object sets specifically designed for resources that require backing
 /// memory and synchronization. (i.e. Buffers, BufferViews etc.)
@@ -451,4 +453,4 @@ mod tests {
         assert_ne!(unsafe { set.get_data(id).get_handle() }, vk::Buffer::null());
         assert_eq!(set.get_data(id).get_synchronization_group(), &group);
     }
-}
+}*/

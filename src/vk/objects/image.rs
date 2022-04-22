@@ -1,7 +1,7 @@
 use std::fmt::Debug;
 
 use ash::vk;
-use crate::vk::objects::{Format, SynchronizationGroup};
+use crate::vk::objects::Format;
 
 #[derive(Copy, Clone, Debug, PartialEq, Eq)]
 pub enum ImageSize {
@@ -155,6 +155,16 @@ pub struct ImageSubresourceRange {
 }
 
 impl ImageSubresourceRange {
+    pub fn full_color() -> Self {
+        Self {
+            aspect_mask: vk::ImageAspectFlags::COLOR,
+            base_mip_level: 0,
+            mip_level_count: vk::REMAINING_MIP_LEVELS,
+            base_array_layer: 0,
+            array_layer_count: vk::REMAINING_ARRAY_LAYERS,
+        }
+    }
+
     pub const fn as_vk_subresource_range(&self) -> vk::ImageSubresourceRange {
         vk::ImageSubresourceRange {
             aspect_mask: self.aspect_mask,
@@ -163,6 +173,17 @@ impl ImageSubresourceRange {
             base_array_layer: self.base_array_layer,
             layer_count: self.array_layer_count
         }
+    }
+}
+
+impl From<ImageSubresourceRange> for ash::vk::ImageSubresourceRange {
+    fn from(src: ImageSubresourceRange) -> Self {
+        ash::vk::ImageSubresourceRange::builder()
+            .aspect_mask(src.aspect_mask)
+            .base_mip_level(src.base_mip_level)
+            .base_array_layer(src.base_array_layer)
+            .layer_count(src.array_layer_count)
+            .build()
     }
 }
 
@@ -235,20 +256,14 @@ impl ImageViewDescription {
 }
 
 pub struct ImageInstanceData {
-    handle: vk::Image,
-    synchronization_group: SynchronizationGroup,
+    handle: vk::Image
 }
 
 impl ImageInstanceData {
-    pub fn new(handle: vk::Image, synchronization_group: SynchronizationGroup) -> Self {
+    pub fn new(handle: vk::Image) -> Self {
         Self {
-            handle,
-            synchronization_group
+            handle
         }
-    }
-
-    pub fn get_synchronization_group(&self) -> &SynchronizationGroup {
-        &self.synchronization_group
     }
 
     pub unsafe fn get_handle(&self) -> vk::Image {
@@ -257,20 +272,14 @@ impl ImageInstanceData {
 }
 
 pub struct ImageViewInstanceData {
-    handle: vk::ImageView,
-    synchronization_group: SynchronizationGroup,
+    handle: vk::ImageView
 }
 
 impl ImageViewInstanceData {
-    pub fn new(handle: vk::ImageView, synchronization_group: SynchronizationGroup) -> Self {
+    pub fn new(handle: vk::ImageView) -> Self {
         Self {
-            handle,
-            synchronization_group
+            handle
         }
-    }
-
-    pub fn get_synchronization_group(&self) -> &SynchronizationGroup {
-        &self.synchronization_group
     }
 
     pub unsafe fn get_handle(&self) -> vk::ImageView {

@@ -1,7 +1,12 @@
+extern crate core;
+
 pub mod vk;
 pub mod util;
-mod b4d;
-mod glfw_surface;
+pub mod b4d;
 
 pub use util::id::UUID;
 pub use util::id::NamedUUID;
+
+mod glfw_surface;
+mod renderer;
+pub mod window;

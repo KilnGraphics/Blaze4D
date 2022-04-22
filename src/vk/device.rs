@@ -10,7 +10,7 @@ use ash::vk;
 use crate::NamedUUID;
 use crate::vk::instance::{InstanceContext, InstanceContextImpl};
 use crate::vk::objects::types::SurfaceId;
-use crate::vk::objects::surface::{SurfaceCapabilities, SurfaceProvider};
+use crate::vk::objects::surface::SurfaceProvider;
 use crate::vk::objects::allocator::Allocator;
 
 pub struct DeviceContextImpl {
@@ -33,17 +33,16 @@ impl DeviceContextImpl {
         swapchain_khr: Option<ash::extensions::khr::Swapchain>,
         main_queue: VkQueueTemplate,
         transfer_queue: VkQueueTemplate,
-        surfaces: HashMap<SurfaceId, (SurfaceCapabilities, Box<dyn SurfaceProvider>, VkQueueTemplate)>,
+        surfaces: HashMap<SurfaceId, (Box<dyn SurfaceProvider>, Box<[bool]>)>,
     ) -> Self {
         let allocator = Allocator::new(instance.vk().clone(), device.clone(), physical_device);
 
-        let surfaces = surfaces.into_iter().map(|(id, (caps, prov, queue))| {
+        let surfaces = surfaces.into_iter().map(|(id, (prov, supported_queues))| {
             (id, DeviceSurface {
                 handle: prov.get_handle().unwrap(),
-                capabilities: caps,
                 swapchain_info: Mutex::new(SurfaceSwapchainInfo::None),
+                supported_queues,
                 provider: prov,
-                queue,
             })
         }).collect();
 
@@ -88,14 +87,17 @@ impl DeviceContextImpl {
         &self.allocator
     }
 
-    pub fn get_surface_capabilities(&self, id: SurfaceId) -> Option<&SurfaceCapabilities> {
-        self.surfaces.get(&id).map(|s| &s.capabilities)
-    }
-
     pub(crate) fn get_surface(&self, id: SurfaceId) -> Option<(vk::SurfaceKHR, &Mutex<SurfaceSwapchainInfo>)> {
         self.surfaces.get(&id).map(|s| {
             (s.handle, &s.swapchain_info)
         })
+    }
+
+    pub fn get_surface_capabilities(&self, id: SurfaceId) -> Option<vk::SurfaceCapabilitiesKHR> {
+        let (handle, _) = self.get_surface(id)?;
+
+        Some(unsafe { self.instance.surface_khr().unwrap()
+            .get_physical_device_surface_capabilities(self.physical_device, handle) }.unwrap())
     }
 }
 
@@ -143,8 +145,10 @@ impl DeviceContext {
         self.0.transfer_queue.promote(self.clone())
     }
 
-    pub fn get_surface_queue(&self, id: SurfaceId) -> Option<VkQueue> {
-        self.0.surfaces.get(&id).map(|s| s.queue.promote(self.clone()))
+    pub fn get_surface_queue_support(&self, id: SurfaceId, queue: &VkQueue) -> Option<bool> {
+        self.0.surfaces.get(&id).map(|surface|
+            *surface.supported_queues.get(queue.get_queue_family_index() as usize).unwrap()
+        )
     }
 }
 
@@ -188,28 +192,35 @@ pub struct VkQueue {
 }
 
 impl VkQueue {
-    pub fn submit_2(&self, submits: &[vk::SubmitInfo2], fence: Option<vk::Fence>) -> VkResult<()> {
+    pub unsafe fn submit(&self, submits: &[vk::SubmitInfo], fence: Option<vk::Fence>) -> VkResult<()> {
         let fence = fence.unwrap_or(vk::Fence::null());
 
         let queue = self.queue.lock().unwrap();
-        unsafe { self.device.vk().queue_submit2(*queue, submits, fence) }
+        self.device.vk().queue_submit(*queue, submits, fence)
     }
 
-    pub fn wait_idle(&self) -> VkResult<()> {
-        let queue = self.queue.lock().unwrap();
-        unsafe { self.device.vk().queue_wait_idle(*queue) }
-    }
-
-    pub fn bind_sparse(&self, bindings: &[vk::BindSparseInfo], fence: Option<vk::Fence>) -> VkResult<()> {
+    pub unsafe fn submit_2(&self, submits: &[vk::SubmitInfo2], fence: Option<vk::Fence>) -> VkResult<()> {
         let fence = fence.unwrap_or(vk::Fence::null());
 
         let queue = self.queue.lock().unwrap();
-        unsafe { self.device.vk().queue_bind_sparse(*queue, bindings, fence) }
+        self.device.vk().queue_submit2(*queue, submits, fence)
     }
 
-    pub fn present(&self, present_info: &vk::PresentInfoKHR) -> VkResult<bool> {
+    pub unsafe fn wait_idle(&self) -> VkResult<()> {
         let queue = self.queue.lock().unwrap();
-        unsafe { self.device.swapchain_khr().unwrap().queue_present(*queue, present_info) }
+        self.device.vk().queue_wait_idle(*queue)
+    }
+
+    pub unsafe fn bind_sparse(&self, bindings: &[vk::BindSparseInfo], fence: Option<vk::Fence>) -> VkResult<()> {
+        let fence = fence.unwrap_or(vk::Fence::null());
+
+        let queue = self.queue.lock().unwrap();
+        self.device.vk().queue_bind_sparse(*queue, bindings, fence)
+    }
+
+    pub unsafe fn present(&self, present_info: &vk::PresentInfoKHR) -> VkResult<bool> {
+        let queue = self.queue.lock().unwrap();
+        self.device.swapchain_khr().unwrap().queue_present(*queue, present_info)
     }
 
     pub fn get_queue_family_index(&self) -> u32 {
@@ -219,9 +230,8 @@ impl VkQueue {
 
 struct DeviceSurface {
     handle: vk::SurfaceKHR,
-    capabilities: SurfaceCapabilities,
     swapchain_info: Mutex<SurfaceSwapchainInfo>,
-    queue: VkQueueTemplate,
+    supported_queues: Box<[bool]>,
 
     #[allow(unused)] // We just need to keep the provider alive
     provider: Box<dyn SurfaceProvider>,

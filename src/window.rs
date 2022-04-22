@@ -4,7 +4,7 @@ use ash::vk::SurfaceKHR;
 use winit::dpi::LogicalSize;
 use winit::event_loop::EventLoop;
 use winit::window::WindowBuilder;
-use crate::objects::surface::{SurfaceInitError, SurfaceProvider};
+use crate::vk::objects::surface::{SurfaceInitError, SurfaceProvider};
 
 pub struct WinitWindow {
     handle: winit::window::Window,
@@ -19,6 +19,7 @@ impl WinitWindow {
             .with_inner_size(LogicalSize::new(width, height))
             .build(&event_loop)
             .unwrap();
+        window.set_visible(true);
 
         Self {
             handle: window,

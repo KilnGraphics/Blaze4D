@@ -3,7 +3,6 @@ use std::ptr::drop_in_place;
 use std::sync::Mutex;
 use ash::prelude::VkResult;
 use ash::vk;
-use crate::vk::objects::SynchronizationGroup;
 use crate::vk::objects::types::{GenericId, ImageId, ImageViewId, ObjectInstanceData, ObjectSetId, ObjectType, SurfaceId, SwapchainId, UnwrapToInstanceData};
 use crate::vk::objects::image::{ImageInstanceData, ImageViewDescription, ImageViewInstanceData};
 use crate::vk::objects::object_set::ObjectSetProvider;
@@ -81,7 +80,7 @@ impl SwapchainObjectSet {
         drop(swapchain_info);
 
         let images: Vec<_> = images.into_iter().map(|image| {
-            (image, SynchronizationGroup::new(device.clone()))
+            image
         }).collect();
 
         let set_id = ObjectSetId::new();
@@ -110,9 +109,8 @@ impl SwapchainObjectSet {
         for image in self.image_ids.iter() {
             let source = self.try_get_image_data(*image).unwrap();
             let handle = unsafe { source.get_handle() };
-            let group = source.get_synchronization_group().clone();
 
-            image_views.push((unsafe { self.create_image_view(desc, handle) }.unwrap(), group));
+            image_views.push(unsafe { self.create_image_view(desc, handle) }.unwrap());
         }
 
         let start_index = self.objects.lock().unwrap().insert_image_views(image_views);
@@ -192,14 +190,14 @@ struct Objects {
 }
 
 impl Objects {
-    fn new(images: Vec<(vk::Image, SynchronizationGroup)>) -> Self {
+    fn new(images: Vec<vk::Image>) -> Self {
         let mut result = Self {
             allocator: bumpalo::Bump::new(),
             objects: Vec::with_capacity(images.len()),
         };
 
-        for (image, group) in images {
-            let data = result.allocator.alloc(ImageInstanceData::new(image, group));
+        for image in images {
+            let data = result.allocator.alloc(ImageInstanceData::new(image));
             result.objects.push(Object::Image(data));
         }
 
@@ -213,12 +211,12 @@ impl Objects {
         }
     }
 
-    fn insert_image_views(&mut self, image_views: Vec<(vk::ImageView, SynchronizationGroup)>) -> u16 {
+    fn insert_image_views(&mut self, image_views: Vec<vk::ImageView>) -> u16 {
         let index = self.objects.len() as u16;
 
         self.objects.reserve(image_views.len());
-        for (image_view, group) in image_views {
-            let data = self.allocator.alloc(ImageViewInstanceData::new(image_view, group));
+        for image_view in image_views {
+            let data = self.allocator.alloc(ImageViewInstanceData::new(image_view));
             self.objects.push(Object::ImageView(data));
         }
 

@@ -7,7 +7,7 @@ use vk_profiles_rs::vp;
 use crate::vk::device::{DeviceContext, DeviceContextImpl, VkQueueTemplate};
 use crate::vk::instance::InstanceContext;
 use crate::vk::objects::types::SurfaceId;
-use crate::vk::objects::surface::{SurfaceCapabilities, SurfaceProvider};
+use crate::vk::objects::surface::SurfaceProvider;
 
 pub type DeviceRatingFn = dyn Fn(&InstanceContext, vk::PhysicalDevice) -> Option<f32>;
 
@@ -95,19 +95,17 @@ pub fn create_device(config: DeviceCreateConfig, instance: InstanceContext) -> R
 
     let required_extensions_str: Vec<_> = required_extensions.iter().map(|ext| ext.as_c_str().as_ptr()).collect();
 
-    let device_queue_create_infos: Vec<_> = selected_device.queues.iter().map(|q|
-        // We have to build here
-        vk::DeviceQueueCreateInfo::builder().queue_family_index(q.family).queue_priorities(&q.priorities).build()
+    let device_queue_create_infos: Vec<_> = selected_device.queues.queue_create_infos.iter().map(|queue_info|
+        queue_info.build().build()
     ).collect();
-
     let vk_device_create_info = vk::DeviceCreateInfo::builder()
         .enabled_extension_names(required_extensions_str.as_slice())
         .queue_create_infos(device_queue_create_infos.as_slice());
 
     let flags = if config.disable_robustness {
-        vp::DeviceCreateFlagBits::MERGE_EXTENSIONS | vp::DeviceCreateFlagBits::DISABLE_ROBUST_ACCESS
+        vp::DeviceCreateFlagBits::MERGE_EXTENSIONS | vp::DeviceCreateFlagBits::DISABLE_ROBUST_ACCESS | vp::DeviceCreateFlagBits::OVERRIDE_FEATURES
     } else {
-        vp::DeviceCreateFlagBits::MERGE_EXTENSIONS
+        vp::DeviceCreateFlagBits::MERGE_EXTENSIONS | vp::DeviceCreateFlagBits::OVERRIDE_FEATURES
     };
     let vp_device_create_info = vp::DeviceCreateInfo::builder()
         .profile(instance.get_profile())
@@ -116,20 +114,18 @@ pub fn create_device(config: DeviceCreateConfig, instance: InstanceContext) -> R
 
     let device = unsafe { vk_vp.create_device(instance.vk(), selected_device.device, &vp_device_create_info, None)? };
 
-    let queue_map = QueueMap::new(&device, selected_device.queues.as_ref());
+    let queue_map = QueueMap::new(&device, selected_device.queues.queue_create_infos.as_ref());
 
-    let main_queue = queue_map.get_queue(selected_device.graphics_compute_queue);
-    let transfer_queue = queue_map.get_queue(selected_device.transfer_queue);
+    let main_queue = queue_map.get_queue(selected_device.queues.main_queue);
+    let transfer_queue = queue_map.get_queue(selected_device.queues.transfer_queue);
 
-    // TODO clean this shit up
-    let mut surfaces_raw: HashMap<_, _> = surfaces.into_iter().collect();
-    let mut surfaces = HashMap::new();
-    for (id, allocation) in selected_device.present_queues {
-        let surface = surfaces_raw.remove(&id).unwrap();
-        let queue = queue_map.get_queue(allocation);
-        let capabilities = SurfaceCapabilities::new(&instance, selected_device.device, surface.get_handle().unwrap()).unwrap();
 
-        surfaces.insert(id, (capabilities, surface, queue));
+    let mut surfaces: HashMap<_, _> = surfaces.into_iter().collect();
+    let mut out_surfaces = HashMap::new();
+    for surface_config in selected_device.surfaces {
+        let surface = surfaces.remove(&surface_config.id).unwrap();
+
+        out_surfaces.insert(surface_config.id, (surface, surface_config.present_supported));
     }
 
     let swapchain_khr = if has_swapchain {
@@ -138,6 +134,7 @@ pub fn create_device(config: DeviceCreateConfig, instance: InstanceContext) -> R
         None
     };
 
+
     Ok(DeviceContext(Arc::new(DeviceContextImpl::new(
         instance,
         device,
@@ -145,7 +142,7 @@ pub fn create_device(config: DeviceCreateConfig, instance: InstanceContext) -> R
         swapchain_khr,
         main_queue,
         transfer_queue,
-        surfaces
+        out_surfaces
     ))))
 }
 
@@ -206,172 +203,110 @@ fn process_device(
     unsafe { instance.vk().get_physical_device_queue_family_properties2(device, queue_family_properties.as_mut_slice()) };
     let queue_family_properties = queue_family_properties;
 
-    let mut main_queue = if let Some(family) = find_main_queue_family(&queue_family_properties) {
-        QueueAllocation{ family, index: 0 }
-    } else {
-        return Ok(None);
-    };
-    let mut transfer_queue = QueueAllocation{ family: find_transfer_queue_family(&queue_family_properties, main_queue.family), index: 0 };
-
-    let mut present_queues = Vec::new();
-    for (id, surface) in surfaces {
+    // Generate surface data
+    let mut surface_infos: Vec<_> = Vec::with_capacity(surfaces.len());
+    for (id, surface) in surfaces.iter() {
         let handle = surface.get_handle().unwrap();
+        let surface_khr = instance.surface_khr().unwrap();
 
-        let capabilities = match SurfaceCapabilities::new(instance, device, handle) {
-            Some(caps) => caps,
-            None => return Ok(None)
-        };
+        let mut supported_queues = Vec::with_capacity(queue_family_properties.len());
+        for family in 0u32..(queue_family_properties.len() as u32) {
+            supported_queues.push(unsafe {
+                surface_khr.get_physical_device_surface_support(device, family, handle)
+            }?);
+        }
 
-        let present_family = find_present_queue_family(capabilities.get_presentable_queue_families(), main_queue.family, transfer_queue.family);
-
-        present_queues.push((*id, QueueAllocation{ family: present_family, index: 0 }));
+        surface_infos.push(PhysicalDeviceSurfaceConfig {
+            id: *id,
+            present_supported: supported_queues.into_boxed_slice(),
+        });
     }
+
+    // Generate queue requests
+    let queue_config = match generate_queue_allocation(queue_family_properties.as_slice(), surface_infos.as_slice()) {
+        Some(config) => config,
+        None => return Ok(None)
+    };
 
     let rating = match rating_fn(instance, device) {
         Some(rating) => rating,
         None => return Ok(None)
     };
 
-    let allocation = generate_queue_allocation(
-        queue_family_properties.as_slice(),
-        &mut main_queue,
-        &mut transfer_queue,
-        &mut present_queues
-    );
-
     Ok(Some(PhysicalDeviceConfig {
         device,
         rating,
-        queues: allocation.into_boxed_slice(),
-        graphics_compute_queue: main_queue,
-        transfer_queue,
-        present_queues
+        surfaces: surface_infos,
+        queues: queue_config
     }))
-}
-
-fn find_main_queue_family(properties: &Vec<vk::QueueFamilyProperties2>) -> Option<u32> {
-    let required_mask = vk::QueueFlags::COMPUTE | vk::QueueFlags::GRAPHICS;
-    for (family, info) in properties.iter().enumerate() {
-        if info.queue_family_properties.queue_flags.contains(required_mask) {
-            return Some(family as u32);
-        }
-    }
-
-    None
-}
-
-fn find_transfer_queue_family(properties: &Vec<vk::QueueFamilyProperties2>, main_queue_family: u32) -> u32 {
-    let mut best: Option<(u32, u32)> = None;
-    for (family, info) in properties.iter().enumerate() {
-        let family = family as u32;
-        if family != main_queue_family {
-            if info.queue_family_properties.queue_flags.contains(vk::QueueFlags::TRANSFER) {
-                let g = info.queue_family_properties.min_image_transfer_granularity;
-                let extent_sum = g.depth + g.height + g.width;
-
-                if extent_sum == 3 {
-                    // Found best possible family
-                    return family
-                }
-
-                best = best.map_or(
-                    Some((family, extent_sum)),
-                    |(old_family, old_extent)| {
-                        if (extent_sum < old_extent) || (old_extent == 0) {
-                            Some((family, extent_sum))
-                        } else {
-                            Some((old_family, old_extent))
-                        }
-                    }
-                );
-            }
-        }
-    }
-
-    best.map(|b| b.0).unwrap_or(main_queue_family)
-}
-
-fn find_present_queue_family(supported_families: &[u32], main_family: u32, transfer_family: u32) -> u32 {
-    if supported_families.is_empty() { panic!("Empty queue family set") }
-    // First search for a family that is disjoint with the main and transfer family
-    for family in supported_families {
-        if *family != main_family && *family != transfer_family {
-            return *family;
-        }
-    }
-    // Search for the transfer family
-    for family in supported_families {
-        if *family == transfer_family {
-            return transfer_family;
-        }
-    }
-    // Last resort use the main family
-    return main_family;
 }
 
 fn generate_queue_allocation(
     properties: &[vk::QueueFamilyProperties2],
-    main_queue: &mut QueueAllocation,
-    transfer_queue: &mut QueueAllocation,
-    present_queues: &mut [(SurfaceId, QueueAllocation)]
-) -> Vec<QueueCreateInfo> {
-    // We will assign queues in order of importance. If we run out we will repeat the last queue as its the least important
-    let mut queues = properties.iter().map(|q|
-        (0u32, q.queue_family_properties.queue_count)).collect::<Vec<(u32, u32)>>().into_boxed_slice();
+    surfaces: &[PhysicalDeviceSurfaceConfig],
+) -> Option<PhysicalDeviceQueueConfig> {
+    let main_family = properties.iter().enumerate().filter_map(|(family, props)| {
+        let props = &props.queue_family_properties;
+        if !props.queue_flags.contains(vk::QueueFlags::GRAPHICS | vk::QueueFlags::COMPUTE) {
+            return None;
+        }
 
-    let mut main = queues.get_mut(main_queue.family as usize).unwrap();
-    main_queue.index = main.0;
-    main.0 += 1;
+        for surface in surfaces.iter() {
+            if !surface.present_supported.get(family).unwrap() {
+                return None;
+            }
+        }
 
-    let mut transfer = queues.get_mut(transfer_queue.family as usize).unwrap();
-    if transfer.0 == transfer.1 {
-        transfer_queue.index = transfer.0 - 1;
+        let has_sparse_binding = props.queue_flags.contains(vk::QueueFlags::SPARSE_BINDING);
+
+        Some((family as u32, has_sparse_binding as u32))
+    }).max_by(|a, b| {
+        // Prefer queue families with sparse binding support
+        a.1.cmp(&b.1)
+    })?.0;
+
+    let transfer_family = properties.iter().enumerate().filter_map(|(family, props)| {
+        if (family as u32) == main_family {
+            return None;
+        }
+
+        let props = &props.queue_family_properties;
+        if !props.queue_flags.contains(vk::QueueFlags::TRANSFER) {
+            return None;
+        }
+
+        let has_sparse_binding = props.queue_flags.contains(vk::QueueFlags::SPARSE_BINDING);
+
+        Some((family as u32, has_sparse_binding as u32))
+    }).max_by(|a, b| {
+        // Prefer queue families with sparse binding support
+        a.1.cmp(&b.1)
+    })?.0;
+
+    if main_family != transfer_family {
+        Some(PhysicalDeviceQueueConfig {
+            main_queue: QueueAllocation { family: main_family, index: 0 },
+            transfer_queue: QueueAllocation { family: transfer_family, index: 0 },
+            queue_create_infos: vec![QueueCreateInfo::new(main_family, 1), QueueCreateInfo::new(transfer_family, 1)]
+        })
+
     } else {
-        transfer_queue.index = transfer.0;
-        transfer.0 += 1;
-    }
-
-    for present_queue in present_queues.iter_mut() {
-        let mut present = queues.get_mut(present_queue.1.index as usize).unwrap();
-        if present.0 == present.1 {
-            present_queue.1.index = present.0 - 1;
+        let transfer_index;
+        let create_count;
+        if properties.get(main_family as usize).unwrap().queue_family_properties.queue_count == 1 {
+            transfer_index = 0;
+            create_count = 1;
         } else {
-            present_queue.1.index = present.0;
-            present.0 += 1;
+            transfer_index = 1;
+            create_count = 2;
         }
+
+        Some(PhysicalDeviceQueueConfig {
+            main_queue: QueueAllocation { family: main_family, index: 0 },
+            transfer_queue: QueueAllocation { family: main_family, index: transfer_index },
+            queue_create_infos: vec![QueueCreateInfo::new(main_family, create_count)]
+        })
     }
-
-    queues.into_vec().into_iter().enumerate().filter_map(|(index, (count, _))| {
-        if count == 0 {
-            None
-        } else {
-            Some(QueueCreateInfo::make(index as u32, count))
-        }
-    }).collect()
-}
-
-#[derive(Debug)]
-struct QueueCreateInfo {
-    family: u32,
-    count: u32,
-    priorities: Box<[f32]>,
-}
-
-impl QueueCreateInfo {
-    fn make(family: u32, count: u32) -> Self {
-        let priorities = std::iter::repeat(1.0f32).take(count as usize).collect::<Vec<_>>().into_boxed_slice();
-        Self {
-            family,
-            count,
-            priorities
-        }
-    }
-}
-
-#[derive(Copy, Clone, Debug, Eq, PartialEq)]
-struct QueueAllocation {
-    family: u32,
-    index: u32,
 }
 
 struct QueueMap {
@@ -383,8 +318,8 @@ impl QueueMap {
         let mut map = HashMap::new();
 
         for queue in queues.iter() {
-            let mut vec = Vec::with_capacity(queue.count as usize);
-            for index in 0..queue.count {
+            let mut vec = Vec::with_capacity(queue.priorities.len());
+            for index in 0..(queue.priorities.len() as u32) {
                 let vk_queue = unsafe { device.get_device_queue(queue.family, index) };
                 vec.push(VkQueueTemplate::new(vk_queue, queue.family));
             }
@@ -405,8 +340,48 @@ impl QueueMap {
 struct PhysicalDeviceConfig {
     device: vk::PhysicalDevice,
     rating: f32,
-    queues: Box<[QueueCreateInfo]>,
-    graphics_compute_queue: QueueAllocation,
+    surfaces: Vec<PhysicalDeviceSurfaceConfig>,
+    queues: PhysicalDeviceQueueConfig,
+}
+
+#[derive(Debug)]
+struct PhysicalDeviceSurfaceConfig {
+    id: SurfaceId,
+    present_supported: Box<[bool]>,
+}
+
+#[derive(Debug)]
+struct PhysicalDeviceQueueConfig {
+    main_queue: QueueAllocation,
     transfer_queue: QueueAllocation,
-    present_queues: Vec<(SurfaceId, QueueAllocation)>,
+    queue_create_infos: Vec<QueueCreateInfo>,
+}
+
+#[derive(Debug)]
+struct QueueCreateInfo {
+    family: u32,
+    priorities: Box<[f32]>,
+}
+
+impl QueueCreateInfo {
+    fn new(family: u32, count: u32) -> Self {
+        let priorities: Box<[f32]> = std::iter::repeat(1.0f32).take(count as usize).collect();
+
+        Self {
+            family,
+            priorities,
+        }
+    }
+
+    fn build(&self) -> vk::DeviceQueueCreateInfoBuilder {
+        vk::DeviceQueueCreateInfo::builder()
+            .queue_family_index(self.family)
+            .queue_priorities(self.priorities.as_ref())
+    }
+}
+
+#[derive(Copy, Clone, Debug, Eq, PartialEq)]
+struct QueueAllocation {
+    family: u32,
+    index: u32,
 }
