@@ -110,7 +110,8 @@ impl SwapchainObjectSet {
             let source = self.try_get_image_data(*image).unwrap();
             let handle = unsafe { source.get_handle() };
 
-            image_views.push(unsafe { self.create_image_view(desc, handle) }.unwrap());
+            let image_view = unsafe { self.create_image_view(desc, handle) }.unwrap();
+            image_views.push((image_view, *image))
         }
 
         let start_index = self.objects.lock().unwrap().insert_image_views(image_views);
@@ -211,12 +212,12 @@ impl Objects {
         }
     }
 
-    fn insert_image_views(&mut self, image_views: Vec<vk::ImageView>) -> u16 {
+    fn insert_image_views(&mut self, image_views: Vec<(vk::ImageView, ImageId)>) -> u16 {
         let index = self.objects.len() as u16;
 
         self.objects.reserve(image_views.len());
-        for image_view in image_views {
-            let data = self.allocator.alloc(ImageViewInstanceData::new(image_view));
+        for (image_view, source_id) in image_views {
+            let data = self.allocator.alloc(ImageViewInstanceData::new(image_view, source_id));
             self.objects.push(Object::ImageView(data));
         }
 

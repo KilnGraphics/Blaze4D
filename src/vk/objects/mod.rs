@@ -7,7 +7,6 @@ pub mod surface;
 pub mod pipeline;
 pub mod allocator;
 pub mod object_set;
-pub mod synchronization_group;
 pub mod resource_object_set;
 pub mod swapchain_object_set;
 pub mod pipeline_object_set;
@@ -24,9 +23,6 @@ pub use image::ImageSpec;
 pub use image::ImageSubresourceRange;
 pub use image::ImageDescription;
 pub use image::ImageViewDescription;
-
-pub use synchronization_group::SynchronizationGroup;
-pub use synchronization_group::SynchronizationGroupSet;
 
 pub use object_set::ObjectSet;
 //pub use resource_object_set::ResourceObjectSet;

@@ -1,5 +1,6 @@
 use ash::vk;
-use crate::vk::objects::{Format, SynchronizationGroup};
+use crate::vk::objects::Format;
+use crate::vk::objects::types::BufferId;
 
 #[derive(Copy, Clone, Debug)]
 pub struct BufferSpec {
@@ -57,19 +58,13 @@ impl BufferViewDescription {
 
 pub struct BufferInstanceData {
     handle: vk::Buffer,
-    synchronization_group: SynchronizationGroup,
 }
 
 impl BufferInstanceData {
-    pub fn new(handle: vk::Buffer, synchronization_group: SynchronizationGroup) -> Self {
+    pub fn new(handle: vk::Buffer) -> Self {
         Self {
             handle,
-            synchronization_group,
         }
-    }
-
-    pub fn get_synchronization_group(&self) -> &SynchronizationGroup {
-        &self.synchronization_group
     }
 
     pub unsafe fn get_handle(&self) -> vk::Buffer {
@@ -79,19 +74,19 @@ impl BufferInstanceData {
 
 pub struct BufferViewInstanceData {
     handle: vk::BufferView,
-    synchronization_group: SynchronizationGroup,
+    source_buffer: BufferId,
 }
 
 impl BufferViewInstanceData {
-    pub fn new(handle: vk::BufferView, synchronization_group: SynchronizationGroup) -> Self {
+    pub fn new(handle: vk::BufferView, source_buffer: BufferId) -> Self {
         Self {
             handle,
-            synchronization_group,
+            source_buffer,
         }
     }
 
-    pub fn get_synchronization_group(&self) -> &SynchronizationGroup {
-        &self.synchronization_group
+    pub fn get_source_buffer(&self) -> BufferId {
+        self.source_buffer
     }
 
     pub unsafe fn get_handle(&self) -> vk::BufferView {

@@ -1,10 +1,10 @@
-/*use std::any::Any;
+use std::any::Any;
 use std::ptr::drop_in_place;
 use std::sync::Mutex;
 use ash::vk;
 
 use crate::vk::device::DeviceContext;
-use crate::vk::objects::{ObjectSet, SynchronizationGroup};
+use crate::vk::objects::ObjectSet;
 use crate::vk::objects::buffer::{BufferDescription, BufferInstanceData, BufferViewDescription, BufferViewInstanceData};
 use crate::vk::objects::types::{BufferId, BufferViewId, GenericId, ImageId, ImageViewId, ObjectInstanceData, ObjectSetId, ObjectType, UnwrapToInstanceData};
 use crate::vk::objects::image::{ImageDescription, ImageInstanceData, ImageViewDescription, ImageViewInstanceData};
@@ -28,9 +28,7 @@ impl<'s> From<AllocationError> for ObjectCreateError {
     fn from(err: AllocationError) -> Self {
         ObjectCreateError::Allocation(err)
     }
-}*/
-
-/*
+}
 
 /// Resource object sets are object sets specifically designed for resources that require backing
 /// memory and synchronization. (i.e. Buffers, BufferViews etc.)
@@ -59,14 +57,14 @@ impl ResourceObjectSet {
         }
     }
 
-    pub fn add_default_gpu_only_buffer(&self, desc: &BufferDescription, synchronization_group: SynchronizationGroup) -> BufferId {
+    pub fn add_default_gpu_only_buffer(&self, desc: &BufferDescription) -> BufferId {
         let (buffer, allocation) = unsafe { self.create_buffer(desc, AllocationStrategy::AutoGpuOnly) }.unwrap();
-        self.insert_buffer(buffer, synchronization_group, allocation)
+        self.insert_buffer(buffer, allocation)
     }
 
-    pub fn add_default_gpu_cpu_buffer(&self, desc: &BufferDescription, synchronization_group: SynchronizationGroup) -> BufferId {
+    pub fn add_default_gpu_cpu_buffer(&self, desc: &BufferDescription) -> BufferId {
         let (buffer, allocation) = unsafe { self.create_buffer(desc, AllocationStrategy::AutoGpuCpu) }.unwrap();
-        self.insert_buffer(buffer, synchronization_group, allocation)
+        self.insert_buffer(buffer, allocation)
     }
 
     pub fn add_internal_buffer_view(&self, desc: &BufferViewDescription, source_id: BufferId) -> BufferViewId {
@@ -76,7 +74,7 @@ impl ResourceObjectSet {
         let source_data = self.try_get_buffer_data(source_id).unwrap();
         let buffer_view = unsafe { self.create_buffer_view(desc, source_data.get_handle()) }.unwrap();
 
-        self.insert_buffer_view(buffer_view, source_data.get_synchronization_group().clone(), None)
+        self.insert_buffer_view(buffer_view, source_id, None)
     }
 
     pub fn add_external_buffer_view(&self, desc: &BufferViewDescription, source_id: BufferId, source_set: ObjectSet) -> BufferViewId {
@@ -87,18 +85,18 @@ impl ResourceObjectSet {
             let source_data = source_set.get_data(source_id);
             let buffer_view = unsafe { self.create_buffer_view(desc, source_data.get_handle()) }.unwrap();
 
-            self.insert_buffer_view(buffer_view, source_data.get_synchronization_group().clone(), Some(source_set))
+            self.insert_buffer_view(buffer_view, source_id, Some(source_set))
         }
     }
 
-    pub fn add_default_gpu_only_image(&self, desc: &ImageDescription, synchronization_group: SynchronizationGroup) -> ImageId {
+    pub fn add_default_gpu_only_image(&self, desc: &ImageDescription) -> ImageId {
         let (image, allocation) = unsafe { self.create_image(desc, AllocationStrategy::AutoGpuOnly) }.unwrap();
-        self.insert_image(image, synchronization_group, allocation)
+        self.insert_image(image, allocation)
     }
 
-    pub fn add_default_gpu_cpu_image(&self, desc: &ImageDescription, synchronization_group: SynchronizationGroup) -> ImageId {
+    pub fn add_default_gpu_cpu_image(&self, desc: &ImageDescription) -> ImageId {
         let (image, allocation) = unsafe { self.create_image(desc, AllocationStrategy::AutoGpuCpu) }.unwrap();
-        self.insert_image(image, synchronization_group, allocation)
+        self.insert_image(image, allocation)
     }
 
     pub fn add_internal_image_view(&self, desc: &ImageViewDescription, source_id: ImageId) -> ImageViewId {
@@ -108,7 +106,7 @@ impl ResourceObjectSet {
         let source_data = self.try_get_image_data(source_id).unwrap();
         let image_view = unsafe { self.create_image_view(desc, source_data.get_handle()) }.unwrap();
 
-        self.insert_image_view(image_view, source_data.get_synchronization_group().clone(), None)
+        self.insert_image_view(image_view, source_id, None)
     }
 
     pub fn add_external_image_view(&self, desc: &ImageViewDescription, source_id: ImageId, source_set: ObjectSet) -> ImageViewId {
@@ -119,7 +117,7 @@ impl ResourceObjectSet {
             let source_data = source_set.get_data(source_id);
             let image_view = unsafe { self.create_image_view(desc, source_data.get_handle()) }.unwrap();
 
-            self.insert_image_view(image_view, source_data.get_synchronization_group().clone(), Some(source_set))
+            self.insert_image_view(image_view, source_id, Some(source_set))
         }
     }
 
@@ -188,37 +186,37 @@ impl ResourceObjectSet {
         Ok(handle)
     }
 
-    fn insert_buffer(&self, buffer: vk::Buffer, group: SynchronizationGroup, allocation: Allocation) -> BufferId {
+    fn insert_buffer(&self, buffer: vk::Buffer, allocation: Allocation) -> BufferId {
         let index = {
             let mut guard = self.objects.lock().unwrap();
-            guard.insert_buffer(buffer, group, allocation)
+            guard.insert_buffer(buffer, allocation)
         };
 
         BufferId::new(self.set_id, index)
     }
 
-    fn insert_buffer_view(&self, buffer_view: vk::BufferView, group: SynchronizationGroup, source_set: Option<ObjectSet>) -> BufferViewId {
+    fn insert_buffer_view(&self, buffer_view: vk::BufferView, source_id: BufferId, source_set: Option<ObjectSet>) -> BufferViewId {
         let index = {
             let mut guard = self.objects.lock().unwrap();
-            guard.insert_buffer_view(buffer_view, group, source_set)
+            guard.insert_buffer_view(buffer_view, source_id, source_set)
         };
 
         BufferViewId::new(self.set_id, index)
     }
 
-    fn insert_image(&self, image: vk::Image, group: SynchronizationGroup, allocation: Allocation) -> ImageId {
+    fn insert_image(&self, image: vk::Image, allocation: Allocation) -> ImageId {
         let index = {
             let mut guard = self.objects.lock().unwrap();
-            guard.insert_image(image, group, allocation)
+            guard.insert_image(image, allocation)
         };
 
         ImageId::new(self.set_id, index)
     }
 
-    fn insert_image_view(&self, image_view: vk::ImageView, group: SynchronizationGroup, source_set: Option<ObjectSet>) -> ImageViewId {
+    fn insert_image_view(&self, image_view: vk::ImageView, source_id: ImageId, source_set: Option<ObjectSet>) -> ImageViewId {
         let index = {
             let mut guard = self.objects.lock().unwrap();
-            guard.insert_image_view(image_view, group, source_set)
+            guard.insert_image_view(image_view, source_id, source_set)
         };
 
         ImageViewId::new(self.set_id, index)
@@ -298,8 +296,8 @@ impl Objects {
         }
     }
 
-    fn insert_buffer(&mut self, buffer: vk::Buffer, group: SynchronizationGroup, allocation: Allocation) -> u16 {
-        let data = self.allocator.alloc(BufferInstanceData::new(buffer, group));
+    fn insert_buffer(&mut self, buffer: vk::Buffer, allocation: Allocation) -> u16 {
+        let data = self.allocator.alloc(BufferInstanceData::new(buffer));
         let index = self.objects.len() as u16;
 
         self.objects.push(Object::Buffer(data));
@@ -308,8 +306,8 @@ impl Objects {
         index
     }
 
-    fn insert_buffer_view(&mut self, buffer_view: vk::BufferView, group: SynchronizationGroup, source_set: Option<ObjectSet>) -> u16 {
-        let data = self.allocator.alloc(BufferViewInstanceData::new(buffer_view, group));
+    fn insert_buffer_view(&mut self, buffer_view: vk::BufferView, source_id: BufferId, source_set: Option<ObjectSet>) -> u16 {
+        let data = self.allocator.alloc(BufferViewInstanceData::new(buffer_view, source_id));
         let index = self.objects.len() as u16;
 
         self.objects.push(Object::BufferView(data, source_set));
@@ -317,8 +315,8 @@ impl Objects {
         index
     }
 
-    fn insert_image(&mut self, image: vk::Image, group: SynchronizationGroup, allocation: Allocation) -> u16 {
-        let data = self.allocator.alloc(ImageInstanceData::new(image, group));
+    fn insert_image(&mut self, image: vk::Image, allocation: Allocation) -> u16 {
+        let data = self.allocator.alloc(ImageInstanceData::new(image));
         let index = self.objects.len() as u16;
 
         self.objects.push(Object::Image(data));
@@ -327,8 +325,8 @@ impl Objects {
         index
     }
 
-    fn insert_image_view(&mut self, image_view: vk::ImageView, group: SynchronizationGroup, source_set: Option<ObjectSet>) -> u16 {
-        let data = self.allocator.alloc(ImageViewInstanceData::new(image_view, group));
+    fn insert_image_view(&mut self, image_view: vk::ImageView, source_id: ImageId, source_set: Option<ObjectSet>) -> u16 {
+        let data = self.allocator.alloc(ImageViewInstanceData::new(image_view, source_id));
         let index = self.objects.len() as u16;
 
         self.objects.push(Object::ImageView(data, source_set));
@@ -442,15 +440,14 @@ mod tests {
     fn test_buffer() {
         let (_, device) = crate::vk::test::make_headless_instance_device();
 
-        let group = SynchronizationGroup::new(device.clone());
         let set = ResourceObjectSet::new(device);
 
         let buffer_desc = BufferDescription::new_simple(1024, BufferUsageFlags::TRANSFER_DST);
-        let id = set.add_default_gpu_only_buffer(&buffer_desc, group.clone());
+        let id = set.add_default_gpu_only_buffer(&buffer_desc);
 
         let set = ObjectSet::new(set);
 
         assert_ne!(unsafe { set.get_data(id).get_handle() }, vk::Buffer::null());
         assert_eq!(set.get_data(id).get_synchronization_group(), &group);
     }
-}*/
+}

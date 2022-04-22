@@ -2,6 +2,7 @@ use std::fmt::Debug;
 
 use ash::vk;
 use crate::vk::objects::Format;
+use crate::vk::objects::types::ImageId;
 
 #[derive(Copy, Clone, Debug, PartialEq, Eq)]
 pub enum ImageSize {
@@ -272,14 +273,20 @@ impl ImageInstanceData {
 }
 
 pub struct ImageViewInstanceData {
-    handle: vk::ImageView
+    handle: vk::ImageView,
+    source_image: ImageId,
 }
 
 impl ImageViewInstanceData {
-    pub fn new(handle: vk::ImageView) -> Self {
+    pub fn new(handle: vk::ImageView, source_image: ImageId) -> Self {
         Self {
-            handle
+            handle,
+            source_image,
         }
+    }
+
+    pub fn get_source_image(&self) -> ImageId {
+        self.source_image
     }
 
     pub unsafe fn get_handle(&self) -> vk::ImageView {
