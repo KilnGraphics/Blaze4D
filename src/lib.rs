@@ -10,3 +10,4 @@ pub use util::id::NamedUUID;
 mod glfw_surface;
 mod renderer;
 pub mod window;
+mod debug;

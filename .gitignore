@@ -5,3 +5,7 @@ Cargo.lock
 # Intellij
 *.iml
 /.idea
+
+
+# Temporary until we figure stuff out
+/resources

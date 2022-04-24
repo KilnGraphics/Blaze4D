@@ -1,4 +1,7 @@
+use std::ffi::c_void;
+use std::ptr::NonNull;
 use ash::vk;
+use crate::vk::objects::allocator::MappedMemory;
 use crate::vk::objects::Format;
 use crate::vk::objects::types::BufferId;
 
@@ -58,13 +61,19 @@ impl BufferViewDescription {
 
 pub struct BufferInstanceData {
     handle: vk::Buffer,
+    mapped_memory: Option<MappedMemory>,
 }
 
 impl BufferInstanceData {
-    pub fn new(handle: vk::Buffer) -> Self {
+    pub fn new(handle: vk::Buffer, mapped_memory: Option<MappedMemory>) -> Self {
         Self {
             handle,
+            mapped_memory,
         }
+    }
+
+    pub fn get_mapped_memory(&self) -> Option<&MappedMemory> {
+        self.mapped_memory.as_ref()
     }
 
     pub unsafe fn get_handle(&self) -> vk::Buffer {

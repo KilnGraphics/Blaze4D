@@ -8,7 +8,7 @@ use crate::vk::objects::ObjectSet;
 use crate::vk::objects::buffer::{BufferDescription, BufferInstanceData, BufferViewDescription, BufferViewInstanceData};
 use crate::vk::objects::types::{BufferId, BufferViewId, GenericId, ImageId, ImageViewId, ObjectInstanceData, ObjectSetId, ObjectType, UnwrapToInstanceData};
 use crate::vk::objects::image::{ImageDescription, ImageInstanceData, ImageViewDescription, ImageViewInstanceData};
-use crate::vk::objects::allocator::{Allocation, AllocationError, AllocationStrategy};
+use crate::vk::objects::allocator::{Allocation, AllocationError, AllocationStrategy, MappedMemory};
 use crate::vk::objects::object_set::ObjectSetProvider;
 
 #[derive(Debug)]
@@ -59,12 +59,12 @@ impl ResourceObjectSet {
 
     pub fn add_default_gpu_only_buffer(&self, desc: &BufferDescription) -> BufferId {
         let (buffer, allocation) = unsafe { self.create_buffer(desc, AllocationStrategy::AutoGpuOnly) }.unwrap();
-        self.insert_buffer(buffer, allocation)
+        self.insert_buffer(buffer, desc.size as usize, allocation)
     }
 
     pub fn add_default_gpu_cpu_buffer(&self, desc: &BufferDescription) -> BufferId {
         let (buffer, allocation) = unsafe { self.create_buffer(desc, AllocationStrategy::AutoGpuCpu) }.unwrap();
-        self.insert_buffer(buffer, allocation)
+        self.insert_buffer(buffer, desc.size as usize, allocation)
     }
 
     pub fn add_internal_buffer_view(&self, desc: &BufferViewDescription, source_id: BufferId) -> BufferViewId {
@@ -186,10 +186,10 @@ impl ResourceObjectSet {
         Ok(handle)
     }
 
-    fn insert_buffer(&self, buffer: vk::Buffer, allocation: Allocation) -> BufferId {
+    fn insert_buffer(&self, buffer: vk::Buffer, size: usize, allocation: Allocation) -> BufferId {
         let index = {
             let mut guard = self.objects.lock().unwrap();
-            guard.insert_buffer(buffer, allocation)
+            guard.insert_buffer(buffer, size, allocation)
         };
 
         BufferId::new(self.set_id, index)
@@ -296,8 +296,10 @@ impl Objects {
         }
     }
 
-    fn insert_buffer(&mut self, buffer: vk::Buffer, allocation: Allocation) -> u16 {
-        let data = self.allocator.alloc(BufferInstanceData::new(buffer));
+    fn insert_buffer(&mut self, buffer: vk::Buffer, size: usize, allocation: Allocation) -> u16 {
+        let mapped_memory = allocation.mapped_ptr().map(|ptr| unsafe { MappedMemory::new(ptr, size) });
+
+        let data = self.allocator.alloc(BufferInstanceData::new(buffer, mapped_memory));
         let index = self.objects.len() as u16;
 
         self.objects.push(Object::Buffer(data));
@@ -396,16 +398,16 @@ impl Object {
     /// The instance object memory must be valid and this function must only be called once.
     unsafe fn destroy(&self, device: &DeviceContext) {
         match self {
-            Self::Buffer(d, ..) => {
+            Self::Buffer(d) => {
                 device.vk().destroy_buffer(d.as_ref().unwrap().get_handle(), None);
             }
-            Self::BufferView(d, ..) => {
+            Self::BufferView(d, _) => {
                 device.vk().destroy_buffer_view(d.as_ref().unwrap().get_handle(), None);
             }
-            Self::Image(d, ..) => {
+            Self::Image(d) => {
                 device.vk().destroy_image(d.as_ref().unwrap().get_handle(), None);
             }
-            Self::ImageView(d, ..) => {
+            Self::ImageView(d, _) => {
                 device.vk().destroy_image_view(d.as_ref().unwrap().get_handle(), None);
             }
         }

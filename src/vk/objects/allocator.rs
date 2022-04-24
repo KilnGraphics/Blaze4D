@@ -1,3 +1,5 @@
+use std::ffi::c_void;
+use std::ptr::NonNull;
 use std::sync::Mutex;
 
 use ash::vk;
@@ -108,11 +110,36 @@ impl Allocation {
         }
     }
 
+    pub fn mapped_ptr(&self) -> Option<std::ptr::NonNull<c_void>> {
+        self.alloc.mapped_ptr()
+    }
+
     pub fn memory(&self) -> vk::DeviceMemory {
         unsafe { self.alloc.memory() }
     }
 
     pub fn offset(&self) -> vk::DeviceSize {
         self.alloc.offset()
+    }
+}
+
+pub struct MappedMemory {
+    ptr: NonNull<c_void>,
+    len: usize,
+}
+
+impl MappedMemory {
+    pub unsafe fn new(ptr: NonNull<c_void>, len: usize) -> Self {
+        if len == 0 {
+            panic!("Length of mapped memory must be greater than 0.");
+        }
+        Self {
+            ptr,
+            len
+        }
+    }
+
+    pub fn as_byte_slice(&self) -> &[u8] {
+        unsafe { std::slice::from_raw_parts(self.ptr.as_ptr() as *const u8, self.len) }
     }
 }

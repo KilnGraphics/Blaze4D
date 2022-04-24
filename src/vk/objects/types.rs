@@ -57,7 +57,6 @@ impl ObjectType {
             Self::FENCE => "Fence",
             Self::SURFACE => "Surface",
             Self::SWAPCHAIN => "Swapchain",
-            Self::PIPELINE => "Pipeline",
             _ => "Invalid",
         }
     }
@@ -73,7 +72,6 @@ impl ObjectType {
     pub const FENCE: u8 = 7u8;
     pub const SURFACE: u8 = 8u8;
     pub const SWAPCHAIN: u8 = 9u8;
-    pub const PIPELINE: u8 = 10u8;
 }
 
 #[derive(Copy, Clone, PartialEq, Eq, PartialOrd, Ord)]
@@ -209,7 +207,6 @@ declare_object_types!(
     ImageView, ObjectType::IMAGE_VIEW, super::image::ImageViewInstanceData;
     Surface, ObjectType::SURFACE, ();
     Swapchain, ObjectType::SWAPCHAIN, super::swapchain::SwapchainInstanceData;
-    Pipeline, ObjectType::PIPELINE, super::pipeline::PipelineInstanceData;
 );
 
 pub type GenericId = ObjectId<{ ObjectType::GENERIC }>;
@@ -222,4 +219,3 @@ pub type EventId = ObjectId<{ ObjectType::EVENT }>;
 pub type FenceId = ObjectId<{ ObjectType::FENCE }>;
 pub type SurfaceId = ObjectId<{ ObjectType::SURFACE }>;
 pub type SwapchainId = ObjectId<{ ObjectType::SWAPCHAIN }>;
-pub type PipelineId = ObjectId<{ ObjectType::PIPELINE }>;

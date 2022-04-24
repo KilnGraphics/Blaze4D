@@ -21,6 +21,8 @@ pub struct Blaze4D {
 
 impl Blaze4D {
     pub fn new(main_window: Box<dyn SurfaceProvider>) -> Self {
+        crate::debug::text::ldfnt();
+
         let mut instance_config = InstanceCreateConfig::new(
             vp::LunargDesktopPortability2021::profile_properties(),
             VulkanVersion::VK_1_1,
