@@ -125,21 +125,25 @@ impl Allocation {
 
 pub struct MappedMemory {
     ptr: NonNull<c_void>,
-    len: usize,
+    size: usize,
 }
 
 impl MappedMemory {
-    pub unsafe fn new(ptr: NonNull<c_void>, len: usize) -> Self {
-        if len == 0 {
-            panic!("Length of mapped memory must be greater than 0.");
+    pub unsafe fn new(ptr: NonNull<c_void>, size: usize) -> Self {
+        if size == 0 {
+            panic!("Size of mapped memory must be greater than 0.");
         }
         Self {
             ptr,
-            len
+            size,
         }
     }
 
-    pub fn as_byte_slice(&self) -> &[u8] {
-        unsafe { std::slice::from_raw_parts(self.ptr.as_ptr() as *const u8, self.len) }
+    pub fn as_byte_slice_mut(&mut self) -> &mut [u8] {
+        unsafe { std::slice::from_raw_parts_mut(self.ptr.as_ptr() as *mut u8, self.size) }
+    }
+
+    pub fn get_size(&self) -> usize {
+        self.size
     }
 }

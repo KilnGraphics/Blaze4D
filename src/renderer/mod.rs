@@ -1,6 +1,8 @@
 use ash::prelude::VkResult;
 use ash::vk;
 use ash::vk::{CommandPool, PipelineStageFlags};
+use crate::debug::text::CharacterVertexData;
+use crate::prelude::Vec2u32;
 use crate::vk::device::VkQueue;
 use crate::vk::DeviceContext;
 use crate::vk::objects::{Format, ImageSubresourceRange, ImageViewDescription, ObjectSet, SwapchainObjectSet};
@@ -21,14 +23,48 @@ impl B4DRenderWorker {
     }
 
     pub fn run(&self) {
+        log::error!("SIZE: {:?}", std::mem::size_of::<CharacterVertexData>());
+
         let (swapchain, view_ids) = self.build_swapchain();
         let set: &SwapchainObjectSet = swapchain.as_any().downcast_ref().unwrap();
+
+        let image_ids = set.get_image_ids();
 
         let main_queue = self.device.get_main_queue();
         let transfer_queue = self.device.get_transfer_queue();
 
         log::error!("Main Queue: {:?} Transfer: {:?}", main_queue.get_queue_family_index(), transfer_queue.get_queue_family_index());
 
+        let debug = crate::debug::DebugRenderer::new(self.device.clone());
+
+        let sync = self.create_sync(2);
+        let mut next_sync = 0;
+
+        let swapchain_khr = self.device.swapchain_khr().unwrap();
+        let swapchain_handle = unsafe { swapchain.get_data(set.get_swapchain_id()).get_handle() };
+        loop {
+            let (sem1, sem2, fence) = sync.get(next_sync).unwrap();
+            next_sync = (next_sync + 1) % sync.len();
+
+            unsafe { self.device.vk().reset_fences(std::slice::from_ref(fence)) }.unwrap();
+
+            let (index, _) = unsafe { swapchain_khr.acquire_next_image(swapchain_handle, u64::MAX, vk::Semaphore::null(), *fence) }.unwrap();
+
+            let image = unsafe { swapchain.get_data(image_ids[index as usize]).get_handle() };
+            let view = unsafe { swapchain.get_data(view_ids[index as usize]).get_handle() };
+
+            unsafe { self.device.vk().wait_for_fences(std::slice::from_ref(fence), true, u64::MAX) }.unwrap();
+
+            debug.draw_to_image(image, view, Vec2u32::new(800, 600));
+
+            let present_info = vk::PresentInfoKHR::builder()
+                .swapchains(std::slice::from_ref(&swapchain_handle))
+                .image_indices(std::slice::from_ref(&index));
+
+            unsafe { main_queue.present(&present_info) }.unwrap();
+        }
+
+        /*
         let command_pool = self.create_command_pool(&main_queue).unwrap();
 
         let buffers = self.record_buffers(&swapchain, command_pool, view_ids, main_queue.get_queue_family_index());
@@ -63,7 +99,7 @@ impl B4DRenderWorker {
                 .image_indices(std::slice::from_ref(&index));
 
             unsafe { main_queue.present(&present_info) }.unwrap();
-        }
+        }*/
     }
 
     fn build_swapchain(&self) -> (ObjectSet, Box<[ImageViewId]>) {

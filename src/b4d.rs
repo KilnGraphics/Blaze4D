@@ -2,6 +2,7 @@ use std::ffi::CString;
 use std::thread::JoinHandle;
 use ash::vk;
 use vk_profiles_rs::vp;
+use crate::debug::DebugRenderer;
 use crate::glfw_surface::GLFWSurfaceProvider;
 use crate::renderer::B4DRenderWorker;
 use crate::vk::debug_messenger::RustLogDebugMessenger;
