@@ -18,6 +18,7 @@ log = "0.4.14"
 nalgebra = "0.29.0"
 paste = "1.0.6"
 png = "0.17.5"
+static_assertions = "1.1.0"
 shaderc = "0.7.3"
 vk-profiles-rs = { git="https://github.com/CodingRays/vk-profiles-rs.git", branch="ash-0.36" }
 winit = "0.26.1"

@@ -1,6 +1,8 @@
 use ash::prelude::VkResult;
 use ash::vk;
 use ash::vk::{CommandPool, PipelineStageFlags};
+
+use crate::debug::{ApplyTarget, DebugOverlay, Target};
 use crate::debug::text::CharacterVertexData;
 use crate::prelude::Vec2u32;
 use crate::vk::device::VkQueue;
@@ -23,9 +25,12 @@ impl B4DRenderWorker {
     }
 
     pub fn run(&self) {
+        let debug_overlay = DebugOverlay::new(self.device.clone());
+        let overlay_target = debug_overlay.create_target(Vec2u32::new(1, 1));
+
         log::error!("SIZE: {:?}", std::mem::size_of::<CharacterVertexData>());
 
-        let (swapchain, view_ids) = self.build_swapchain();
+        let (swapchain, view_ids) = self.build_swapchain(&overlay_target);
         let set: &SwapchainObjectSet = swapchain.as_any().downcast_ref().unwrap();
 
         let image_ids = set.get_image_ids();
@@ -35,36 +40,6 @@ impl B4DRenderWorker {
 
         log::error!("Main Queue: {:?} Transfer: {:?}", main_queue.get_queue_family_index(), transfer_queue.get_queue_family_index());
 
-        let debug = crate::debug::DebugRenderer::new(self.device.clone());
-
-        let sync = self.create_sync(2);
-        let mut next_sync = 0;
-
-        let swapchain_khr = self.device.swapchain_khr().unwrap();
-        let swapchain_handle = unsafe { swapchain.get_data(set.get_swapchain_id()).get_handle() };
-        loop {
-            let (sem1, sem2, fence) = sync.get(next_sync).unwrap();
-            next_sync = (next_sync + 1) % sync.len();
-
-            unsafe { self.device.vk().reset_fences(std::slice::from_ref(fence)) }.unwrap();
-
-            let (index, _) = unsafe { swapchain_khr.acquire_next_image(swapchain_handle, u64::MAX, vk::Semaphore::null(), *fence) }.unwrap();
-
-            let image = unsafe { swapchain.get_data(image_ids[index as usize]).get_handle() };
-            let view = unsafe { swapchain.get_data(view_ids[index as usize]).get_handle() };
-
-            unsafe { self.device.vk().wait_for_fences(std::slice::from_ref(fence), true, u64::MAX) }.unwrap();
-
-            debug.draw_to_image(image, view, Vec2u32::new(800, 600));
-
-            let present_info = vk::PresentInfoKHR::builder()
-                .swapchains(std::slice::from_ref(&swapchain_handle))
-                .image_indices(std::slice::from_ref(&index));
-
-            unsafe { main_queue.present(&present_info) }.unwrap();
-        }
-
-        /*
         let command_pool = self.create_command_pool(&main_queue).unwrap();
 
         let buffers = self.record_buffers(&swapchain, command_pool, view_ids, main_queue.get_queue_family_index());
@@ -75,7 +50,7 @@ impl B4DRenderWorker {
         let swapchain_khr = self.device.swapchain_khr().unwrap();
         let swapchain_handle = unsafe { swapchain.get_data(set.get_swapchain_id()).get_handle() };
         loop {
-            let (sem1, sem2, fence) = sync.get(next_sync).unwrap();
+            let (sem1, sem2, sem3, fence) = sync.get(next_sync).unwrap();
             next_sync = (next_sync + 1) % sync.len();
 
             unsafe { self.device.vk().wait_for_fences(std::slice::from_ref(&fence), true, u64::MAX) }.unwrap();
@@ -93,16 +68,18 @@ impl B4DRenderWorker {
 
             unsafe { main_queue.submit(std::slice::from_ref(&submit_info), Some(*fence)) };
 
+            overlay_target.apply_overlay(index as usize, Some(*sem2), Some(*sem3));
+
             let present_info = vk::PresentInfoKHR::builder()
-                .wait_semaphores(std::slice::from_ref(sem2))
+                .wait_semaphores(std::slice::from_ref(sem3))
                 .swapchains(std::slice::from_ref(&swapchain_handle))
                 .image_indices(std::slice::from_ref(&index));
 
             unsafe { main_queue.present(&present_info) }.unwrap();
-        }*/
+        }
     }
 
-    fn build_swapchain(&self) -> (ObjectSet, Box<[ImageViewId]>) {
+    fn build_swapchain(&self, target: &Target) -> (ObjectSet, Box<[ImageViewId]>) {
         let capabilities = self.device.get_surface_capabilities(self.surface).unwrap();
         log::error!("Capabilities: {:?}", capabilities);
 
@@ -129,9 +106,31 @@ impl B4DRenderWorker {
             vk::ImageAspectFlags::COLOR
         );
 
+        let image_ids = Vec::from(set.get_image_ids()).into_boxed_slice();
         let view_ids = set.add_image_views(&view_desc);
 
-        (ObjectSet::new(set), view_ids)
+        let set = ObjectSet::new(set);
+
+        let mut targets = Vec::with_capacity(image_ids.len());
+        for (index, image) in image_ids.iter().enumerate() {
+            targets.push(ApplyTarget {
+                image: unsafe { set.get_data(*image).get_handle() },
+                format: vk::Format::B8G8R8A8_SRGB,
+                subresource_range: vk::ImageSubresourceRange {
+                    aspect_mask: vk::ImageAspectFlags::COLOR,
+                    base_mip_level: 0,
+                    level_count: 1,
+                    base_array_layer: 0,
+                    layer_count: 1
+                },
+                src_layout: vk::ImageLayout::PRESENT_SRC_KHR,
+                dst_layout: vk::ImageLayout::PRESENT_SRC_KHR
+            });
+        }
+        target.resize(Vec2u32::new(800, 600));
+        target.prepare_targets(targets.as_slice()).unwrap();
+
+        (set, view_ids)
     }
 
     fn create_command_pool(&self, queue: &VkQueue) -> VkResult<vk::CommandPool> {
@@ -234,7 +233,7 @@ impl B4DRenderWorker {
         buffers.into_boxed_slice()
     }
 
-    fn create_sync(&self, count: usize) -> Box<[(vk::Semaphore, vk::Semaphore, vk::Fence)]> {
+    fn create_sync(&self, count: usize) -> Box<[(vk::Semaphore, vk::Semaphore, vk::Semaphore, vk::Fence)]> {
         let mut result = Vec::with_capacity(count);
 
         let semaphore_info = vk::SemaphoreCreateInfo::builder();
@@ -244,9 +243,10 @@ impl B4DRenderWorker {
         for _ in 0..count {
             let semaphore1 = unsafe { self.device.vk().create_semaphore(&semaphore_info, None) }.unwrap();
             let semaphore2 = unsafe { self.device.vk().create_semaphore(&semaphore_info, None) }.unwrap();
+            let semaphore3 = unsafe { self.device.vk().create_semaphore(&semaphore_info, None) }.unwrap();
             let fence = unsafe { self.device.vk().create_fence(&fence_info, None) }.unwrap();
 
-            result.push((semaphore1, semaphore2, fence));
+            result.push((semaphore1, semaphore2, semaphore3, fence));
         }
 
         result.into_boxed_slice()

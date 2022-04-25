@@ -15,6 +15,12 @@ use crate::vk::DeviceContext;
 use crate::vk::objects::allocator::{Allocation, AllocationStrategy};
 
 pub mod text;
+mod manager;
+mod target;
+
+pub use manager::DebugOverlay;
+pub use target::Target;
+pub use target::ApplyTarget;
 
 pub struct DebugRenderer {
     elements: Mutex<HashMap<u64, DebugElement>>,

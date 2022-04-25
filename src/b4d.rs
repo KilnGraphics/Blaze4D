@@ -2,8 +2,9 @@ use std::ffi::CString;
 use std::thread::JoinHandle;
 use ash::vk;
 use vk_profiles_rs::vp;
-use crate::debug::DebugRenderer;
+use crate::debug::{DebugOverlay, DebugRenderer};
 use crate::glfw_surface::GLFWSurfaceProvider;
+use crate::prelude::Vec2u32;
 use crate::renderer::B4DRenderWorker;
 use crate::vk::debug_messenger::RustLogDebugMessenger;
 use crate::vk::init::device::{create_device, DeviceCreateConfig};
@@ -44,6 +45,9 @@ impl Blaze4D {
 
         let worker = B4DRenderWorker::new(device.clone(), main_surface);
         let handle = std::thread::spawn(move || worker.run());
+
+        let overlay = DebugOverlay::new(device.clone());
+        let target = overlay.create_target(Vec2u32::new(800, 600));
 
         Self {
             instance,
