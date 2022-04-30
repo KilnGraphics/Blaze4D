@@ -1,3 +1,6 @@
+mod swapchain_manager;
+mod emulator;
+
 use ash::prelude::VkResult;
 use ash::vk;
 use ash::vk::{CommandPool, PipelineStageFlags};
@@ -82,6 +85,8 @@ impl B4DRenderWorker {
     fn build_swapchain(&self, target: &Target) -> (ObjectSet, Box<[ImageViewId]>) {
         let capabilities = self.device.get_surface_capabilities(self.surface).unwrap();
         log::error!("Capabilities: {:?}", capabilities);
+        let formats = unsafe { self.device.get_instance().surface_khr().unwrap().get_physical_device_surface_formats(*self.device.get_physical_device(), self.device.get_surface(self.surface).unwrap().0).unwrap() };
+        log::error!("Formats: {:?}", formats);
 
         let desc = SwapchainCreateDesc {
             min_image_count: capabilities.min_image_count,

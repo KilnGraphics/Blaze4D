@@ -2,7 +2,7 @@ use std::cmp::Ordering;
 use std::collections::HashMap;
 use std::mem::ManuallyDrop;
 use std::ops::Deref;
-use std::sync::{Arc, Mutex};
+use std::sync::{Arc, Mutex, MutexGuard};
 use ash::prelude::VkResult;
 
 use ash::vk;
@@ -221,6 +221,10 @@ impl VkQueue {
     pub unsafe fn present(&self, present_info: &vk::PresentInfoKHR) -> VkResult<bool> {
         let queue = self.queue.lock().unwrap();
         self.device.swapchain_khr().unwrap().queue_present(*queue, present_info)
+    }
+
+    pub fn lock_queue(&self) -> MutexGuard<vk::Queue> {
+        self.queue.lock().unwrap()
     }
 
     pub fn get_queue_family_index(&self) -> u32 {

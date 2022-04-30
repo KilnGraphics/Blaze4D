@@ -432,24 +432,3 @@ impl Drop for Object {
         }
     }
 }
-
-#[cfg(test)]
-mod tests {
-    use ash::vk::BufferUsageFlags;
-    use super::*;
-
-    #[test]
-    fn test_buffer() {
-        let (_, device) = crate::vk::test::make_headless_instance_device();
-
-        let set = ResourceObjectSet::new(device);
-
-        let buffer_desc = BufferDescription::new_simple(1024, BufferUsageFlags::TRANSFER_DST);
-        let id = set.add_default_gpu_only_buffer(&buffer_desc);
-
-        let set = ObjectSet::new(set);
-
-        assert_ne!(unsafe { set.get_data(id).get_handle() }, vk::Buffer::null());
-        assert_eq!(set.get_data(id).get_synchronization_group(), &group);
-    }
-}

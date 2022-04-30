@@ -6,6 +6,7 @@ use crate::debug::{DebugOverlay, DebugRenderer};
 use crate::glfw_surface::GLFWSurfaceProvider;
 use crate::prelude::Vec2u32;
 use crate::renderer::B4DRenderWorker;
+use crate::transfer::Transfer;
 use crate::vk::debug_messenger::RustLogDebugMessenger;
 use crate::vk::init::device::{create_device, DeviceCreateConfig};
 use crate::vk::init::instance::{create_instance, InstanceCreateConfig};
@@ -17,6 +18,7 @@ use crate::vk::objects::types::SurfaceId;
 pub struct Blaze4D {
     instance: InstanceContext,
     device: DeviceContext,
+    transfer: Transfer,
     main_surface: SurfaceId,
     worker: JoinHandle<()>,
 }
@@ -49,10 +51,13 @@ impl Blaze4D {
         let overlay = DebugOverlay::new(device.clone());
         let target = overlay.create_target(Vec2u32::new(800, 600));
 
+        let transfer = Transfer::new(device.clone());
+
         Self {
             instance,
             device,
             main_surface,
+            transfer,
             worker: handle
         }
     }

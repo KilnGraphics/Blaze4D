@@ -99,6 +99,7 @@ impl Allocator {
     }
 }
 
+#[derive(Debug)]
 pub struct Allocation {
     alloc: gpu_allocator::vulkan::Allocation,
 }

@@ -18,6 +18,7 @@ pub struct InstanceCreateConfig {
     surfaces: Vec<(SurfaceId, Box<dyn SurfaceProvider>)>,
     debug_messengers: Vec<DebugUtilsMessengerWrapper>,
     enable_validation: bool,
+    require_surface: bool,
 }
 
 impl InstanceCreateConfig {
@@ -31,6 +32,7 @@ impl InstanceCreateConfig {
             surfaces: Vec::new(),
             debug_messengers: Vec::new(),
             enable_validation: false,
+            require_surface: false,
         }
     }
 
@@ -55,6 +57,10 @@ impl InstanceCreateConfig {
 
     pub fn enable_validation(&mut self) {
         self.enable_validation = true;
+    }
+
+    pub fn require_surface(&mut self) {
+        self.require_surface = true;
     }
 }
 
@@ -90,6 +96,9 @@ pub fn create_instance(config: InstanceCreateConfig) -> Result<InstanceContext, 
     let mut required_extensions = HashSet::new();
     for (_, surface) in &config.surfaces {
         required_extensions.extend(surface.get_required_instance_extensions());
+    }
+    if config.require_surface {
+        required_extensions.insert(CString::from(CStr::from_bytes_with_nul(b"VK_KHR_surface\0").unwrap()));
     }
 
     if !config.debug_messengers.is_empty() {

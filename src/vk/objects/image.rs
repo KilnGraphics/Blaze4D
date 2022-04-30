@@ -1,8 +1,68 @@
-use std::fmt::Debug;
+use std::cmp::Ordering;
+use std::fmt::{Debug, Formatter};
+use std::hash::{Hash, Hasher};
 
 use ash::vk;
+use ash::vk::Handle;
+use crate::UUID;
 use crate::vk::objects::Format;
 use crate::vk::objects::types::ImageId;
+
+#[derive(Copy, Clone)]
+pub struct Image {
+    id: UUID,
+    handle: vk::Image,
+}
+
+impl Image {
+    pub fn new(handle: vk::Image) -> Self {
+        Self {
+            id: UUID::new(),
+            handle,
+        }
+    }
+
+    pub fn get_id(&self) -> UUID {
+        self.id
+    }
+
+    pub fn get_handle(&self) -> vk::Image {
+        self.handle
+    }
+}
+
+impl PartialEq for Image {
+    fn eq(&self, other: &Self) -> bool {
+        self.id.eq(&other.id)
+    }
+}
+
+impl Eq for Image {
+}
+
+impl PartialOrd for Image {
+    fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
+        self.id.partial_cmp(&other.id)
+    }
+}
+
+impl Ord for Image {
+    fn cmp(&self, other: &Self) -> Ordering {
+        self.id.cmp(&other.id)
+    }
+}
+
+impl Hash for Image {
+    fn hash<H: Hasher>(&self, state: &mut H) {
+        self.id.hash(state)
+    }
+}
+
+impl Debug for Image {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        f.write_fmt(format_args!("vkImage({:#016X}, {:#016X})", self.id.get_raw(), self.handle.as_raw()))
+    }
+}
 
 #[derive(Copy, Clone, Debug, PartialEq, Eq)]
 pub enum ImageSize {

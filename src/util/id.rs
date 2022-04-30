@@ -1,3 +1,4 @@
+use std::borrow::BorrowMut;
 /// Utilities for globally unique identifiers.
 use std::cell::RefCell;
 
@@ -29,8 +30,7 @@ thread_local! {
 
 impl UUID {
     pub fn new() -> Self {
-        let mut seeder = UUID_SEEDER.lock().unwrap();
-        let id = seeder.find(|&v| v != 0u64).unwrap();
+        let id = THREAD_UUID_SEEDER.with(|seeder| seeder.borrow_mut().find(|id| *id != 0u64)).unwrap();
 
         Self(NonZeroU64::new(id).unwrap())
     }
