@@ -108,4 +108,13 @@ tasks.register<CompileShaders>("compileDebugShaders") {
         source("apply.frag")
         output("apply_frag.spv")
     });
+
+    addModule("MSDFVert", {
+        source("font/msdf_font.vert")
+        output("vert.spv")
+    });
+    addModule("MSDFFrag", {
+        source("font/msdf_font.frag")
+        output("frag.spv")
+    });
 }
