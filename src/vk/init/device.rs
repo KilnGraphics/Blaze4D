@@ -85,14 +85,6 @@ pub fn create_device(config: DeviceCreateConfig, instance: InstanceContext) -> R
         has_swapchain = false;
     }
 
-    // TODO remove temporary shit
-    required_extensions.insert(CString::from(CStr::from_bytes_with_nul(b"VK_KHR_timeline_semaphore\0").unwrap()));
-
-    let mut timeline = vk::PhysicalDeviceTimelineSemaphoreFeatures::builder()
-        .timeline_semaphore(true);
-
-
-
     let selected_device = filter_devices(
         unsafe { instance.vk().enumerate_physical_devices()? },
         &instance,
@@ -100,6 +92,11 @@ pub fn create_device(config: DeviceCreateConfig, instance: InstanceContext) -> R
         &surfaces,
         config.rating_fn.as_ref()
     )?;
+
+
+    let mut features1_2 = vk::PhysicalDeviceVulkan12Features::builder().build();
+    unsafe { vk_vp.get_profile_features(instance.get_profile(), &mut features1_2) };
+    features1_2.vulkan_memory_model_availability_visibility_chains = vk::FALSE;
 
     let required_extensions_str: Vec<_> = required_extensions.iter().map(|ext| ext.as_c_str().as_ptr()).collect();
 
@@ -109,7 +106,7 @@ pub fn create_device(config: DeviceCreateConfig, instance: InstanceContext) -> R
     let vk_device_create_info = vk::DeviceCreateInfo::builder()
         .enabled_extension_names(required_extensions_str.as_slice())
         .queue_create_infos(device_queue_create_infos.as_slice())
-        .push_next(&mut timeline);
+        .push_next(&mut features1_2);
 
     let flags = if config.disable_robustness {
         vp::DeviceCreateFlagBits::MERGE_EXTENSIONS | vp::DeviceCreateFlagBits::DISABLE_ROBUST_ACCESS | vp::DeviceCreateFlagBits::OVERRIDE_FEATURES
@@ -191,7 +188,8 @@ fn process_device(
     rating_fn: &DeviceRatingFn,
 ) -> Result<Option<PhysicalDeviceConfig>, DeviceCreateError> {
     if !unsafe { vk_vp.get_physical_device_profile_support(instance.vk(), device, instance.get_profile())? } {
-        return Ok(None);
+        // TODO re-add this. Temporary workaround for AMD missing support
+        //return Ok(None);
     }
 
     // Verify extensions

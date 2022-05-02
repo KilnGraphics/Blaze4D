@@ -1,28 +1,65 @@
 use std::cmp::Ordering;
 use std::fmt::{Debug, Formatter};
 use std::hash::{Hash, Hasher};
+use std::ops::Deref;
 
 use ash::vk;
 use ash::vk::Handle;
 use crate::UUID;
 use crate::vk::objects::Format;
-use crate::vk::objects::types::ImageId;
+
+#[derive(Copy, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub struct ImageId(UUID);
+
+impl ImageId {
+    pub fn new() -> Self {
+        Self(UUID::new())
+    }
+
+    pub fn from_raw(id: UUID) -> Self {
+        Self(id)
+    }
+
+    pub fn as_uuid(&self) -> UUID {
+        self.0
+    }
+}
+
+impl Deref for ImageId {
+    type Target = UUID;
+
+    fn deref(&self) -> &Self::Target {
+        &self.0
+    }
+}
+
+impl From<ImageId> for UUID {
+    fn from(id: ImageId) -> Self {
+        id.0
+    }
+}
+
+impl Debug for ImageId {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        f.write_fmt(format_args!("ImageId({:#016X})", self.0.get_raw()))
+    }
+}
 
 #[derive(Copy, Clone)]
 pub struct Image {
-    id: UUID,
+    id: ImageId,
     handle: vk::Image,
 }
 
 impl Image {
     pub fn new(handle: vk::Image) -> Self {
         Self {
-            id: UUID::new(),
+            id: ImageId::new(),
             handle,
         }
     }
 
-    pub fn get_id(&self) -> UUID {
+    pub fn get_id(&self) -> ImageId {
         self.id
     }
 
@@ -61,6 +98,18 @@ impl Hash for Image {
 impl Debug for Image {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         f.write_fmt(format_args!("vkImage({:#016X}, {:#016X})", self.id.get_raw(), self.handle.as_raw()))
+    }
+}
+
+impl From<Image> for ImageId {
+    fn from(image: Image) -> Self {
+        image.get_id()
+    }
+}
+
+impl From<Image> for UUID {
+    fn from(image: Image) -> Self {
+        image.get_id().as_uuid()
     }
 }
 
@@ -334,18 +383,18 @@ impl ImageInstanceData {
 
 pub struct ImageViewInstanceData {
     handle: vk::ImageView,
-    source_image: ImageId,
+    source_image: crate::vk::objects::types::ImageId,
 }
 
 impl ImageViewInstanceData {
-    pub fn new(handle: vk::ImageView, source_image: ImageId) -> Self {
+    pub fn new(handle: vk::ImageView, source_image: crate::vk::objects::types::ImageId) -> Self {
         Self {
             handle,
             source_image,
         }
     }
 
-    pub fn get_source_image(&self) -> ImageId {
+    pub fn get_source_image(&self) -> crate::vk::objects::types::ImageId {
         self.source_image
     }
 

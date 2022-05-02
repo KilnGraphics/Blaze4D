@@ -1,6 +1,6 @@
 use std::time::{Duration, Instant};
 
-use crate::transfer::resource_state::BufferStateTracker;
+use crate::transfer::resource_state::{BufferStateTracker, ImageStateTracker};
 
 use super::*;
 
@@ -9,7 +9,11 @@ pub enum TaskInfo {
     Flush,
     BufferAcquire(BufferAvailabilityOp),
     BufferRelease(BufferAvailabilityOp),
+    ImageAcquire(ImageAvailabilityOp),
+    ImageRelease(ImageAvailabilityOp),
     BufferTransfer(BufferTransfer),
+    BufferToImageTransfer(BufferToImageTransfer),
+    ImageToBufferTransfer(ImageToBufferTransfer),
     AcquireStagingMemory(Buffer),
     FreeStagingMemory(Buffer, Allocation),
 }
@@ -73,12 +77,18 @@ impl Drop for Share {
     }
 }
 
-pub struct TransferWorker {
+pub(super) fn run_worker(share: Arc<Share>, device: DeviceContext, queue: VkQueue) {
+    let mut worker = TransferWorker::new(share, device, queue);
+    worker.run();
+}
+
+struct TransferWorker {
     share: Arc<Share>,
     device: DeviceContext,
     queue: VkQueue,
 
     buffer_states: BufferStateTracker,
+    image_states: ImageStateTracker,
 
     command_pool: vk::CommandPool,
     available_buffers: VecDeque<vk::CommandBuffer>,
@@ -97,11 +107,11 @@ pub struct TransferWorker {
     wait_ops: Vec<vk::SemaphoreSubmitInfo>,
     signal_ops: Vec<vk::SemaphoreSubmitInfo>,
 
-    s2: ash::extensions::khr::Synchronization2,
+    vk: ash::Device,
 }
 
 impl TransferWorker {
-    pub fn new(share: Arc<Share>, device: DeviceContext, queue: VkQueue) -> Self {
+    fn new(share: Arc<Share>, device: DeviceContext, queue: VkQueue) -> Self {
         let info = vk::CommandPoolCreateInfo::builder()
             .flags(vk::CommandPoolCreateFlags::TRANSIENT | vk::CommandPoolCreateFlags::RESET_COMMAND_BUFFER)
             .queue_family_index(queue.get_queue_family_index());
@@ -119,7 +129,7 @@ impl TransferWorker {
             device.vk().allocate_command_buffers(&info)
         }.unwrap();
 
-        let s2 = ash::extensions::khr::Synchronization2::new(device.get_instance().vk(), device.vk());
+        let vk = device.vk().clone();
 
         Self {
             share,
@@ -127,6 +137,7 @@ impl TransferWorker {
             queue,
 
             buffer_states: BufferStateTracker::new(),
+            image_states: ImageStateTracker::new(),
 
             command_pool,
             available_buffers: command_buffers.into(),
@@ -145,7 +156,7 @@ impl TransferWorker {
             wait_ops: Vec::with_capacity(16),
             signal_ops: Vec::with_capacity(16),
 
-            s2,
+            vk,
         }
     }
 
@@ -156,7 +167,8 @@ impl TransferWorker {
             let cmd = self.acquire_command_buffer();
 
             // If we had to block then we very likely have a long backlog of submissions.
-            // Immediately submitting by starting the timer earlier would be very counter productive then.
+            // Immediately submitting by starting the timer before waiting for a command buffer
+            // would be very counter productive then.
             if self.last_start.is_none() {
                 self.last_start = Some(Instant::now())
             }
@@ -167,7 +179,11 @@ impl TransferWorker {
                 TaskInfo::Flush => self.submit(),
                 TaskInfo::BufferAcquire(op) => self.process_buffer_acquire(&op),
                 TaskInfo::BufferRelease(op) => self.process_buffer_release(&op),
+                TaskInfo::ImageAcquire(op) => self.process_image_acquire(&op, cmd),
+                TaskInfo::ImageRelease(op) => self.process_image_release(&op),
                 TaskInfo::BufferTransfer(transfer) => self.process_buffer_transfer(&transfer, cmd),
+                TaskInfo::BufferToImageTransfer(transfer) => self.process_buffer_to_image_transfer(&transfer, cmd),
+                TaskInfo::ImageToBufferTransfer(transfer) => todo!(),
                 TaskInfo::AcquireStagingMemory(buffer) => self.buffer_states.register(buffer).unwrap(),
                 TaskInfo::FreeStagingMemory(buffer, allocation) => {
                     self.buffer_states.release(buffer.get_id()).unwrap();
@@ -218,7 +234,7 @@ impl TransferWorker {
 
             let id = self.submitted_buffers.front().unwrap().0;
             let current_count = unsafe {
-                self.device.vk().get_semaphore_counter_value(self.share.semaphore)
+                self.vk.get_semaphore_counter_value(self.share.semaphore)
             }.unwrap();
 
             if id <= current_count {
@@ -232,7 +248,7 @@ impl TransferWorker {
 
     fn process_completed_submitted(&mut self, buffer: vk::CommandBuffer, allocations: Vec<(Buffer, Allocation)>) {
         unsafe {
-            self.device.vk().reset_command_buffer(buffer, vk::CommandBufferResetFlags::empty())
+            self.vk.reset_command_buffer(buffer, vk::CommandBufferResetFlags::empty())
         }.expect("Failed to reset command buffer");
         self.available_buffers.push_back(buffer);
 
@@ -242,7 +258,7 @@ impl TransferWorker {
     fn process_free_ops(&mut self, allocations: Vec<(Buffer, Allocation)>) {
         for (buffer, allocation) in allocations {
             unsafe {
-                self.device.vk().destroy_buffer(buffer.get_handle(), None);
+                self.vk.destroy_buffer(buffer.get_handle(), None);
             }
             self.device.get_allocator().free(allocation);
         }
@@ -256,9 +272,10 @@ impl TransferWorker {
                 if let Some(cmd) = self.available_buffers.pop_front() {
                     let begin_info = vk::CommandBufferBeginInfo::builder();
                     unsafe {
-                        self.device.vk().begin_command_buffer(cmd, &begin_info)
+                        self.vk.begin_command_buffer(cmd, &begin_info)
                     }.expect("Failed to start command buffer recording");
 
+                    self.current_buffer = Some(cmd);
                     return cmd;
                 }
 
@@ -311,15 +328,70 @@ impl TransferWorker {
         self.record_signal_ops(op.semaphore_ops.as_slice());
     }
 
+    fn process_image_acquire(&mut self, op: &ImageAvailabilityOp, cmd: vk::CommandBuffer) {
+        self.image_states.register(op.image, op.aspect_mask, op.layout).expect("Image was already available");
+
+        if op.queue != self.queue.get_queue_family_index() {
+            self.image_barriers.push(vk::ImageMemoryBarrier2::builder()
+                .dst_stage_mask(vk::PipelineStageFlags2::TRANSFER)
+                .dst_access_mask(vk::AccessFlags2::TRANSFER_READ | vk::AccessFlags2::TRANSFER_WRITE)
+                .src_queue_family_index(op.queue)
+                .dst_queue_family_index(self.queue.get_queue_family_index())
+                .image(op.image.get_handle())
+                .subresource_range(vk::ImageSubresourceRange {
+                    aspect_mask: Default::default(),
+                    base_mip_level: 0,
+                    level_count: 0,
+                    base_array_layer: 0,
+                    layer_count: 0
+                })
+                .build()
+            );
+
+            self.has_commands = true;
+        }
+
+        self.record_wait_ops(op.semaphore_ops.as_slice());
+
+        // Need to flush in case we need to do a layout transition later
+        self.flush_barriers(cmd);
+    }
+
+    fn process_image_release(&mut self, op: &ImageAvailabilityOp) {
+        let (handle, aspect_mask, access_mask, layout) = self.image_states.release(op.image.get_id()).expect("Image was not available");
+
+        if op.queue != self.queue.get_queue_family_index() || op.layout != layout {
+            self.image_barriers.push(vk::ImageMemoryBarrier2::builder()
+                .src_stage_mask(vk::PipelineStageFlags2::TRANSFER)
+                .src_access_mask(access_mask)
+                .dst_stage_mask(vk::PipelineStageFlags2::TOP_OF_PIPE)
+                .dst_access_mask(vk::AccessFlags2::MEMORY_READ | vk::AccessFlags2::MEMORY_WRITE)
+                .old_layout(layout)
+                .new_layout(op.layout)
+                .image(handle)
+                .subresource_range(vk::ImageSubresourceRange {
+                    aspect_mask,
+                    base_mip_level: 0,
+                    level_count: vk::REMAINING_MIP_LEVELS,
+                    base_array_layer: 0,
+                    layer_count: vk::REMAINING_ARRAY_LAYERS
+                })
+                .build()
+            );
+        }
+
+        self.has_commands = true;
+    }
+
     fn process_buffer_transfer(&mut self, op: &BufferTransfer, cmd: vk::CommandBuffer) {
         let src_handle;
         let dst_handle;
         if op.src_buffer == op.dst_buffer {
-            src_handle = self.buffer_states.update_state(op.src_buffer.get_id(), true, true, &mut self.buffer_barriers).unwrap();
+            src_handle = self.buffer_states.update_state(op.src_buffer, true, true, &mut self.buffer_barriers).unwrap();
             dst_handle = src_handle;
         } else {
-            src_handle = self.buffer_states.update_state(op.src_buffer.get_id(), true, false, &mut self.buffer_barriers).unwrap();
-            dst_handle = self.buffer_states.update_state(op.dst_buffer.get_id(), false, true, &mut self.buffer_barriers).unwrap();
+            src_handle = self.buffer_states.update_state(op.src_buffer, true, false, &mut self.buffer_barriers).unwrap();
+            dst_handle = self.buffer_states.update_state(op.dst_buffer, false, true, &mut self.buffer_barriers).unwrap();
         }
 
         self.flush_barriers(cmd);
@@ -333,8 +405,45 @@ impl TransferWorker {
         }).collect();
 
         unsafe {
-            self.device.vk().cmd_copy_buffer(cmd, src_handle, dst_handle, ranges.as_ref())
+            self.vk.cmd_copy_buffer(cmd, src_handle, dst_handle, ranges.as_ref())
         };
+
+        self.has_commands = true;
+    }
+
+    fn process_buffer_to_image_transfer(&mut self, op: &BufferToImageTransfer, cmd: vk::CommandBuffer) {
+        let buffer_handle = self.buffer_states.update_state(op.src_buffer, true, false, &mut self.buffer_barriers).unwrap();
+        let image_handle = self.image_states.update_state_write(op.dst_image, &mut self.image_barriers).unwrap();
+
+        self.flush_barriers(cmd);
+
+        let ranges: Box<[_]> = op.ranges.as_slice().iter().map(|range| {
+            vk::BufferImageCopy::builder()
+                .buffer_offset(range.buffer_offset)
+                .buffer_row_length(range.buffer_row_length)
+                .buffer_image_height(range.buffer_image_height)
+                .image_subresource(vk::ImageSubresourceLayers {
+                    aspect_mask: range.image_aspect_mask,
+                    mip_level: range.image_mip_level,
+                    base_array_layer: range.image_base_array_layer,
+                    layer_count: range.image_layer_count
+                })
+                .image_offset(vk::Offset3D {
+                    x: range.image_offset[0],
+                    y: range.image_offset[1],
+                    z: range.image_offset[2]
+                })
+                .image_extent(vk::Extent3D {
+                    width: range.image_extent[0],
+                    height: range.image_extent[1],
+                    depth: range.image_extent[2]
+                })
+                .build()
+        }).collect();
+
+        unsafe {
+            self.vk.cmd_copy_buffer_to_image(cmd, buffer_handle, image_handle, vk::ImageLayout::TRANSFER_DST_OPTIMAL, &ranges);
+        }
 
         self.has_commands = true;
     }
@@ -377,7 +486,7 @@ impl TransferWorker {
             .image_memory_barriers(self.image_barriers.as_slice());
 
         unsafe {
-            self.s2.cmd_pipeline_barrier2(cmd, &info)
+            self.vk.cmd_pipeline_barrier2(cmd, &info)
         };
 
         self.buffer_barriers.clear();
@@ -387,7 +496,9 @@ impl TransferWorker {
     }
 
     fn submit(&mut self) {
+        log::error!("Submit called");
         if !self.has_commands {
+            log::error!("Submit no commands");
             // Nothing has been recorded yet
             return;
         }
@@ -396,7 +507,7 @@ impl TransferWorker {
             self.flush_barriers(cmd);
 
             unsafe {
-                self.device.vk().end_command_buffer(cmd)
+                self.vk.end_command_buffer(cmd)
             }.expect("Failed to end command buffer recording");
 
             self.wait_ops.push(vk::SemaphoreSubmitInfo::builder()
@@ -421,9 +532,10 @@ impl TransferWorker {
                 .command_buffer_infos(std::slice::from_ref(&submit_info))
                 .signal_semaphore_infos(self.signal_ops.as_slice());
 
+            log::error!("Submit");
             unsafe {
                 let guard = self.queue.lock_queue();
-                self.s2.queue_submit2(*guard, std::slice::from_ref(&info), vk::Fence::null())
+                self.vk.queue_submit2(*guard, std::slice::from_ref(&info), vk::Fence::null())
                     .expect("Failed to submit to queue");
             }
             self.wait_ops.clear();
@@ -440,6 +552,8 @@ impl TransferWorker {
             self.has_commands = false;
             self.last_task_id = self.current_task_id;
             self.last_start = None;
+        } else {
+            log::error!("Submit no cmd buffer");
         }
     }
 }

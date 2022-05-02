@@ -1,4 +1,3 @@
-use std::borrow::BorrowMut;
 /// Utilities for globally unique identifiers.
 use std::cell::RefCell;
 

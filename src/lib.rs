@@ -13,7 +13,7 @@ pub use util::id::NamedUUID;
 mod glfw_surface;
 mod renderer;
 pub mod window;
-mod transfer;
+pub mod transfer;
 
 pub mod prelude {
     pub use crate::UUID;
@@ -27,4 +27,7 @@ pub mod prelude {
 
     pub type Vec2u32 = nalgebra::Vector2<u32>;
     pub type Vec3u32 = nalgebra::Vector3<u32>;
+
+    pub type Vec2i32 = nalgebra::Vector2<i32>;
+    pub type Vec3i32 = nalgebra::Vector3<i32>;
 }

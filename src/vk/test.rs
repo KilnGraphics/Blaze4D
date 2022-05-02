@@ -9,12 +9,11 @@ use crate::vk::objects::surface::{SurfaceInitError, SurfaceProvider};
 
 pub fn make_headless_instance() -> InstanceContext {
     let mut config = InstanceCreateConfig::new(
-        vp::LunargDesktopPortability2021::profile_properties(),
-        VulkanVersion::VK_1_1,
+        vp::KhrRoadmap2022::profile_properties(),
+        VulkanVersion::VK_1_3,
         CString::new("B4D Tests").unwrap(),
         vk::make_api_version(0, 0, 1, 0)
     );
-    config.request_min_api_version(VulkanVersion::VK_1_3);
     config.enable_validation();
 
     // The LunarG desktop profile requires the swapchain extension which in turn requires the surface extensions

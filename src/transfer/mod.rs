@@ -1,23 +1,19 @@
 mod resource_state;
 mod worker;
 
-use std::collections::{HashMap, VecDeque};
-use std::ffi::c_void;
-use std::ops::Deref;
+use std::collections::{VecDeque};
 use std::sync::{Arc, Condvar, Mutex};
-use std::sync::atomic::{AtomicU64, AtomicUsize};
-use std::thread::JoinHandle;
 
 use ash::vk;
-use ash::vk::Image;
 
 use crate::prelude::*;
 use crate::vk::device::VkQueue;
 use crate::vk::DeviceContext;
 use crate::vk::objects::allocator::{Allocation, AllocationStrategy};
-use crate::vk::objects::buffer::Buffer;
+use crate::vk::objects::buffer::{Buffer, BufferId};
 
 use worker::*;
+use crate::vk::objects::image::{Image, ImageId};
 
 #[derive(Clone)]
 pub struct Transfer(Arc<Share>);
@@ -29,7 +25,7 @@ impl Transfer {
         let queue = device.get_transfer_queue();
         let share2 = share.clone();
         std::thread::spawn(move || {
-            TransferWorker::new(share2, device, queue).run()
+            run_worker(share2, device, queue);
         });
 
         Self(share)
@@ -68,6 +64,14 @@ impl Transfer {
     /// to wait for completion of the operation.
     pub fn release_buffer(&self, op: BufferAvailabilityOp) -> u64 {
         self.push_task(TaskInfo::BufferRelease(op))
+    }
+
+    pub fn make_image_available(&self, op: ImageAvailabilityOp) {
+        self.push_task(TaskInfo::ImageAcquire(op));
+    }
+
+    pub fn release_image(&self, op: ImageAvailabilityOp) -> u64 {
+        self.push_task(TaskInfo::ImageRelease(op))
     }
 
     pub fn request_staging_memory(&self, capacity: usize) -> StagingMemory {
@@ -188,11 +192,11 @@ impl<'a> StagingMemory<'a> {
         Ok(())
     }
 
-    pub fn copy_to_buffer(&mut self, dst_buffer: Buffer, mut ranges: BufferTransferRanges) -> u64 {
+    pub fn copy_to_buffer<T: Into<BufferId>>(&mut self, dst_buffer: T, mut ranges: BufferTransferRanges) -> u64 {
         ranges.add_src_offset(self.buffer_offset);
         let task = TaskInfo::BufferTransfer(BufferTransfer {
-            src_buffer: self.buffer,
-            dst_buffer,
+            src_buffer: self.buffer.into(),
+            dst_buffer: dst_buffer.into(),
             ranges
         });
         let id = self.transfer.push_task(task);
@@ -200,11 +204,23 @@ impl<'a> StagingMemory<'a> {
         id
     }
 
-    pub fn copy_from_buffer(&mut self, src_buffer: Buffer, mut ranges: BufferTransferRanges) -> u64 {
+    pub fn copy_from_buffer<T: Into<BufferId>>(&mut self, src_buffer: T, mut ranges: BufferTransferRanges) -> u64 {
         ranges.add_dst_offset(self.buffer_offset);
         let task = TaskInfo::BufferTransfer(BufferTransfer {
-            src_buffer,
-            dst_buffer: self.buffer,
+            src_buffer: src_buffer.into(),
+            dst_buffer: self.buffer.into(),
+            ranges
+        });
+        let id = self.transfer.push_task(task);
+        self.last_transfer = id;
+        id
+    }
+
+    pub fn copy_to_image<T: Into<ImageId>>(&mut self, dst_image: T, mut ranges: BufferImageTransferRanges) -> u64 {
+        ranges.add_buffer_offset(self.buffer_offset);
+        let task = TaskInfo::BufferToImageTransfer(BufferToImageTransfer {
+            src_buffer: self.buffer.get_id(),
+            dst_image: dst_image.into(),
             ranges
         });
         let id = self.transfer.push_task(task);
@@ -220,75 +236,25 @@ impl<'a> Drop for StagingMemory<'a> {
 }
 
 #[derive(Copy, Clone, PartialEq, Eq, Debug)]
-pub struct BufferRange {
-    offset: vk::DeviceSize,
-    size: vk::DeviceSize,
-}
-
-impl BufferRange {
-    pub fn new(offset: vk::DeviceSize, size: vk::DeviceSize) -> Self {
-        Self {
-            offset,
-            size,
-        }
-    }
-
-    pub fn new_whole() -> Self {
-        Self {
-            offset: 0,
-            size: vk::WHOLE_SIZE,
-        }
-    }
-
-    pub fn is_empty(&self) -> bool {
-        self.size == 0
-    }
-
-    pub fn intersects(&self, other: &Self) -> bool {
-        self.cut(other).is_empty()
-    }
-
-    pub fn cut(&self, other: &Self) -> Self {
-        let a = std::cmp::max(self.offset, other.offset);
-        let b = std::cmp::min(self.offset + self.size, other.offset + other.size);
-
-        Self {
-            offset: a,
-            size: std::cmp::max(0, b - a)
-        }
-    }
-}
-
-#[derive(Clone, PartialEq, Eq, Debug)]
-pub enum BufferRanges {
-    One(BufferRange),
-    Multiple(Box<[BufferRange]>)
-}
-
-impl BufferRanges {
-    pub fn as_slice(&self) -> &[BufferRange] {
-        match self {
-            BufferRanges::One(range) => std::slice::from_ref(range),
-            BufferRanges::Multiple(ranges) => ranges.as_ref(),
-        }
-    }
-}
-
-#[derive(Copy, Clone, PartialEq, Eq, Debug)]
-pub struct ImageRange {
-    aspect_mask: vk::ImageAspectFlags,
-    base_mip_level: u32,
-    level_count: u32,
-    base_array_layer: u32,
-    layer_count: u32,
-}
-
-
-
-#[derive(Copy, Clone, PartialEq, Eq, Debug)]
 pub struct SemaphoreOp {
-    semaphore: vk::Semaphore,
-    value: Option<u64>,
+    pub semaphore: vk::Semaphore,
+    pub value: Option<u64>,
+}
+
+impl SemaphoreOp {
+    pub fn new_binary(semaphore: vk::Semaphore) -> Self {
+        Self {
+            semaphore,
+            value: None,
+        }
+    }
+
+    pub fn new_timeline(semaphore: vk::Semaphore, value: u64) -> Self {
+        Self {
+            semaphore,
+            value: Some(value),
+        }
+    }
 }
 
 #[derive(Clone, PartialEq, Eq, Debug)]
@@ -299,6 +265,14 @@ pub enum SemaphoreOps {
 }
 
 impl SemaphoreOps {
+    pub fn single_binary(semaphore: vk::Semaphore) -> Self {
+        Self::One(SemaphoreOp::new_binary(semaphore))
+    }
+
+    pub fn single_timeline(semaphore: vk::Semaphore, value: u64) -> Self {
+        Self::One(SemaphoreOp::new_timeline(semaphore, value))
+    }
+
     pub fn as_slice(&self) -> &[SemaphoreOp] {
         match self {
             SemaphoreOps::None => &[],
@@ -327,9 +301,9 @@ impl BufferAvailabilityOp {
 
 #[derive(Copy, Clone, PartialEq, Eq, Debug)]
 pub struct BufferTransferRange {
-    src_offset: vk::DeviceSize,
-    dst_offset: vk::DeviceSize,
-    size: vk::DeviceSize,
+    pub src_offset: vk::DeviceSize,
+    pub dst_offset: vk::DeviceSize,
+    pub size: vk::DeviceSize,
 }
 
 impl BufferTransferRange {
@@ -357,7 +331,9 @@ impl BufferTransferRanges {
         match self {
             BufferTransferRanges::One(range) => range.src_offset += src_offset,
             BufferTransferRanges::Multiple(ranges) => {
-                ranges.iter_mut().map(|range| range.src_offset += src_offset);
+                for range in ranges.as_mut() {
+                    range.src_offset += src_offset;
+                }
             }
         }
     }
@@ -366,7 +342,9 @@ impl BufferTransferRanges {
         match self {
             BufferTransferRanges::One(range) => range.dst_offset += dst_offset,
             BufferTransferRanges::Multiple(ranges) => {
-                ranges.iter_mut().map(|range| range.dst_offset += dst_offset);
+                for range in ranges.as_mut() {
+                    range.dst_offset += dst_offset;
+                }
             }
         }
     }
@@ -381,36 +359,87 @@ impl BufferTransferRanges {
 
 #[derive(Debug)]
 pub struct BufferTransfer {
-    src_buffer: Buffer,
-    dst_buffer: Buffer,
-    ranges: BufferTransferRanges,
+    pub src_buffer: BufferId,
+    pub dst_buffer: BufferId,
+    pub ranges: BufferTransferRanges,
 }
 
-pub struct ImageTransferRange {
-    src_offset: vk::DeviceSize,
-    src_row_length: u32,
-    src_image_height: u32,
-    dst_aspect_mask: vk::ImageAspectFlags,
-    dst_mip_level: u32,
-    dst_base_array_layer: u32,
-    dst_layer_count: u32,
-    dst_offset: Vec3u32,
-    dst_extent: Vec3u32,
+impl BufferTransfer {
+    pub fn new_single_range<S: Into<BufferId>, D: Into<BufferId>>(
+        src_buffer: S,
+        src_offset: vk::DeviceSize,
+        dst_buffer: D,
+        dst_offset: vk::DeviceSize,
+        size: vk::DeviceSize
+    ) -> Self {
+        Self {
+            src_buffer: src_buffer.into(),
+            dst_buffer: dst_buffer.into(),
+            ranges: BufferTransferRanges::new_single(src_offset, dst_offset, size)
+        }
+    }
 }
 
-pub enum ImageTransferRanges {
-    One(ImageTransferRange),
-    Multiple(Box<[ImageTransferRanges]>),
+#[derive(Clone, PartialEq, Eq, Debug)]
+pub struct ImageAvailabilityOp {
+    image: Image,
+    aspect_mask: vk::ImageAspectFlags,
+    queue: u32,
+    layout: vk::ImageLayout,
+    semaphore_ops: SemaphoreOps,
 }
 
-pub struct ImageTransfer {
-    pre_queue: u32,
-    pre_layout: vk::ImageLayout,
-    wait_semaphores: SemaphoreOps,
-    post_queue: u32,
-    post_layout: vk::ImageLayout,
-    signal_semaphore: SemaphoreOps,
-    transfers: ImageTransferRanges,
+#[derive(Copy, Clone, PartialEq, Eq, Debug)]
+pub struct BufferImageTransferRange {
+    pub buffer_offset: vk::DeviceSize,
+    pub buffer_row_length: u32,
+    pub buffer_image_height: u32,
+    pub image_aspect_mask: vk::ImageAspectFlags,
+    pub image_mip_level: u32,
+    pub image_base_array_layer: u32,
+    pub image_layer_count: u32,
+    pub image_offset: Vec3i32,
+    pub image_extent: Vec3u32,
+}
+
+#[derive(Clone, PartialEq, Eq, Debug)]
+pub enum BufferImageTransferRanges {
+    One(BufferImageTransferRange),
+    Multiple(Box<[BufferImageTransferRange]>),
+}
+
+impl BufferImageTransferRanges {
+    pub fn as_slice(&self) -> &[BufferImageTransferRange] {
+        match self {
+            Self::One(range) => std::slice::from_ref(range),
+            Self::Multiple(ranges) => ranges.as_ref(),
+        }
+    }
+
+    pub fn add_buffer_offset(&mut self, offset: vk::DeviceSize) {
+        match self {
+            BufferImageTransferRanges::One(range) => range.buffer_offset += offset,
+            BufferImageTransferRanges::Multiple(ranges) => {
+                for range in ranges.as_mut() {
+                    range.buffer_offset += offset;
+                }
+            }
+        }
+    }
+}
+
+#[derive(Debug)]
+pub struct BufferToImageTransfer {
+    src_buffer: BufferId,
+    dst_image: ImageId,
+    ranges: BufferImageTransferRanges,
+}
+
+#[derive(Debug)]
+pub struct ImageToBufferTransfer {
+    src_image: ImageId,
+    dst_buffer: BufferId,
+    ranges: BufferImageTransferRanges,
 }
 
 #[cfg(test)]
@@ -461,10 +490,12 @@ mod tests {
 
         let mut read_mem = transfer.request_staging_memory(byte_size);
         read_mem.copy_from_buffer(buffer, BufferTransferRanges::new_single(0, 0, byte_size as vk::DeviceSize));
+
+        transfer.release_buffer(BufferAvailabilityOp::new(buffer, queue, SemaphoreOps::None));
         let id = transfer.flush();
 
         transfer.wait_for(id);
-        read_mem.read(dst_data.as_mut_slice());
+        read_mem.read(dst_data.as_mut_slice()).unwrap();
 
         assert_eq!(data, dst_data);
     }

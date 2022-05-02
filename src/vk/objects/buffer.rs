@@ -1,29 +1,66 @@
 use std::cmp::Ordering;
 use std::fmt::{Debug, Formatter};
 use std::hash::{Hash, Hasher};
+use std::ops::Deref;
 use ash::vk;
 use ash::vk::Handle;
 
 use crate::UUID;
 use crate::vk::objects::allocator::MappedMemory;
 use crate::vk::objects::Format;
-use crate::vk::objects::types::BufferId;
+
+#[derive(Copy, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub struct BufferId(UUID);
+
+impl BufferId {
+    pub fn new() -> Self {
+        Self(UUID::new())
+    }
+
+    pub fn from_raw(id: UUID) -> Self {
+        Self(id)
+    }
+
+    pub fn as_uuid(&self) -> UUID {
+        self.0
+    }
+}
+
+impl Deref for BufferId {
+    type Target = UUID;
+
+    fn deref(&self) -> &Self::Target {
+        &self.0
+    }
+}
+
+impl From<BufferId> for UUID {
+    fn from(id: BufferId) -> Self {
+        id.0
+    }
+}
+
+impl Debug for BufferId {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        f.write_fmt(format_args!("BufferId({:#016X})", self.0.get_raw()))
+    }
+}
 
 #[derive(Copy, Clone)]
 pub struct Buffer {
-    id: UUID,
+    id: BufferId,
     handle: vk::Buffer,
 }
 
 impl Buffer {
     pub fn new(handle: vk::Buffer) -> Self {
         Self {
-            id: UUID::new(),
+            id: BufferId::new(),
             handle,
         }
     }
 
-    pub fn get_id(&self) -> UUID {
+    pub fn get_id(&self) -> BufferId {
         self.id
     }
 
@@ -61,7 +98,19 @@ impl Hash for Buffer {
 
 impl Debug for Buffer {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        f.write_fmt(format_args!("vkBuffer({:#016X}, {:#016X})", self.id.get_raw(), self.handle.as_raw()))
+        f.write_fmt(format_args!("vkBuffer(UUID: {:#016X}, Handle: {:#016X})", self.id.get_raw(), self.handle.as_raw()))
+    }
+}
+
+impl From<Buffer> for BufferId {
+    fn from(buffer: Buffer) -> Self {
+        buffer.get_id()
+    }
+}
+
+impl From<Buffer> for UUID {
+    fn from(buffer: Buffer) -> UUID {
+        buffer.get_id().as_uuid()
     }
 }
 
@@ -144,18 +193,18 @@ impl BufferInstanceData {
 
 pub struct BufferViewInstanceData {
     handle: vk::BufferView,
-    source_buffer: BufferId,
+    source_buffer: crate::vk::objects::types::BufferId,
 }
 
 impl BufferViewInstanceData {
-    pub fn new(handle: vk::BufferView, source_buffer: BufferId) -> Self {
+    pub fn new(handle: vk::BufferView, source_buffer: crate::vk::objects::types::BufferId) -> Self {
         Self {
             handle,
             source_buffer,
         }
     }
 
-    pub fn get_source_buffer(&self) -> BufferId {
+    pub fn get_source_buffer(&self) -> crate::vk::objects::types::BufferId {
         self.source_buffer
     }
 
