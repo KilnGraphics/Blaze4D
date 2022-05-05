@@ -8,6 +8,7 @@ pub mod allocator;
 pub mod object_set;
 pub mod resource_object_set;
 pub mod swapchain_object_set;
+pub mod semaphore;
 
 pub use format::Format;
 

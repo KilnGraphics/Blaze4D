@@ -1,36 +1,60 @@
+use std::collections::VecDeque;
 use ash::vk;
+use crate::vk::objects::allocator::Allocation;
+use crate::vk::objects::buffer::Buffer;
+use crate::vk::objects::semaphore::SemaphoreOp;
 
 pub struct BufferPool {
-    current_buffer: vk::Buffer,
-    current_offset: usize,
-    current_size: usize,
-    owned_buffers: Vec<vk::Buffer>,
+    available_buffers: VecDeque<Buffer>,
+
 }
 
 impl BufferPool {
-    pub fn reserve_memory(&mut self, data: &[u8], alignment: u32) -> BufferAllocation {
-        let mut base_offset = Self::next_aligned(self.current_offset, alignment);
-        let mut end_offset = base_offset + data.len();
+    pub fn new() -> Self {
+        todo!()
+    }
 
-        if end_offset >= self.current_size {
-            self.allocate_buffer(data.len());
-            assert!(self.current_offset == 0 && self.current_size >= data.len());
-            base_offset = 0;
-            end_offset = data.len();
-        }
+    /// (buffer, size, last_queue, wait_op)
+    /// If the last queue is different from the transfer queue it is guaranteed that a release
+    /// operation to the transfer queue has already been submitted.
+    pub fn allocate_buffer(&mut self, min_size: usize) -> (Buffer, usize, u32, Option<SemaphoreOp>) {
+        todo!()
+    }
+}
 
-        self.current_offset = end_offset;
+pub struct BufferSubAllocator {
+    buffer: Buffer,
+    offset: usize,
+    size: usize,
+}
 
-        // TODO move data
-
-        BufferAllocation {
-            buffer: self.current_buffer,
-            offset: base_offset,
+impl BufferSubAllocator {
+    pub fn new(buffer: Buffer, size: usize) -> Self {
+        Self {
+            buffer,
+            offset: 0,
+            size,
         }
     }
 
-    fn allocate_buffer(&mut self, min_size: usize) {
-        todo!()
+    pub fn get_buffer(&self) -> Buffer {
+        self.buffer
+    }
+
+    pub fn allocate(&mut self, size: usize, alignment: u32) -> Option<BufferAllocation> {
+        let base_offset = Self::next_aligned(self.offset, alignment);
+        let next_offset = base_offset + size;
+
+        if next_offset > self.size {
+            return None;
+        }
+
+        self.offset = next_offset;
+
+        Some(BufferAllocation {
+            buffer: self.buffer,
+            offset: base_offset,
+        })
     }
 
     fn next_aligned(offset: usize, alignment: u32) -> usize {
@@ -45,6 +69,6 @@ impl BufferPool {
 }
 
 pub struct BufferAllocation {
-    pub buffer: vk::Buffer,
+    pub buffer: Buffer,
     pub offset: usize,
 }

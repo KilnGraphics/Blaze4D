@@ -1,6 +1,7 @@
 use std::time::{Duration, Instant};
 
 use crate::transfer::resource_state::{BufferStateTracker, ImageStateTracker};
+use crate::vk::objects::semaphore::SemaphoreOp;
 
 use super::*;
 

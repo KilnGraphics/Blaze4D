@@ -14,6 +14,7 @@ use crate::vk::objects::buffer::{Buffer, BufferId};
 
 use worker::*;
 use crate::vk::objects::image::{Image, ImageId};
+use crate::vk::objects::semaphore::{SemaphoreOp, SemaphoreOps};
 
 #[derive(Clone)]
 pub struct Transfer(Arc<Share>);
@@ -43,6 +44,10 @@ impl Transfer {
         unsafe {
             self.0.device.vk().wait_semaphores(&info, u64::MAX)
         }.unwrap();
+    }
+
+    pub fn get_wait_op(&self, id: u64) -> SemaphoreOp {
+        SemaphoreOp::new_timeline(self.0.semaphore, id)
     }
 
     /// Makes a buffer available for transfer operations.
@@ -232,53 +237,6 @@ impl<'a> StagingMemory<'a> {
 impl<'a> Drop for StagingMemory<'a> {
     fn drop(&mut self) {
         self.transfer.push_task(TaskInfo::FreeStagingMemory(self.buffer, self.allocation.take().unwrap()));
-    }
-}
-
-#[derive(Copy, Clone, PartialEq, Eq, Debug)]
-pub struct SemaphoreOp {
-    pub semaphore: vk::Semaphore,
-    pub value: Option<u64>,
-}
-
-impl SemaphoreOp {
-    pub fn new_binary(semaphore: vk::Semaphore) -> Self {
-        Self {
-            semaphore,
-            value: None,
-        }
-    }
-
-    pub fn new_timeline(semaphore: vk::Semaphore, value: u64) -> Self {
-        Self {
-            semaphore,
-            value: Some(value),
-        }
-    }
-}
-
-#[derive(Clone, PartialEq, Eq, Debug)]
-pub enum SemaphoreOps {
-    None,
-    One(SemaphoreOp),
-    Multiple(Box<[SemaphoreOp]>),
-}
-
-impl SemaphoreOps {
-    pub fn single_binary(semaphore: vk::Semaphore) -> Self {
-        Self::One(SemaphoreOp::new_binary(semaphore))
-    }
-
-    pub fn single_timeline(semaphore: vk::Semaphore, value: u64) -> Self {
-        Self::One(SemaphoreOp::new_timeline(semaphore, value))
-    }
-
-    pub fn as_slice(&self) -> &[SemaphoreOp] {
-        match self {
-            SemaphoreOps::None => &[],
-            SemaphoreOps::One(op) => std::slice::from_ref(op),
-            SemaphoreOps::Multiple(ops) => ops.as_ref(),
-        }
     }
 }
 
