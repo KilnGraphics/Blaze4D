@@ -1,6 +1,6 @@
 use std::time::{Duration, Instant};
 
-use crate::transfer::resource_state::{BufferStateTracker, ImageStateTracker};
+use crate::device::transfer::resource_state::{BufferStateTracker, ImageStateTracker};
 use crate::vk::objects::semaphore::SemaphoreOp;
 
 use super::*;
@@ -31,61 +31,15 @@ pub struct Channel {
     pub auto_submit_interval: Duration,
 }
 
-pub struct Share {
-    pub device: DeviceEnvironment,
-    pub channel: Mutex<Channel>,
-    pub condvar: Condvar,
-    pub semaphore: vk::Semaphore,
-    pub queue_family: u32,
-}
-
-impl Share {
-    pub fn new(device: DeviceEnvironment) -> Self {
-        let semaphore = Self::create_semaphore(&device);
-        let queue_family = device.get_device().get_transfer_queue().get_queue_family_index();
-        Self {
-            device,
-            channel: Mutex::new(Channel {
-                task_queue: VecDeque::with_capacity(64),
-                current_task_id: 0,
-                auto_submit_interval: Duration::from_millis(8),
-            }),
-            condvar: Condvar::new(),
-            semaphore,
-            queue_family,
-        }
-    }
-
-    fn create_semaphore(device: &DeviceEnvironment) -> vk::Semaphore {
-        let mut type_info = vk::SemaphoreTypeCreateInfo::builder()
-            .semaphore_type(vk::SemaphoreType::TIMELINE)
-            .initial_value(0);
-
-        let info = vk::SemaphoreCreateInfo::builder()
-            .push_next(&mut type_info);
-
-        unsafe {
-            device.vk().create_semaphore(&info, None)
-        }.expect("Failed to create semaphore")
-    }
-}
-
-impl Drop for Share {
-    fn drop(&mut self) {
-        unsafe {
-            self.device.vk().destroy_semaphore(self.semaphore, None);
-        }
-    }
-}
-
-pub(super) fn run_worker(share: Arc<Share>, device: DeviceEnvironment, queue: VkQueue) {
-    let mut worker = TransferWorker::new(share, device, queue);
+pub(super) fn run_worker(share: Arc<Transfer>, queue: VkQueue) {
+    let mut worker = TransferWorker::new(share, queue);
     worker.run();
 }
 
 struct TransferWorker {
-    share: Arc<Share>,
-    device: DeviceEnvironment,
+    share: Arc<Transfer>,
+    device: Arc<DeviceContext>,
+    allocator: Arc<Allocator>,
     queue: VkQueue,
 
     buffer_states: BufferStateTracker,
@@ -112,7 +66,10 @@ struct TransferWorker {
 }
 
 impl TransferWorker {
-    fn new(share: Arc<Share>, device: DeviceEnvironment, queue: VkQueue) -> Self {
+    fn new(share: Arc<Transfer>, queue: VkQueue) -> Self {
+        let device = share.device.clone();
+        let allocator = share.allocator.clone();
+
         let info = vk::CommandPoolCreateInfo::builder()
             .flags(vk::CommandPoolCreateFlags::TRANSIENT | vk::CommandPoolCreateFlags::RESET_COMMAND_BUFFER)
             .queue_family_index(queue.get_queue_family_index());
@@ -135,6 +92,7 @@ impl TransferWorker {
         Self {
             share,
             device,
+            allocator,
             queue,
 
             buffer_states: BufferStateTracker::new(),
@@ -261,7 +219,7 @@ impl TransferWorker {
             unsafe {
                 self.vk.destroy_buffer(buffer.get_handle(), None);
             }
-            self.device.get_allocator().free(allocation);
+            self.allocator.free(allocation);
         }
     }
 

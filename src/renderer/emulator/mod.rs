@@ -14,7 +14,7 @@ use crate::renderer::emulator::frame::FrameManager;
 use crate::renderer::emulator::pipeline::{Pipeline, PipelineId, PipelineManager};
 use crate::renderer::emulator::render_worker::{DrawTask, Share};
 use crate::renderer::swapchain_manager::SwapchainInstance;
-use crate::transfer::{BufferAvailabilityOp, BufferTransferRanges, Transfer};
+use crate::device::transfer::{BufferAvailabilityOp, BufferTransferRanges, Transfer};
 use crate::vk::objects::buffer::Buffer;
 use crate::vk::objects::semaphore::SemaphoreOps;
 
@@ -23,7 +23,7 @@ use crate::vk::DeviceEnvironment;
 use crate::vk::objects::allocator::{Allocation, AllocationStrategy};
 
 struct EmulatorRendererShare {
-    transfer: Transfer,
+    transfer: Arc<Transfer>,
     worker: Arc<Share>,
     frame_manager: FrameManager,
     buffer_pool: Mutex<BufferPool>,
@@ -31,7 +31,7 @@ struct EmulatorRendererShare {
 }
 
 impl EmulatorRendererShare {
-    fn new(device: DeviceEnvironment, transfer: Transfer) -> Self {
+    fn new(device: DeviceEnvironment, transfer: Arc<Transfer>) -> Self {
         Self {
             transfer,
             worker: Arc::new(Share::new(device.clone())),
@@ -45,7 +45,7 @@ impl EmulatorRendererShare {
 pub struct EmulatorRenderer(Arc<EmulatorRendererShare>);
 
 impl EmulatorRenderer {
-    pub fn new(device: DeviceEnvironment, transfer: Transfer) -> Self {
+    pub fn new(device: DeviceEnvironment, transfer: Arc<Transfer>) -> Self {
         Self(Arc::new(EmulatorRendererShare::new(device, transfer)))
     }
 

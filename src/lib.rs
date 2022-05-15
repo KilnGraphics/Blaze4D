@@ -13,7 +13,6 @@ pub use util::id::NamedUUID;
 mod glfw_surface;
 mod renderer;
 pub mod window;
-pub mod transfer;
 
 mod device;
 mod instance;

@@ -4,7 +4,7 @@ use std::ops::{Deref, Index};
 use ash::vk;
 
 use crate::renderer::emulator::frame::FrameId;
-use crate::transfer::{BufferAvailabilityOp, Transfer};
+use crate::device::transfer::{BufferAvailabilityOp};
 use crate::vk::objects::allocator::{Allocation, AllocationStrategy};
 use crate::vk::objects::buffer::{Buffer, BufferId};
 use crate::vk::objects::semaphore::{SemaphoreOp, SemaphoreOps};

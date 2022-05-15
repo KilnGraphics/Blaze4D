@@ -3,51 +3,73 @@ mod worker;
 
 use std::collections::{VecDeque};
 use std::sync::{Arc, Condvar, Mutex};
+use std::time::Duration;
 
 use ash::vk;
 
 use crate::prelude::*;
 use crate::device::device::VkQueue;
 use crate::vk::DeviceEnvironment;
-use crate::vk::objects::allocator::{Allocation, AllocationStrategy};
+use crate::vk::objects::allocator::{Allocation, AllocationStrategy, Allocator};
 use crate::vk::objects::buffer::{Buffer, BufferId};
 
 use worker::*;
 use crate::vk::objects::image::{Image, ImageId};
 use crate::vk::objects::semaphore::{SemaphoreOp, SemaphoreOps};
 
-#[derive(Clone)]
-pub struct Transfer(Arc<Share>);
+
+pub struct Transfer {
+    device: Arc<DeviceContext>,
+    allocator: Arc<Allocator>,
+    channel: Mutex<Channel>,
+    condvar: Condvar,
+    semaphore: vk::Semaphore,
+    queue_family: u32,
+}
 
 impl Transfer {
-    pub fn new(device: DeviceEnvironment) -> Self {
-        let share = Arc::new(Share::new(device.clone()));
+    pub fn new(device: Arc<DeviceContext>, allocator: Arc<Allocator>) -> Arc<Self> {
+        let semaphore = Self::create_semaphore(&*device);
+        let queue_family = device.get_transfer_queue().get_queue_family_index();
 
-        let queue = device.get_device().get_transfer_queue();
-        let share2 = share.clone();
-        std::thread::spawn(move || {
-            run_worker(share2, device, queue);
+        let share = Arc::new(Self {
+            device: device.clone(),
+            allocator,
+            channel: Mutex::new(Channel {
+                task_queue: VecDeque::with_capacity(64),
+                current_task_id: 0,
+                auto_submit_interval: Duration::from_millis(8),
+            }),
+            condvar: Condvar::new(),
+            semaphore,
+            queue_family
         });
 
-        Self(share)
+        let queue = device.get_transfer_queue();
+        let share2 = share.clone();
+        std::thread::spawn(move || {
+            run_worker(share2, queue);
+        });
+
+        share
     }
 
     pub fn get_transfer_queue_family(&self) -> u32 {
-        self.0.queue_family
+        self.queue_family
     }
 
     pub fn wait_for(&self, id: u64) {
         let info = vk::SemaphoreWaitInfo::builder()
-            .semaphores(std::slice::from_ref(&self.0.semaphore))
+            .semaphores(std::slice::from_ref(&self.semaphore))
             .values(std::slice::from_ref(&id));
 
         unsafe {
-            self.0.device.vk().wait_semaphores(&info, u64::MAX)
+            self.device.vk().wait_semaphores(&info, u64::MAX)
         }.unwrap();
     }
 
     pub fn get_wait_op(&self, id: u64) -> SemaphoreOp {
-        SemaphoreOp::new_timeline(self.0.semaphore, id)
+        SemaphoreOp::new_timeline(self.semaphore, id)
     }
 
     /// Makes a buffer available for transfer operations.
@@ -85,12 +107,12 @@ impl Transfer {
             .usage(vk::BufferUsageFlags::TRANSFER_SRC | vk::BufferUsageFlags::TRANSFER_DST)
             .sharing_mode(vk::SharingMode::EXCLUSIVE);
 
-        let buffer = unsafe { self.0.device.vk().create_buffer(&info, None) }.unwrap();
+        let buffer = unsafe { self.device.vk().create_buffer(&info, None) }.unwrap();
 
-        let allocation = self.0.device.get_allocator().allocate_buffer_memory(buffer, &AllocationStrategy::AutoGpuCpu).unwrap();
+        let allocation = self.allocator.allocate_buffer_memory(buffer, &AllocationStrategy::AutoGpuCpu).unwrap();
 
         unsafe {
-            self.0.device.vk().bind_buffer_memory(buffer, allocation.memory(), allocation.offset())
+            self.device.vk().bind_buffer_memory(buffer, allocation.memory(), allocation.offset())
         }.unwrap();
 
         let memory = unsafe {
@@ -112,20 +134,20 @@ impl Transfer {
     }
 
     pub fn flush(&self) -> u64 {
-        let mut guard = self.0.channel.lock().unwrap();
+        let mut guard = self.channel.lock().unwrap();
 
         let id = guard.current_task_id;
 
         guard.task_queue.push_back(Task{ id, info: TaskInfo::Flush });
         drop(guard);
 
-        self.0.condvar.notify_one();
+        self.condvar.notify_one();
 
         id
     }
 
     fn push_task(&self, task: TaskInfo) -> u64 {
-        let mut guard = self.0.channel.lock().unwrap();
+        let mut guard = self.channel.lock().unwrap();
 
         guard.current_task_id += 1;
         let id = guard.current_task_id;
@@ -133,9 +155,30 @@ impl Transfer {
         guard.task_queue.push_back(Task{ id, info: task });
         drop(guard);
 
-        self.0.condvar.notify_one();
+        self.condvar.notify_one();
 
         id
+    }
+
+    fn create_semaphore(device: &DeviceContext) -> vk::Semaphore {
+        let mut type_info = vk::SemaphoreTypeCreateInfo::builder()
+            .semaphore_type(vk::SemaphoreType::TIMELINE)
+            .initial_value(0);
+
+        let info = vk::SemaphoreCreateInfo::builder()
+            .push_next(&mut type_info);
+
+        unsafe {
+            device.vk().create_semaphore(&info, None)
+        }.expect("Failed to create semaphore")
+    }
+}
+
+impl Drop for Transfer {
+    fn drop(&mut self) {
+        unsafe {
+            self.device.vk().destroy_semaphore(self.semaphore, None);
+        }
     }
 }
 
@@ -431,7 +474,7 @@ mod tests {
         let (_, device) = make_headless_instance_device();
 
         let buffer = create_test_buffer(&device, 1024);
-        let transfer = Transfer::new(device);
+        let transfer = Tmp::new(device);
 
         let data: Vec<_> = (0u32..16u32).collect();
         let byte_size = data.len() * std::mem::size_of::<u32>();

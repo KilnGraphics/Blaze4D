@@ -5,7 +5,7 @@ use crate::renderer::emulator::buffer::{BufferAllocation, BufferSubAllocator};
 use crate::renderer::emulator::EmulatorRenderer;
 use crate::renderer::emulator::pipeline::PipelineId;
 use crate::renderer::emulator::render_worker::DrawTask;
-use crate::transfer::{BufferAvailabilityOp, BufferTransferRanges};
+use crate::device::transfer::{BufferAvailabilityOp, BufferTransferRanges};
 use crate::vk::objects::semaphore::SemaphoreOps;
 
 #[derive(Copy, Clone, PartialEq, Eq, PartialOrd, Ord, Debug, Hash)]

@@ -6,6 +6,7 @@ use ash::prelude::VkResult;
 
 use ash::vk;
 use crate::device::device_utils::DeviceUtils;
+use crate::device::transfer::Transfer;
 
 use crate::NamedUUID;
 use crate::instance::instance::InstanceContext;
@@ -252,6 +253,7 @@ pub struct DeviceEnvironment {
     instance: Arc<InstanceContext>,
     device: Arc<DeviceContext>,
     allocator: Arc<Allocator>,
+    transfer: Arc<Transfer>,
     utils: Arc<DeviceUtils>,
 }
 
@@ -260,12 +262,14 @@ impl DeviceEnvironment {
         let instance = device.get_instance().clone();
 
         let allocator = Arc::new(Allocator::new(instance.vk().clone(), device.vk().clone(), *device.get_physical_device()));
+        let transfer = Transfer::new(device.clone(), allocator.clone());
         let utils = DeviceUtils::new(device.clone(), allocator.clone());
 
         Self {
             instance,
             device,
             allocator,
+            transfer,
             utils,
         }
     }
@@ -288,6 +292,10 @@ impl DeviceEnvironment {
 
     pub fn get_allocator(&self) -> &Arc<Allocator> {
         &self.allocator
+    }
+
+    pub fn get_transfer(&self) -> &Arc<Transfer> {
+        &self.transfer
     }
 
     pub fn get_utils(&self) -> &Arc<DeviceUtils> {

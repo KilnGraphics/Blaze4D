@@ -8,7 +8,6 @@ use crate::glfw_surface::GLFWSurfaceProvider;
 use crate::prelude::Vec2u32;
 use crate::renderer::B4DRenderWorker;
 use crate::renderer::emulator::EmulatorRenderer;
-use crate::transfer::Transfer;
 use crate::instance::debug_messenger::RustLogDebugMessenger;
 use crate::device::init::{create_device, DeviceCreateConfig};
 use crate::instance::init::{create_instance, InstanceCreateConfig};
@@ -19,7 +18,6 @@ use crate::vk::objects::surface::{SurfaceId, SurfaceProvider};
 pub struct Blaze4D {
     instance: Arc<InstanceContext>,
     device: DeviceEnvironment,
-    transfer: Transfer,
     main_surface: SurfaceId,
     emulator: EmulatorRenderer,
     worker: JoinHandle<()>,
@@ -52,15 +50,12 @@ impl Blaze4D {
         let overlay = DebugOverlay::new(device.clone());
         let target = overlay.create_target(Vec2u32::new(800, 600));
 
-        let transfer = Transfer::new(device.clone());
-
-        let emulator = EmulatorRenderer::new(device.clone(), transfer.clone());
+        let emulator = EmulatorRenderer::new(device.clone(), device.get_transfer().clone());
 
         Self {
             instance,
             device,
             main_surface,
-            transfer,
             emulator,
             worker: handle
         }
