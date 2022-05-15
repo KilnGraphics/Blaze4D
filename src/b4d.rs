@@ -1,4 +1,5 @@
 use std::ffi::CString;
+use std::sync::Arc;
 use std::thread::JoinHandle;
 use ash::vk;
 use vk_profiles_rs::vp;
@@ -6,20 +7,22 @@ use crate::debug::{DebugOverlay, DebugRenderer};
 use crate::glfw_surface::GLFWSurfaceProvider;
 use crate::prelude::Vec2u32;
 use crate::renderer::B4DRenderWorker;
+use crate::renderer::emulator::EmulatorRenderer;
 use crate::transfer::Transfer;
 use crate::vk::debug_messenger::RustLogDebugMessenger;
-use crate::vk::init::device::{create_device, DeviceCreateConfig};
-use crate::vk::init::instance::{create_instance, InstanceCreateConfig};
-use crate::vk::instance::VulkanVersion;
-use crate::vk::{DeviceContext, InstanceContext};
+use crate::device::init::{create_device, DeviceCreateConfig};
+use crate::instance::init::{create_instance, InstanceCreateConfig};
+use crate::instance::instance::VulkanVersion;
+use crate::vk::{DeviceEnvironment, InstanceContext};
 use crate::vk::objects::surface::SurfaceProvider;
 use crate::vk::objects::types::SurfaceId;
 
 pub struct Blaze4D {
-    instance: InstanceContext,
-    device: DeviceContext,
+    instance: Arc<InstanceContext>,
+    device: DeviceEnvironment,
     transfer: Transfer,
     main_surface: SurfaceId,
+    emulator: EmulatorRenderer,
     worker: JoinHandle<()>,
 }
 
@@ -28,8 +31,8 @@ impl Blaze4D {
         crate::debug::text::ldfnt();
 
         let mut instance_config = InstanceCreateConfig::new(
-            vp::LunargDesktopPortability2021::profile_properties(),
-            VulkanVersion::VK_1_1,
+            vp::KhrRoadmap2022::profile_properties(),
+            VulkanVersion::VK_1_3,
             CString::new("Minecraft").unwrap(),
             vk::make_api_version(0, 0, 1, 0)
         );
@@ -53,11 +56,14 @@ impl Blaze4D {
 
         let transfer = Transfer::new(device.clone());
 
+        let emulator = EmulatorRenderer::new(device.clone(), transfer.clone());
+
         Self {
             instance,
             device,
             main_surface,
             transfer,
+            emulator,
             worker: handle
         }
     }

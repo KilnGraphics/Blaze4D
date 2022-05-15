@@ -1,15 +1,15 @@
 use ash::prelude::VkResult;
 use ash::vk;
 
-use crate::vk::DeviceContext;
+use crate::vk::DeviceEnvironment;
 
 pub struct ShaderModule {
-    device: DeviceContext,
+    device: DeviceEnvironment,
     module: vk::ShaderModule,
 }
 
 impl ShaderModule {
-    pub fn new(device: DeviceContext, code: &[u32]) -> VkResult<Self> {
+    pub fn new(device: DeviceEnvironment, code: &[u32]) -> VkResult<Self> {
         let create_info = vk::ShaderModuleCreateInfo::builder()
             .code(code);
 

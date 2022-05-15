@@ -9,8 +9,8 @@ use ash::vk;
 use crate::debug::text::{CharacterVertexData, FontData, TextColor, TextGenerator, TextSection, TextStyle};
 
 use crate::prelude::*;
-use crate::vk::device::VkQueue;
-use crate::vk::DeviceContext;
+use crate::device::device::VkQueue;
+use crate::vk::DeviceEnvironment;
 
 use crate::vk::objects::allocator::{Allocation, AllocationStrategy};
 
@@ -24,12 +24,12 @@ pub use target::ApplyTarget;
 
 pub struct DebugRenderer {
     elements: Mutex<HashMap<u64, DebugElement>>,
-    device: DeviceContext,
+    device: DeviceEnvironment,
     debug_vk: DebugVk,
 }
 
 impl DebugRenderer {
-    pub fn new(device: DeviceContext) -> Self {
+    pub fn new(device: DeviceEnvironment) -> Self {
         let font = FontData::load();
         let data = [font.regular_image.0.as_ref()];
 
@@ -194,7 +194,7 @@ struct DebugElement {
 }
 
 struct DebugVk {
-    device: DeviceContext,
+    device: DeviceEnvironment,
     queue: VkQueue,
     vertex_buffer: vk::Buffer,
     vertex_buffer_size: usize,
@@ -219,7 +219,7 @@ struct DebugVk {
 }
 
 impl DebugVk {
-    fn new(device: DeviceContext, atlas_image_size: Vec2u32, atlas_data: &[&[u8]]) -> Self {
+    fn new(device: DeviceEnvironment, atlas_image_size: Vec2u32, atlas_data: &[&[u8]]) -> Self {
         let atlas_count = atlas_data.len() as u32;
 
         let vertex_buffer_size = 32000000usize;
@@ -235,7 +235,7 @@ impl DebugVk {
 
         let (descriptor_pool, text_set) = Self::create_descriptor_set(&device, text_set_layout, uniform_buffer, sampler, atlas_image_views.as_ref());
 
-        let queue = device.get_main_queue();
+        let queue = device.get_device().get_main_queue();
         let (command_pool, command_buffer) = Self::create_command_pool_buffer(&device, &queue);
 
         let mut mapped = unsafe { std::slice::from_raw_parts_mut(vertex_buffer_allocation.mapped_ptr().unwrap().as_ptr() as *mut u8, vertex_buffer_size) };
@@ -279,7 +279,7 @@ impl DebugVk {
         unsafe { std::slice::from_raw_parts_mut(self.vertex_buffer_allocation.mapped_ptr().unwrap().as_ptr() as *mut u8, self.vertex_buffer_size) }
     }
 
-    fn create_vertex_buffer(device: &DeviceContext, size: u64) -> (vk::Buffer, Allocation) {
+    fn create_vertex_buffer(device: &DeviceEnvironment, size: u64) -> (vk::Buffer, Allocation) {
         let info = vk::BufferCreateInfo::builder()
             .size(size)
             .usage(vk::BufferUsageFlags::TRANSFER_SRC | vk::BufferUsageFlags::VERTEX_BUFFER)
@@ -296,7 +296,7 @@ impl DebugVk {
         (buffer, allocation)
     }
 
-    fn create_uniform_buffer(device: &DeviceContext) -> (vk::Buffer, Allocation) {
+    fn create_uniform_buffer(device: &DeviceEnvironment) -> (vk::Buffer, Allocation) {
         let info = vk::BufferCreateInfo::builder()
             .size(8)
             .usage(vk::BufferUsageFlags::UNIFORM_BUFFER)
@@ -313,7 +313,7 @@ impl DebugVk {
         (buffer, allocation)
     }
 
-    fn create_atlas_image(device: &DeviceContext, size: &Vec2u32, layers: u32) -> (vk::Image, Allocation, Box<[vk::ImageView]>) {
+    fn create_atlas_image(device: &DeviceEnvironment, size: &Vec2u32, layers: u32) -> (vk::Image, Allocation, Box<[vk::ImageView]>) {
         let info = vk::ImageCreateInfo::builder()
             .image_type(vk::ImageType::TYPE_2D)
             .format(vk::Format::R8G8B8A8_SRGB)
@@ -364,7 +364,7 @@ impl DebugVk {
         (image, allocation, views.into_boxed_slice())
     }
 
-    fn create_sampler(device: &DeviceContext) -> vk::Sampler {
+    fn create_sampler(device: &DeviceEnvironment) -> vk::Sampler {
         let info = vk::SamplerCreateInfo::builder()
             .mag_filter(vk::Filter::LINEAR)
             .min_filter(vk::Filter::LINEAR)
@@ -381,7 +381,7 @@ impl DebugVk {
         sampler
     }
 
-    fn create_command_pool_buffer(device: &DeviceContext, queue: &VkQueue) -> (vk::CommandPool, vk::CommandBuffer) {
+    fn create_command_pool_buffer(device: &DeviceEnvironment, queue: &VkQueue) -> (vk::CommandPool, vk::CommandBuffer) {
         let info = vk::CommandPoolCreateInfo::builder()
             .flags(vk::CommandPoolCreateFlags::TRANSIENT)
             .queue_family_index(queue.get_queue_family_index());
@@ -398,7 +398,7 @@ impl DebugVk {
         (pool, buffer)
     }
 
-    fn create_render_pass(device: &DeviceContext) -> vk::RenderPass {
+    fn create_render_pass(device: &DeviceEnvironment) -> vk::RenderPass {
         let attachments = [
             vk::AttachmentDescription::builder()
                 .format(vk::Format::B8G8R8A8_SRGB)
@@ -431,7 +431,7 @@ impl DebugVk {
         render_pass
     }
 
-    fn create_pipeline_layout(device: &DeviceContext, atlas_count: u32) -> (vk::PipelineLayout, vk::DescriptorSetLayout) {
+    fn create_pipeline_layout(device: &DeviceEnvironment, atlas_count: u32) -> (vk::PipelineLayout, vk::DescriptorSetLayout) {
         let bindings = [
             vk::DescriptorSetLayoutBinding::builder()
                 .binding(0)
@@ -471,7 +471,7 @@ impl DebugVk {
         (pipeline_layout, set_layout)
     }
 
-    fn create_descriptor_set(device: &DeviceContext, set_layout: vk::DescriptorSetLayout, uniform_buffer: vk::Buffer, sampler: vk::Sampler, image_views: &[vk::ImageView]) -> (vk::DescriptorPool, vk::DescriptorSet) {
+    fn create_descriptor_set(device: &DeviceEnvironment, set_layout: vk::DescriptorSetLayout, uniform_buffer: vk::Buffer, sampler: vk::Sampler, image_views: &[vk::ImageView]) -> (vk::DescriptorPool, vk::DescriptorSet) {
         let pool_sizes = [
             vk::DescriptorPoolSize {
                 ty: vk::DescriptorType::SAMPLER,
@@ -543,7 +543,7 @@ impl DebugVk {
         (pool, set)
     }
 
-    fn load_text_shaders(device: &DeviceContext) -> (vk::ShaderModule, vk::ShaderModule) {
+    fn load_text_shaders(device: &DeviceEnvironment) -> (vk::ShaderModule, vk::ShaderModule) {
         assert_eq!(TEXT_VERTEX_SHADER.len() % 4, 0);
         assert_eq!(TEXT_FRAGMENT_SHADER.len() % 4, 0);
 
@@ -569,7 +569,7 @@ impl DebugVk {
         (vertex_shader, fragment_shader)
     }
 
-    fn create_text_pipeline(device: &DeviceContext, render_pass: vk::RenderPass, pipeline_layout: vk::PipelineLayout) -> vk::Pipeline {
+    fn create_text_pipeline(device: &DeviceEnvironment, render_pass: vk::RenderPass, pipeline_layout: vk::PipelineLayout) -> vk::Pipeline {
         let (vertex_shader, fragment_shader) = Self::load_text_shaders(device);
 
         let shader_stages = [
@@ -740,7 +740,7 @@ impl DebugVk {
         }
     }
 
-    fn upload_atlas(device: &DeviceContext, queue: &VkQueue, cmd: vk::CommandBuffer, buffer: vk::Buffer, image: vk::Image, size: Vec2u32, count: u32) -> vk::Fence {
+    fn upload_atlas(device: &DeviceEnvironment, queue: &VkQueue, cmd: vk::CommandBuffer, buffer: vk::Buffer, image: vk::Image, size: Vec2u32, count: u32) -> vk::Fence {
         let info = vk::CommandBufferBeginInfo::builder()
             .flags(vk::CommandBufferUsageFlags::ONE_TIME_SUBMIT);
 

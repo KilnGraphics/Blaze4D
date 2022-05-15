@@ -1,5 +1,5 @@
 mod swapchain_manager;
-mod emulator;
+pub mod emulator;
 
 use ash::prelude::VkResult;
 use ash::vk;
@@ -8,19 +8,19 @@ use ash::vk::{CommandPool, PipelineStageFlags};
 use crate::debug::{ApplyTarget, DebugOverlay, Target};
 use crate::debug::text::CharacterVertexData;
 use crate::prelude::Vec2u32;
-use crate::vk::device::VkQueue;
-use crate::vk::DeviceContext;
+use crate::device::device::VkQueue;
+use crate::vk::DeviceEnvironment;
 use crate::vk::objects::{Format, ImageSubresourceRange, ImageViewDescription, ObjectSet, SwapchainObjectSet};
 use crate::vk::objects::swapchain::{SwapchainCreateDesc, SwapchainImageSpec};
 use crate::vk::objects::types::{ImageViewId, SurfaceId};
 
 pub struct B4DRenderWorker {
-    device: DeviceContext,
+    device: DeviceEnvironment,
     surface: SurfaceId,
 }
 
 impl B4DRenderWorker {
-    pub fn new(device: DeviceContext, surface: SurfaceId) -> Self {
+    pub fn new(device: DeviceEnvironment, surface: SurfaceId) -> Self {
         Self {
             device,
             surface
@@ -38,8 +38,8 @@ impl B4DRenderWorker {
 
         let image_ids = set.get_image_ids();
 
-        let main_queue = self.device.get_main_queue();
-        let transfer_queue = self.device.get_transfer_queue();
+        let main_queue = self.device.get_device().get_main_queue();
+        let transfer_queue = self.device.get_device().get_transfer_queue();
 
         log::error!("Main Queue: {:?} Transfer: {:?}", main_queue.get_queue_family_index(), transfer_queue.get_queue_family_index());
 
@@ -50,7 +50,7 @@ impl B4DRenderWorker {
         let sync = self.create_sync(2);
         let mut next_sync = 0;
 
-        let swapchain_khr = self.device.swapchain_khr().unwrap();
+        let swapchain_khr = self.device.get_device().swapchain_khr().unwrap();
         let swapchain_handle = unsafe { swapchain.get_data(set.get_swapchain_id()).get_handle() };
         loop {
             let (sem1, sem2, sem3, fence) = sync.get(next_sync).unwrap();
@@ -83,9 +83,9 @@ impl B4DRenderWorker {
     }
 
     fn build_swapchain(&self, target: &Target) -> (ObjectSet, Box<[ImageViewId]>) {
-        let capabilities = self.device.get_surface_capabilities(self.surface).unwrap();
+        let capabilities = self.device.get_device().get_surface_capabilities(self.surface).unwrap();
         log::error!("Capabilities: {:?}", capabilities);
-        let formats = unsafe { self.device.get_instance().surface_khr().unwrap().get_physical_device_surface_formats(*self.device.get_physical_device(), self.device.get_surface(self.surface).unwrap().0).unwrap() };
+        let formats = unsafe { self.device.get_instance().surface_khr().unwrap().get_physical_device_surface_formats(*self.device.get_device().get_physical_device(), self.device.get_device().get_surface(self.surface).unwrap().0).unwrap() };
         log::error!("Formats: {:?}", formats);
 
         let desc = SwapchainCreateDesc {

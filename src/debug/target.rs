@@ -3,7 +3,7 @@ use std::sync::{Arc, Mutex};
 use ash::vk;
 
 use crate::prelude::*;
-use crate::vk::device::VkQueue;
+use crate::device::device::VkQueue;
 use crate::vk::objects::allocator::{Allocation, AllocationStrategy};
 
 use super::manager::DebugOverlayImpl;
@@ -126,7 +126,7 @@ impl TargetShare {
         }
     }
 
-    pub fn create_cache(&mut self, device: &DeviceContext) -> Result<(), ResourceResetError> {
+    pub fn create_cache(&mut self, device: &DeviceEnvironment) -> Result<(), ResourceResetError> {
         if self.cache.is_some() {
             panic!("Cache must be none when creating it");
         }
@@ -135,7 +135,7 @@ impl TargetShare {
         Ok(())
     }
 
-    pub fn create_targets(&mut self, device: &DeviceContext, targets: &[ApplyTarget], globals: &TargetDrawGlobals) -> Result<(), PrepareTargetsError> {
+    pub fn create_targets(&mut self, device: &DeviceEnvironment, targets: &[ApplyTarget], globals: &TargetDrawGlobals) -> Result<(), PrepareTargetsError> {
         if self.resources.is_some() {
             panic!("Targets must be none when creating them");
         }
@@ -148,7 +148,7 @@ impl TargetShare {
         Ok(())
     }
 
-    pub fn drop_cache(&mut self, device: &DeviceContext) {
+    pub fn drop_cache(&mut self, device: &DeviceEnvironment) {
         if self.resources.is_some() {
             panic!("Targets must be dropped before the cache may be dropped");
         }
@@ -158,13 +158,13 @@ impl TargetShare {
         }
     }
 
-    pub fn drop_targets(&mut self, device: &DeviceContext) {
+    pub fn drop_targets(&mut self, device: &DeviceEnvironment) {
         if let Some(resources) = self.resources.take() {
             resources.destroy(device);
         }
     }
 
-    pub fn apply_overlay(&mut self, device: &DeviceContext, target: usize, wait_semaphore: Option<vk::Semaphore>, signal_semaphore: Option<vk::Semaphore>) -> Result<(), ApplyOverlayError> {
+    pub fn apply_overlay(&mut self, device: &DeviceEnvironment, target: usize, wait_semaphore: Option<vk::Semaphore>, signal_semaphore: Option<vk::Semaphore>) -> Result<(), ApplyOverlayError> {
         let result = self.apply_overlay_impl(device, target, wait_semaphore, signal_semaphore);
         if let Err(err) = &result {
             match err {
@@ -180,7 +180,7 @@ impl TargetShare {
         result
     }
 
-    fn apply_overlay_impl(&mut self, device: &DeviceContext, target: usize, wait_semaphore: Option<vk::Semaphore>, signal_semaphore: Option<vk::Semaphore>) -> Result<(), ApplyOverlayError> {
+    fn apply_overlay_impl(&mut self, device: &DeviceEnvironment, target: usize, wait_semaphore: Option<vk::Semaphore>, signal_semaphore: Option<vk::Semaphore>) -> Result<(), ApplyOverlayError> {
         if let Some(resources) = &self.resources {
             let buffer = resources.command_buffers.get(target).ok_or(ApplyOverlayError::InvalidTarget)?;
 
@@ -265,7 +265,7 @@ struct TargetShareCache {
 impl TargetShareCache {
     pub const CACHE_IMAGE_FORMAT: vk::Format = vk::Format::R8G8B8A8_SRGB;
 
-    unsafe fn new(device: &DeviceContext, size: Vec2u32) -> Result<Self, ResourceResetError> {
+    unsafe fn new(device: &DeviceEnvironment, size: Vec2u32) -> Result<Self, ResourceResetError> {
         let (image, allocation, view) = Self::create_image(device, size)?;
 
         let stuff = Self::create_semaphores_fence(device);
@@ -292,7 +292,7 @@ impl TargetShareCache {
         })
     }
 
-    unsafe fn create_image(device: &DeviceContext, size: Vec2u32) -> Result<(vk::Image, Allocation, vk::ImageView), ResourceResetError> {
+    unsafe fn create_image(device: &DeviceEnvironment, size: Vec2u32) -> Result<(vk::Image, Allocation, vk::ImageView), ResourceResetError> {
         let info = vk::ImageCreateInfo::builder()
             .image_type(vk::ImageType::TYPE_2D)
             .format(Self::CACHE_IMAGE_FORMAT)
@@ -361,7 +361,7 @@ impl TargetShareCache {
         Ok((image, allocation, image_view))
     }
 
-    unsafe fn create_semaphores_fence(device: &DeviceContext) -> Result<(vk::Semaphore, vk::Semaphore, vk::Fence), ResourceResetError> {
+    unsafe fn create_semaphores_fence(device: &DeviceEnvironment) -> Result<(vk::Semaphore, vk::Semaphore, vk::Fence), ResourceResetError> {
         let info = vk::SemaphoreCreateInfo::builder();
 
         let semaphore1 = device.vk().create_semaphore(&info, None)?;
@@ -382,7 +382,7 @@ impl TargetShareCache {
         Ok((semaphore1, semaphore2, fence))
     }
 
-    fn destroy(&mut self, device: &DeviceContext) {
+    fn destroy(&mut self, device: &DeviceEnvironment) {
         // If we cant wait we just have to continue destroying the resources and hope it will work
         if let Err(result) = unsafe { device.vk().wait_for_fences(std::slice::from_ref(&self.draw_wait_fence), true, u64::MAX) } {
             log::error!("Failed to wait for fences: {:?}", result)
@@ -400,8 +400,8 @@ impl TargetShareCache {
     }
 
     // **VERY** slow but necessary for now
-    unsafe fn sync_image_clear(device: &DeviceContext, image: vk::Image) {
-        let queue = device.get_main_queue();
+    unsafe fn sync_image_clear(device: &DeviceEnvironment, image: vk::Image) {
+        let queue = device.get_device().get_main_queue();
 
         let info = vk::FenceCreateInfo::builder();
         let fence = device.vk().create_fence(&info, None).unwrap();
@@ -497,7 +497,7 @@ struct TargetShareResources {
 }
 
 impl TargetShareResources {
-    unsafe fn new(device: &DeviceContext, cache: &TargetShareCache, globals: &TargetDrawGlobals, targets: &[ApplyTarget]) -> Result<Self, PrepareTargetsError> {
+    unsafe fn new(device: &DeviceEnvironment, cache: &TargetShareCache, globals: &TargetDrawGlobals, targets: &[ApplyTarget]) -> Result<Self, PrepareTargetsError> {
         let target_count = targets.len() as u32;
 
         let (command_pool, command_buffers) = Self::create_command_buffers(device, globals, target_count)?;
@@ -565,7 +565,7 @@ impl TargetShareResources {
         })
     }
 
-    unsafe fn create_command_buffers(device: &DeviceContext, globals: &TargetDrawGlobals, target_count: u32) -> Result<(vk::CommandPool, Box<[vk::CommandBuffer]>), ResourceResetError> {
+    unsafe fn create_command_buffers(device: &DeviceEnvironment, globals: &TargetDrawGlobals, target_count: u32) -> Result<(vk::CommandPool, Box<[vk::CommandBuffer]>), ResourceResetError> {
         let info = vk::CommandPoolCreateInfo::builder()
             .queue_family_index(globals.queue.get_queue_family_index());
 
@@ -596,8 +596,8 @@ impl TargetShareResources {
         Ok((command_pool, command_buffers))
     }
 
-    unsafe fn create_descriptor_set(device: &DeviceContext, globals: &TargetDrawGlobals, attachment_view: vk::ImageView)
-        -> Result<(vk::DescriptorPool, vk::DescriptorSet), ResourceResetError>
+    unsafe fn create_descriptor_set(device: &DeviceEnvironment, globals: &TargetDrawGlobals, attachment_view: vk::ImageView)
+                                    -> Result<(vk::DescriptorPool, vk::DescriptorSet), ResourceResetError>
     {
         let pool_sizes = [
             vk::DescriptorPoolSize {
@@ -649,7 +649,7 @@ impl TargetShareResources {
     }
 
     unsafe fn create_target(
-        device: &DeviceContext,
+        device: &DeviceEnvironment,
         globals: &TargetDrawGlobals,
         cache: &TargetShareCache,
         library: &mut Vec<(vk::Format, vk::RenderPass, vk::Pipeline)>,
@@ -707,7 +707,7 @@ impl TargetShareResources {
         Ok((image_view, framebuffer))
     }
 
-    unsafe fn get_or_create_pipeline(device: &DeviceContext, globals: &TargetDrawGlobals, format: vk::Format, library: &mut Vec<(vk::Format, vk::RenderPass, vk::Pipeline)>, size: Vec2u32) -> Result<(vk::RenderPass, vk::Pipeline), ResourceResetError> {
+    unsafe fn get_or_create_pipeline(device: &DeviceEnvironment, globals: &TargetDrawGlobals, format: vk::Format, library: &mut Vec<(vk::Format, vk::RenderPass, vk::Pipeline)>, size: Vec2u32) -> Result<(vk::RenderPass, vk::Pipeline), ResourceResetError> {
         for entry in library.iter() {
             if entry.0 == format {
                 return Ok((entry.1, entry.2));
@@ -725,7 +725,7 @@ impl TargetShareResources {
         Ok((render_pass, pipeline))
     }
 
-    unsafe fn create_render_pass(device: &DeviceContext, format: vk::Format) -> Result<vk::RenderPass, ResourceResetError> {
+    unsafe fn create_render_pass(device: &DeviceEnvironment, format: vk::Format) -> Result<vk::RenderPass, ResourceResetError> {
         let attachments = [
             // This is the target to which we apply the overlay
             vk::AttachmentDescription::builder()
@@ -772,7 +772,7 @@ impl TargetShareResources {
         Ok(render_pass)
     }
 
-    unsafe fn create_pipeline(device: &DeviceContext, globals: &TargetDrawGlobals, render_pass: vk::RenderPass, size: Vec2u32) -> Result<vk::Pipeline, ResourceResetError> {
+    unsafe fn create_pipeline(device: &DeviceEnvironment, globals: &TargetDrawGlobals, render_pass: vk::RenderPass, size: Vec2u32) -> Result<vk::Pipeline, ResourceResetError> {
         let shader_stages = [
             vk::PipelineShaderStageCreateInfo::builder()
                 .stage(vk::ShaderStageFlags::VERTEX)
@@ -861,7 +861,7 @@ impl TargetShareResources {
     }
 
     unsafe fn record_command_buffer(
-        device: &DeviceContext,
+        device: &DeviceEnvironment,
         cmd: vk::CommandBuffer,
         globals: &TargetDrawGlobals,
         cache: &TargetShareCache,
@@ -948,7 +948,7 @@ impl TargetShareResources {
         Ok(())
     }
 
-    unsafe fn create_apply_wait_fence(device: &DeviceContext) -> Result<vk::Fence, ResourceResetError> {
+    unsafe fn create_apply_wait_fence(device: &DeviceEnvironment) -> Result<vk::Fence, ResourceResetError> {
         let info = vk::FenceCreateInfo::builder()
             .flags(vk::FenceCreateFlags::SIGNALED);
 
@@ -964,7 +964,7 @@ impl TargetShareResources {
         Ok(fence)
     }
 
-    fn destroy(&self, device: &DeviceContext) {
+    fn destroy(&self, device: &DeviceEnvironment) {
         // If we cant wait we just have to continue destroying the resources and hope it will work
         if let Err(result) = unsafe { device.vk().wait_for_fences(std::slice::from_ref(&self.apply_wait_fence), true, u64::MAX) } {
             log::error!("Failed to wait for fences: {:?}", result);
@@ -1002,7 +1002,7 @@ pub(super) struct TargetDrawGlobals {
 }
 
 impl TargetDrawGlobals {
-    pub fn new(device: &DeviceContext, queue: VkQueue) -> Result<Self, ResourceResetError> {
+    pub fn new(device: &DeviceEnvironment, queue: VkQueue) -> Result<Self, ResourceResetError> {
         let (vertex_shader, fragment_shader) = unsafe { Self::load_shader_modules(device) }?;
 
         let (descriptor_set_layout, pipeline_layout) = unsafe { Self::create_layouts(device) }.map_err(|err| {
@@ -1020,7 +1020,7 @@ impl TargetDrawGlobals {
         })
     }
 
-    unsafe fn load_shader_modules(device: &DeviceContext) -> Result<(vk::ShaderModule, vk::ShaderModule), ResourceResetError> {
+    unsafe fn load_shader_modules(device: &DeviceEnvironment) -> Result<(vk::ShaderModule, vk::ShaderModule), ResourceResetError> {
         let vert_code = std::slice::from_raw_parts(
             APPLY_VERTEX_SHADER.as_ptr() as *const u32,
             APPLY_VERTEX_SHADER.len() / 4
@@ -1044,7 +1044,7 @@ impl TargetDrawGlobals {
         Ok((vertex_shader, fragment_shader))
     }
 
-    unsafe fn create_layouts(device: &DeviceContext) -> Result<(vk::DescriptorSetLayout, vk::PipelineLayout), ResourceResetError> {
+    unsafe fn create_layouts(device: &DeviceEnvironment) -> Result<(vk::DescriptorSetLayout, vk::PipelineLayout), ResourceResetError> {
         let bindings = [
             vk::DescriptorSetLayoutBinding::builder()
                 .binding(0)
@@ -1069,7 +1069,7 @@ impl TargetDrawGlobals {
         Ok((set_layout, pipeline_layout))
     }
 
-    pub fn destroy(&mut self, device: &DeviceContext) {
+    pub fn destroy(&mut self, device: &DeviceEnvironment) {
         unsafe {
             device.vk().destroy_shader_module(self.vertex_shader, None);
             device.vk().destroy_shader_module(self.fragment_shader, None);

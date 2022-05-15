@@ -7,7 +7,7 @@ use crate::vk::objects::types::{GenericId, ImageId, ImageViewId, ObjectInstanceD
 use crate::vk::objects::image::{ImageInstanceData, ImageViewDescription, ImageViewInstanceData};
 use crate::vk::objects::object_set::ObjectSetProvider;
 use crate::vk::objects::swapchain::{SwapchainCreateDesc, SwapchainInstanceData};
-use crate::vk::device::DeviceContext;
+use crate::device::device::DeviceEnvironment;
 
 /// Swapchain object sets manage the creation of swapchains and have utilities for some common
 /// objects needed for each image.
@@ -26,7 +26,7 @@ use crate::vk::device::DeviceContext;
 /// ```
 pub struct SwapchainObjectSet {
     set_id: ObjectSetId,
-    device: DeviceContext,
+    device: DeviceEnvironment,
     objects: Mutex<Objects>,
     image_ids: Box<[ImageId]>,
     source_surface: SurfaceId,
@@ -34,10 +34,10 @@ pub struct SwapchainObjectSet {
 }
 
 impl SwapchainObjectSet {
-    pub fn new(device: DeviceContext, source_surface: SurfaceId, desc: &SwapchainCreateDesc) -> VkResult<Self> {
-        let swapchain_fn = device.swapchain_khr().unwrap();
+    pub fn new(device: DeviceEnvironment, source_surface: SurfaceId, desc: &SwapchainCreateDesc) -> VkResult<Self> {
+        let swapchain_fn = device.get_device().swapchain_khr().unwrap();
 
-        let (surface, swapchain_info) = device.get_surface(source_surface).unwrap();
+        let (surface, swapchain_info) = device.get_device().get_surface(source_surface).unwrap();
         let mut swapchain_info = swapchain_info.lock().unwrap();
 
         let old_swapchain = swapchain_info.get_current_handle().unwrap_or(vk::SwapchainKHR::null());
@@ -172,10 +172,10 @@ impl Drop for SwapchainObjectSet {
     fn drop(&mut self) {
         unsafe { self.objects.get_mut().unwrap().destroy(&self.device) };
 
-        let (_, swapchain_info) = self.device.get_surface(self.source_surface).unwrap();
+        let (_, swapchain_info) = self.device.get_device().get_surface(self.source_surface).unwrap();
         let mut swapchain_info = swapchain_info.lock().unwrap();
 
-        unsafe { self.device.swapchain_khr().unwrap().destroy_swapchain(self.swapchain_data.get_handle(), None) };
+        unsafe { self.device.get_device().swapchain_khr().unwrap().destroy_swapchain(self.swapchain_data.get_handle(), None) };
 
         if let Some(current) = swapchain_info.get_current_handle() {
             if current == unsafe { self.swapchain_data.get_handle() } {
@@ -205,7 +205,7 @@ impl Objects {
         result
     }
 
-    unsafe fn destroy(&mut self, device: &DeviceContext) {
+    unsafe fn destroy(&mut self, device: &DeviceEnvironment) {
         let objects = std::mem::replace(&mut self.objects, Vec::new());
         for object in objects.into_iter().rev() {
             object.destroy(device);
@@ -263,7 +263,7 @@ impl Object {
         }
     }
 
-    unsafe fn destroy(&self, device: &DeviceContext) {
+    unsafe fn destroy(&self, device: &DeviceEnvironment) {
         match self {
             Object::Image(_) => {} // Images belong to the swapchain so nothing to do here
             Object::ImageView(d) => {

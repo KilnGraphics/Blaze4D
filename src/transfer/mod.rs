@@ -7,8 +7,8 @@ use std::sync::{Arc, Condvar, Mutex};
 use ash::vk;
 
 use crate::prelude::*;
-use crate::vk::device::VkQueue;
-use crate::vk::DeviceContext;
+use crate::device::device::VkQueue;
+use crate::vk::DeviceEnvironment;
 use crate::vk::objects::allocator::{Allocation, AllocationStrategy};
 use crate::vk::objects::buffer::{Buffer, BufferId};
 
@@ -20,10 +20,10 @@ use crate::vk::objects::semaphore::{SemaphoreOp, SemaphoreOps};
 pub struct Transfer(Arc<Share>);
 
 impl Transfer {
-    pub fn new(device: DeviceContext) -> Self {
+    pub fn new(device: DeviceEnvironment) -> Self {
         let share = Arc::new(Share::new(device.clone()));
 
-        let queue = device.get_transfer_queue();
+        let queue = device.get_device().get_transfer_queue();
         let share2 = share.clone();
         std::thread::spawn(move || {
             run_worker(share2, device, queue);
@@ -405,7 +405,7 @@ mod tests {
     use crate::vk::test::make_headless_instance_device;
     use super::*;
 
-    fn create_test_buffer(device: &DeviceContext, size: usize) -> Buffer {
+    fn create_test_buffer(device: &DeviceEnvironment, size: usize) -> Buffer {
         let info = vk::BufferCreateInfo::builder()
             .size(size as vk::DeviceSize)
             .usage(vk::BufferUsageFlags::TRANSFER_SRC | vk::BufferUsageFlags::TRANSFER_DST)

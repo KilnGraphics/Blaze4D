@@ -6,7 +6,7 @@ use winit::event::VirtualKeyCode::Tab;
 use crate::debug::target::TargetShare;
 
 use crate::prelude::*;
-use crate::vk::device::VkQueue;
+use crate::device::device::VkQueue;
 
 use super::target::Target;
 use super::target::TargetDrawGlobals;
@@ -15,7 +15,7 @@ use super::target::TargetDrawGlobals;
 pub struct DebugOverlay(Arc<DebugOverlayImpl>);
 
 impl DebugOverlay {
-    pub fn new(device: DeviceContext) -> Self {
+    pub fn new(device: DeviceEnvironment) -> Self {
         Self(Arc::new(DebugOverlayImpl::new(device)))
     }
 
@@ -25,13 +25,13 @@ impl DebugOverlay {
 }
 
 pub(super) struct DebugOverlayImpl {
-    device: DeviceContext,
+    device: DeviceEnvironment,
     target_draw_globals: TargetDrawGlobals,
 }
 
 impl DebugOverlayImpl {
-    fn new(device: DeviceContext) -> Self {
-        let target_draw_globals = TargetDrawGlobals::new(&device, device.get_main_queue()).unwrap();
+    fn new(device: DeviceEnvironment) -> Self {
+        let target_draw_globals = TargetDrawGlobals::new(&device, device.get_device().get_main_queue()).unwrap();
 
         Self {
             device,
@@ -39,7 +39,7 @@ impl DebugOverlayImpl {
         }
     }
 
-    pub fn get_device(&self) -> &DeviceContext {
+    pub fn get_device(&self) -> &DeviceEnvironment {
         &self.device
     }
 

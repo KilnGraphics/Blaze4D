@@ -4,7 +4,7 @@ use std::str::Utf8Error;
 use std::sync::Arc;
 use ash::vk;
 use vk_profiles_rs::vp;
-use crate::vk::instance::{VulkanVersion, InstanceContextImpl, InstanceContext};
+use crate::instance::instance::{VulkanVersion, InstanceContext};
 use crate::vk::objects::types::{ObjectSetId, SurfaceId};
 use crate::vk::objects::surface::{SurfaceInitError, SurfaceProvider};
 use crate::vk::debug_messenger::DebugMessengerCallback;
@@ -85,7 +85,7 @@ impl From<Utf8Error> for InstanceCreateError {
     }
 }
 
-pub fn create_instance(config: InstanceCreateConfig) -> Result<InstanceContext, InstanceCreateError> {
+pub fn create_instance(config: InstanceCreateConfig) -> Result<Arc<InstanceContext>, InstanceCreateError> {
     let entry = ash::Entry::linked();
     let vp_fn = vk_profiles_rs::VulkanProfiles::linked();
 
@@ -179,7 +179,7 @@ pub fn create_instance(config: InstanceCreateConfig) -> Result<InstanceContext, 
         return Err(InstanceCreateError::SurfaceInitError(error));
     }
 
-    Ok(Arc::new(InstanceContextImpl::new(
+    Ok(InstanceContext::new(
         config.min_api_version,
         config.profile,
         entry,
@@ -187,7 +187,7 @@ pub fn create_instance(config: InstanceCreateConfig) -> Result<InstanceContext, 
         surface_khr,
         surfaces.into_iter().collect(),
         debug_messengers
-    )))
+    ))
 }
 
 fn init_surfaces(entry: &ash::Entry, instance: &ash::Instance, surfaces: &mut Vec<(SurfaceId, Box<dyn SurfaceProvider>)>) -> Result<(), SurfaceInitError> {

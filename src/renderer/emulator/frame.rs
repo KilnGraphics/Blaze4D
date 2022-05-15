@@ -129,9 +129,9 @@ impl FrameShare {
     }
 
     fn acquire_sub_allocator(&self, min_size: usize) -> BufferSubAllocator {
-        let (buffer, size, last_queue, wait_op) = self.renderer.0.buffer_pool.lock().unwrap().allocate_buffer(min_size);
+        let (buffer, size, wait_op) = self.renderer.0.buffer_pool.lock().unwrap().get_buffer(min_size);
         self.renderer.0.transfer.make_buffer_available(BufferAvailabilityOp::new(
-            buffer, last_queue, SemaphoreOps::from_option(wait_op)
+            buffer, self.renderer.0.worker.get_render_queue_family(), SemaphoreOps::from_option(wait_op)
         ));
         self.renderer.0.worker.use_dynamic_buffer(self.id, buffer);
 

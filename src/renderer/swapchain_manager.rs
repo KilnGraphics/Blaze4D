@@ -3,10 +3,10 @@ use std::sync::{Arc, Mutex};
 use ash::prelude::VkResult;
 use ash::vk;
 use crate::prelude::*;
-use crate::vk::device::VkQueue;
+use crate::device::device::VkQueue;
 
 struct SwapchainManagerImpl {
-    device: DeviceContext,
+    device: DeviceEnvironment,
     surface: vk::SurfaceKHR,
     required_usage_flags: vk::ImageUsageFlags,
     format_priorities: Box<[vk::Format]>,
@@ -19,9 +19,9 @@ struct SwapchainManagerImpl {
 }
 
 impl SwapchainManagerImpl {
-    pub fn new(device: DeviceContext, surface: vk::SurfaceKHR) -> Self {
+    pub fn new(device: DeviceEnvironment, surface: vk::SurfaceKHR) -> Self {
         let surface_fn = device.get_instance().surface_khr().unwrap().clone();
-        let swapchain_fn = device.swapchain_khr().unwrap().clone();
+        let swapchain_fn = device.get_device().swapchain_khr().unwrap().clone();
 
         Self {
             device,
@@ -35,7 +35,7 @@ impl SwapchainManagerImpl {
     }
 
     fn try_rebuild(&self, size: Vec2u32) -> VkResult<Option<vk::SwapchainKHR>> {
-        let device = *self.device.get_physical_device();
+        let device = *self.device.get_device().get_physical_device();
 
         let formats = unsafe {
             self.surface_fn.get_physical_device_surface_formats(device, self.surface)
@@ -116,7 +116,7 @@ impl SwapchainManagerImpl {
 pub struct SwapchainManager(Arc<SwapchainManagerImpl>);
 
 impl SwapchainManager {
-    pub fn new(device: DeviceContext, surface: vk::SurfaceKHR) -> Self {
+    pub fn new(device: DeviceEnvironment, surface: vk::SurfaceKHR) -> Self {
         Self(Arc::new(SwapchainManagerImpl::new(device, surface)))
     }
 

@@ -3,7 +3,7 @@ use std::ptr::drop_in_place;
 use std::sync::Mutex;
 use ash::vk;
 
-use crate::vk::device::DeviceContext;
+use crate::device::device::DeviceEnvironment;
 use crate::vk::objects::ObjectSet;
 use crate::vk::objects::buffer::{BufferDescription, BufferInstanceData, BufferViewDescription, BufferViewInstanceData};
 use crate::vk::objects::types::{BufferId, BufferViewId, GenericId, ImageId, ImageViewId, ObjectInstanceData, ObjectSetId, ObjectType, UnwrapToInstanceData};
@@ -44,12 +44,12 @@ impl<'s> From<AllocationError> for ObjectCreateError {
 /// ```
 pub struct ResourceObjectSet {
     set_id: ObjectSetId,
-    device: DeviceContext,
+    device: DeviceEnvironment,
     objects: Mutex<Objects>,
 }
 
 impl ResourceObjectSet {
-    pub fn new(device: DeviceContext) -> Self {
+    pub fn new(device: DeviceEnvironment) -> Self {
         Self {
             set_id: ObjectSetId::new(),
             device,
@@ -282,7 +282,7 @@ impl Objects {
     /// The caller must ensure that there are no references to any instance data as they will be
     /// dropped. Currently this means this function **must only be called from inside
     /// [`ResourceObjectSet::drop`]**
-    unsafe fn destroy(&mut self, device: &DeviceContext) {
+    unsafe fn destroy(&mut self, device: &DeviceEnvironment) {
         // Need to destroy objects in reverse to account for potential dependencies
         let objects = std::mem::replace(&mut self.objects, Vec::new());
         for object in objects.into_iter().rev() {
@@ -396,7 +396,7 @@ impl Object {
     /// # Safety
     ///
     /// The instance object memory must be valid and this function must only be called once.
-    unsafe fn destroy(&self, device: &DeviceContext) {
+    unsafe fn destroy(&self, device: &DeviceEnvironment) {
         match self {
             Self::Buffer(d) => {
                 device.vk().destroy_buffer(d.as_ref().unwrap().get_handle(), None);

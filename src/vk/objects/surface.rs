@@ -1,7 +1,7 @@
 use std::ffi::CString;
 
 use ash::vk;
-use crate::vk::instance::InstanceContextImpl;
+use crate::instance::instance::InstanceContext;
 
 #[derive(Debug)]
 pub enum SurfaceInitError {
@@ -35,7 +35,7 @@ pub struct SurfaceCapabilities {
 }
 
 impl SurfaceCapabilities {
-    pub fn new(instance: &InstanceContextImpl, physical_device: vk::PhysicalDevice, surface: vk::SurfaceKHR) -> Option<Self> {
+    pub fn new(instance: &InstanceContext, physical_device: vk::PhysicalDevice, surface: vk::SurfaceKHR) -> Option<Self> {
         let surface_fn = instance.surface_khr()?;
         let family_count = unsafe {
             instance.vk().get_physical_device_queue_family_properties(physical_device).len()

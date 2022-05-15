@@ -4,8 +4,9 @@ use std::sync::Arc;
 use ash::vk;
 use ash::vk::PhysicalDeviceType;
 use vk_profiles_rs::vp;
-use crate::vk::device::{DeviceContext, DeviceContextImpl, VkQueueTemplate};
-use crate::vk::instance::InstanceContext;
+use crate::device::device::{DeviceEnvironment, VkQueueTemplate};
+use crate::instance::instance::InstanceContext;
+use crate::prelude::DeviceContext;
 use crate::vk::objects::types::SurfaceId;
 use crate::vk::objects::surface::SurfaceProvider;
 
@@ -64,7 +65,7 @@ impl From<vk::Result> for DeviceCreateError {
     }
 }
 
-pub fn create_device(config: DeviceCreateConfig, instance: InstanceContext) -> Result<DeviceContext, DeviceCreateError> {
+pub fn create_device(config: DeviceCreateConfig, instance: Arc<InstanceContext>) -> Result<DeviceEnvironment, DeviceCreateError> {
     let vk_vp = vk_profiles_rs::VulkanProfiles::linked();
 
     let mut surfaces = Vec::with_capacity(config.surfaces.len());
@@ -87,7 +88,7 @@ pub fn create_device(config: DeviceCreateConfig, instance: InstanceContext) -> R
 
     let selected_device = filter_devices(
         unsafe { instance.vk().enumerate_physical_devices()? },
-        &instance,
+        &*instance,
         &required_extensions,
         &surfaces,
         config.rating_fn.as_ref()
@@ -141,7 +142,7 @@ pub fn create_device(config: DeviceCreateConfig, instance: InstanceContext) -> R
     };
 
 
-    Ok(DeviceContext(Arc::new(DeviceContextImpl::new(
+    Ok(DeviceEnvironment::new(DeviceContext::new(
         instance,
         device,
         selected_device.device,
@@ -149,7 +150,7 @@ pub fn create_device(config: DeviceCreateConfig, instance: InstanceContext) -> R
         main_queue,
         transfer_queue,
         out_surfaces
-    ))))
+    )))
 }
 
 fn filter_devices(

@@ -16,11 +16,11 @@ pub struct BufferPool {
     buffers: Vec<PoolBuffer>,
     estimator: Estimator,
 
-    device: DeviceContext,
+    device: DeviceEnvironment,
 }
 
 impl BufferPool {
-    pub fn new(device: DeviceContext) -> Self {
+    pub fn new(device: DeviceEnvironment) -> Self {
         Self {
             buffers: Vec::with_capacity(16),
             estimator: Estimator::new(),
@@ -41,7 +41,7 @@ impl BufferPool {
             }
         }
 
-        self.buffers = self.buffers.into_iter().filter(|buffer| !(buffer.buffer.is_none() && buffer.marked)).collect();
+        self.buffers.retain(|buffer| !(buffer.buffer.is_none() && buffer.marked));
     }
 
     /// Must be called at the end of each frame with the amount of bytes used during the frame.
@@ -81,9 +81,12 @@ impl BufferPool {
     /// The return value is the buffer, the size of the buffer and potentially a timeline semaphore
     /// wait operation.
     pub fn get_buffer(&mut self, min_size: usize) -> (Buffer, usize, Option<SemaphoreOp>) {
+        // TODO fix this clone
+        let device = self.device.clone();
+
         let buffer = self.find_or_create_buffer(min_size);
 
-        let raw_buffer = buffer.ensure_init(&self.device);
+        let raw_buffer = buffer.ensure_init(&device);
         let op = buffer.transition_unavailable();
 
         (raw_buffer, buffer.size, op)
@@ -127,7 +130,8 @@ impl BufferPool {
             let sum = self.buffers.iter().fold(0, |old, buffer| old + buffer.size);
             self.buffers.push(PoolBuffer::new(std::cmp::max(min_size * 8, sum)));
 
-            &mut self.buffers[self.buffers.len() - 1]
+            let index = self.buffers.len() - 1;
+            &mut self.buffers[index]
         }
     }
 }
@@ -168,7 +172,7 @@ impl PoolBuffer {
         }
     }
 
-    fn ensure_init(&mut self, device: &DeviceContext) -> Buffer {
+    fn ensure_init(&mut self, device: &DeviceEnvironment) -> Buffer {
         if let Some((buffer, _)) = &self.buffer {
             *buffer
         } else {
@@ -212,7 +216,7 @@ impl PoolBuffer {
         }
     }
 
-    fn try_destroy(&mut self, device: &DeviceContext) {
+    fn try_destroy(&mut self, device: &DeviceEnvironment) {
         if let BufferState::Available(wait_op, _) = &self.state {
             if let Some(wait_op) = wait_op {
                 if let Some(value) = wait_op.value {

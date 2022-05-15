@@ -15,19 +15,26 @@ mod renderer;
 pub mod window;
 pub mod transfer;
 
+mod device;
+mod instance;
+
 pub mod prelude {
     pub use crate::UUID;
     pub use crate::NamedUUID;
 
-    pub type DeviceContext = crate::vk::device::DeviceContext;
-    pub type InstanceContext = crate::vk::instance::InstanceContext;
+    pub use crate::instance::instance::InstanceContext;
+    pub use crate::device::device::DeviceContext;
+    pub use crate::device::device::DeviceEnvironment;
 
     pub type Vec2f32 = nalgebra::Vector2<f32>;
     pub type Vec3f32 = nalgebra::Vector3<f32>;
+    pub type Vec4f32 = nalgebra::Vector4<f32>;
 
     pub type Vec2u32 = nalgebra::Vector2<u32>;
     pub type Vec3u32 = nalgebra::Vector3<u32>;
+    pub type Vec4u32 = nalgebra::Vector4<u32>;
 
     pub type Vec2i32 = nalgebra::Vector2<i32>;
     pub type Vec3i32 = nalgebra::Vector3<i32>;
+    pub type Vec4i32 = nalgebra::Vector4<i32>;
 }

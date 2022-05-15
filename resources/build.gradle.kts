@@ -117,4 +117,26 @@ tasks.register<CompileShaders>("compileDebugShaders") {
         source("font/msdf_font.frag")
         output("frag.spv")
     });
+
+    addModule("BasicVert", {
+        source("basic.vert")
+        output("basic_vert.spv")
+    });
+    addModule("BasicFrag", {
+        source("basic.frag")
+        output("basic_frag.spv")
+    });
+}
+
+tasks.register<CompileShaders>("compileUtilsShaders") {
+    baseDir.set(RelativePath(false, "utils"));
+
+    addModule("FullScreenQuad", {
+        source("full_screen_quad.vert")
+        output("full_screen_quad_vert.spv")
+    });
+    addModule("Blit", {
+        source("blit.frag")
+        output("blit_frag.spv")
+    });
 }

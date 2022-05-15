@@ -5,6 +5,7 @@ use ash::vk;
 use crate::prelude::*;
 use crate::renderer::emulator::frame::FrameId;
 use crate::renderer::emulator::pipeline::PipelineId;
+use crate::vk::DeviceEnvironment;
 use crate::vk::objects::buffer::{Buffer, BufferId};
 use crate::vk::objects::semaphore::SemaphoreOp;
 
@@ -15,8 +16,23 @@ pub struct Share {
 }
 
 impl Share {
-    pub fn new() -> Self {
-        todo!()
+    pub fn new(device: DeviceEnvironment) -> Self {
+        let mut timeline = vk::SemaphoreTypeCreateInfo::builder()
+            .semaphore_type(vk::SemaphoreType::TIMELINE)
+            .initial_value(0);
+
+        let info = vk::SemaphoreCreateInfo::builder()
+            .push_next(&mut timeline);
+
+        let frame_semaphore = unsafe {
+            device.vk().create_semaphore(&info, None)
+        }.unwrap();
+
+        Self {
+            frame_semaphore,
+            channel: Mutex::new(Channel::new()),
+            signal: Condvar::new(),
+        }
     }
 
     pub fn get_render_queue_family(&self) -> u32 {
@@ -60,6 +76,14 @@ impl Share {
 
 struct Channel {
     queue: VecDeque<Task>,
+}
+
+impl Channel {
+    fn new() -> Self {
+        Self {
+            queue: VecDeque::new()
+        }
+    }
 }
 
 enum Task {

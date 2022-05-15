@@ -32,7 +32,7 @@ pub struct Channel {
 }
 
 pub struct Share {
-    pub device: DeviceContext,
+    pub device: DeviceEnvironment,
     pub channel: Mutex<Channel>,
     pub condvar: Condvar,
     pub semaphore: vk::Semaphore,
@@ -40,9 +40,9 @@ pub struct Share {
 }
 
 impl Share {
-    pub fn new(device: DeviceContext) -> Self {
+    pub fn new(device: DeviceEnvironment) -> Self {
         let semaphore = Self::create_semaphore(&device);
-        let queue_family = device.get_transfer_queue().get_queue_family_index();
+        let queue_family = device.get_device().get_transfer_queue().get_queue_family_index();
         Self {
             device,
             channel: Mutex::new(Channel {
@@ -56,7 +56,7 @@ impl Share {
         }
     }
 
-    fn create_semaphore(device: &DeviceContext) -> vk::Semaphore {
+    fn create_semaphore(device: &DeviceEnvironment) -> vk::Semaphore {
         let mut type_info = vk::SemaphoreTypeCreateInfo::builder()
             .semaphore_type(vk::SemaphoreType::TIMELINE)
             .initial_value(0);
@@ -78,14 +78,14 @@ impl Drop for Share {
     }
 }
 
-pub(super) fn run_worker(share: Arc<Share>, device: DeviceContext, queue: VkQueue) {
+pub(super) fn run_worker(share: Arc<Share>, device: DeviceEnvironment, queue: VkQueue) {
     let mut worker = TransferWorker::new(share, device, queue);
     worker.run();
 }
 
 struct TransferWorker {
     share: Arc<Share>,
-    device: DeviceContext,
+    device: DeviceEnvironment,
     queue: VkQueue,
 
     buffer_states: BufferStateTracker,
@@ -112,7 +112,7 @@ struct TransferWorker {
 }
 
 impl TransferWorker {
-    fn new(share: Arc<Share>, device: DeviceContext, queue: VkQueue) -> Self {
+    fn new(share: Arc<Share>, device: DeviceEnvironment, queue: VkQueue) -> Self {
         let info = vk::CommandPoolCreateInfo::builder()
             .flags(vk::CommandPoolCreateFlags::TRANSIENT | vk::CommandPoolCreateFlags::RESET_COMMAND_BUFFER)
             .queue_family_index(queue.get_queue_family_index());

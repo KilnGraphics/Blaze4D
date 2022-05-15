@@ -48,7 +48,7 @@ impl Debug for VulkanVersion {
 /// Implementation of the instance context.
 ///
 /// Since we need to control drop order most of the fields are ManuallyDrop
-pub struct InstanceContextImpl {
+pub struct InstanceContext {
     id: NamedUUID,
     version: VulkanVersion,
     profile: vp::ProfileProperties,
@@ -56,10 +56,10 @@ pub struct InstanceContextImpl {
     instance: ash::Instance,
     surface_khr: Option<ash::extensions::khr::Surface>,
     surfaces: ManuallyDrop<Mutex<HashMap<SurfaceId, Box<dyn SurfaceProvider>>>>,
-    _debug_messengers: ManuallyDrop<Box<[crate::vk::init::instance::DebugUtilsMessengerWrapper]>>,
+    _debug_messengers: ManuallyDrop<Box<[crate::instance::init::DebugUtilsMessengerWrapper]>>,
 }
 
-impl InstanceContextImpl {
+impl InstanceContext {
     pub fn new(
         version: VulkanVersion,
         profile: vp::ProfileProperties,
@@ -67,9 +67,9 @@ impl InstanceContextImpl {
         instance: ash::Instance,
         surface_khr: Option<ash::extensions::khr::Surface>,
         surfaces: HashMap<SurfaceId, Box<dyn SurfaceProvider>>,
-        debug_messengers: Box<[crate::vk::init::instance::DebugUtilsMessengerWrapper]>
-    ) -> Self {
-        Self {
+        debug_messengers: Box<[crate::instance::init::DebugUtilsMessengerWrapper]>
+    ) -> Arc<Self> {
+        Arc::new(Self {
             id: NamedUUID::with_str("Instance"),
             version,
             profile,
@@ -78,7 +78,7 @@ impl InstanceContextImpl {
             surface_khr,
             surfaces: ManuallyDrop::new(Mutex::new(surfaces)),
             _debug_messengers: ManuallyDrop::new(debug_messengers),
-        }
+        })
     }
 
     pub fn get_uuid(&self) -> &NamedUUID {
@@ -111,7 +111,7 @@ impl InstanceContextImpl {
     }
 }
 
-impl Drop for InstanceContextImpl {
+impl Drop for InstanceContext {
     fn drop(&mut self) {
         unsafe {
             ManuallyDrop::drop(&mut self.surfaces);
@@ -123,31 +123,29 @@ impl Drop for InstanceContextImpl {
     }
 }
 
-impl PartialEq for InstanceContextImpl {
+impl PartialEq for InstanceContext {
     fn eq(&self, other: &Self) -> bool {
         self.id.eq(&other.id)
     }
 }
 
-impl Eq for InstanceContextImpl {
+impl Eq for InstanceContext {
 }
 
-impl PartialOrd for InstanceContextImpl {
+impl PartialOrd for InstanceContext {
     fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
         self.id.partial_cmp(&other.id)
     }
 }
 
-impl Ord for InstanceContextImpl {
+impl Ord for InstanceContext {
     fn cmp(&self, other: &Self) -> Ordering {
         self.id.cmp(&other.id)
     }
 }
 
-impl Debug for InstanceContextImpl {
+impl Debug for InstanceContext {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         self.id.fmt(f)
     }
 }
-
-pub type InstanceContext = Arc<InstanceContextImpl>;
