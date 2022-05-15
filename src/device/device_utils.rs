@@ -1,7 +1,5 @@
 use std::ffi::CStr;
 use std::iter::repeat;
-use std::mem::size_of;
-use std::ops::Deref;
 use std::sync::{Arc, Weak};
 
 use ash::prelude::VkResult;

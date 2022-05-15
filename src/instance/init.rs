@@ -34,7 +34,6 @@ impl InstanceCreateConfig {
     }
 
     pub fn add_surface_provider(&mut self, surface: Box<dyn SurfaceProvider>) -> SurfaceId {
-        let index = self.surfaces.len() as u16;
         let id = SurfaceId::new();
 
         self.surfaces.push((id, surface));

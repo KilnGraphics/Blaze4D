@@ -1,7 +1,6 @@
 use std::cmp::Ordering;
 use std::collections::HashMap;
 use std::mem::ManuallyDrop;
-use std::ops::Deref;
 use std::sync::{Arc, Mutex, MutexGuard, Weak};
 use ash::prelude::VkResult;
 
@@ -250,37 +249,41 @@ impl SurfaceSwapchainInfo {
 
 #[derive(Clone)]
 pub struct DeviceEnvironment {
-    context: Arc<DeviceContext>,
+    instance: Arc<InstanceContext>,
+    device: Arc<DeviceContext>,
     allocator: Arc<Allocator>,
     utils: Arc<DeviceUtils>,
 }
 
 impl DeviceEnvironment {
-    pub(super) fn new(context: Arc<DeviceContext>) -> Self {
-        let allocator = Arc::new(Allocator::new(context.get_instance().vk().clone(), context.vk().clone(), *context.get_physical_device()));
-        let utils = DeviceUtils::new(context.clone(), allocator.clone());
+    pub(super) fn new(device: Arc<DeviceContext>) -> Self {
+        let instance = device.get_instance().clone();
+
+        let allocator = Arc::new(Allocator::new(instance.vk().clone(), device.vk().clone(), *device.get_physical_device()));
+        let utils = DeviceUtils::new(device.clone(), allocator.clone());
 
         Self {
-            context,
+            instance,
+            device,
             allocator,
             utils,
         }
     }
 
     pub fn vk(&self) -> &ash::Device {
-        self.context.vk()
+        self.device.vk()
     }
 
     pub fn get_device(&self) -> &Arc<DeviceContext> {
-        &self.context
+        &self.device
     }
 
     pub fn get_instance(&self) -> &Arc<InstanceContext> {
-        self.context.get_instance()
+        &self.instance
     }
 
     pub fn get_entry(&self) -> &ash::Entry {
-        self.context.get_entry()
+        self.instance.get_entry()
     }
 
     pub fn get_allocator(&self) -> &Arc<Allocator> {

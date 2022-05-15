@@ -7,6 +7,7 @@ use std::sync::{Arc, Mutex};
 use ash::vk;
 use vk_profiles_rs::vp;
 
+use crate::instance::init::DebugUtilsMessengerWrapper;
 use crate::NamedUUID;
 use crate::vk::objects::surface::{SurfaceId, SurfaceInitError, SurfaceProvider};
 
@@ -55,7 +56,7 @@ pub struct InstanceContext {
     instance: ash::Instance,
     surface_khr: Option<ash::extensions::khr::Surface>,
     surfaces: ManuallyDrop<Mutex<HashMap<SurfaceId, Box<dyn SurfaceProvider>>>>,
-    _debug_messengers: ManuallyDrop<Box<[crate::instance::init::DebugUtilsMessengerWrapper]>>,
+    _debug_messengers: ManuallyDrop<Box<[DebugUtilsMessengerWrapper]>>,
 }
 
 impl InstanceContext {
