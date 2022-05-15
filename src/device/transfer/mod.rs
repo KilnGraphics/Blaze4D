@@ -474,7 +474,7 @@ mod tests {
         let (_, device) = make_headless_instance_device();
 
         let buffer = create_test_buffer(&device, 1024);
-        let transfer = Tmp::new(device);
+        let transfer = device.get_transfer();
 
         let data: Vec<_> = (0u32..16u32).collect();
         let byte_size = data.len() * std::mem::size_of::<u32>();

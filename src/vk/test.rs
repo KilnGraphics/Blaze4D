@@ -1,4 +1,5 @@
 use std::ffi::{CString};
+use std::sync::Arc;
 use ash::{Entry, Instance, vk};
 use vk_profiles_rs::vp;
 use crate::vk::{DeviceEnvironment, InstanceContext};
@@ -7,7 +8,7 @@ use crate::instance::init::{create_instance, InstanceCreateConfig};
 use crate::instance::instance::VulkanVersion;
 use crate::vk::objects::surface::{SurfaceInitError, SurfaceProvider};
 
-pub fn make_headless_instance() -> InstanceContext {
+pub fn make_headless_instance() -> Arc<InstanceContext> {
     let mut config = InstanceCreateConfig::new(
         vp::KhrRoadmap2022::profile_properties(),
         VulkanVersion::VK_1_3,
@@ -22,7 +23,7 @@ pub fn make_headless_instance() -> InstanceContext {
     create_instance(config).unwrap()
 }
 
-pub fn make_headless_instance_device() -> (InstanceContext, DeviceEnvironment) {
+pub fn make_headless_instance_device() -> (Arc<InstanceContext>, DeviceEnvironment) {
     let instance = make_headless_instance();
 
     let config = DeviceCreateConfig::new();
