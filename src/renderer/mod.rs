@@ -11,8 +11,9 @@ use crate::prelude::Vec2u32;
 use crate::device::device::VkQueue;
 use crate::vk::DeviceEnvironment;
 use crate::vk::objects::{Format, ImageSubresourceRange, ImageViewDescription, ObjectSet, SwapchainObjectSet};
+use crate::vk::objects::surface::SurfaceId;
 use crate::vk::objects::swapchain::{SwapchainCreateDesc, SwapchainImageSpec};
-use crate::vk::objects::types::{ImageViewId, SurfaceId};
+use crate::vk::objects::types::{ImageViewId};
 
 pub struct B4DRenderWorker {
     device: DeviceEnvironment,

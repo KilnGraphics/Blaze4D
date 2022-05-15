@@ -7,8 +7,7 @@ use vk_profiles_rs::vp;
 use crate::device::device::{DeviceEnvironment, VkQueueTemplate};
 use crate::instance::instance::InstanceContext;
 use crate::prelude::DeviceContext;
-use crate::vk::objects::types::SurfaceId;
-use crate::vk::objects::surface::SurfaceProvider;
+use crate::vk::objects::surface::{SurfaceId, SurfaceProvider};
 
 pub type DeviceRatingFn = dyn Fn(&InstanceContext, vk::PhysicalDevice) -> Option<f32>;
 

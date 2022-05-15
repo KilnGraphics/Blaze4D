@@ -1,7 +1,47 @@
 use std::ffi::CString;
+use std::fmt::{Debug, Formatter};
+use std::ops::Deref;
 
 use ash::vk;
 use crate::instance::instance::InstanceContext;
+use crate::UUID;
+
+#[derive(Copy, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub struct SurfaceId(UUID);
+
+impl SurfaceId {
+    pub fn new() -> Self {
+        Self(UUID::new())
+    }
+
+    pub fn from_raw(id: UUID) -> Self {
+        Self(id)
+    }
+
+    pub fn as_uuid(&self) -> UUID {
+        self.0
+    }
+}
+
+impl Deref for SurfaceId {
+    type Target = UUID;
+
+    fn deref(&self) -> &Self::Target {
+        &self.0
+    }
+}
+
+impl From<SurfaceId> for UUID {
+    fn from(id: SurfaceId) -> Self {
+        id.0
+    }
+}
+
+impl Debug for SurfaceId {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        f.write_fmt(format_args!("SurfaceId({:#016X})", self.0.get_raw()))
+    }
+}
 
 #[derive(Debug)]
 pub enum SurfaceInitError {

@@ -8,8 +8,7 @@ use ash::vk;
 use vk_profiles_rs::vp;
 
 use crate::NamedUUID;
-use crate::vk::objects::types::SurfaceId;
-use crate::vk::objects::surface::SurfaceProvider;
+use crate::vk::objects::surface::{SurfaceId, SurfaceInitError, SurfaceProvider};
 
 #[derive(Copy, Clone, Eq, PartialEq, Ord, PartialOrd)]
 pub struct VulkanVersion(u32);
@@ -66,6 +65,7 @@ impl InstanceContext {
         entry: ash::Entry,
         instance: ash::Instance,
         surface_khr: Option<ash::extensions::khr::Surface>,
+
         surfaces: HashMap<SurfaceId, Box<dyn SurfaceProvider>>,
         debug_messengers: Box<[crate::instance::init::DebugUtilsMessengerWrapper]>
     ) -> Arc<Self> {
@@ -103,6 +103,18 @@ impl InstanceContext {
 
     pub fn get_profile(&self) -> &vp::ProfileProperties {
         &self.profile
+    }
+
+    pub fn add_surface(&self, mut surface: Box<dyn SurfaceProvider>) -> Result<SurfaceId, SurfaceInitError> {
+        surface.init(&self.entry, &self.instance)?;
+        let id = SurfaceId::new();
+
+        let mut guard = self.surfaces.lock().unwrap();
+        if guard.insert(id, surface).is_some() {
+            panic!("UUID collision");
+        }
+
+        Ok(id)
     }
 
     pub(crate) fn take_surface(&self, surface: SurfaceId) -> Option<Box<dyn SurfaceProvider>> {

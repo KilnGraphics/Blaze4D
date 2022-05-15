@@ -10,8 +10,7 @@ use crate::device::device_utils::DeviceUtils;
 
 use crate::NamedUUID;
 use crate::instance::instance::InstanceContext;
-use crate::vk::objects::types::SurfaceId;
-use crate::vk::objects::surface::SurfaceProvider;
+use crate::vk::objects::surface::{SurfaceId, SurfaceProvider};
 use crate::vk::objects::allocator::Allocator;
 
 pub struct DeviceContext {
@@ -24,7 +23,6 @@ pub struct DeviceContext {
     main_queue: VkQueueTemplate,
     transfer_queue: VkQueueTemplate,
     surfaces: ManuallyDrop<HashMap<SurfaceId, DeviceSurface>>,
-    allocator: ManuallyDrop<Allocator>, // We need manually drop to ensure it is dropped before the device
 }
 
 impl DeviceContext {
@@ -37,8 +35,6 @@ impl DeviceContext {
         transfer_queue: VkQueueTemplate,
         surfaces: HashMap<SurfaceId, (Box<dyn SurfaceProvider>, Box<[bool]>)>,
     ) -> Arc<Self> {
-        let allocator = Allocator::new(instance.vk().clone(), device.clone(), physical_device);
-
         let surfaces = surfaces.into_iter().map(|(id, (prov, supported_queues))| {
             (id, DeviceSurface {
                 handle: prov.get_handle().unwrap(),
@@ -58,7 +54,6 @@ impl DeviceContext {
             main_queue,
             transfer_queue,
             surfaces: ManuallyDrop::new(surfaces),
-            allocator: ManuallyDrop::new(allocator),
         })
     }
 
@@ -84,10 +79,6 @@ impl DeviceContext {
 
     pub fn get_physical_device(&self) -> &vk::PhysicalDevice {
         &self.physical_device
-    }
-
-    pub fn get_allocator(&self) -> &Allocator {
-        &self.allocator
     }
 
     pub(crate) fn get_surface(&self, id: SurfaceId) -> Option<(vk::SurfaceKHR, &Mutex<SurfaceSwapchainInfo>)> {
@@ -143,7 +134,6 @@ impl Drop for DeviceContext {
     fn drop(&mut self) {
         unsafe {
             ManuallyDrop::drop(&mut self.surfaces);
-            ManuallyDrop::drop(&mut self.allocator);
 
             self.device.destroy_device(None);
         }

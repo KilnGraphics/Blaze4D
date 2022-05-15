@@ -5,16 +5,14 @@ use std::sync::Arc;
 use ash::vk;
 use vk_profiles_rs::vp;
 use crate::instance::instance::{VulkanVersion, InstanceContext};
-use crate::vk::objects::types::{ObjectSetId, SurfaceId};
-use crate::vk::objects::surface::{SurfaceInitError, SurfaceProvider};
-use crate::vk::debug_messenger::DebugMessengerCallback;
+use crate::vk::objects::surface::{SurfaceId, SurfaceInitError, SurfaceProvider};
+use crate::instance::debug_messenger::DebugMessengerCallback;
 
 pub struct InstanceCreateConfig {
     profile: vp::ProfileProperties,
-    min_api_version: VulkanVersion,
+    api_version: VulkanVersion,
     application_name: CString,
     application_version: u32,
-    set_id: ObjectSetId,
     surfaces: Vec<(SurfaceId, Box<dyn SurfaceProvider>)>,
     debug_messengers: Vec<DebugUtilsMessengerWrapper>,
     enable_validation: bool,
@@ -22,13 +20,12 @@ pub struct InstanceCreateConfig {
 }
 
 impl InstanceCreateConfig {
-    pub fn new(profile: vp::ProfileProperties, min_api_version: VulkanVersion, application_name: CString, application_version: u32) -> Self {
+    pub fn new(profile: vp::ProfileProperties, api_version: VulkanVersion, application_name: CString, application_version: u32) -> Self {
         Self {
             profile,
-            min_api_version,
+            api_version,
             application_name,
             application_version,
-            set_id: ObjectSetId::new(),
             surfaces: Vec::new(),
             debug_messengers: Vec::new(),
             enable_validation: false,
@@ -36,15 +33,9 @@ impl InstanceCreateConfig {
         }
     }
 
-    pub fn request_min_api_version(&mut self, version: VulkanVersion) {
-        if self.min_api_version < version {
-            self.min_api_version = version;
-        }
-    }
-
     pub fn add_surface_provider(&mut self, surface: Box<dyn SurfaceProvider>) -> SurfaceId {
         let index = self.surfaces.len() as u16;
-        let id = SurfaceId::new(self.set_id, index);
+        let id = SurfaceId::new();
 
         self.surfaces.push((id, surface));
 
@@ -130,7 +121,7 @@ pub fn create_instance(config: InstanceCreateConfig) -> Result<Arc<InstanceConte
         vk::api_version_major(config.application_version),
         vk::api_version_minor(config.application_version),
         vk::api_version_patch(config.application_version),
-        config.min_api_version
+        config.api_version
     );
 
     let application_info = vk::ApplicationInfo::builder()
@@ -138,7 +129,7 @@ pub fn create_instance(config: InstanceCreateConfig) -> Result<Arc<InstanceConte
         .application_version(config.application_version)
         .engine_name(CStr::from_bytes_with_nul(b"Blaze4D\0").unwrap())
         .engine_version(vk::make_api_version(0, 0, 1, 0))
-        .api_version(config.min_api_version.into());
+        .api_version(config.api_version.into());
 
     let mut instance_create_info = vk::InstanceCreateInfo::builder()
         .application_info(&application_info)
@@ -180,7 +171,7 @@ pub fn create_instance(config: InstanceCreateConfig) -> Result<Arc<InstanceConte
     }
 
     Ok(InstanceContext::new(
-        config.min_api_version,
+        config.api_version,
         config.profile,
         entry,
         instance,

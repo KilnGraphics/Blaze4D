@@ -3,11 +3,12 @@ use std::ptr::drop_in_place;
 use std::sync::Mutex;
 use ash::prelude::VkResult;
 use ash::vk;
-use crate::vk::objects::types::{GenericId, ImageId, ImageViewId, ObjectInstanceData, ObjectSetId, ObjectType, SurfaceId, SwapchainId, UnwrapToInstanceData};
+use crate::vk::objects::types::{GenericId, ImageId, ImageViewId, ObjectInstanceData, ObjectSetId, ObjectType, SwapchainId, UnwrapToInstanceData};
 use crate::vk::objects::image::{ImageInstanceData, ImageViewDescription, ImageViewInstanceData};
 use crate::vk::objects::object_set::ObjectSetProvider;
 use crate::vk::objects::swapchain::{SwapchainCreateDesc, SwapchainInstanceData};
 use crate::device::device::DeviceEnvironment;
+use crate::vk::objects::surface::SurfaceId;
 
 /// Swapchain object sets manage the creation of swapchains and have utilities for some common
 /// objects needed for each image.

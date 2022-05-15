@@ -9,13 +9,12 @@ use crate::prelude::Vec2u32;
 use crate::renderer::B4DRenderWorker;
 use crate::renderer::emulator::EmulatorRenderer;
 use crate::transfer::Transfer;
-use crate::vk::debug_messenger::RustLogDebugMessenger;
+use crate::instance::debug_messenger::RustLogDebugMessenger;
 use crate::device::init::{create_device, DeviceCreateConfig};
 use crate::instance::init::{create_instance, InstanceCreateConfig};
 use crate::instance::instance::VulkanVersion;
 use crate::vk::{DeviceEnvironment, InstanceContext};
-use crate::vk::objects::surface::SurfaceProvider;
-use crate::vk::objects::types::SurfaceId;
+use crate::vk::objects::surface::{SurfaceId, SurfaceProvider};
 
 pub struct Blaze4D {
     instance: Arc<InstanceContext>,
@@ -36,7 +35,6 @@ impl Blaze4D {
             CString::new("Minecraft").unwrap(),
             vk::make_api_version(0, 0, 1, 0)
         );
-        instance_config.request_min_api_version(VulkanVersion::VK_1_3);
         instance_config.enable_validation();
         let main_surface = instance_config.add_surface_provider(main_window);
         instance_config.add_debug_messenger(Box::new(RustLogDebugMessenger::new()));
