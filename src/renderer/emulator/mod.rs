@@ -22,7 +22,7 @@ use crate::prelude::*;
 use crate::vk::DeviceEnvironment;
 use crate::vk::objects::allocator::{Allocation, AllocationStrategy};
 
-struct EmulatorRendererShare {
+struct EmulatorRenderer {
     transfer: Arc<Transfer>,
     worker: Arc<Share>,
     frame_manager: FrameManager,
@@ -30,23 +30,15 @@ struct EmulatorRendererShare {
     pipelines: PipelineManager,
 }
 
-impl EmulatorRendererShare {
-    fn new(device: DeviceEnvironment, transfer: Arc<Transfer>) -> Self {
-        Self {
+impl EmulatorRenderer {
+    fn new(device: DeviceEnvironment) -> Arc<Self> {
+        Arc::new(Self {
             transfer,
             worker: Arc::new(Share::new(device.clone())),
             frame_manager: FrameManager::new(),
             buffer_pool: Mutex::new(BufferPool::new(device.clone())),
             pipelines: PipelineManager::new(device)
-        }
-    }
-}
-
-pub struct EmulatorRenderer(Arc<EmulatorRendererShare>);
-
-impl EmulatorRenderer {
-    pub fn new(device: DeviceEnvironment, transfer: Arc<Transfer>) -> Self {
-        Self(Arc::new(EmulatorRendererShare::new(device, transfer)))
+        })
     }
 
     fn register_pipeline(&self) -> PipelineId {
@@ -57,7 +49,7 @@ impl EmulatorRenderer {
         todo!()
     }
 }
-
+                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                   
 struct StableObjects {
     device: DeviceEnvironment,
     surface_size: Vec2u32,

@@ -311,8 +311,26 @@ impl BlitPass {
             info = info.clear_values(std::slice::from_ref(clear_value))
         }
 
+        let viewport = vk::Viewport::builder()
+            .x(0f32)
+            .y(0f32)
+            .width(size[0] as f32)
+            .height(size[1] as f32)
+            .min_depth(0.0)
+            .max_depth(1.0);
+
+        let scissor = vk::Rect2D {
+            offset: vk::Offset2D{ x: 0, y: 0 },
+            extent: vk::Extent2D{ width: size[0], height: size[1] }
+        };
+
         unsafe {
+            device.vk().cmd_set_viewport(command_buffer, 0, std::slice::from_ref(&viewport));
+            device.vk().cmd_set_scissor(command_buffer, 0, std::slice::from_ref(&scissor));
+
             device.vk().cmd_begin_render_pass(command_buffer, &info, vk::SubpassContents::INLINE);
+
+            device.vk().cmd_bind_pipeline(command_buffer, vk::PipelineBindPoint::GRAPHICS, self.pipeline);
 
             device.vk().cmd_bind_descriptor_sets(
                 command_buffer,
