@@ -19,7 +19,7 @@ pub struct Blaze4D {
     instance: Arc<InstanceContext>,
     device: DeviceEnvironment,
     main_surface: SurfaceId,
-    emulator: EmulatorRenderer,
+    emulator: Arc<EmulatorRenderer>,
     worker: JoinHandle<()>,
 }
 
@@ -50,7 +50,7 @@ impl Blaze4D {
         let overlay = DebugOverlay::new(device.clone());
         let target = overlay.create_target(Vec2u32::new(800, 600));
 
-        let emulator = EmulatorRenderer::new(device.clone(), device.get_transfer().clone());
+        let emulator = EmulatorRenderer::new(device.clone());
 
         Self {
             instance,

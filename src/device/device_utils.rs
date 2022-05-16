@@ -65,7 +65,7 @@ impl BlitUtils {
         }
     }
 
-    pub fn crate_blit_pass(&self, dst_format: vk::Format, load_op: vk::AttachmentLoadOp, initial_layout: vk::ImageLayout, final_layout: vk::ImageLayout) -> BlitPass {
+    pub fn create_blit_pass(&self, dst_format: vk::Format, load_op: vk::AttachmentLoadOp, initial_layout: vk::ImageLayout, final_layout: vk::ImageLayout) -> BlitPass {
         let render_pass = self.create_render_pass(dst_format, load_op, initial_layout, final_layout);
         let pipeline = self.create_pipeline(render_pass);
 

@@ -16,6 +16,7 @@ pub mod window;
 
 mod device;
 mod instance;
+mod objects;
 
 pub mod prelude {
     pub use crate::UUID;

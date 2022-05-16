@@ -95,7 +95,7 @@ impl FrameShare {
             vertex_count: object.draw_count,
             pipeline: object.pipeline
         };
-        self.renderer.0.worker.draw(self.id, draw_task);
+        self.renderer.worker.draw(self.id, draw_task);
     }
 
     pub fn end_frame(&self) {
@@ -113,7 +113,7 @@ impl FrameShare {
             }
         };
 
-        let mut staging = self.renderer.0.transfer.request_staging_memory(data.len());
+        let mut staging = self.renderer.device.get_transfer().request_staging_memory(data.len());
         staging.write(data);
         staging.copy_to_buffer(alloc.buffer, BufferTransferRanges::new_single(
             0,
@@ -129,25 +129,25 @@ impl FrameShare {
     }
 
     fn acquire_sub_allocator(&self, min_size: usize) -> BufferSubAllocator {
-        let (buffer, size, wait_op) = self.renderer.0.buffer_pool.lock().unwrap().get_buffer(min_size);
-        self.renderer.0.transfer.make_buffer_available(BufferAvailabilityOp::new(
-            buffer, self.renderer.0.worker.get_render_queue_family(), SemaphoreOps::from_option(wait_op)
+        let (buffer, size, wait_op) = self.renderer.buffer_pool.lock().unwrap().get_buffer(min_size);
+        self.renderer.device.get_transfer().make_buffer_available(BufferAvailabilityOp::new(
+            buffer, self.renderer.worker.get_render_queue_family(), SemaphoreOps::from_option(wait_op)
         ));
-        self.renderer.0.worker.use_dynamic_buffer(self.id, buffer);
+        self.renderer.worker.use_dynamic_buffer(self.id, buffer);
 
         BufferSubAllocator::new(buffer, size)
     }
 
     fn finish_sub_allocator(&self, allocator: BufferSubAllocator) {
         let buffer = allocator.get_buffer();
-        let transfer_id = self.renderer.0.transfer.release_buffer(BufferAvailabilityOp::new(
+        let transfer_id = self.renderer.device.get_transfer().release_buffer(BufferAvailabilityOp::new(
             buffer,
-            self.renderer.0.worker.get_render_queue_family(),
+            self.renderer.worker.get_render_queue_family(),
             SemaphoreOps::None
         ));
 
-        let transfer_wait_op = self.renderer.0.transfer.get_wait_op(transfer_id);
-        self.renderer.0.worker.set_dynamic_buffer_wait(self.id, buffer.get_id(), transfer_wait_op);
+        let transfer_wait_op = self.renderer.device.get_transfer().get_wait_op(transfer_id);
+        self.renderer.worker.set_dynamic_buffer_wait(self.id, buffer.get_id(), transfer_wait_op);
     }
 
     fn replace_sub_allocator(&mut self, min_size: usize) {
