@@ -17,7 +17,7 @@ use crate::renderer::emulator::render_worker::{DrawTask, Share};
 use crate::renderer::swapchain_manager::SwapchainInstance;
 use crate::device::transfer::{BufferAvailabilityOp, BufferTransferRanges, Transfer};
 use crate::objects::id::ImageId;
-use crate::objects::ObjectSet;
+use crate::objects::{ObjectSet, ObjectSetProvider};
 use crate::vk::objects::buffer::Buffer;
 use crate::vk::objects::semaphore::SemaphoreOps;
 
@@ -31,7 +31,7 @@ pub(crate) struct EmulatorRenderer {
     frame_manager: FrameManager,
     buffer_pool: Mutex<BufferPool>,
     pipelines: PipelineManager,
-    current_framebuffer: Mutex<Option<Arc<StableObjects>>>,
+    current_config: Mutex<Option<Arc<StableObjects>>>,
 }
 
 impl EmulatorRenderer {
@@ -42,19 +42,19 @@ impl EmulatorRenderer {
             frame_manager: FrameManager::new(),
             buffer_pool: Mutex::new(BufferPool::new(device.clone())),
             pipelines: PipelineManager::new(device),
-            current_framebuffer: Mutex::new(None),
+            current_config: Mutex::new(None),
         })
     }
 
     pub fn configure_framebuffer(&self, render_size: Vec2u32, output_size: Vec2u32, output_images: &[ImageId], output_format: vk::Format, image_set: ObjectSet, post_layout: vk::ImageLayout) {
-        let objects = StableObjects::new(self.device.clone(), 3, render_size, todo!(), output_size, output_images, output_format, post_layout, image_set);
+        let objects = StableObjects::new(self.device.clone(), 3, render_size, self.pipelines.get_render_pass(), output_size, output_images, output_format, post_layout, image_set);
 
-        let mut guard = self.current_framebuffer.lock().unwrap();
+        let mut guard = self.current_config.lock().unwrap();
         *guard = Some(Arc::new(objects));
     }
 
     pub fn reset_framebuffer(&self) {
-        let mut guard = self.current_framebuffer.lock().unwrap();
+        let mut guard = self.current_config.lock().unwrap();
         *guard = None;
     }
 

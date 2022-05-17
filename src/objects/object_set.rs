@@ -13,6 +13,10 @@ pub trait ObjectSetProvider: Debug {
     fn get_id(&self) -> UUID;
 
     fn get_handle(&self, id: UUID) -> Option<u64>;
+
+    fn get<ID: ObjectId>(&self, id: ID) -> Option<ID::HandleType> where Self: Sized {
+        self.get_handle(id.as_uuid()).map(|handle| ID::HandleType::from_raw(handle))
+    }
 }
 
 #[derive(Clone)]
@@ -26,9 +30,15 @@ impl ObjectSet {
     pub fn get_provider(&self) -> &Arc<dyn ObjectSetProvider + Send + Sync> {
         &self.0
     }
+}
 
-    pub fn get<ID: ObjectId>(&self, id: ID) -> Option<ID::HandleType> {
-        self.0.get_handle(id.as_uuid()).map(|handle| ID::HandleType::from_raw(handle))
+impl ObjectSetProvider for ObjectSet {
+    fn get_id(&self) -> UUID {
+        self.0.get_id()
+    }
+
+    fn get_handle(&self, id: UUID) -> Option<u64> {
+        self.0.get_handle(id)
     }
 }
 

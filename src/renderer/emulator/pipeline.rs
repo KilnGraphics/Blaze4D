@@ -130,6 +130,10 @@ impl PipelineManager {
         }
     }
 
+    pub(super) fn get_render_pass(&self) -> vk::RenderPass {
+        self.render_pass
+    }
+
     // TODO more very temporary (and unsafe since we dont handle errors well)
     pub fn create_default_pipeline(&mut self, vertex_format: VertexFormat) -> PipelineId {
         let vertex_code = crate::util::slice::from_byte_slice(BASIC_VERTEX_SHADER);
