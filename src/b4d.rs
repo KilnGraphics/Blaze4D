@@ -1,6 +1,7 @@
 use std::collections::VecDeque;
 use std::ffi::CString;
 use std::sync::{Arc, Mutex, Weak};
+use std::sync::atomic::{AtomicUsize, Ordering};
 use std::time::Instant;
 
 use ash::vk;
@@ -14,6 +15,7 @@ use crate::device::init::{create_device, DeviceCreateConfig};
 use crate::device::surface::{DeviceSurface, SurfaceSwapchain, SwapchainConfig};
 use crate::instance::init::{create_instance, InstanceCreateConfig};
 use crate::instance::instance::VulkanVersion;
+use crate::objects::ObjectSetProvider;
 use crate::vk::objects::surface::{SurfaceProvider};
 
 use crate::prelude::*;
@@ -199,76 +201,76 @@ struct MainWindowSwapchain {
     weak: Weak<MainWindowSwapchain>,
     device: Arc<DeviceContext>,
     swapchain: Arc<SurfaceSwapchain>,
-    sync_objects: Mutex<VecDeque<SyncObjects>>,
-    swapchain_images: Box<[vk::Image]>,
+    sync_next_index: AtomicUsize,
+    sync_objects: Box<[SyncObjects]>,
+    swapchain_images: Box<[ImageObjects]>,
 }
 
 impl MainWindowSwapchain {
     fn new(weak: Weak<MainWindowSwapchain>, device: Arc<DeviceContext>, swapchain: Arc<SurfaceSwapchain>) -> Self {
-        let swapchain_images: Box<[_]> = swapchain.get_images().iter().map(|(_, image)| *image).collect();
+        let swapchain_images: Box<_> = swapchain.get_images().iter().map(|(_, image)| {
+            ImageObjects::new(&device, *image)
+        }).collect();
 
-        let sync_objects: VecDeque<_> = (0..3).map(|_| SyncObjects::new(&device)).collect();
+        let sync_objects: Box<_> = (0..4).map(|_| SyncObjects::new(&device)).collect();
 
         Self {
             weak,
             device,
             swapchain,
-            sync_objects: Mutex::new(sync_objects),
+            sync_next_index: AtomicUsize::new(0),
+            sync_objects,
             swapchain_images
         }
     }
 
     fn acquire_next_image(&self) -> Option<(MainWindowImage, bool)> {
-        let sync = self.get_next_sync();
+        let sync = &self.sync_objects[self.get_next_sync()];
 
-        let fences = [sync.acquire_fence, sync.present_fence];
+        let fences = std::slice::from_ref(&sync.acquire_fence);
         unsafe {
-            self.device.vk().wait_for_fences(&fences, true, u64::MAX)
+            self.device.vk().wait_for_fences(fences, true, u64::MAX)
         }.unwrap();
 
         unsafe {
-            self.device.vk().reset_fences(&fences)
+            self.device.vk().reset_fences(fences)
         }.unwrap();
 
-        match self.swapchain.acquire_next_image(u64::MAX, Some(sync.acquire_semaphore), Some(sync.acquire_fence)) {
+        match self.swapchain.acquire_next_image(u64::MAX, Some(sync.acquire_semaphore), None) {
             Ok((index, suboptimal)) => {
-                let arc = Weak::upgrade(&self.weak).unwrap();
-
                 Some((MainWindowImage {
-                    swapchain: arc,
-                    sync: Some(sync),
+                    swapchain: self.weak.upgrade().unwrap(),
+                    acquire_semaphore: sync.acquire_semaphore,
+                    acquire_fence: sync.acquire_fence,
                     image_index: index,
                 }, suboptimal))
             },
             Err(_) => {
-                // We can't reuse these sync objects since they are now unsignaled.
-                // Shouldn't be an issue either since we're destroying the swapchain after a failure.
-                let mut sync = sync;
-                sync.destroy(&self.device);
                 None
             }
         }
     }
 
-    fn get_next_sync(&self) -> SyncObjects {
+    fn get_next_sync(&self) -> usize {
         loop {
-            let mut guard = self.sync_objects.lock().unwrap();
-            if let Some(sync) = guard.pop_front() {
-                return sync;
-            }
-            drop(guard);
+            let index = self.sync_next_index.load(Ordering::SeqCst);
+            let next_index = (index + 1) % self.sync_objects.len();
 
-            log::warn!("Out of sync objects! Either too many frames are currently in processing or we dont drop our old frames.");
-            std::thread::yield_now();
+            if self.sync_next_index.compare_exchange(index, next_index, Ordering::SeqCst, Ordering::SeqCst).is_ok() {
+                return index;
+            }
         }
     }
 }
 
 impl Drop for MainWindowSwapchain {
     fn drop(&mut self) {
-        let mut guard = self.sync_objects.lock().unwrap();
-        while let Some(mut sync) = guard.pop_front() {
-            sync.wait_destroy(&self.device);
+        for sync_object in self.sync_objects.as_mut() {
+            // We should not wait here since its possible that fences are unsignaled and have no op pending on them
+            sync_object.destroy(&self.device);
+        }
+        for image_object in self.swapchain_images.as_mut() {
+            image_object.destroy(&self.device);
         }
     }
 }
@@ -276,8 +278,6 @@ impl Drop for MainWindowSwapchain {
 struct SyncObjects {
     acquire_semaphore: vk::Semaphore,
     acquire_fence: vk::Fence,
-    present_semaphore: vk::Semaphore,
-    present_fence: vk::Fence,
 }
 
 impl SyncObjects {
@@ -291,44 +291,50 @@ impl SyncObjects {
             Self {
                 acquire_semaphore: device.vk().create_semaphore(&semaphore_info, None).unwrap(),
                 acquire_fence: device.vk().create_fence(&fence_info, None).unwrap(),
-                present_semaphore: device.vk().create_semaphore(&semaphore_info, None).unwrap(),
-                present_fence: device.vk().create_fence(&fence_info, None).unwrap(),
             }
         }
-    }
-
-    fn wait_destroy(&mut self, device: &DeviceContext) {
-        let fences = [self.acquire_fence, self.present_fence];
-        unsafe {
-            device.vk().wait_for_fences(&fences, true, u64::MAX)
-        }.unwrap();
-
-        self.destroy(device);
     }
 
     fn destroy(&mut self, device: &DeviceContext) {
         unsafe {
             device.vk().destroy_semaphore(self.acquire_semaphore, None);
             device.vk().destroy_fence(self.acquire_fence, None);
+        }
+    }
+}
+
+struct ImageObjects {
+    image: vk::Image,
+    present_semaphore: vk::Semaphore,
+}
+
+impl ImageObjects {
+    fn new(device: &DeviceContext, image: vk::Image) -> Self {
+        let semaphore_info = vk::SemaphoreCreateInfo::builder();
+
+        let present_semaphore = unsafe {
+            device.vk().create_semaphore(&semaphore_info, None)
+        }.unwrap();
+
+        Self {
+            image,
+            present_semaphore,
+        }
+    }
+
+    fn destroy(&self, device: &DeviceContext) {
+        unsafe {
+            // The image is owned by the swapchain
             device.vk().destroy_semaphore(self.present_semaphore, None);
-            device.vk().destroy_fence(self.present_fence, None);
         }
     }
 }
 
 pub struct MainWindowImage {
     swapchain: Arc<MainWindowSwapchain>,
-    sync: Option<SyncObjects>,
+    acquire_semaphore: vk::Semaphore,
+    acquire_fence: vk::Fence,
     image_index: u32,
-}
-
-impl Drop for MainWindowImage {
-    fn drop(&mut self) {
-        if let Some(sync) = self.sync.take() {
-            // Return the sync objects
-            self.swapchain.sync_objects.lock().unwrap().push_back(sync);
-        }
-    }
 }
 
 #[no_mangle]
