@@ -455,9 +455,7 @@ impl TransferWorker {
     }
 
     fn submit(&mut self) {
-        log::error!("Submit called");
         if !self.has_commands {
-            log::error!("Submit no commands");
             // Nothing has been recorded yet
             return;
         }
@@ -491,7 +489,6 @@ impl TransferWorker {
                 .command_buffer_infos(std::slice::from_ref(&submit_info))
                 .signal_semaphore_infos(self.signal_ops.as_slice());
 
-            log::error!("Submit");
             unsafe {
                 let guard = self.queue.lock_queue();
                 self.vk.queue_submit2(*guard, std::slice::from_ref(&info), vk::Fence::null())
@@ -511,8 +508,6 @@ impl TransferWorker {
             self.has_commands = false;
             self.last_task_id = self.current_task_id;
             self.last_start = None;
-        } else {
-            log::error!("Submit no cmd buffer");
         }
     }
 }

@@ -7,6 +7,7 @@ use std::time::Instant;
 use ash::vk;
 
 use vk_profiles_rs::vp;
+use crate::device::device::VkQueue;
 
 use crate::glfw_surface::GLFWSurfaceProvider;
 use crate::renderer::emulator::EmulatorRenderer;
@@ -25,6 +26,11 @@ pub struct Blaze4D {
     device: DeviceEnvironment,
     emulator: Arc<EmulatorRenderer>,
     main_window: Mutex<MainWindow>,
+
+    tmp_queue: VkQueue,
+    tmp_pool: vk::CommandPool,
+    tmp_buffers: Box<[vk::CommandBuffer]>,
+    tmp_next_buffer: AtomicUsize,
 }
 
 impl Blaze4D {
@@ -59,33 +65,137 @@ impl Blaze4D {
 
         let main_window = Mutex::new(MainWindow::new(main_surface));
 
+
+
+        let queue = device.get_device().get_main_queue();
+        let info = vk::CommandPoolCreateInfo::builder()
+            .flags(vk::CommandPoolCreateFlags::RESET_COMMAND_BUFFER)
+            .queue_family_index(queue.get_queue_family_index());
+
+        let pool = unsafe {
+            device.vk().create_command_pool(&info, None)
+        }.unwrap();
+
+        let info = vk::CommandBufferAllocateInfo::builder()
+            .command_pool(pool)
+            .level(vk::CommandBufferLevel::PRIMARY)
+            .command_buffer_count(32);
+
+        let buffers = unsafe {
+            device.vk().allocate_command_buffers(&info)
+        }.unwrap();
+
+
         Self {
             instance,
             device,
             emulator,
             main_window,
+
+            tmp_queue: queue,
+            tmp_pool: pool,
+            tmp_buffers: buffers.into_boxed_slice(),
+            tmp_next_buffer: AtomicUsize::new(0),
         }
     }
 
     pub fn try_acquire_next_image<T: Fn() -> Option<Vec2u32>>(&self, size_cb: T) -> Option<MainWindowImage> {
         let mut guard = self.main_window.lock().unwrap();
+        guard.process_old_swapchains(self.device.get_device());
 
-        // We rebuild until we have a not out of date swapchain. The wait timer for rebuilding
-        // prevents a massive buildup.
-        loop {
-            match guard.try_acquire_next_image() {
-                None => {
+        // We try to rebuild once otherwise we just return. We need to do this since some window
+        // systems require polling from the application so we cant just lock here forever.
+        match guard.try_acquire_next_image() {
+            None => {
+                guard.try_build_swapchain(self.device.get_device(), size_cb())?;
+            }
+            Some((image, suboptimal)) => {
+                if suboptimal {
                     guard.try_build_swapchain(self.device.get_device(), size_cb())?;
-                }
-                Some((image, suboptimal)) => {
-                    if suboptimal {
-                        guard.try_build_swapchain(self.device.get_device(), size_cb())?;
-                    } else {
-                        return Some(image);
-                    }
+                } else {
+                    return Some(image);
                 }
             }
         }
+
+        Some(guard.try_acquire_next_image()?.0)
+    }
+
+    pub fn tmp_present(&self, image: MainWindowImage) {
+        let mut index;
+        loop {
+            index = self.tmp_next_buffer.load(Ordering::SeqCst);
+            let next_index = (index + 1) % self.tmp_buffers.len();
+            if self.tmp_next_buffer.compare_exchange(index, next_index, Ordering::SeqCst, Ordering::SeqCst).is_ok() {
+                break;
+            }
+        }
+
+        let cmd = self.tmp_buffers[index];
+
+        unsafe {
+            self.device.vk().reset_command_buffer(cmd, vk::CommandBufferResetFlags::empty())
+        }.unwrap();
+
+        let info = vk::CommandBufferBeginInfo::builder()
+            .flags(vk::CommandBufferUsageFlags::ONE_TIME_SUBMIT);
+
+        unsafe {
+            self.device.vk().begin_command_buffer(cmd, &info)
+        }.unwrap();
+
+        let image_barrier = vk::ImageMemoryBarrier::builder()
+            .src_access_mask(vk::AccessFlags::MEMORY_WRITE)
+            .dst_access_mask(vk::AccessFlags::MEMORY_READ)
+            .old_layout(vk::ImageLayout::UNDEFINED)
+            .new_layout(vk::ImageLayout::PRESENT_SRC_KHR)
+            .image(image.image)
+            .subresource_range(vk::ImageSubresourceRange {
+                aspect_mask: vk::ImageAspectFlags::COLOR,
+                base_mip_level: 0,
+                level_count: 1,
+                base_array_layer: 0,
+                layer_count: 1
+            });
+
+        unsafe {
+            self.device.vk().cmd_pipeline_barrier(
+                cmd,
+                vk::PipelineStageFlags::ALL_COMMANDS,
+                vk::PipelineStageFlags::ALL_COMMANDS,
+                vk::DependencyFlags::empty(),
+                &[],
+                &[],
+                std::slice::from_ref(&image_barrier)
+            );
+        }
+
+        unsafe {
+            self.device.vk().end_command_buffer(cmd)
+        }.unwrap();
+
+        let stage_mask = vk::PipelineStageFlags::ALL_COMMANDS;
+        let submit_info = vk::SubmitInfo::builder()
+            .wait_semaphores(std::slice::from_ref(&image.acquire_semaphore))
+            .wait_dst_stage_mask(std::slice::from_ref(&stage_mask))
+            .command_buffers(std::slice::from_ref(&cmd))
+            .signal_semaphores(std::slice::from_ref(&image.present_semaphore));
+
+        unsafe {
+            self.tmp_queue.submit(std::slice::from_ref(&submit_info), Some(image.acquire_fence))
+        }.unwrap();
+
+        let swapchain_guard = image.swapchain.swapchain.get_swapchain().lock().unwrap();
+        let swapchain = *swapchain_guard;
+        let present_info = vk::PresentInfoKHR::builder()
+            .wait_semaphores(std::slice::from_ref(&image.present_semaphore))
+            .swapchains(std::slice::from_ref(&swapchain))
+            .image_indices(std::slice::from_ref(&image.image_index));
+
+        unsafe {
+            self.tmp_queue.present(&present_info)
+        };
+        drop(swapchain_guard);
     }
 }
 
@@ -122,6 +232,7 @@ impl MainWindow {
     /// Returns [`Some`] if a new swapchain has been created or [`None`] if no current swapchain
     /// exists.
     fn try_build_swapchain(&mut self, device: &Arc<DeviceContext>, new_size: Option<Vec2u32>) -> Option<()> {
+        log::error!("Rebuilding swapchain");
         if let Some(old) = self.current_swapchain.take() {
             self.old_swapchains.push((None, old));
         }
@@ -173,6 +284,7 @@ impl MainWindow {
     /// impact.
     fn process_old_swapchains(&mut self, device: &DeviceContext) {
         if !self.old_swapchains.is_empty() {
+            log::error!("Old swapchains: {:?}", self.old_swapchains.len());
             let wait = self.old_swapchains.iter().fold(false, |wait, (time, old)| {
                 wait || (time.is_none() && Arc::strong_count(old) == 1)
             });
@@ -238,10 +350,13 @@ impl MainWindowSwapchain {
 
         match self.swapchain.acquire_next_image(u64::MAX, Some(sync.acquire_semaphore), None) {
             Ok((index, suboptimal)) => {
+                let image_objects = &self.swapchain_images[index as usize];
                 Some((MainWindowImage {
                     swapchain: self.weak.upgrade().unwrap(),
                     acquire_semaphore: sync.acquire_semaphore,
                     acquire_fence: sync.acquire_fence,
+                    present_semaphore: image_objects.present_semaphore,
+                    image: image_objects.image,
                     image_index: index,
                 }, suboptimal))
             },
@@ -334,6 +449,8 @@ pub struct MainWindowImage {
     swapchain: Arc<MainWindowSwapchain>,
     acquire_semaphore: vk::Semaphore,
     acquire_fence: vk::Fence,
+    present_semaphore: vk::Semaphore,
+    image: vk::Image,
     image_index: u32,
 }
 
