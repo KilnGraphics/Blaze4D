@@ -7,11 +7,14 @@ use std::iter::repeat_with;
 use std::ops::DerefMut;
 use std::sync::{Arc, Mutex, MutexGuard, Weak};
 use std::sync::atomic::{AtomicU64, Ordering};
+
 use ash::vk;
+
 use concurrent_queue::ConcurrentQueue;
+
 use crate::device::device_utils::BlitPass;
 use crate::renderer::emulator::buffer::{BufferAllocation, BufferPool, BufferSubAllocator};
-use crate::renderer::emulator::frame::FrameManager;
+use crate::renderer::emulator::frame::{Frame, FrameId};
 use crate::renderer::emulator::pipeline::{Pipeline, PipelineId, PipelineManager};
 use crate::renderer::emulator::render_worker::{DrawTask, Share};
 use crate::device::transfer::{BufferAvailabilityOp, BufferTransferRanges, Transfer};
@@ -28,7 +31,7 @@ pub(crate) struct EmulatorRenderer {
     weak: Weak<EmulatorRenderer>,
     device: DeviceEnvironment,
     worker: Arc<Share>,
-    frame_manager: FrameManager,
+    next_frame_id: AtomicU64,
     buffer_pool: Mutex<BufferPool>,
     pipelines: PipelineManager,
 }
@@ -40,220 +43,129 @@ impl EmulatorRenderer {
                 weak: weak.clone(),
                 device: device.clone(),
                 worker: Arc::new(Share::new(device.clone())),
-                frame_manager: FrameManager::new(),
+                next_frame_id: AtomicU64::new(1),
                 buffer_pool: Mutex::new(BufferPool::new(device.clone())),
                 pipelines: PipelineManager::new(device),
             }
         })
     }
 
-    pub fn configure(
-        &self,
-        render_size: Vec2u32,
-        output_size: Vec2u32,
-        output_images: &[ImageId],
-        output_format: vk::Format,
-        image_set: ObjectSet,
-        post_layout: vk::ImageLayout
-    ) -> Arc<EmulatorConfiguration> {
-
-        Arc::new(EmulatorConfiguration::new(
+    pub fn create_render_configuration(&self, render_size: Vec2u32) -> Arc<RenderConfiguration> {
+        Arc::new(RenderConfiguration::new(
             self.weak.upgrade().unwrap(),
-            3,
+            self.device.clone(),
             render_size,
-            self.pipelines.get_render_pass(),
-            output_size,
-            output_images,
-            output_format,
-            post_layout,
-            image_set
+            3
         ))
     }
 
-    fn register_pipeline(&self) -> PipelineId {
-        todo!()
+    pub fn create_output_configuration(
+        &self,
+        render_configuration: Arc<RenderConfiguration>,
+        output_size: Vec2u32,
+        dst_images: &[ImageId],
+        dst_set: ObjectSet,
+        dst_format: vk::Format,
+        final_layout: vk::ImageLayout
+    ) -> Arc<OutputConfiguration> {
+
+        Arc::new(OutputConfiguration::new(
+            render_configuration,
+            output_size,
+            dst_images,
+            dst_set,
+            dst_format,
+            final_layout
+        ))
     }
 
-    pub fn start_frame(&self) {
-        todo!()
+    pub fn start_frame(&self, configuration: Arc<RenderConfiguration>) -> Frame {
+        let id = FrameId::from_raw(self.next_frame_id.fetch_add(1, Ordering::SeqCst));
+        Frame::new(id, self.weak.upgrade().unwrap(), configuration)
     }
 }
 
-pub struct EmulatorConfiguration {
+pub struct RenderConfiguration {
     renderer: Arc<EmulatorRenderer>,
     device: DeviceEnvironment,
-    descriptor_pool: vk::DescriptorPool,
-    frame_objects: Box<[StableFrameObjects]>,
+    frame_objects: Box<[RenderFrameObjects]>,
     render_size: Vec2u32,
-    output_blit: BlitPass,
-    output_size: Vec2u32,
-    output_views: Box<[vk::ImageView]>,
-    output_framebuffers: Box<[vk::Framebuffer]>,
-    output_image_set: ObjectSet,
 }
 
-impl EmulatorConfiguration {
-    fn new(renderer: Arc<EmulatorRenderer>, frame_count: usize, render_size: Vec2u32, render_pass: vk::RenderPass, output_size: Vec2u32, output_images: &[ImageId], output_format: vk::Format, output_layout: vk::ImageLayout, image_set: ObjectSet) -> Self {
-        let device = renderer.device.clone();
-
-        let blit_pass = device.get_utils().blit_utils().create_blit_pass(output_format, vk::AttachmentLoadOp::DONT_CARE, vk::ImageLayout::UNDEFINED, output_layout);
-        let descriptor_pool = Self::create_descriptor_pool(&device, frame_count);
-
-        let frame_objects = repeat_with(|| StableFrameObjects::new(&device, render_size, render_pass, &blit_pass, descriptor_pool)).take(frame_count).collect();
-
-        let output_views = Self::create_output_image_views(&device, output_images, output_format, &image_set).into_boxed_slice();
-        let output_framebuffers = Self::create_output_framebuffers(&blit_pass, output_views.as_ref(), output_size).into_boxed_slice();
+impl RenderConfiguration {
+    fn new(renderer: Arc<EmulatorRenderer>, device: DeviceEnvironment, render_size: Vec2u32, frame_count: usize) -> Self {
+        let render_pass = renderer.pipelines.get_render_pass();
+        let frame_objects: Box<_> = repeat_with(|| RenderFrameObjects::new(&device, render_size, render_pass)).take(frame_count).collect();
 
         Self {
             renderer,
             device,
-            descriptor_pool,
             frame_objects,
             render_size,
-            output_blit: blit_pass,
-            output_size,
-            output_views,
-            output_framebuffers,
-            output_image_set: image_set,
         }
-    }
-
-    fn create_descriptor_pool(device: &DeviceEnvironment, count: usize) -> vk::DescriptorPool {
-        let size = vk::DescriptorPoolSize::builder()
-            .ty(vk::DescriptorType::COMBINED_IMAGE_SAMPLER)
-            .descriptor_count(count as u32);
-
-        let info = vk::DescriptorPoolCreateInfo::builder()
-            .max_sets(count as u32)
-            .pool_sizes(std::slice::from_ref(&size));
-
-        unsafe {
-            device.vk().create_descriptor_pool(&info, None)
-        }.unwrap()
-    }
-
-    fn create_output_image_views(device: &DeviceEnvironment, images: &[ImageId], format: vk::Format, set: &ObjectSet) -> Vec<vk::ImageView> {
-        let mut views = Vec::with_capacity(images.len());
-        for image in images {
-            let image = set.get(*image).unwrap();
-
-            let info = vk::ImageViewCreateInfo::builder()
-                .image(image)
-                .view_type(vk::ImageViewType::TYPE_2D)
-                .format(format)
-                .components(vk::ComponentMapping {
-                    r: vk::ComponentSwizzle::IDENTITY,
-                    g: vk::ComponentSwizzle::IDENTITY,
-                    b: vk::ComponentSwizzle::IDENTITY,
-                    a: vk::ComponentSwizzle::IDENTITY
-                })
-                .subresource_range(vk::ImageSubresourceRange {
-                    aspect_mask: vk::ImageAspectFlags::COLOR,
-                    base_mip_level: 0,
-                    level_count: 1,
-                    base_array_layer: 0,
-                    layer_count: 1
-                });
-
-            let view = unsafe {
-                device.vk().create_image_view(&info, None)
-            }.unwrap();
-
-            views.push(view);
-        }
-
-        views
-    }
-
-    fn create_output_framebuffers(blit: &BlitPass, views: &[vk::ImageView], size: Vec2u32) -> Vec<vk::Framebuffer> {
-        let mut framebuffers = Vec::with_capacity(views.len());
-        for view in views {
-            framebuffers.push(blit.create_framebuffer(*view, size).unwrap());
-        }
-
-        framebuffers
     }
 }
 
-impl Drop for EmulatorConfiguration {
+impl Drop for RenderConfiguration {
     fn drop(&mut self) {
-        unsafe {
-            for framebuffer in self.output_framebuffers.iter() {
-                self.device.vk().destroy_framebuffer(*framebuffer, None);
-            }
-            for view in self.output_views.iter() {
-                self.device.vk().destroy_image_view(*view, None);
-            }
-            self.device.vk().destroy_descriptor_pool(self.descriptor_pool, None);
-        }
         for frame in self.frame_objects.iter_mut() {
-            frame.destroy(&self.device)
+            frame.destroy(&self.device);
         }
     }
 }
 
-struct StableFrameObjects {
+struct RenderFrameObjects {
     color_image: vk::Image,
-    color_view: vk::ImageView,
     depth_stencil_image: vk::Image,
+    color_view: vk::ImageView,
     depth_stencil_view: vk::ImageView,
     framebuffer: vk::Framebuffer,
-    blit_descriptor_set: vk::DescriptorSet,
-    wait_fence: vk::Fence,
-    color_alloc: Option<Allocation>,
-    depth_stencil_alloc: Option<Allocation>,
+    color_allocation: Option<Allocation>,
+    depth_stencil_allocation: Option<Allocation>,
 }
 
-impl StableFrameObjects {
-    fn new(device: &DeviceEnvironment, size: Vec2u32, render_pass: vk::RenderPass, blit_pass: &BlitPass, descriptor_pool: vk::DescriptorPool) -> Self {
-        let (color_image, color_alloc) =
-            Self::create_image(device, size, vk::Format::R8G8B8A8_SRGB, vk::ImageUsageFlags::COLOR_ATTACHMENT | vk::ImageUsageFlags::SAMPLED);
-        let (depth_stencil_image, depth_stencil_alloc) =
-            Self::create_image(device, size, vk::Format::D16_UNORM, vk::ImageUsageFlags::DEPTH_STENCIL_ATTACHMENT | vk::ImageUsageFlags::INPUT_ATTACHMENT | vk::ImageUsageFlags::SAMPLED);
+impl RenderFrameObjects {
+    fn new(device: &DeviceEnvironment, size: Vec2u32, render_pass: vk::RenderPass) -> Self {
+        let (color_image, color_allocation) = Self::create_image(
+            device,
+            size,
+            vk::Format::R8G8B8A8_SRGB,
+            vk::ImageUsageFlags::COLOR_ATTACHMENT | vk::ImageUsageFlags::SAMPLED
+        );
+
+        let (depth_stencil_image, depth_stencil_allocation) = Self::create_image(
+            device,
+            size,
+            vk::Format::D16_UNORM,
+            vk::ImageUsageFlags::DEPTH_STENCIL_ATTACHMENT | vk::ImageUsageFlags::SAMPLED
+        );
 
         let color_view = Self::create_view(device, color_image, vk::Format::R8G8B8A8_SRGB, vk::ImageAspectFlags::COLOR);
         let depth_stencil_view = Self::create_view(device, depth_stencil_image, vk::Format::D16_UNORM, vk::ImageAspectFlags::DEPTH);
 
         let framebuffer = Self::create_framebuffer(device, color_view, depth_stencil_view, render_pass, size);
 
-        let blit_descriptor_set = *blit_pass.create_descriptor_sets(descriptor_pool, std::slice::from_ref(&depth_stencil_view)).unwrap().get(0).unwrap();
-
-        let wait_fence = Self::create_fence(device);
-
         Self {
             color_image,
-            color_view,
             depth_stencil_image,
+            color_view,
             depth_stencil_view,
             framebuffer,
-            blit_descriptor_set,
-            wait_fence,
-            color_alloc: Some(color_alloc),
-            depth_stencil_alloc: Some(depth_stencil_alloc),
+            color_allocation: Some(color_allocation),
+            depth_stencil_allocation: Some(depth_stencil_allocation),
         }
     }
 
     fn destroy(&mut self, device: &DeviceEnvironment) {
         unsafe {
-            // Descriptors are freed by destroying the pool
-            device.vk().destroy_fence(self.wait_fence, None);
             device.vk().destroy_framebuffer(self.framebuffer, None);
             device.vk().destroy_image_view(self.depth_stencil_view, None);
-            device.vk().destroy_image(self.depth_stencil_image, None);
             device.vk().destroy_image_view(self.color_view, None);
+            device.vk().destroy_image(self.depth_stencil_image, None);
             device.vk().destroy_image(self.color_image, None);
         }
-
-        device.get_allocator().free(self.depth_stencil_alloc.take().unwrap());
-        device.get_allocator().free(self.color_alloc.take().unwrap());
-    }
-
-    pub fn get_framebuffer(&self) -> vk::Framebuffer {
-        self.framebuffer
-    }
-
-    pub fn get_wait_fence(&self) -> vk::Fence {
-        self.wait_fence
+        device.get_allocator().free(self.depth_stencil_allocation.take().unwrap());
+        device.get_allocator().free(self.color_allocation.take().unwrap());
     }
 
     fn create_image(device: &DeviceEnvironment, size: Vec2u32, format: vk::Format, usage: vk::ImageUsageFlags) -> (vk::Image, Allocation) {
@@ -324,13 +236,100 @@ impl StableFrameObjects {
             device.vk().create_framebuffer(&info, None)
         }.unwrap()
     }
+}
 
-    fn create_fence(device: &DeviceEnvironment) -> vk::Fence {
-        let info = vk::FenceCreateInfo::builder()
-            .flags(vk::FenceCreateFlags::SIGNALED);
+pub struct OutputConfiguration {
+    render_configuration: Arc<RenderConfiguration>,
+    descriptor_pool: vk::DescriptorPool,
+    descriptors: Box<[vk::DescriptorSet]>,
+    output_size: Vec2u32,
+    blit: BlitPass,
+    dst_objects: Box<[(vk::ImageView, vk::Framebuffer)]>,
+    dst_set: ObjectSet,
+}
 
+impl OutputConfiguration {
+    fn new(render_configuration: Arc<RenderConfiguration>, output_size: Vec2u32, dst_images: &[ImageId], dst_set: ObjectSet, dst_format: vk::Format, final_layout: vk::ImageLayout) -> Self {
+        let blit = render_configuration.device.get_utils().blit_utils().create_blit_pass(dst_format, vk::AttachmentLoadOp::DONT_CARE, vk::ImageLayout::UNDEFINED, final_layout);
+
+        let (descriptor_pool, descriptors) = Self::create_descriptors(&render_configuration, &blit);
+
+        let dst_objects = Self::create_dst_objects(&render_configuration.device, &blit, dst_images, &dst_set, dst_format, output_size);
+
+        Self {
+            render_configuration,
+            descriptor_pool,
+            descriptors,
+            output_size,
+            blit,
+            dst_objects,
+            dst_set,
+        }
+    }
+
+    fn create_descriptors(config: &RenderConfiguration, blit: &BlitPass) -> (vk::DescriptorPool, Box<[vk::DescriptorSet]>) {
+        let count = config.frame_objects.len() as u32;
+        let size = vk::DescriptorPoolSize::builder()
+            .ty(vk::DescriptorType::COMBINED_IMAGE_SAMPLER)
+            .descriptor_count(count);
+
+        let info = vk::DescriptorPoolCreateInfo::builder()
+            .max_sets(count)
+            .pool_sizes(std::slice::from_ref(&size));
+
+        let descriptor_pool = unsafe {
+            config.device.vk().create_descriptor_pool(&info, None)
+        }.unwrap();
+
+        let views: Box<_> = config.frame_objects.iter().map(|frame| frame.depth_stencil_view).collect();
+
+        let descriptors = blit.create_descriptor_sets(descriptor_pool, &views).unwrap();
+
+        (descriptor_pool, descriptors.into_boxed_slice())
+    }
+
+    fn create_dst_objects(device: &DeviceEnvironment, blit: &BlitPass, dst_images: &[ImageId], dst_set: &ObjectSet, dst_format: vk::Format, size: Vec2u32) -> Box<[(vk::ImageView, vk::Framebuffer)]> {
+        dst_images.iter().map(|id| {
+            let image = dst_set.get(*id).unwrap();
+
+            let info = vk::ImageViewCreateInfo::builder()
+                .image(image)
+                .view_type(vk::ImageViewType::TYPE_2D)
+                .format(dst_format)
+                .components(vk::ComponentMapping {
+                    r: vk::ComponentSwizzle::IDENTITY,
+                    g: vk::ComponentSwizzle::IDENTITY,
+                    b: vk::ComponentSwizzle::IDENTITY,
+                    a: vk::ComponentSwizzle::IDENTITY
+                })
+                .subresource_range(vk::ImageSubresourceRange {
+                    aspect_mask: vk::ImageAspectFlags::COLOR,
+                    base_mip_level: 0,
+                    level_count: 1,
+                    base_array_layer: 0,
+                    layer_count: 1
+                });
+
+            let view = unsafe {
+                device.vk().create_image_view(&info, None)
+            }.unwrap();
+
+            let framebuffer = blit.create_framebuffer(view, size).unwrap();
+
+            (view, framebuffer)
+        }).collect()
+    }
+}
+
+impl Drop for OutputConfiguration {
+    fn drop(&mut self) {
+        let device = &self.render_configuration.device;
         unsafe {
-            device.vk().create_fence(&info, None)
-        }.unwrap()
+            for (image_view, framebuffer) in self.dst_objects.iter() {
+                device.vk().destroy_framebuffer(*framebuffer, None);
+                device.vk().destroy_image_view(*image_view, None);
+            }
+            device.vk().destroy_descriptor_pool(self.descriptor_pool, None);
+        }
     }
 }

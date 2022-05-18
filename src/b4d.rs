@@ -11,7 +11,7 @@ use vk_profiles_rs::vp;
 use crate::device::device::VkQueue;
 
 use crate::glfw_surface::GLFWSurfaceProvider;
-use crate::renderer::emulator::{EmulatorConfiguration, EmulatorRenderer};
+use crate::renderer::emulator::{EmulatorRenderer, OutputConfiguration, RenderConfiguration};
 use crate::instance::debug_messenger::RustLogDebugMessenger;
 use crate::device::init::{create_device, DeviceCreateConfig};
 use crate::device::surface::{DeviceSurface, SurfaceSwapchain, SwapchainConfig};
@@ -317,7 +317,8 @@ struct MainWindowSwapchain {
     sync_next_index: AtomicUsize,
     sync_objects: Box<[SyncObjects]>,
     swapchain_images: Box<[ImageObjects]>,
-    emulator_configuration: Arc<EmulatorConfiguration>,
+    emulator_render_config: Arc<RenderConfiguration>,
+    emulator_output_config: Arc<OutputConfiguration>,
 }
 
 impl MainWindowSwapchain {
@@ -330,12 +331,13 @@ impl MainWindowSwapchain {
 
         let ids: Box<_> = swapchain.get_images().iter().map(|(id, _)| *id).collect();
 
-        let emulator_configuration = emulator.configure(
-            swapchain.get_image_size(),
+        let emulator_render_config = emulator.create_render_configuration(swapchain.get_image_size());
+        let emulator_output_config = emulator.create_output_configuration(
+            emulator_render_config.clone(),
             swapchain.get_image_size(),
             ids.as_ref(),
-            swapchain.get_image_format().format,
             ObjectSet::new(swapchain.clone()),
+            swapchain.get_image_format().format,
             vk::ImageLayout::PRESENT_SRC_KHR
         );
 
@@ -346,7 +348,8 @@ impl MainWindowSwapchain {
             sync_next_index: AtomicUsize::new(0),
             sync_objects,
             swapchain_images,
-            emulator_configuration
+            emulator_render_config,
+            emulator_output_config
         }
     }
 

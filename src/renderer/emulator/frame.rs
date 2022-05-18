@@ -2,7 +2,7 @@ use std::sync::{Arc, Mutex};
 use std::sync::atomic::{AtomicU64, Ordering};
 use ash::vk;
 use crate::renderer::emulator::buffer::{BufferAllocation, BufferSubAllocator};
-use crate::renderer::emulator::EmulatorRenderer;
+use crate::renderer::emulator::{EmulatorRenderer, RenderConfiguration};
 use crate::renderer::emulator::pipeline::PipelineId;
 use crate::renderer::emulator::render_worker::DrawTask;
 use crate::device::transfer::{BufferAvailabilityOp, BufferTransferRanges};
@@ -21,63 +21,9 @@ impl FrameId {
     }
 }
 
-pub(super) struct FrameManager {
-    current_frame_id: AtomicU64,
-    last_submitted_id: AtomicU64,
-    last_completed_id: AtomicU64,
-}
-
-/// Tracks global frame state.
-impl FrameManager {
-    pub(super) fn new() -> Self {
-        Self {
-            current_frame_id: AtomicU64::new(0u64),
-            last_submitted_id: AtomicU64::new(0u64),
-            last_completed_id: AtomicU64::new(0u64),
-        }
-    }
-
-    /// Validates that there is no active frame and returns the id of the next frame.
-    /// If there is a active frame this function returns None.
-    fn start_frame(&self) -> Option<FrameId> {
-        let last_submitted = self.last_submitted_id.load(Ordering::SeqCst);
-        // No need to load the current id since the last id must be equal to the current one anyways
-        let next_id = last_submitted + 1;
-        let id = self.current_frame_id.compare_exchange(last_submitted, next_id, Ordering::SeqCst, Ordering::SeqCst).ok();
-
-        id.map(|id| FrameId::from_raw(id))
-    }
-
-    /// Marks a frame as submitted
-    fn mark_submitted(&self, id: FrameId) {
-        self.last_submitted_id.store(id.get_raw(), Ordering::SeqCst);
-    }
-
-    /// Marks a frame as completed.
-    /// This will also mark the frame as submitted. This is useful in case a frame is aborted
-    /// before submission.
-    fn mark_completed(&self, id: FrameId) {
-        // If a frame is not submitted it must be the current frame
-        let last = id.get_raw() - 1;
-        self.current_frame_id.compare_exchange(last, id.get_raw(), Ordering::SeqCst, Ordering::SeqCst).unwrap();
-
-        self.last_completed_id.store(id.get_raw(), Ordering::SeqCst);
-    }
-
-    /// Checks if a frame is submitted
-    fn is_submitted(&self, id: FrameId) -> bool {
-        id.get_raw() <= self.last_submitted_id.load(Ordering::SeqCst)
-    }
-
-    /// Checks if a frame is completed
-    fn is_completed(&self, id: FrameId) -> bool {
-        id.get_raw() <= self.last_completed_id.load(Ordering::SeqCst)
-    }
-}
-
 struct FrameShare {
     id: FrameId,
-    renderer: EmulatorRenderer,
+    renderer: Arc<EmulatorRenderer>,
     buffers: BufferSubAllocator,
 }
 
@@ -96,10 +42,6 @@ impl FrameShare {
             pipeline: object.pipeline
         };
         self.renderer.worker.draw(self.id, draw_task);
-    }
-
-    pub fn end_frame(&self) {
-        todo!()
     }
 
     fn push_data(&mut self, data: &[u8], alignment: u32) -> BufferAllocation {
@@ -157,13 +99,25 @@ impl FrameShare {
     }
 }
 
-struct Frame {
-    share: Arc<Mutex<FrameShare>>,
-}
-
 struct ObjectData<'a> {
     vertex_data: &'a [u8],
     index_data: &'a [u8],
     pipeline: PipelineId,
     draw_count: u32,
+}
+
+pub struct Frame {
+    id: FrameId,
+    renderer: Arc<EmulatorRenderer>,
+    configuration: Arc<RenderConfiguration>,
+}
+
+impl Frame {
+    pub(super) fn new(id: FrameId, renderer: Arc<EmulatorRenderer>, configuration: Arc<RenderConfiguration>) -> Self {
+        Self {
+            id,
+            renderer,
+            configuration,
+        }
+    }
 }
