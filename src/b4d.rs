@@ -125,18 +125,15 @@ impl MainWindow {
         }
 
         if let Some(new_size) = new_size {
-            let mut elapsed = self.last_rebuild.elapsed();
-            while elapsed.as_millis() < 100 {
-                // While were waiting we can at least destroy the old swapchains
+            if self.last_rebuild.elapsed().as_millis() < 100 {
+                // While were waiting we can at least destroy any old swapchains
                 self.process_old_swapchains(device);
-                elapsed = self.last_rebuild.elapsed();
-                if elapsed.as_millis() < 100 {
-                    break;
-                }
 
-                let diff = std::time::Duration::from_millis(100) - elapsed;
-                std::thread::sleep(diff);
-                elapsed = self.last_rebuild.elapsed();
+                let elapsed = self.last_rebuild.elapsed();
+                if elapsed.as_millis() < 100 {
+                    let diff = std::time::Duration::from_millis(100) - elapsed;
+                    std::thread::sleep(diff);
+                }
             }
 
             let config = SwapchainConfig {
