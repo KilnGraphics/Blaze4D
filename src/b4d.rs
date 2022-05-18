@@ -1,8 +1,9 @@
 use std::collections::VecDeque;
 use std::ffi::CString;
 use std::sync::{Arc, Mutex, Weak};
-use std::sync::atomic::{AtomicUsize, Ordering};
+use std::sync::atomic::{AtomicU64, AtomicUsize, Ordering};
 use std::time::Instant;
+use ash::prelude::VkResult;
 
 use ash::vk;
 use nalgebra::clamp;
@@ -11,7 +12,7 @@ use vk_profiles_rs::vp;
 use crate::device::device::VkQueue;
 
 use crate::glfw_surface::GLFWSurfaceProvider;
-use crate::renderer::emulator::{EmulatorRenderer, OutputConfiguration, RenderConfiguration};
+use crate::renderer::emulator::{EmulatorRenderer, OutputConfiguration, RenderConfiguration, RenderPath};
 use crate::instance::debug_messenger::RustLogDebugMessenger;
 use crate::device::init::{create_device, DeviceCreateConfig};
 use crate::device::surface::{DeviceSurface, SurfaceSwapchain, SwapchainConfig};
@@ -21,11 +22,13 @@ use crate::objects::{ObjectSet, ObjectSetProvider};
 use crate::vk::objects::surface::{SurfaceProvider};
 
 use crate::prelude::*;
+use crate::renderer::emulator::frame::Frame;
 
 pub struct Blaze4D {
     instance: Arc<InstanceContext>,
     device: DeviceEnvironment,
     emulator: Arc<EmulatorRenderer>,
+    emulator_path: Arc<RenderPath>,
     main_window: Mutex<MainWindow>,
 
     tmp_queue: VkQueue,
@@ -63,6 +66,7 @@ impl Blaze4D {
         }).unwrap();
 
         let emulator = EmulatorRenderer::new(device.clone());
+        let emulator_path = emulator.crate_test_render_path();
 
         let main_window = Mutex::new(MainWindow::new(main_surface));
 
@@ -91,6 +95,7 @@ impl Blaze4D {
             instance,
             device,
             emulator,
+            emulator_path,
             main_window,
 
             tmp_queue: queue,
@@ -108,11 +113,11 @@ impl Blaze4D {
         // systems require polling from the application so we cant just lock here forever.
         match guard.try_acquire_next_image() {
             None => {
-                guard.try_build_swapchain(self.device.get_device(), &self.emulator, size_cb())?;
+                guard.try_build_swapchain(self.device.get_device(), &self.emulator_path, size_cb())?;
             }
             Some((image, suboptimal)) => {
                 if suboptimal {
-                    guard.try_build_swapchain(self.device.get_device(), &self.emulator, size_cb())?;
+                    guard.try_build_swapchain(self.device.get_device(), &self.emulator_path, size_cb())?;
                 } else {
                     return Some(image);
                 }
@@ -120,6 +125,31 @@ impl Blaze4D {
         }
 
         Some(guard.try_acquire_next_image()?.0)
+    }
+
+    pub fn try_start_frame<T: Fn() -> Option<Vec2u32>>(&self, size_cb: T) -> Option<Frame> {
+        let image = self.try_acquire_next_image(size_cb)?;
+        let frame = self.emulator.start_frame(image.swapchain.emulator_render_config.clone());
+        let queue = self.device.get_device().get_main_queue();
+
+        frame.add_output(image.swapchain.emulator_output_config.clone(), image.image_index as usize);
+        frame.add_signal_op(image.ready_semaphore, Some(image.ready_value));
+        frame.add_post_fn(Box::new(move || {
+            let guard = image.swapchain.swapchain.get_swapchain().lock().unwrap();
+            let swapchain = *guard;
+            let present_info = vk::PresentInfoKHR::builder()
+                .wait_semaphores(std::slice::from_ref(&image.present_semaphore))
+                .swapchains(std::slice::from_ref(&swapchain))
+                .image_indices(std::slice::from_ref(&image.image_index));
+            match unsafe {
+                queue.present(&present_info)
+            } {
+                Ok(_) => {}
+                Err(_) => {}
+            }
+        }));
+
+        Some(frame)
     }
 
     pub fn tmp_present(&self, image: MainWindowImage) {
@@ -176,14 +206,21 @@ impl Blaze4D {
         }.unwrap();
 
         let stage_mask = vk::PipelineStageFlags::ALL_COMMANDS;
+
+        let signal_values = [0u64, image.ready_value];
+        let mut timeline_info = vk::TimelineSemaphoreSubmitInfo::builder()
+            .signal_semaphore_values(&signal_values);
+
+        let signal_semaphores = [image.present_semaphore, image.ready_semaphore];
         let submit_info = vk::SubmitInfo::builder()
             .wait_semaphores(std::slice::from_ref(&image.acquire_semaphore))
             .wait_dst_stage_mask(std::slice::from_ref(&stage_mask))
             .command_buffers(std::slice::from_ref(&cmd))
-            .signal_semaphores(std::slice::from_ref(&image.present_semaphore));
+            .signal_semaphores(&signal_semaphores)
+            .push_next(&mut timeline_info);
 
         unsafe {
-            self.tmp_queue.submit(std::slice::from_ref(&submit_info), Some(image.acquire_fence))
+            self.tmp_queue.submit(std::slice::from_ref(&submit_info), None)
         }.unwrap();
 
         let swapchain_guard = image.swapchain.swapchain.get_swapchain().lock().unwrap();
@@ -232,7 +269,7 @@ impl MainWindow {
     ///
     /// Returns [`Some`] if a new swapchain has been created or [`None`] if no current swapchain
     /// exists.
-    fn try_build_swapchain(&mut self, device: &Arc<DeviceContext>, emulator: &EmulatorRenderer, new_size: Option<Vec2u32>) -> Option<()> {
+    fn try_build_swapchain(&mut self, device: &Arc<DeviceContext>, render_path: &Arc<RenderPath>, new_size: Option<Vec2u32>) -> Option<()> {
         log::error!("Rebuilding swapchain");
         if let Some(old) = self.current_swapchain.take() {
             self.old_swapchains.push((None, old));
@@ -262,7 +299,7 @@ impl MainWindow {
 
             let new_swapchain = self.surface.create_swapchain(&config, new_size).ok()?;
             let new_swapchain = Arc::new_cyclic(|weak| {
-                MainWindowSwapchain::new(weak.clone(), device.clone(), new_swapchain, emulator)
+                MainWindowSwapchain::new(weak.clone(), device.clone(), new_swapchain, render_path)
             });
 
             self.current_swapchain = Some(new_swapchain);
@@ -322,7 +359,7 @@ struct MainWindowSwapchain {
 }
 
 impl MainWindowSwapchain {
-    fn new(weak: Weak<MainWindowSwapchain>, device: Arc<DeviceContext>, swapchain: Arc<SurfaceSwapchain>, emulator: &EmulatorRenderer) -> Self {
+    fn new(weak: Weak<MainWindowSwapchain>, device: Arc<DeviceContext>, swapchain: Arc<SurfaceSwapchain>, render_path: &Arc<RenderPath>) -> Self {
         let swapchain_images: Box<_> = swapchain.get_images().iter().map(|(_, image)| {
             ImageObjects::new(&device, *image)
         }).collect();
@@ -331,15 +368,15 @@ impl MainWindowSwapchain {
 
         let ids: Box<_> = swapchain.get_images().iter().map(|(id, _)| *id).collect();
 
-        let emulator_render_config = emulator.create_render_configuration(swapchain.get_image_size());
-        let emulator_output_config = emulator.create_output_configuration(
+        let emulator_render_config = Arc::new(RenderConfiguration::new(render_path.clone(), swapchain.get_image_size(), 2));
+        let emulator_output_config = Arc::new(OutputConfiguration::new(
             emulator_render_config.clone(),
             swapchain.get_image_size(),
             ids.as_ref(),
             ObjectSet::new(swapchain.clone()),
             swapchain.get_image_format().format,
             vk::ImageLayout::PRESENT_SRC_KHR
-        );
+        ));
 
         Self {
             weak,
@@ -356,22 +393,16 @@ impl MainWindowSwapchain {
     fn acquire_next_image(&self) -> Option<(MainWindowImage, bool)> {
         let sync = &self.sync_objects[self.get_next_sync()];
 
-        let fences = std::slice::from_ref(&sync.acquire_fence);
-        unsafe {
-            self.device.vk().wait_for_fences(fences, true, u64::MAX)
-        }.unwrap();
-
-        unsafe {
-            self.device.vk().reset_fences(fences)
-        }.unwrap();
+        let (ready_semaphore, ready_value) = sync.wait_and_get(&self.device);
 
         match self.swapchain.acquire_next_image(u64::MAX, Some(sync.acquire_semaphore), None) {
             Ok((index, suboptimal)) => {
                 let image_objects = &self.swapchain_images[index as usize];
                 Some((MainWindowImage {
                     swapchain: self.weak.upgrade().unwrap(),
+                    ready_semaphore,
+                    ready_value,
                     acquire_semaphore: sync.acquire_semaphore,
-                    acquire_fence: sync.acquire_fence,
                     present_semaphore: image_objects.present_semaphore,
                     image: image_objects.image,
                     image_index: index,
@@ -409,28 +440,45 @@ impl Drop for MainWindowSwapchain {
 
 struct SyncObjects {
     acquire_semaphore: vk::Semaphore,
-    acquire_fence: vk::Fence,
+    ready_semaphore: vk::Semaphore,
+    ready_semaphore_value: AtomicU64,
 }
 
 impl SyncObjects {
     fn new(device: &DeviceContext) -> Self {
-        let fence_info = vk::FenceCreateInfo::builder()
-            .flags(vk::FenceCreateFlags::SIGNALED);
+        let binary_info = vk::SemaphoreCreateInfo::builder();
 
-        let semaphore_info = vk::SemaphoreCreateInfo::builder();
+        let mut timeline = vk::SemaphoreTypeCreateInfo::builder()
+            .semaphore_type(vk::SemaphoreType::TIMELINE)
+            .initial_value(0);
+        let timeline_info = vk::SemaphoreCreateInfo::builder()
+            .push_next(&mut timeline);
 
         unsafe {
             Self {
-                acquire_semaphore: device.vk().create_semaphore(&semaphore_info, None).unwrap(),
-                acquire_fence: device.vk().create_fence(&fence_info, None).unwrap(),
+                acquire_semaphore: device.vk().create_semaphore(&binary_info, None).unwrap(),
+                ready_semaphore: device.vk().create_semaphore(&timeline_info, None).unwrap(),
+                ready_semaphore_value: AtomicU64::new(0),
             }
         }
+    }
+
+    fn wait_and_get(&self, device: &DeviceContext) -> (vk::Semaphore, u64) {
+        let old = self.ready_semaphore_value.fetch_add(1, Ordering::SeqCst);
+        let wait_info = vk::SemaphoreWaitInfo::builder()
+            .semaphores(std::slice::from_ref(&self.ready_semaphore))
+            .values(std::slice::from_ref(&old));
+        unsafe {
+            device.vk().wait_semaphores(&wait_info, u64::MAX)
+        }.unwrap();
+
+        (self.ready_semaphore, old + 1)
     }
 
     fn destroy(&mut self, device: &DeviceContext) {
         unsafe {
             device.vk().destroy_semaphore(self.acquire_semaphore, None);
-            device.vk().destroy_fence(self.acquire_fence, None);
+            device.vk().destroy_semaphore(self.ready_semaphore, None);
         }
     }
 }
@@ -464,8 +512,9 @@ impl ImageObjects {
 
 pub struct MainWindowImage {
     swapchain: Arc<MainWindowSwapchain>,
+    ready_semaphore: vk::Semaphore,
+    ready_value: u64,
     acquire_semaphore: vk::Semaphore,
-    acquire_fence: vk::Fence,
     present_semaphore: vk::Semaphore,
     image: vk::Image,
     image_index: u32,

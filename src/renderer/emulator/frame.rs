@@ -1,10 +1,10 @@
 use std::sync::{Arc, Mutex};
 use std::sync::atomic::{AtomicU64, Ordering};
 use ash::vk;
+use json::object;
 use crate::renderer::emulator::buffer::{BufferAllocation, BufferSubAllocator};
-use crate::renderer::emulator::{EmulatorRenderer, RenderConfiguration};
-use crate::renderer::emulator::pipeline::PipelineId;
-use crate::renderer::emulator::render_worker::DrawTask;
+use crate::renderer::emulator::{EmulatorRenderer, OutputConfiguration, RenderConfiguration};
+use crate::renderer::emulator::worker::DrawTask;
 use crate::device::transfer::{BufferAvailabilityOp, BufferTransferRanges};
 use crate::vk::objects::semaphore::SemaphoreOps;
 
@@ -29,7 +29,7 @@ struct FrameShare {
 
 impl FrameShare {
     pub fn record_object(&mut self, object: &ObjectData) {
-        let vertex_size = self.get_pipeline_vertex_size(object.pipeline);
+        let vertex_size = self.get_pipeline_vertex_size();
         let vertex_buffer = self.push_data(object.vertex_data, vertex_size);
         let index_buffer = self.push_data(object.index_data, 4);
 
@@ -39,7 +39,6 @@ impl FrameShare {
             first_vertex: (vertex_buffer.offset / (vertex_size as usize)) as u32,
             first_index: (index_buffer.offset / 4usize) as u32,
             vertex_count: object.draw_count,
-            pipeline: object.pipeline
         };
         self.renderer.worker.draw(self.id, draw_task);
     }
@@ -66,7 +65,7 @@ impl FrameShare {
         alloc
     }
 
-    fn get_pipeline_vertex_size(&self, pipeline: PipelineId) -> u32 {
+    fn get_pipeline_vertex_size(&self) -> u32 {
         todo!()
     }
 
@@ -102,7 +101,6 @@ impl FrameShare {
 struct ObjectData<'a> {
     vertex_data: &'a [u8],
     index_data: &'a [u8],
-    pipeline: PipelineId,
     draw_count: u32,
 }
 
@@ -114,10 +112,24 @@ pub struct Frame {
 
 impl Frame {
     pub(super) fn new(id: FrameId, renderer: Arc<EmulatorRenderer>, configuration: Arc<RenderConfiguration>) -> Self {
+        renderer.worker.start_frame(id, configuration.clone());
+
         Self {
             id,
             renderer,
             configuration,
         }
+    }
+
+    pub fn add_output(&self, output: Arc<OutputConfiguration>, dst_image_index: usize) {
+        self.renderer.worker.add_output(self.id, output, dst_image_index);
+    }
+
+    pub fn add_signal_op(&self, semaphore: vk::Semaphore, value: Option<u64>) {
+        self.renderer.worker.add_signal_op(self.id, semaphore, value);
+    }
+
+    pub fn add_post_fn(&self, func: Box<dyn FnOnce() + Send + Sync>) {
+        self.renderer.worker.add_post_fn(self.id, func);
     }
 }
