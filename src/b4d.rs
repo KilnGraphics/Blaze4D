@@ -5,18 +5,19 @@ use std::sync::atomic::{AtomicUsize, Ordering};
 use std::time::Instant;
 
 use ash::vk;
+use nalgebra::clamp;
 
 use vk_profiles_rs::vp;
 use crate::device::device::VkQueue;
 
 use crate::glfw_surface::GLFWSurfaceProvider;
-use crate::renderer::emulator::EmulatorRenderer;
+use crate::renderer::emulator::{EmulatorConfiguration, EmulatorRenderer};
 use crate::instance::debug_messenger::RustLogDebugMessenger;
 use crate::device::init::{create_device, DeviceCreateConfig};
 use crate::device::surface::{DeviceSurface, SurfaceSwapchain, SwapchainConfig};
 use crate::instance::init::{create_instance, InstanceCreateConfig};
 use crate::instance::instance::VulkanVersion;
-use crate::objects::ObjectSetProvider;
+use crate::objects::{ObjectSet, ObjectSetProvider};
 use crate::vk::objects::surface::{SurfaceProvider};
 
 use crate::prelude::*;
@@ -107,11 +108,11 @@ impl Blaze4D {
         // systems require polling from the application so we cant just lock here forever.
         match guard.try_acquire_next_image() {
             None => {
-                guard.try_build_swapchain(self.device.get_device(), size_cb())?;
+                guard.try_build_swapchain(self.device.get_device(), &self.emulator, size_cb())?;
             }
             Some((image, suboptimal)) => {
                 if suboptimal {
-                    guard.try_build_swapchain(self.device.get_device(), size_cb())?;
+                    guard.try_build_swapchain(self.device.get_device(), &self.emulator, size_cb())?;
                 } else {
                     return Some(image);
                 }
@@ -231,7 +232,7 @@ impl MainWindow {
     ///
     /// Returns [`Some`] if a new swapchain has been created or [`None`] if no current swapchain
     /// exists.
-    fn try_build_swapchain(&mut self, device: &Arc<DeviceContext>, new_size: Option<Vec2u32>) -> Option<()> {
+    fn try_build_swapchain(&mut self, device: &Arc<DeviceContext>, emulator: &EmulatorRenderer, new_size: Option<Vec2u32>) -> Option<()> {
         log::error!("Rebuilding swapchain");
         if let Some(old) = self.current_swapchain.take() {
             self.old_swapchains.push((None, old));
@@ -261,7 +262,7 @@ impl MainWindow {
 
             let new_swapchain = self.surface.create_swapchain(&config, new_size).ok()?;
             let new_swapchain = Arc::new_cyclic(|weak| {
-                MainWindowSwapchain::new(weak.clone(), device.clone(), new_swapchain)
+                MainWindowSwapchain::new(weak.clone(), device.clone(), new_swapchain, emulator)
             });
 
             self.current_swapchain = Some(new_swapchain);
@@ -316,15 +317,27 @@ struct MainWindowSwapchain {
     sync_next_index: AtomicUsize,
     sync_objects: Box<[SyncObjects]>,
     swapchain_images: Box<[ImageObjects]>,
+    emulator_configuration: Arc<EmulatorConfiguration>,
 }
 
 impl MainWindowSwapchain {
-    fn new(weak: Weak<MainWindowSwapchain>, device: Arc<DeviceContext>, swapchain: Arc<SurfaceSwapchain>) -> Self {
+    fn new(weak: Weak<MainWindowSwapchain>, device: Arc<DeviceContext>, swapchain: Arc<SurfaceSwapchain>, emulator: &EmulatorRenderer) -> Self {
         let swapchain_images: Box<_> = swapchain.get_images().iter().map(|(_, image)| {
             ImageObjects::new(&device, *image)
         }).collect();
 
         let sync_objects: Box<_> = (0..4).map(|_| SyncObjects::new(&device)).collect();
+
+        let ids: Box<_> = swapchain.get_images().iter().map(|(id, _)| *id).collect();
+
+        let emulator_configuration = emulator.configure(
+            swapchain.get_image_size(),
+            swapchain.get_image_size(),
+            ids.as_ref(),
+            swapchain.get_image_format().format,
+            ObjectSet::new(swapchain.clone()),
+            vk::ImageLayout::PRESENT_SRC_KHR
+        );
 
         Self {
             weak,
@@ -332,7 +345,8 @@ impl MainWindowSwapchain {
             swapchain,
             sync_next_index: AtomicUsize::new(0),
             sync_objects,
-            swapchain_images
+            swapchain_images,
+            emulator_configuration
         }
     }
 

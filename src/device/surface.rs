@@ -142,7 +142,9 @@ impl DeviceSurface {
             color_space: info.image_color_space,
         };
 
-        let new_swapchain = Arc::new(SurfaceSwapchain::new(self.weak.upgrade().unwrap(), new_swapchain, images.as_slice(), format, info.image_usage));
+        let size = Vec2u32::new(info.image_extent.width, info.image_extent.height);
+
+        let new_swapchain = Arc::new(SurfaceSwapchain::new(self.weak.upgrade().unwrap(), new_swapchain, images.as_slice(), size, format, info.image_usage));
         guard.set_current(&new_swapchain);
         drop(guard);
 
@@ -336,12 +338,13 @@ pub struct SurfaceSwapchain {
     swapchain: Mutex<vk::SwapchainKHR>,
     images: Box<[(ImageId, vk::Image)]>,
 
+    size: Vec2u32,
     format: vk::SurfaceFormatKHR,
     usage: vk::ImageUsageFlags,
 }
 
 impl SurfaceSwapchain {
-    fn new(surface: Arc<DeviceSurface>, swapchain: vk::SwapchainKHR, images: &[vk::Image], format: vk::SurfaceFormatKHR, usage: vk::ImageUsageFlags) -> Self {
+    fn new(surface: Arc<DeviceSurface>, swapchain: vk::SwapchainKHR, images: &[vk::Image], size: Vec2u32, format: vk::SurfaceFormatKHR, usage: vk::ImageUsageFlags) -> Self {
         let mut image_data = Vec::with_capacity(images.len());
         for image in images {
             image_data.push((ImageId::new(), *image));
@@ -353,6 +356,7 @@ impl SurfaceSwapchain {
             swapchain: Mutex::new(swapchain),
             images: image_data.into_boxed_slice(),
 
+            size,
             format,
             usage
         }
@@ -373,6 +377,11 @@ impl SurfaceSwapchain {
     /// Returns all swpachain images and their ids.
     pub fn get_images(&self) -> &[(ImageId, vk::Image)] {
         self.images.as_ref()
+    }
+
+    /// Returns the size of the images.
+    pub fn get_image_size(&self) -> Vec2u32 {
+        self.size
     }
 
     /// Returns the format of the swapchain images

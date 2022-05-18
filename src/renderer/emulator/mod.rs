@@ -5,7 +5,7 @@ mod render_worker;
 
 use std::iter::repeat_with;
 use std::ops::DerefMut;
-use std::sync::{Arc, Mutex, MutexGuard};
+use std::sync::{Arc, Mutex, MutexGuard, Weak};
 use std::sync::atomic::{AtomicU64, Ordering};
 use ash::vk;
 use concurrent_queue::ConcurrentQueue;
@@ -25,36 +25,49 @@ use crate::vk::DeviceEnvironment;
 use crate::vk::objects::allocator::{Allocation, AllocationStrategy};
 
 pub(crate) struct EmulatorRenderer {
+    weak: Weak<EmulatorRenderer>,
     device: DeviceEnvironment,
     worker: Arc<Share>,
     frame_manager: FrameManager,
     buffer_pool: Mutex<BufferPool>,
     pipelines: PipelineManager,
-    current_config: Mutex<Option<Arc<StableObjects>>>,
 }
 
 impl EmulatorRenderer {
     pub(crate) fn new(device: DeviceEnvironment) -> Arc<Self> {
-        Arc::new(Self {
-            device: device.clone(),
-            worker: Arc::new(Share::new(device.clone())),
-            frame_manager: FrameManager::new(),
-            buffer_pool: Mutex::new(BufferPool::new(device.clone())),
-            pipelines: PipelineManager::new(device),
-            current_config: Mutex::new(None),
+        Arc::new_cyclic(|weak| {
+            Self {
+                weak: weak.clone(),
+                device: device.clone(),
+                worker: Arc::new(Share::new(device.clone())),
+                frame_manager: FrameManager::new(),
+                buffer_pool: Mutex::new(BufferPool::new(device.clone())),
+                pipelines: PipelineManager::new(device),
+            }
         })
     }
 
-    pub fn configure_framebuffer(&self, render_size: Vec2u32, output_size: Vec2u32, output_images: &[ImageId], output_format: vk::Format, image_set: ObjectSet, post_layout: vk::ImageLayout) {
-        let objects = StableObjects::new(self.device.clone(), 3, render_size, self.pipelines.get_render_pass(), output_size, output_images, output_format, post_layout, image_set);
+    pub fn configure(
+        &self,
+        render_size: Vec2u32,
+        output_size: Vec2u32,
+        output_images: &[ImageId],
+        output_format: vk::Format,
+        image_set: ObjectSet,
+        post_layout: vk::ImageLayout
+    ) -> Arc<EmulatorConfiguration> {
 
-        let mut guard = self.current_config.lock().unwrap();
-        *guard = Some(Arc::new(objects));
-    }
-
-    pub fn reset_framebuffer(&self) {
-        let mut guard = self.current_config.lock().unwrap();
-        *guard = None;
+        Arc::new(EmulatorConfiguration::new(
+            self.weak.upgrade().unwrap(),
+            3,
+            render_size,
+            self.pipelines.get_render_pass(),
+            output_size,
+            output_images,
+            output_format,
+            post_layout,
+            image_set
+        ))
     }
 
     fn register_pipeline(&self) -> PipelineId {
@@ -66,7 +79,8 @@ impl EmulatorRenderer {
     }
 }
 
-struct StableObjects {
+pub struct EmulatorConfiguration {
+    renderer: Arc<EmulatorRenderer>,
     device: DeviceEnvironment,
     descriptor_pool: vk::DescriptorPool,
     frame_objects: Box<[StableFrameObjects]>,
@@ -78,8 +92,10 @@ struct StableObjects {
     output_image_set: ObjectSet,
 }
 
-impl StableObjects {
-    fn new(device: DeviceEnvironment, frame_count: usize, render_size: Vec2u32, render_pass: vk::RenderPass, output_size: Vec2u32, output_images: &[ImageId], output_format: vk::Format, output_layout: vk::ImageLayout, image_set: ObjectSet) -> Self {
+impl EmulatorConfiguration {
+    fn new(renderer: Arc<EmulatorRenderer>, frame_count: usize, render_size: Vec2u32, render_pass: vk::RenderPass, output_size: Vec2u32, output_images: &[ImageId], output_format: vk::Format, output_layout: vk::ImageLayout, image_set: ObjectSet) -> Self {
+        let device = renderer.device.clone();
+
         let blit_pass = device.get_utils().blit_utils().create_blit_pass(output_format, vk::AttachmentLoadOp::DONT_CARE, vk::ImageLayout::UNDEFINED, output_layout);
         let descriptor_pool = Self::create_descriptor_pool(&device, frame_count);
 
@@ -89,6 +105,7 @@ impl StableObjects {
         let output_framebuffers = Self::create_output_framebuffers(&blit_pass, output_views.as_ref(), output_size).into_boxed_slice();
 
         Self {
+            renderer,
             device,
             descriptor_pool,
             frame_objects,
@@ -158,6 +175,23 @@ impl StableObjects {
     }
 }
 
+impl Drop for EmulatorConfiguration {
+    fn drop(&mut self) {
+        unsafe {
+            for framebuffer in self.output_framebuffers.iter() {
+                self.device.vk().destroy_framebuffer(*framebuffer, None);
+            }
+            for view in self.output_views.iter() {
+                self.device.vk().destroy_image_view(*view, None);
+            }
+            self.device.vk().destroy_descriptor_pool(self.descriptor_pool, None);
+        }
+        for frame in self.frame_objects.iter_mut() {
+            frame.destroy(&self.device)
+        }
+    }
+}
+
 struct StableFrameObjects {
     color_image: vk::Image,
     color_view: vk::ImageView,
@@ -166,8 +200,8 @@ struct StableFrameObjects {
     framebuffer: vk::Framebuffer,
     blit_descriptor_set: vk::DescriptorSet,
     wait_fence: vk::Fence,
-    color_alloc: Allocation,
-    depth_stencil_alloc: Allocation,
+    color_alloc: Option<Allocation>,
+    depth_stencil_alloc: Option<Allocation>,
 }
 
 impl StableFrameObjects {
@@ -194,13 +228,24 @@ impl StableFrameObjects {
             framebuffer,
             blit_descriptor_set,
             wait_fence,
-            color_alloc,
-            depth_stencil_alloc
+            color_alloc: Some(color_alloc),
+            depth_stencil_alloc: Some(depth_stencil_alloc),
         }
     }
 
-    fn destroy(&self, device: &DeviceEnvironment) {
-        todo!()
+    fn destroy(&mut self, device: &DeviceEnvironment) {
+        unsafe {
+            // Descriptors are freed by destroying the pool
+            device.vk().destroy_fence(self.wait_fence, None);
+            device.vk().destroy_framebuffer(self.framebuffer, None);
+            device.vk().destroy_image_view(self.depth_stencil_view, None);
+            device.vk().destroy_image(self.depth_stencil_image, None);
+            device.vk().destroy_image_view(self.color_view, None);
+            device.vk().destroy_image(self.color_image, None);
+        }
+
+        device.get_allocator().free(self.depth_stencil_alloc.take().unwrap());
+        device.get_allocator().free(self.color_alloc.take().unwrap());
     }
 
     pub fn get_framebuffer(&self) -> vk::Framebuffer {

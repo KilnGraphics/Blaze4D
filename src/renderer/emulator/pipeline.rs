@@ -86,7 +86,7 @@ impl PipelineManager {
                 .final_layout(vk::ImageLayout::TRANSFER_SRC_OPTIMAL)
                 .build(),
             vk::AttachmentDescription::builder()
-                .format(vk::Format::D24_UNORM_S8_UINT)
+                .format(vk::Format::D16_UNORM)
                 .samples(vk::SampleCountFlags::TYPE_1)
                 .load_op(vk::AttachmentLoadOp::CLEAR)
                 .store_op(vk::AttachmentStoreOp::STORE)

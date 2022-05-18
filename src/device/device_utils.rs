@@ -132,7 +132,12 @@ impl BlitUtils {
             .polygon_mode(vk::PolygonMode::FILL)
             .cull_mode(vk::CullModeFlags::NONE)
             .front_face(vk::FrontFace::CLOCKWISE)
-            .depth_bias_enable(false);
+            .depth_bias_enable(false)
+            .line_width(1.0);
+
+        let multisample_state = vk::PipelineMultisampleStateCreateInfo::builder()
+            .rasterization_samples(vk::SampleCountFlags::TYPE_1)
+            .sample_shading_enable(false);
 
         let depth_stencil_state = vk::PipelineDepthStencilStateCreateInfo::builder()
             .depth_test_enable(false)
@@ -160,6 +165,7 @@ impl BlitUtils {
             .input_assembly_state(&input_assembly)
             .viewport_state(&viewport)
             .rasterization_state(&rasterization_state)
+            .multisample_state(&multisample_state)
             .depth_stencil_state(&depth_stencil_state)
             .color_blend_state(&color_blend)
             .dynamic_state(&dynamic_state)
