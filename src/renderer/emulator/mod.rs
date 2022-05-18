@@ -14,7 +14,6 @@ use crate::renderer::emulator::buffer::{BufferAllocation, BufferPool, BufferSubA
 use crate::renderer::emulator::frame::FrameManager;
 use crate::renderer::emulator::pipeline::{Pipeline, PipelineId, PipelineManager};
 use crate::renderer::emulator::render_worker::{DrawTask, Share};
-use crate::renderer::swapchain_manager::SwapchainInstance;
 use crate::device::transfer::{BufferAvailabilityOp, BufferTransferRanges, Transfer};
 use crate::objects::id::ImageId;
 use crate::objects::{ObjectSet, ObjectSetProvider};

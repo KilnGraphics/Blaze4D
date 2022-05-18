@@ -1,13 +1,19 @@
 use std::collections::{HashMap, HashSet};
 use std::ffi::{CStr, CString};
 use std::sync::Arc;
+
 use ash::vk;
 use ash::vk::PhysicalDeviceType;
+
 use vk_profiles_rs::vp;
+
 use crate::device::device::{DeviceEnvironment, VkQueueTemplate};
+use crate::device::surface::DeviceSurface;
 use crate::instance::instance::InstanceContext;
-use crate::prelude::DeviceContext;
-use crate::vk::objects::surface::{SurfaceId, SurfaceProvider};
+use crate::objects::id::SurfaceId;
+use crate::vk::objects::surface::SurfaceProvider;
+
+use crate::prelude::*;
 
 pub type DeviceRatingFn = dyn Fn(&InstanceContext, vk::PhysicalDevice) -> Option<f32>;
 
@@ -64,7 +70,7 @@ impl From<vk::Result> for DeviceCreateError {
     }
 }
 
-pub fn create_device(config: DeviceCreateConfig, instance: Arc<InstanceContext>) -> Result<DeviceEnvironment, DeviceCreateError> {
+pub fn create_device(config: DeviceCreateConfig, instance: Arc<InstanceContext>) -> Result<(DeviceEnvironment, Vec<(SurfaceId, Arc<DeviceSurface>)>), DeviceCreateError> {
     let vk_vp = vk_profiles_rs::VulkanProfiles::linked();
 
     let mut surfaces = Vec::with_capacity(config.surfaces.len());
@@ -125,31 +131,33 @@ pub fn create_device(config: DeviceCreateConfig, instance: Arc<InstanceContext>)
     let main_queue = queue_map.get_queue(selected_device.queues.main_queue);
     let transfer_queue = queue_map.get_queue(selected_device.queues.transfer_queue);
 
-
-    let mut surfaces: HashMap<_, _> = surfaces.into_iter().collect();
-    let mut out_surfaces = HashMap::new();
-    for surface_config in selected_device.surfaces {
-        let surface = surfaces.remove(&surface_config.id).unwrap();
-
-        out_surfaces.insert(surface_config.id, (surface, surface_config.present_supported));
-    }
-
     let swapchain_khr = if has_swapchain {
         Some(ash::extensions::khr::Swapchain::new(instance.vk(), &device))
     } else {
         None
     };
 
-
-    Ok(DeviceEnvironment::new(DeviceContext::new(
+    let context = DeviceContext::new(
         instance,
         device,
         selected_device.device,
         swapchain_khr,
         main_queue,
-        transfer_queue,
-        out_surfaces
-    )))
+        transfer_queue
+    );
+
+    let mut surface_map: HashMap<_, _> = surfaces.into_iter().collect();
+    let surfaces = selected_device.surfaces.into_iter().map(|config| {
+        let provider = surface_map.remove(&config.id).unwrap();
+        (config.id, Arc::new_cyclic(|weak| DeviceSurface::new(
+            context.clone(),
+            provider,
+            weak.clone(),
+                config.present_supported,
+        )))
+    }).collect();
+
+    Ok((DeviceEnvironment::new(context), surfaces))
 }
 
 fn filter_devices(

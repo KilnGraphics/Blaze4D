@@ -3,7 +3,6 @@
 use std::collections::HashMap;
 use std::ffi::CStr;
 use std::io::Write;
-use std::ops::Deref;
 use std::sync::Mutex;
 use ash::vk;
 use crate::debug::text::{CharacterVertexData, FontData, TextColor, TextGenerator, TextSection, TextStyle};

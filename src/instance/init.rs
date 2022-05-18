@@ -5,8 +5,9 @@ use std::sync::Arc;
 use ash::vk;
 use vk_profiles_rs::vp;
 use crate::instance::instance::{VulkanVersion, InstanceContext};
-use crate::vk::objects::surface::{SurfaceId, SurfaceInitError, SurfaceProvider};
+use crate::vk::objects::surface::{SurfaceInitError, SurfaceProvider};
 use crate::instance::debug_messenger::DebugMessengerCallback;
+use crate::objects::id::SurfaceId;
 
 pub struct InstanceCreateConfig {
     profile: vp::ProfileProperties,

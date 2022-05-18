@@ -1,9 +1,8 @@
 use std::cmp::Ordering;
-use std::fmt::{Debug, Formatter, Pointer};
+use std::fmt::{Debug, Formatter};
 use std::hash::{Hash, Hasher};
 use std::sync::Arc;
 
-use ash::vk;
 use ash::vk::Handle;
 
 use super::id::ObjectId;

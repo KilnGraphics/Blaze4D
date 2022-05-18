@@ -7,7 +7,6 @@ pub mod surface;
 pub mod allocator;
 pub mod object_set;
 pub mod resource_object_set;
-pub mod swapchain_object_set;
 pub mod semaphore;
 
 pub use format::Format;
@@ -25,4 +24,3 @@ pub use image::ImageViewDescription;
 
 pub use object_set::ObjectSet;
 pub use resource_object_set::ResourceObjectSet;
-pub use swapchain_object_set::SwapchainObjectSet;

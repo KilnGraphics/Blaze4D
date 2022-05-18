@@ -27,7 +27,7 @@ pub fn make_headless_instance_device() -> (Arc<InstanceContext>, DeviceEnvironme
     let instance = make_headless_instance();
 
     let config = DeviceCreateConfig::new();
-    let device = create_device(config, instance.clone()).unwrap();
+    let (device, _) = create_device(config, instance.clone()).unwrap();
 
     (instance, device)
 }

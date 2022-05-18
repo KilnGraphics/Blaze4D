@@ -1,6 +1,4 @@
 use std::cmp::Ordering;
-use std::collections::HashMap;
-use std::mem::ManuallyDrop;
 use std::sync::{Arc, Mutex, MutexGuard, Weak};
 use ash::prelude::VkResult;
 
@@ -10,7 +8,6 @@ use crate::device::transfer::Transfer;
 
 use crate::NamedUUID;
 use crate::instance::instance::InstanceContext;
-use crate::vk::objects::surface::{SurfaceId, SurfaceProvider};
 use crate::vk::objects::allocator::Allocator;
 
 pub struct DeviceContext {
@@ -22,7 +19,6 @@ pub struct DeviceContext {
     physical_device: vk::PhysicalDevice,
     main_queue: VkQueueTemplate,
     transfer_queue: VkQueueTemplate,
-    surfaces: ManuallyDrop<HashMap<SurfaceId, DeviceSurface>>,
 }
 
 impl DeviceContext {
@@ -33,17 +29,7 @@ impl DeviceContext {
         swapchain_khr: Option<ash::extensions::khr::Swapchain>,
         main_queue: VkQueueTemplate,
         transfer_queue: VkQueueTemplate,
-        surfaces: HashMap<SurfaceId, (Box<dyn SurfaceProvider>, Box<[bool]>)>,
     ) -> Arc<Self> {
-        let surfaces = surfaces.into_iter().map(|(id, (prov, supported_queues))| {
-            (id, DeviceSurface {
-                handle: prov.get_handle().unwrap(),
-                swapchain_info: Mutex::new(SurfaceSwapchainInfo::None),
-                supported_queues,
-                provider: prov,
-            })
-        }).collect();
-
         Arc::new_cyclic(|weak| Self {
             weak: weak.clone(),
             instance,
@@ -53,7 +39,6 @@ impl DeviceContext {
             physical_device,
             main_queue,
             transfer_queue,
-            surfaces: ManuallyDrop::new(surfaces),
         })
     }
 
@@ -81,31 +66,12 @@ impl DeviceContext {
         &self.physical_device
     }
 
-    pub(crate) fn get_surface(&self, id: SurfaceId) -> Option<(vk::SurfaceKHR, &Mutex<SurfaceSwapchainInfo>)> {
-        self.surfaces.get(&id).map(|s| {
-            (s.handle, &s.swapchain_info)
-        })
-    }
-
-    pub fn get_surface_capabilities(&self, id: SurfaceId) -> Option<vk::SurfaceCapabilitiesKHR> {
-        let (handle, _) = self.get_surface(id)?;
-
-        Some(unsafe { self.instance.surface_khr().unwrap()
-            .get_physical_device_surface_capabilities(self.physical_device, handle) }.unwrap())
-    }
-
     pub fn get_main_queue(&self) -> VkQueue {
         self.main_queue.promote(self.weak.upgrade().unwrap())
     }
 
     pub fn get_transfer_queue(&self) -> VkQueue {
         self.transfer_queue.promote(self.weak.upgrade().unwrap())
-    }
-
-    pub fn get_surface_queue_support(&self, id: SurfaceId, queue: &VkQueue) -> Option<bool> {
-        self.surfaces.get(&id).map(|surface|
-            *surface.supported_queues.get(queue.get_queue_family_index() as usize).unwrap()
-        )
     }
 }
 
@@ -133,8 +99,6 @@ impl Ord for DeviceContext {
 impl Drop for DeviceContext {
     fn drop(&mut self) {
         unsafe {
-            ManuallyDrop::drop(&mut self.surfaces);
-
             self.device.destroy_device(None);
         }
     }
@@ -209,42 +173,6 @@ impl VkQueue {
 
     pub fn get_queue_family_index(&self) -> u32 {
         self.family
-    }
-}
-
-struct DeviceSurface {
-    handle: vk::SurfaceKHR,
-    swapchain_info: Mutex<SurfaceSwapchainInfo>,
-    supported_queues: Box<[bool]>,
-
-    #[allow(unused)] // We just need to keep the provider alive
-    provider: Box<dyn SurfaceProvider>,
-}
-
-/// Contains information about the current non retired swapchain associated with the surface.
-pub(crate) enum SurfaceSwapchainInfo {
-    Some {
-        handle: vk::SwapchainKHR,
-    },
-    None
-}
-
-impl SurfaceSwapchainInfo {
-    pub fn get_current_handle(&self) -> Option<vk::SwapchainKHR> {
-        match self {
-            SurfaceSwapchainInfo::Some { handle, .. } => Some(*handle),
-            SurfaceSwapchainInfo::None => None
-        }
-    }
-
-    pub fn set_swapchain(&mut self, handle: vk::SwapchainKHR) {
-        *self = SurfaceSwapchainInfo::Some {
-            handle
-        };
-    }
-
-    pub fn clear(&mut self) {
-        *self = SurfaceSwapchainInfo::None;
     }
 }
 

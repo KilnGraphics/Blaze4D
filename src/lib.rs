@@ -1,6 +1,10 @@
 #[macro_use]
 extern crate static_assertions;
 
+pub mod device;
+pub mod instance;
+pub mod objects;
+
 pub mod vk;
 pub mod util;
 pub mod b4d;
@@ -14,9 +18,6 @@ mod glfw_surface;
 mod renderer;
 pub mod window;
 
-mod device;
-mod instance;
-mod objects;
 
 pub mod prelude {
     pub use crate::UUID;

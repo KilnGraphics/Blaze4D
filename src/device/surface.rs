@@ -6,7 +6,7 @@ use ash::prelude::VkResult;
 use ash::vk;
 use ash::vk::{Flags, Handle};
 
-use crate::objects::id::{ImageId, ObjectId, SwapchainId};
+use crate::objects::id::{ImageId, ObjectId};
 use crate::objects::ObjectSetProvider;
 use crate::vk::objects::surface::SurfaceProvider;
 
@@ -15,8 +15,10 @@ use crate::prelude::*;
 pub struct DeviceSurface {
     device: Arc<DeviceContext>,
     weak: Weak<DeviceSurface>,
+    #[allow(unused)] // Just here to keep the provider alive
     surface_provider: Box<dyn SurfaceProvider>,
     surface: vk::SurfaceKHR,
+    present_queue_families: Box<[bool]>,
 
     /// The current swapchain info.
     ///
@@ -26,12 +28,13 @@ pub struct DeviceSurface {
 }
 
 impl DeviceSurface {
-    pub(super) fn new(device: Arc<DeviceContext>, surface: Box<dyn SurfaceProvider>, weak: Weak<DeviceSurface>) -> Self {
+    pub(super) fn new(device: Arc<DeviceContext>, surface: Box<dyn SurfaceProvider>, weak: Weak<DeviceSurface>, present_families: Box<[bool]>) -> Self {
         Self {
             device: device.clone(),
             weak,
             surface: surface.get_handle().unwrap(),
             surface_provider: surface,
+            present_queue_families: present_families,
             current_swapchain: Mutex::new(SurfaceSwapchainInfo::new())
         }
     }
@@ -52,6 +55,19 @@ impl DeviceSurface {
         unsafe {
             self.device.get_instance().surface_khr().unwrap().get_physical_device_surface_formats(*self.device.get_physical_device(), self.surface)
         }
+    }
+
+    /// Returns the queue family present support for this surface.
+    ///
+    /// If the n-th entry of the slice is true then queue family n supports presentation to this
+    /// surface.
+    pub fn get_present_support(&self) -> &[bool] {
+        self.present_queue_families.as_ref()
+    }
+
+    /// Returns true if the specified queue family supports presentation to this surface.
+    pub fn is_present_supported(&self, family: u32) -> bool {
+        *self.present_queue_families.get(family as usize).unwrap()
     }
 
     /// Creates a swapchain from a [`SwapchainConfig`].
@@ -342,6 +358,11 @@ impl SurfaceSwapchain {
         }
     }
 
+    /// Returns the surface of this swapchain.
+    pub fn get_surface(&self) -> &Arc<DeviceSurface> {
+        &self.surface
+    }
+
     /// Returns the handle of the swapchain.
     ///
     /// The since the swapchain must be externally synchronized a mutex is returned for the swapchain.
@@ -349,7 +370,7 @@ impl SurfaceSwapchain {
         &self.swapchain
     }
 
-    /// Returns all swpachain images and their ids
+    /// Returns all swpachain images and their ids.
     pub fn get_images(&self) -> &[(ImageId, vk::Image)] {
         self.images.as_ref()
     }
@@ -377,7 +398,7 @@ impl SurfaceSwapchain {
 }
 
 impl Debug for SurfaceSwapchain {
-    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+    fn fmt(&self, _: &mut Formatter<'_>) -> std::fmt::Result {
         todo!()
     }
 }

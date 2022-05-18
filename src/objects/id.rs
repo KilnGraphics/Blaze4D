@@ -60,10 +60,6 @@ macro_rules! declare_object_id {
     }
 }
 
-fn test() {
-    vk::Buffer::from_raw(2u64);
-}
-
 declare_object_id!(BufferId, vk::Buffer);
 declare_object_id!(BufferViewId, vk::BufferView);
 declare_object_id!(ImageId, vk::Image);
