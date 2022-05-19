@@ -9,9 +9,9 @@ use crate::device::transfer::{BufferAvailabilityOp, BufferTransferRanges};
 use crate::vk::objects::semaphore::SemaphoreOps;
 
 #[derive(Copy, Clone, PartialEq, Eq, PartialOrd, Ord, Debug, Hash)]
-pub struct FrameId(u64);
+pub struct PassId(u64);
 
-impl FrameId {
+impl PassId {
     pub fn from_raw(id: u64) -> Self {
         Self(id)
     }
@@ -22,7 +22,7 @@ impl FrameId {
 }
 
 struct FrameShare {
-    id: FrameId,
+    id: PassId,
     renderer: Arc<EmulatorRenderer>,
     buffers: BufferSubAllocator,
 }
@@ -104,15 +104,18 @@ struct ObjectData<'a> {
     draw_count: u32,
 }
 
-pub struct Frame {
-    id: FrameId,
+pub struct Pass {
+    id: PassId,
     renderer: Arc<EmulatorRenderer>,
     configuration: Arc<RenderConfiguration>,
 }
 
-impl Frame {
-    pub(super) fn new(id: FrameId, renderer: Arc<EmulatorRenderer>, configuration: Arc<RenderConfiguration>) -> Self {
-        renderer.worker.start_frame(id, configuration.clone());
+impl Pass {
+    pub(super) fn new(id: PassId, renderer: Arc<EmulatorRenderer>, configuration: Arc<RenderConfiguration>) -> Self {
+        let index = configuration.get_next_index();
+        let (signal_semaphore, signal_value) = configuration.prepare_index(index);
+
+        renderer.worker.start_frame(id, configuration.clone(), index, signal_semaphore, signal_value);
 
         Self {
             id,
@@ -121,15 +124,33 @@ impl Frame {
         }
     }
 
-    pub fn add_output(&self, output: Arc<OutputConfiguration>, dst_image_index: usize) {
-        self.renderer.worker.add_output(self.id, output, dst_image_index);
+    pub fn add_output(&self, output: Arc<OutputConfiguration>, dst_image_index: usize, wait_semaphore: vk::Semaphore, wait_value: Option<u64>) {
+        self.renderer.worker.add_output(self.id, output, dst_image_index, wait_semaphore, wait_value);
     }
 
     pub fn add_signal_op(&self, semaphore: vk::Semaphore, value: Option<u64>) {
         self.renderer.worker.add_signal_op(self.id, semaphore, value);
     }
 
-    pub fn add_post_fn(&self, func: Box<dyn FnOnce() + Send + Sync>) {
-        self.renderer.worker.add_post_fn(self.id, func);
+    pub fn add_event_listener(&self, listener: Box<dyn PassEventListener + Send + Sync>) {
+        self.renderer.worker.add_event_listener(self.id, listener);
     }
+
+    pub fn submit(self) {
+    }
+}
+
+impl Drop for Pass {
+    fn drop(&mut self) {
+        self.renderer.worker.end_frame(self.id);
+    }
+}
+
+pub trait PassEventListener {
+    /// Called after all command buffers have been submitted for execution
+    fn on_post_submit(&self);
+
+    /// Called after all submitted commands have finished execution. It is guaranteed that any
+    /// external object which has be passed to the pass can now be used or destroyed.
+    fn on_execution_completed(&self);
 }

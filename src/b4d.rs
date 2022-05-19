@@ -22,7 +22,7 @@ use crate::objects::{ObjectSet, ObjectSetProvider};
 use crate::vk::objects::surface::{SurfaceProvider};
 
 use crate::prelude::*;
-use crate::renderer::emulator::frame::Frame;
+use crate::renderer::emulator::pass::{Pass, PassEventListener};
 
 pub struct Blaze4D {
     instance: Arc<InstanceContext>,
@@ -127,27 +127,15 @@ impl Blaze4D {
         Some(guard.try_acquire_next_image()?.0)
     }
 
-    pub fn try_start_frame<T: Fn() -> Option<Vec2u32>>(&self, size_cb: T) -> Option<Frame> {
+    pub fn try_start_frame<T: Fn() -> Option<Vec2u32>>(&self, size_cb: T) -> Option<Pass> {
         let image = self.try_acquire_next_image(size_cb)?;
         let frame = self.emulator.start_frame(image.swapchain.emulator_render_config.clone());
         let queue = self.device.get_device().get_main_queue();
 
-        frame.add_output(image.swapchain.emulator_output_config.clone(), image.image_index as usize);
+        frame.add_output(image.swapchain.emulator_output_config.clone(), image.image_index as usize, image.acquire_semaphore, None);
+        frame.add_signal_op(image.present_semaphore, None);
         frame.add_signal_op(image.ready_semaphore, Some(image.ready_value));
-        frame.add_post_fn(Box::new(move || {
-            let guard = image.swapchain.swapchain.get_swapchain().lock().unwrap();
-            let swapchain = *guard;
-            let present_info = vk::PresentInfoKHR::builder()
-                .wait_semaphores(std::slice::from_ref(&image.present_semaphore))
-                .swapchains(std::slice::from_ref(&swapchain))
-                .image_indices(std::slice::from_ref(&image.image_index));
-            match unsafe {
-                queue.present(&present_info)
-            } {
-                Ok(_) => {}
-                Err(_) => {}
-            }
-        }));
+        frame.add_event_listener(Box::new(image));
 
         Some(frame)
     }
@@ -395,10 +383,13 @@ impl MainWindowSwapchain {
 
         let (ready_semaphore, ready_value) = sync.wait_and_get(&self.device);
 
+        let present_queue = self.device.get_main_queue();
+
         match self.swapchain.acquire_next_image(u64::MAX, Some(sync.acquire_semaphore), None) {
             Ok((index, suboptimal)) => {
                 let image_objects = &self.swapchain_images[index as usize];
                 Some((MainWindowImage {
+                    present_queue,
                     swapchain: self.weak.upgrade().unwrap(),
                     ready_semaphore,
                     ready_value,
@@ -511,6 +502,7 @@ impl ImageObjects {
 }
 
 pub struct MainWindowImage {
+    present_queue: VkQueue,
     swapchain: Arc<MainWindowSwapchain>,
     ready_semaphore: vk::Semaphore,
     ready_value: u64,
@@ -518,6 +510,31 @@ pub struct MainWindowImage {
     present_semaphore: vk::Semaphore,
     image: vk::Image,
     image_index: u32,
+}
+
+impl PassEventListener for MainWindowImage {
+    fn on_post_submit(&self) {
+        let guard = self.swapchain.swapchain.get_swapchain().lock().unwrap();
+        let swapchain = *guard;
+        let present_info = vk::PresentInfoKHR::builder()
+            .wait_semaphores(std::slice::from_ref(&self.present_semaphore))
+            .swapchains(std::slice::from_ref(&swapchain))
+            .image_indices(std::slice::from_ref(&self.image_index));
+
+        match unsafe {
+            self.present_queue.present(&present_info)
+        } {
+            Ok(_) => {}
+            Err(vk::Result::ERROR_OUT_OF_DATE_KHR) => {
+            }
+            Err(_) => {
+                panic!()
+            }
+        }
+    }
+
+    fn on_execution_completed(&self) {
+    }
 }
 
 #[no_mangle]

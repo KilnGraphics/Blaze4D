@@ -133,6 +133,45 @@ impl RenderConfiguration {
             }
         }
     }
+
+    pub(super) fn record(&self, command_buffer: vk::CommandBuffer, index: usize) {
+        let clear_value = vk::ClearValue {
+            color: vk::ClearColorValue {
+                float32: [1.0, 0.0, 0.0, 1.0],
+            }
+        };
+
+        let info = vk::RenderPassBeginInfo::builder()
+            .render_pass(self.render_path.render_pass)
+            .framebuffer(self.render_objects[index].framebuffer)
+            .render_area(vk::Rect2D {
+                offset: vk::Offset2D{ x: 0, y: 0 },
+                extent: vk::Extent2D{ width: self.render_size[0], height: self.render_size[1] }
+            })
+            .clear_values(std::slice::from_ref(&clear_value));
+
+        unsafe {
+            self.render_path.device.vk().cmd_begin_render_pass(command_buffer, &info, vk::SubpassContents::INLINE)
+        };
+        unsafe {
+            self.render_path.device.vk().cmd_end_render_pass(command_buffer)
+        };
+    }
+
+    pub(super) fn prepare_index(&self, index: usize) -> (vk::Semaphore, u64) {
+        let instance = &self.render_objects[index];
+        let current = instance.ready_value.fetch_add(1, std::sync::atomic::Ordering::SeqCst);
+
+        let wait_info = vk::SemaphoreWaitInfo::builder()
+            .semaphores(std::slice::from_ref(&instance.ready_semaphore))
+            .values(std::slice::from_ref(&current));
+
+        unsafe {
+            self.render_path.device.vk().wait_semaphores(&wait_info, u64::MAX)
+        }.unwrap();
+
+        (instance.ready_semaphore, current + 1)
+    }
 }
 
 impl Drop for RenderConfiguration {
@@ -325,6 +364,10 @@ impl OutputConfiguration {
         }
     }
 
+    pub(super) fn record(&self, command_buffer: vk::CommandBuffer, src_index: usize, dst_index: usize) {
+        self.blit.record_blit(command_buffer, self.descriptors[src_index], self.dst_objects[dst_index].1, self.output_size, None);
+    }
+
     fn create_descriptors(config: &RenderConfiguration, blit: &BlitPass) -> (vk::DescriptorPool, Box<[vk::DescriptorSet]>) {
         let device = &config.render_path.device;
 
@@ -341,7 +384,7 @@ impl OutputConfiguration {
             device.vk().create_descriptor_pool(&info, None)
         }.unwrap();
 
-        let views: Box<_> = config.render_objects.iter().map(|frame| frame.depth_stencil_view).collect();
+        let views: Box<_> = config.render_objects.iter().map(|frame| frame.color_view).collect();
 
         let descriptors = blit.create_descriptor_sets(descriptor_pool, &views).unwrap();
 

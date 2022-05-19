@@ -3,7 +3,7 @@ use std::ops::{Deref, Index};
 
 use ash::vk;
 
-use crate::renderer::emulator::frame::FrameId;
+use crate::renderer::emulator::pass::PassId;
 use crate::device::transfer::{BufferAvailabilityOp};
 use crate::vk::objects::allocator::{Allocation, AllocationStrategy};
 use crate::vk::objects::buffer::{Buffer, BufferId};

@@ -1,6 +1,6 @@
 mod pipeline;
 mod buffer;
-pub mod frame;
+pub mod pass;
 mod worker;
 
 use std::iter::repeat_with;
@@ -14,8 +14,8 @@ use concurrent_queue::ConcurrentQueue;
 
 use crate::device::device_utils::BlitPass;
 use crate::renderer::emulator::buffer::{BufferAllocation, BufferPool, BufferSubAllocator};
-use crate::renderer::emulator::frame::{Frame, FrameId};
-use crate::renderer::emulator::worker::{DrawTask, Share};
+use crate::renderer::emulator::pass::{Pass, PassId};
+use crate::renderer::emulator::worker::{DrawTask, run_worker, Share};
 use crate::device::transfer::{BufferAvailabilityOp, BufferTransferRanges, Transfer};
 use crate::objects::id::ImageId;
 use crate::objects::{ObjectSet, ObjectSetProvider};
@@ -40,7 +40,7 @@ pub(crate) struct EmulatorRenderer {
 
 impl EmulatorRenderer {
     pub(crate) fn new(device: DeviceEnvironment) -> Arc<Self> {
-        Arc::new_cyclic(|weak| {
+        let renderer = Arc::new_cyclic(|weak| {
             Self {
                 weak: weak.clone(),
                 device: device.clone(),
@@ -48,7 +48,15 @@ impl EmulatorRenderer {
                 next_frame_id: AtomicU64::new(1),
                 buffer_pool: Mutex::new(BufferPool::new(device.clone())),
             }
-        })
+        });
+
+        let share = renderer.worker.clone();
+
+        std::thread::spawn(move || {
+            run_worker(device, share);
+        });
+
+        renderer
     }
 
     pub fn crate_test_render_path(&self) -> Arc<RenderPath> {
@@ -75,8 +83,8 @@ impl EmulatorRenderer {
         ))
     }
 
-    pub fn start_frame(&self, configuration: Arc<RenderConfiguration>) -> Frame {
-        let id = FrameId::from_raw(self.next_frame_id.fetch_add(1, Ordering::SeqCst));
-        Frame::new(id, self.weak.upgrade().unwrap(), configuration)
+    pub fn start_frame(&self, configuration: Arc<RenderConfiguration>) -> Pass {
+        let id = PassId::from_raw(self.next_frame_id.fetch_add(1, Ordering::SeqCst));
+        Pass::new(id, self.weak.upgrade().unwrap(), configuration)
     }
 }

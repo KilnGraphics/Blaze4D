@@ -40,9 +40,10 @@ fn main() {
             }
             Event::MainEventsCleared => {
                 let now = std::time::Instant::now();
-                if let Some(image) = b4d.try_acquire_next_image(|| Some(current_size)) {
+                /*if let Some(image) = b4d.try_acquire_next_image(|| Some(current_size)) {
                     b4d.tmp_present(image);
-                }
+                }*/
+                b4d.try_start_frame(|| Some(current_size));
                 draw_times.push(now.elapsed());
 
                 if last_update.elapsed().as_secs() >= 2 {
