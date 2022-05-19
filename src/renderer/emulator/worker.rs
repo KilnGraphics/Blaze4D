@@ -305,6 +305,8 @@ impl FrameState {
         config.set_world_ndc_mat(command_buffer, mat);
         config.set_model_world_mat(command_buffer, mat);
 
+        config.test_draw(command_buffer);
+
         Self {
             config,
             index,

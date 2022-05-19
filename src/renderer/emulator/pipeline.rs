@@ -15,12 +15,37 @@ use crate::vk::DeviceEnvironment;
 use crate::prelude::*;
 use crate::vk::objects::allocator::{Allocation, AllocationStrategy};
 
+#[repr(C)]
+#[derive(Copy, Clone)]
+struct TestVertex {
+    position: Vec3f32,
+    uv: Vec2f32
+}
+
+const TEST_BUFFER_DATA: &[TestVertex] = &[
+    TestVertex {
+        position: Vec3f32::new(-0.5, 0.5, 0.1),
+        uv: Vec2f32::new(0.0, 1.0)
+    },
+    TestVertex {
+        position: Vec3f32::new(0.0, -0.5, 0.1),
+        uv: Vec2f32::new(1.0, 1.0)
+    },
+    TestVertex {
+        position: Vec3f32::new(0.5, 0.5, 0.1),
+        uv: Vec2f32::new(1.0, 0.0)
+    },
+];
+
 pub struct RenderPath {
     id: UUID,
     device: DeviceEnvironment,
     pipeline_layout: vk::PipelineLayout,
     render_pass: vk::RenderPass,
     pipeline: vk::Pipeline,
+
+    test_buffer: vk::Buffer,
+    test_allocation: Allocation,
 }
 
 impl RenderPath {
@@ -30,12 +55,17 @@ impl RenderPath {
 
         let pipeline = Self::create_pipeline(&device, pipeline_layout, render_pass);
 
+        let (test_buffer, test_allocation) = Self::create_test_buffer(&device);
+
         Self {
             id: UUID::new(),
             device,
             pipeline_layout,
             render_pass,
             pipeline,
+
+            test_buffer,
+            test_allocation
         }
     }
 
@@ -165,7 +195,8 @@ impl RenderPath {
             .stencil_test_enable(false);
 
         let attachment = vk::PipelineColorBlendAttachmentState::builder()
-            .blend_enable(false);
+            .blend_enable(false)
+            .color_write_mask(vk::ColorComponentFlags::RGBA);
 
         let color_blend_state = vk::PipelineColorBlendStateCreateInfo::builder()
             .logic_op_enable(false)
@@ -218,6 +249,32 @@ impl RenderPath {
         }.unwrap();
 
         (vertex, fragment)
+    }
+
+    fn create_test_buffer(device: &DeviceEnvironment) -> (vk::Buffer, Allocation) {
+        let data = crate::util::slice::to_byte_slice(TEST_BUFFER_DATA);
+
+        let info = vk::BufferCreateInfo::builder()
+            .size(data.len() as u64)
+            .usage(vk::BufferUsageFlags::VERTEX_BUFFER)
+            .sharing_mode(vk::SharingMode::EXCLUSIVE);
+
+        let buffer = unsafe {
+            device.vk().create_buffer(&info, None)
+        }.unwrap();
+
+        let alloc = device.get_allocator().allocate_buffer_memory(buffer, &AllocationStrategy::AutoGpuCpu).unwrap();
+
+        unsafe {
+            device.vk().bind_buffer_memory(buffer, alloc.memory(), alloc.offset())
+        }.unwrap();
+
+        let dst = unsafe {
+            std::slice::from_raw_parts_mut(alloc.mapped_ptr().unwrap().as_ptr() as *mut u8, data.len())
+        };
+        dst.copy_from_slice(data);
+
+        (buffer, alloc)
     }
 }
 
@@ -357,6 +414,14 @@ impl RenderConfiguration {
                 4 * 16,
                 crate::util::slice::to_byte_slice(std::slice::from_ref(&mat))
             )
+        }
+    }
+
+    pub(super) fn test_draw(&self, command_buffer: vk::CommandBuffer) {
+        let offsets = [0];
+        unsafe {
+            self.render_path.device.vk().cmd_bind_vertex_buffers(command_buffer, 0, std::slice::from_ref(&self.render_path.test_buffer), &offsets);
+            self.render_path.device.vk().cmd_draw(command_buffer, 3, 1, 0, 0);
         }
     }
 
