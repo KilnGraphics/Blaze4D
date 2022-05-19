@@ -116,24 +116,11 @@ enum Task {
     AddOutput(Arc<OutputConfiguration>, usize, vk::Semaphore, u64),
     AddSignalOp(vk::Semaphore, u64),
     AddEventListener(Box<dyn PassEventListener + Send + Sync>),
+    SetWorldNdcMat(Mat4f32),
+    SetModelWorldMat(Mat4f32),
     UseDynamicBuffer(Buffer),
     SetDynamicBufferWait(BufferId, SemaphoreOp),
     Draw(DrawTask),
-}
-
-impl Debug for Task {
-    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        let str = match &self {
-            Self::StartFrame(_, _, _, _) => "StartFrame",
-            Self::EndFrame => "EndFrame",
-            Self::AddOutput(_, _, _, _) => "AddOutput",
-            Self::AddSignalOp(_, _) => "AddSignalOp",
-            Self::AddEventListener(_) => "AddEventListener",
-            _ => "unknown"
-        };
-
-        f.write_str(str)
-    }
 }
 
 pub struct DrawTask {
@@ -181,6 +168,12 @@ pub(super) fn run_worker(device: DeviceEnvironment, share: Arc<Share>) {
 
             Task::AddEventListener(listener) =>
                 frames.get_frame(id).unwrap().add_event_listener(listener),
+
+            Task::SetWorldNdcMat(mat) =>
+                frames.get_frame(id).unwrap().set_world_ndc_mat(mat),
+
+            Task::SetModelWorldMat(mat) =>
+                frames.get_frame(id).unwrap().set_model_world_mat(mat),
 
             Task::UseDynamicBuffer(_) => {}
             Task::SetDynamicBufferWait(_, _) => {}
@@ -306,6 +299,12 @@ impl FrameState {
             device.vk().begin_command_buffer(command_buffer, &info)
         }.unwrap();
 
+        config.begin_render_pass(command_buffer, index);
+
+        let mat = Mat4f32::identity();
+        config.set_world_ndc_mat(command_buffer, mat);
+        config.set_model_world_mat(command_buffer, mat);
+
         Self {
             config,
             index,
@@ -337,8 +336,18 @@ impl FrameState {
         self.event_listeners.push(listener);
     }
 
+    pub fn set_world_ndc_mat(&self, mat: Mat4f32) {
+        self.config.set_world_ndc_mat(self.command_buffer, mat);
+    }
+
+    pub fn set_model_world_mat(&self, mat: Mat4f32) {
+        self.config.set_model_world_mat(self.command_buffer, mat);
+    }
+
     pub fn finish_and_submit(&mut self, device: &DeviceContext, queue: &VkQueue) {
-        self.config.record(self.command_buffer, self.index);
+        unsafe {
+            device.vk().cmd_end_render_pass(self.command_buffer);
+        }
 
         for (output, index) in &self.output_configs {
             output.record(self.command_buffer, self.index, *index);

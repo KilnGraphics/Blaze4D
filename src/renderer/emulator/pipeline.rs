@@ -1,5 +1,7 @@
 use std::cmp::Ordering;
+use std::ffi::CStr;
 use std::hash::{Hash, Hasher};
+use std::mem::size_of;
 use std::sync::{Arc, Mutex, Weak};
 use std::sync::atomic::{AtomicU64, AtomicUsize};
 
@@ -18,6 +20,7 @@ pub struct RenderPath {
     device: DeviceEnvironment,
     pipeline_layout: vk::PipelineLayout,
     render_pass: vk::RenderPass,
+    pipeline: vk::Pipeline,
 }
 
 impl RenderPath {
@@ -25,16 +28,26 @@ impl RenderPath {
         let pipeline_layout = Self::create_pipeline_layout(&device);
         let render_pass = Self::create_render_pass(&device);
 
+        let pipeline = Self::create_pipeline(&device, pipeline_layout, render_pass);
+
         Self {
             id: UUID::new(),
             device,
             pipeline_layout,
             render_pass,
+            pipeline,
         }
     }
 
     fn create_pipeline_layout(device: &DeviceEnvironment) -> vk::PipelineLayout {
-        let info = vk::PipelineLayoutCreateInfo::builder();
+        let push_constants = vk::PushConstantRange {
+            stage_flags: vk::ShaderStageFlags::VERTEX,
+            offset: 0,
+            size: 2 * 16 * 4,
+        };
+
+        let info = vk::PipelineLayoutCreateInfo::builder()
+            .push_constant_ranges(std::slice::from_ref(&push_constants));
 
         unsafe {
             device.vk().create_pipeline_layout(&info, None)
@@ -42,35 +55,176 @@ impl RenderPath {
     }
 
     fn create_render_pass(device: &DeviceEnvironment) -> vk::RenderPass {
-        let attachment = vk::AttachmentDescription::builder()
-            .format(vk::Format::R8G8B8A8_SRGB)
-            .samples(vk::SampleCountFlags::TYPE_1)
-            .load_op(vk::AttachmentLoadOp::CLEAR)
-            .store_op(vk::AttachmentStoreOp::STORE)
-            .initial_layout(vk::ImageLayout::UNDEFINED)
-            .final_layout(vk::ImageLayout::SHADER_READ_ONLY_OPTIMAL);
+        let attachments = [
+            vk::AttachmentDescription::builder()
+                .format(vk::Format::R8G8B8A8_SRGB)
+                .samples(vk::SampleCountFlags::TYPE_1)
+                .load_op(vk::AttachmentLoadOp::CLEAR)
+                .store_op(vk::AttachmentStoreOp::STORE)
+                .initial_layout(vk::ImageLayout::UNDEFINED)
+                .final_layout(vk::ImageLayout::SHADER_READ_ONLY_OPTIMAL)
+                .build(),
+            vk::AttachmentDescription::builder()
+                .format(vk::Format::D16_UNORM)
+                .samples(vk::SampleCountFlags::TYPE_1)
+                .load_op(vk::AttachmentLoadOp::CLEAR)
+                .store_op(vk::AttachmentStoreOp::STORE)
+                .initial_layout(vk::ImageLayout::UNDEFINED)
+                .final_layout(vk::ImageLayout::SHADER_READ_ONLY_OPTIMAL)
+                .build()
+        ];
 
-        let attachment_ref = vk::AttachmentReference::builder()
+        let color_ref = vk::AttachmentReference::builder()
             .attachment(0)
             .layout(vk::ImageLayout::COLOR_ATTACHMENT_OPTIMAL);
 
+        let depth_ref = vk::AttachmentReference::builder()
+            .attachment(1)
+            .layout(vk::ImageLayout::DEPTH_STENCIL_ATTACHMENT_OPTIMAL);
+
         let subpass = vk::SubpassDescription::builder()
             .pipeline_bind_point(vk::PipelineBindPoint::GRAPHICS)
-            .color_attachments(std::slice::from_ref(&attachment_ref));
+            .color_attachments(std::slice::from_ref(&color_ref))
+            .depth_stencil_attachment(&depth_ref);
 
         let info = vk::RenderPassCreateInfo::builder()
-            .attachments(std::slice::from_ref(&attachment))
+            .attachments(&attachments)
             .subpasses(std::slice::from_ref(&subpass));
 
         unsafe {
             device.vk().create_render_pass(&info, None)
         }.unwrap()
     }
+
+    fn create_pipeline(device: &DeviceEnvironment, pipeline_layout: vk::PipelineLayout, render_pass: vk::RenderPass) -> vk::Pipeline {
+        let (vertex_module, fragment_module) = Self::load_shaders(device);
+
+        let shader_stages = [
+            vk::PipelineShaderStageCreateInfo::builder()
+                .stage(vk::ShaderStageFlags::VERTEX)
+                .module(vertex_module)
+                .name(CStr::from_bytes_with_nul(b"main\0").unwrap())
+                .build(),
+            vk::PipelineShaderStageCreateInfo::builder()
+                .stage(vk::ShaderStageFlags::FRAGMENT)
+                .module(fragment_module)
+                .name(CStr::from_bytes_with_nul(b"main\0").unwrap())
+                .build()
+        ];
+
+        let binding = vk::VertexInputBindingDescription::builder()
+            .binding(0)
+            .stride((size_of::<Vec3f32>() + size_of::<Vec2f32>()) as u32)
+            .input_rate(vk::VertexInputRate::VERTEX);
+
+        let input_descriptions = [
+            vk::VertexInputAttributeDescription {
+                location: 0,
+                binding: 0,
+                format: vk::Format::R32G32B32_SFLOAT,
+                offset: 0
+            },
+            vk::VertexInputAttributeDescription {
+                location: 1,
+                binding: 0,
+                format: vk::Format::R32G32_SFLOAT,
+                offset: size_of::<Vec3f32>() as u32,
+            }
+        ];
+
+        let input_state = vk::PipelineVertexInputStateCreateInfo::builder()
+            .vertex_binding_descriptions(std::slice::from_ref(&binding))
+            .vertex_attribute_descriptions(&input_descriptions);
+
+        let input_assembly_state = vk::PipelineInputAssemblyStateCreateInfo::builder()
+            .topology(vk::PrimitiveTopology::TRIANGLE_LIST)
+            .primitive_restart_enable(false);
+
+        let viewport_state = vk::PipelineViewportStateCreateInfo::builder()
+            .viewport_count(1)
+            .scissor_count(1);
+
+        let rasterization_state = vk::PipelineRasterizationStateCreateInfo::builder()
+            .depth_clamp_enable(false)
+            .rasterizer_discard_enable(false)
+            .polygon_mode(vk::PolygonMode::FILL)
+            .cull_mode(vk::CullModeFlags::BACK)
+            .front_face(vk::FrontFace::CLOCKWISE)
+            .depth_bias_enable(false)
+            .line_width(1f32);
+
+        let multisample_state = vk::PipelineMultisampleStateCreateInfo::builder()
+            .rasterization_samples(vk::SampleCountFlags::TYPE_1)
+            .sample_shading_enable(false);
+
+        let depth_stencil_state = vk::PipelineDepthStencilStateCreateInfo::builder()
+            .depth_test_enable(true)
+            .depth_write_enable(true)
+            .depth_compare_op(vk::CompareOp::GREATER)
+            .depth_bounds_test_enable(false)
+            .stencil_test_enable(false);
+
+        let attachment = vk::PipelineColorBlendAttachmentState::builder()
+            .blend_enable(false);
+
+        let color_blend_state = vk::PipelineColorBlendStateCreateInfo::builder()
+            .logic_op_enable(false)
+            .attachments(std::slice::from_ref(&attachment));
+
+        let dynamic_states = [vk::DynamicState::VIEWPORT, vk::DynamicState::SCISSOR];
+
+        let dynamic_state = vk::PipelineDynamicStateCreateInfo::builder()
+            .dynamic_states(&dynamic_states);
+
+        let info = vk::GraphicsPipelineCreateInfo::builder()
+            .stages(&shader_stages)
+            .vertex_input_state(&input_state)
+            .input_assembly_state(&input_assembly_state)
+            .viewport_state(&viewport_state)
+            .rasterization_state(&rasterization_state)
+            .multisample_state(&multisample_state)
+            .depth_stencil_state(&depth_stencil_state)
+            .color_blend_state(&color_blend_state)
+            .dynamic_state(&dynamic_state)
+            .layout(pipeline_layout)
+            .render_pass(render_pass)
+            .subpass(0);
+
+        let pipeline = *unsafe {
+            device.vk().create_graphics_pipelines(vk::PipelineCache::null(), std::slice::from_ref(&info), None)
+        }.unwrap().get(0).unwrap();
+
+        unsafe {
+            device.vk().destroy_shader_module(vertex_module, None);
+            device.vk().destroy_shader_module(fragment_module, None);
+        }
+
+        pipeline
+    }
+
+    fn load_shaders(device: &DeviceEnvironment) -> (vk::ShaderModule, vk::ShaderModule) {
+        let info = vk::ShaderModuleCreateInfo::builder()
+            .code(crate::util::slice::from_byte_slice(BASIC_VERTEX_SHADER));
+
+        let vertex = unsafe {
+            device.vk().create_shader_module(&info, None)
+        }.unwrap();
+
+        let info = vk::ShaderModuleCreateInfo::builder()
+            .code(crate::util::slice::from_byte_slice(BASIC_FRAGMENT_SHADER));
+
+        let fragment = unsafe {
+            device.vk().create_shader_module(&info, None)
+        }.unwrap();
+
+        (vertex, fragment)
+    }
 }
 
 impl Drop for RenderPath {
     fn drop(&mut self) {
         unsafe {
+            self.device.vk().destroy_pipeline(self.pipeline, None);
             self.device.vk().destroy_render_pass(self.render_pass, None);
             self.device.vk().destroy_pipeline_layout(self.pipeline_layout, None);
         }
@@ -134,12 +288,22 @@ impl RenderConfiguration {
         }
     }
 
-    pub(super) fn record(&self, command_buffer: vk::CommandBuffer, index: usize) {
-        let clear_value = vk::ClearValue {
-            color: vk::ClearColorValue {
-                float32: [1.0, 0.0, 0.0, 1.0],
+    pub(super) fn begin_render_pass(&self, command_buffer: vk::CommandBuffer, index: usize) {
+        let device = &self.render_path.device;
+
+        let clear_values = [
+            vk::ClearValue {
+                color: vk::ClearColorValue {
+                    float32: [1.0, 0.0, 0.0, 1.0],
+                }
+            },
+            vk::ClearValue {
+                depth_stencil: vk::ClearDepthStencilValue {
+                    depth: 0.0,
+                    stencil: 0
+                }
             }
-        };
+        ];
 
         let info = vk::RenderPassBeginInfo::builder()
             .render_pass(self.render_path.render_pass)
@@ -148,14 +312,52 @@ impl RenderConfiguration {
                 offset: vk::Offset2D{ x: 0, y: 0 },
                 extent: vk::Extent2D{ width: self.render_size[0], height: self.render_size[1] }
             })
-            .clear_values(std::slice::from_ref(&clear_value));
+            .clear_values(&clear_values);
+
+        let viewport = vk::Viewport {
+            x: 0.0,
+            y: 0.0,
+            width: self.render_size[0] as f32,
+            height: self.render_size[1] as f32,
+            min_depth: 0.0,
+            max_depth: 1.0
+        };
+
+        let scissor = vk::Rect2D {
+            offset: vk::Offset2D{ x: 0, y: 0 },
+            extent: vk::Extent2D{ width: self.render_size[0], height: self.render_size[1] }
+        };
 
         unsafe {
-            self.render_path.device.vk().cmd_begin_render_pass(command_buffer, &info, vk::SubpassContents::INLINE)
+            device.vk().cmd_begin_render_pass(command_buffer, &info, vk::SubpassContents::INLINE);
+            device.vk().cmd_set_viewport(command_buffer, 0, std::slice::from_ref(&viewport));
+            device.vk().cmd_set_scissor(command_buffer, 0, std::slice::from_ref(&scissor));
+            device.vk().cmd_bind_pipeline(command_buffer, vk::PipelineBindPoint::GRAPHICS, self.render_path.pipeline);
         };
+    }
+
+    pub(super) fn set_world_ndc_mat(&self, command_buffer: vk::CommandBuffer, mat: Mat4f32) {
         unsafe {
-            self.render_path.device.vk().cmd_end_render_pass(command_buffer)
-        };
+            self.render_path.device.vk().cmd_push_constants(
+                command_buffer,
+                self.render_path.pipeline_layout,
+                vk::ShaderStageFlags::VERTEX,
+                0,
+                crate::util::slice::to_byte_slice(std::slice::from_ref(&mat))
+            )
+        }
+    }
+
+    pub(super) fn set_model_world_mat(&self, command_buffer: vk::CommandBuffer, mat: Mat4f32) {
+        unsafe {
+            self.render_path.device.vk().cmd_push_constants(
+                command_buffer,
+                self.render_path.pipeline_layout,
+                vk::ShaderStageFlags::VERTEX,
+                4 * 16,
+                crate::util::slice::to_byte_slice(std::slice::from_ref(&mat))
+            )
+        }
     }
 
     pub(super) fn prepare_index(&self, index: usize) -> (vk::Semaphore, u64) {
@@ -298,8 +500,8 @@ impl RenderObjects {
         }.unwrap()
     }
 
-    fn create_framebuffer(device: &DeviceEnvironment, color_view: vk::ImageView, _: vk::ImageView, render_pass: vk::RenderPass, size: Vec2u32) -> vk::Framebuffer {
-        let attachments = [color_view];
+    fn create_framebuffer(device: &DeviceEnvironment, color_view: vk::ImageView, depth_stencil_view: vk::ImageView, render_pass: vk::RenderPass, size: Vec2u32) -> vk::Framebuffer {
+        let attachments = [color_view, depth_stencil_view];
 
         let info = vk::FramebufferCreateInfo::builder()
             .render_pass(render_pass)

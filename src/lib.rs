@@ -39,4 +39,6 @@ pub mod prelude {
     pub type Vec2i32 = nalgebra::Vector2<i32>;
     pub type Vec3i32 = nalgebra::Vector3<i32>;
     pub type Vec4i32 = nalgebra::Vector4<i32>;
+
+    pub type Mat4f32 = nalgebra::Matrix4<f32>;
 }
