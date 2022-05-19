@@ -5,30 +5,115 @@ use crate::vk::objects::semaphore::SemaphoreOp;
 
 use super::*;
 
+pub(super) struct Share {
+    channel: Mutex<Channel>,
+    /// Signaled when the [`Channel::last_submitted_id`] has updated.
+    new_submit_condvar: Condvar,
+    /// Signaled when new tasks have been pushed into [`Channel::task_queue`].
+    new_task_condvar: Condvar,
+
+    device: Arc<DeviceContext>,
+    semaphore: vk::Semaphore,
+}
+
+impl Share {
+    pub(super) fn new(device: Arc<DeviceContext>) -> Self {
+        let mut type_info = vk::SemaphoreTypeCreateInfo::builder()
+            .semaphore_type(vk::SemaphoreType::TIMELINE)
+            .initial_value(0);
+
+        let info = vk::SemaphoreCreateInfo::builder()
+            .push_next(&mut type_info);
+
+        let semaphore = unsafe {
+            device.vk().create_semaphore(&info, None)
+        }.unwrap();
+
+        Self {
+            channel: Mutex::new(Channel {
+                task_queue: VecDeque::with_capacity(32),
+                last_submitted_id: 0,
+                next_release_id: 1
+            }),
+            new_submit_condvar: Condvar::new(),
+            new_task_condvar: Condvar::new(),
+
+            device,
+            semaphore
+        }
+    }
+
+    pub(super) fn push_task(&self, task: Task) {
+        let guard = self.channel.lock().unwrap();
+        guard.task_queue.push_back(task);
+        drop(guard);
+
+        self.new_task_condvar.notify_one();
+    }
+
+    pub(super) fn push_buffer_release_task(&self, op: BufferAvailabilityOp) -> u64 {
+        let mut guard = self.channel.lock().unwrap();
+        let id = guard.next_release_id;
+        guard.next_release_id += 1;
+        guard.task_queue.push_back(Task::BufferRelease(op, id));
+        drop(guard);
+
+        self.new_task_condvar.notify_one();
+        id
+    }
+
+    pub(super) fn push_image_release_task(&self, op: ImageAvailabilityOp) -> u64 {
+        let mut guard = self.channel.lock().unwrap();
+        let id = guard.next_release_id;
+        guard.next_release_id += 1;
+        guard.task_queue.push_back(Task::ImageRelease(op, id));
+        drop(guard);
+
+        self.new_task_condvar.notify_one();
+        id
+    }
+
+    pub(super) fn wait_for_release_submit(&self, id: u64) {
+        let mut guard = self.channel.lock().unwrap();
+        loop {
+            if guard.last_submitted_id >= id {
+                return;
+            }
+            guard = self.new_submit_condvar.wait(guard).unwrap();
+        }
+    }
+
+    pub(super) fn get_release_wait_op(&self, id: u64) -> SemaphoreOp {
+        SemaphoreOp::new_timeline(self.semaphore, id)
+    }
+
+    fn try_get_next_task(&self, timeout: Duration) -> Option<Task> {
+        let mut guard = self.channel.lock().unwrap();
+        if let Some(task) = guard.task_queue.pop_front() {
+            return Some(task);
+        }
+
+        let (mut guard, _) = self.new_task_condvar.wait_timeout(guard, timeout).unwrap();
+        guard.task_queue.pop_front()
+    }
+}
+
+pub(super) struct Channel {
+    task_queue: VecDeque<Task>,
+    last_submitted_id: u64,
+    next_release_id: u64,
+}
+
 #[derive(Debug)]
-pub enum TaskInfo {
-    Flush,
-    BufferAcquire(BufferAvailabilityOp),
-    BufferRelease(BufferAvailabilityOp),
-    ImageAcquire(ImageAvailabilityOp),
-    ImageRelease(ImageAvailabilityOp),
+pub(super) enum Task {
+    Flush(u64),
+    BufferAcquire(BufferAvailabilityOp, SemaphoreOps),
+    BufferRelease(BufferAvailabilityOp, u64),
+    ImageAcquire(ImageAvailabilityOp, SemaphoreOps),
+    ImageRelease(ImageAvailabilityOp, u64),
     BufferTransfer(BufferTransfer),
     BufferToImageTransfer(BufferToImageTransfer),
     ImageToBufferTransfer(ImageToBufferTransfer),
-    AcquireStagingMemory(Buffer),
-    FreeStagingMemory(Buffer, Allocation),
-}
-
-#[derive(Debug)]
-pub struct Task {
-    pub id: u64,
-    pub info: TaskInfo,
-}
-
-pub struct Channel {
-    pub task_queue: VecDeque<Task>,
-    pub current_task_id: u64,
-    pub auto_submit_interval: Duration,
 }
 
 pub(super) fn run_worker(share: Arc<Transfer>, queue: VkQueue) {

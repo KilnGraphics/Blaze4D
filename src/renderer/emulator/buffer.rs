@@ -14,8 +14,6 @@ use crate::prelude::*;
 /// Manges the lifetime and allocation of buffers for the emulator renderer.
 pub struct BufferPool {
     buffers: Vec<PoolBuffer>,
-    estimator: Estimator,
-
     device: DeviceEnvironment,
 }
 
@@ -23,56 +21,7 @@ impl BufferPool {
     pub fn new(device: DeviceEnvironment) -> Self {
         Self {
             buffers: Vec::with_capacity(16),
-            estimator: Estimator::new(),
             device,
-        }
-    }
-
-    /// Runs any queued up tasks which should not be run synchronously due to high performance
-    /// impact.
-    pub fn update(&mut self) {
-        let mut has_destroy = false;
-        for buffer in &mut self.buffers {
-            if buffer.marked {
-                buffer.try_destroy(&self.device);
-                has_destroy = true;
-            } else {
-                buffer.ensure_init(&self.device);
-            }
-        }
-
-        self.buffers.retain(|buffer| !(buffer.buffer.is_none() && buffer.marked));
-    }
-
-    /// Must be called at the end of each frame with the amount of bytes used during the frame.
-    /// This is internally used to estimate memory usage.
-    pub fn end_frame(&mut self, usage: usize) {
-        self.estimator.push_frame(usage);
-
-        if let Some(estimate) = self.estimator.get_estimate() {
-            let mut buffer_count = 0usize;
-            for buffer in &mut self.buffers {
-                if buffer.marked {
-                    continue;
-                }
-
-                if buffer_count >= estimate.buffer_count {
-                    buffer.marked = true;
-                    continue;
-                }
-
-                if estimate.satisfies(buffer.size) {
-                    buffer_count += 1;
-                } else {
-                    buffer.marked = true;
-                }
-            }
-
-            if estimate.buffer_count > buffer_count {
-                for _ in buffer_count..estimate.buffer_count {
-                    self.buffers.push(PoolBuffer::new(estimate.buffer_size));
-                }
-            }
         }
     }
 
@@ -97,10 +46,10 @@ impl BufferPool {
     /// The sequence number is a number used to influence the order in which buffers are returned by
     /// [`get_buffer`]. A higher sequence number indicates that a buffer has been used more recently
     /// and as such may incur a longer wait time.
-    pub fn return_buffer(&mut self, buffer_id: BufferId, wait_op: Option<SemaphoreOp>, sequence_number: u64) {
+    pub fn return_buffer(&mut self, buffer_id: BufferId, wait_op: Option<SemaphoreOp>) {
         for buffer in &mut self.buffers {
             if buffer.is(buffer_id) {
-                buffer.transition_available(wait_op, sequence_number);
+                buffer.transition_available(wait_op);
                 return;
             }
         }
@@ -108,30 +57,26 @@ impl BufferPool {
     }
 
     fn find_or_create_buffer(&mut self, min_size: usize) -> &mut PoolBuffer {
-        let mut best = None;
-        for (index, buffer) in self.buffers.iter().enumerate() {
-            if let Some(sequence_number) = buffer.available(min_size) {
-                if let Some((_, best_num)) = best {
-                    if best_num > sequence_number {
-                        best = Some((index, sequence_number));
-                    }
-                } else {
-                    best = Some((index, sequence_number));
-                }
+        if min_size > 256000000 {
+            panic!("Fuck this buffer with size {:?}", min_size)
+        }
+
+        let mut index = None;
+        for (buffer_index, buffer) in self.buffers.iter().enumerate() {
+            if buffer.available() {
+                index = Some(buffer_index);
+                break;
             }
         }
 
-        if let Some((index, _)) = best {
-            &mut self.buffers[index]
+        if let Some(index) = index {
+            self.buffers.get_mut(index).unwrap()
+
         } else {
-            self.estimator.mark_upset();
+            let buffer = PoolBuffer::new(256000000);
+            self.buffers.push(buffer);
 
-            // TODO make better estimation?
-            let sum = self.buffers.iter().fold(0, |old, buffer| old + buffer.size);
-            self.buffers.push(PoolBuffer::new(std::cmp::max(min_size * 8, sum)));
-
-            let index = self.buffers.len() - 1;
-            &mut self.buffers[index]
+            self.buffers.last_mut().unwrap()
         }
     }
 }
@@ -148,19 +93,19 @@ impl PoolBuffer {
         Self {
             buffer: None,
             size,
-            state: BufferState::Available(None, 0),
+            state: BufferState::Available(None),
             marked: false,
         }
     }
 
-    fn available(&self, min_size: usize) -> Option<u64> {
-        if self.size < min_size {
-            return None;
+    fn available(&self) -> bool {
+        if self.marked {
+            return false;
         }
 
         match &self.state {
-            BufferState::Available(_, sequence_number) => Some(*sequence_number),
-            _ => None
+            BufferState::Available(_) => true,
+            _ => false
         }
     }
 
@@ -200,7 +145,7 @@ impl PoolBuffer {
     }
 
     fn transition_unavailable(&mut self) -> Option<SemaphoreOp> {
-        if let BufferState::Available(op, _) = self.state {
+        if let BufferState::Available(op) = self.state {
             self.state = BufferState::Unavailable;
             return op;
         } else {
@@ -208,23 +153,23 @@ impl PoolBuffer {
         }
     }
 
-    fn transition_available(&mut self, op: Option<SemaphoreOp>, sequence_number: u64) {
+    fn transition_available(&mut self, op: Option<SemaphoreOp>) {
         if let BufferState::Unavailable = self.state {
-            self.state = BufferState::Available(op, sequence_number);
+            self.state = BufferState::Available(op);
         } else {
             panic!("Invalid state");
         }
     }
 
-    fn try_destroy(&mut self, device: &DeviceEnvironment) {
-        if let BufferState::Available(wait_op, _) = &self.state {
+    fn try_destroy(&mut self, device: &DeviceEnvironment) -> bool {
+        if let BufferState::Available(wait_op) = &self.state {
             if let Some(wait_op) = wait_op {
                 if let Some(value) = wait_op.value {
                     let semaphore_value = unsafe {
                         device.vk().get_semaphore_counter_value(wait_op.semaphore)
                     }.unwrap();
                     if semaphore_value < value {
-                        return;
+                        return false;
                     }
                 } else {
                     panic!("Wait semaphore must be a timeline semaphore");
@@ -238,106 +183,17 @@ impl PoolBuffer {
 
                 device.get_allocator().free(allocation);
             }
+            true
+        } else {
+            false
         }
     }
 }
 
 #[derive(Copy, Clone, Debug)]
 enum BufferState {
-    Available(Option<SemaphoreOp>, u64),
+    Available(Option<SemaphoreOp>),
     Unavailable,
-}
-
-/// Used to predict the required number and size of buffers for optimal
-struct Estimator {
-    frame_history: Box<[usize]>,
-    current_index: usize,
-    history_depth: usize,
-    sum_total: usize,
-    multiplier: usize,
-}
-
-impl Estimator {
-    pub fn new() -> Self {
-        Self {
-            frame_history: std::iter::repeat(0usize).take(100).collect(),
-            current_index: 0,
-            history_depth: 0,
-            sum_total: 0,
-            multiplier: 130,
-        }
-    }
-
-    pub fn push_frame(&mut self, usage: usize) {
-        self.current_index += 1;
-        if self.current_index == self.frame_history.len() {
-            self.current_index = 0;
-        }
-
-        if self.history_depth == self.frame_history.len() {
-            self.sum_total -= self.frame_history[self.current_index];
-        } else {
-            self.history_depth += 1;
-        }
-
-        self.frame_history[self.current_index] = usage;
-        self.sum_total += usage;
-    }
-
-    /// Informs the estimator that the current estimated usage was wildly incorrect.
-    pub fn mark_upset(&mut self) {
-        // The current implementation just resets the history buffer
-        self.history_depth = 0;
-        self.sum_total = 0;
-    }
-
-    /// Updates the used estimation multiplier.
-    ///
-    /// The multiplier is a percentage value. For example 100 does not change the estimation while
-    /// 200 doubles it.
-    pub fn set_multiplier(&mut self, multiplier: usize) {
-        self.multiplier = multiplier;
-    }
-
-    /// Returns the current estimated memory usage of a frame.
-    ///
-    /// If no estimation is possible [`None`] is returned. This may happen at any moment for any
-    /// reason so the caller must be able to deal with a [`None`] return value.
-    pub fn get_estimate(&self) -> Option<UsageEstimate> {
-        if self.history_depth > 0 {
-            let estimate = self.sum_total / self.history_depth;
-            let multiplied = (estimate * self.multiplier) / 100usize;
-            let per_buffer = std::cmp::max(multiplied / 6, 32000000);
-
-            Some(UsageEstimate {
-                buffer_count: 6,
-                buffer_size: per_buffer,
-                update_at: per_buffer / 10,
-            })
-        } else {
-            None
-        }
-    }
-}
-
-struct UsageEstimate {
-    buffer_count: usize,
-    buffer_size: usize,
-    update_at: usize,
-}
-
-impl UsageEstimate {
-    fn satisfies(&self, buffer_size: usize) -> bool {
-        let diff = {
-            if buffer_size > self.buffer_size {
-                buffer_size - self.buffer_size
-            } else {
-                self.buffer_size - buffer_size
-            }
-        };
-
-        diff < self.update_at
-    }
 }
 
 pub struct BufferSubAllocator {

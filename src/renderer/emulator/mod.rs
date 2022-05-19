@@ -29,24 +29,27 @@ use crate::vk::objects::allocator::{Allocation, AllocationStrategy};
 pub use pipeline::RenderPath;
 pub use pipeline::RenderConfiguration;
 pub use pipeline::OutputConfiguration;
+pub use pipeline::TestVertex;
 
 pub(crate) struct EmulatorRenderer {
     weak: Weak<EmulatorRenderer>,
     device: DeviceEnvironment,
     worker: Arc<Share>,
     next_frame_id: AtomicU64,
-    buffer_pool: Mutex<BufferPool>,
+    buffer_pool: Arc<Mutex<BufferPool>>,
 }
 
 impl EmulatorRenderer {
     pub(crate) fn new(device: DeviceEnvironment) -> Arc<Self> {
         let renderer = Arc::new_cyclic(|weak| {
+            let pool = Arc::new(Mutex::new(BufferPool::new(device.clone())));
+
             Self {
                 weak: weak.clone(),
                 device: device.clone(),
-                worker: Arc::new(Share::new(device.clone())),
+                worker: Arc::new(Share::new(device.clone(), pool.clone())),
                 next_frame_id: AtomicU64::new(1),
-                buffer_pool: Mutex::new(BufferPool::new(device.clone())),
+                buffer_pool: pool,
             }
         });
 

@@ -12,7 +12,7 @@ use vk_profiles_rs::vp;
 use crate::device::device::VkQueue;
 
 use crate::glfw_surface::GLFWSurfaceProvider;
-use crate::renderer::emulator::{EmulatorRenderer, OutputConfiguration, RenderConfiguration, RenderPath};
+use crate::renderer::emulator::{EmulatorRenderer, OutputConfiguration, RenderConfiguration, RenderPath, TestVertex};
 use crate::instance::debug_messenger::RustLogDebugMessenger;
 use crate::device::init::{create_device, DeviceCreateConfig};
 use crate::device::surface::{DeviceSurface, SurfaceSwapchain, SwapchainConfig};
@@ -22,7 +22,7 @@ use crate::objects::{ObjectSet, ObjectSetProvider};
 use crate::vk::objects::surface::{SurfaceProvider};
 
 use crate::prelude::*;
-use crate::renderer::emulator::pass::{Pass, PassEventListener};
+use crate::renderer::emulator::pass::{ObjectData, Pass, PassEventListener};
 
 pub struct Blaze4D {
     instance: Arc<InstanceContext>,
@@ -129,13 +129,38 @@ impl Blaze4D {
 
     pub fn try_start_frame<T: Fn() -> Option<Vec2u32>>(&self, size_cb: T) -> Option<Pass> {
         let image = self.try_acquire_next_image(size_cb)?;
-        let frame = self.emulator.start_frame(image.swapchain.emulator_render_config.clone());
+        let mut frame = self.emulator.start_frame(image.swapchain.emulator_render_config.clone());
         let queue = self.device.get_device().get_main_queue();
 
         frame.add_output(image.swapchain.emulator_output_config.clone(), image.image_index as usize, image.acquire_semaphore, None);
         frame.add_signal_op(image.present_semaphore, None);
         frame.add_signal_op(image.ready_semaphore, Some(image.ready_value));
         frame.add_event_listener(Box::new(image));
+
+        let data = [
+            TestVertex {
+                position: Vec3f32::new(-1.0, -1.0, 0.05),
+                uv: Vec2f32::new(0.0, 0.0),
+            },
+            TestVertex {
+                position: Vec3f32::new(-1.0, 1.0, 0.05),
+                uv: Vec2f32::new(1.0, 0.0),
+            },
+            TestVertex {
+                position: Vec3f32::new(0.0, 1.0, 0.05),
+                uv: Vec2f32::new(0.0, 1.0),
+            }
+        ];
+
+        let index = [0u32, 1u32, 2u32];
+
+        let d = ObjectData {
+            vertex_data: crate::util::slice::to_byte_slice(&data),
+            index_data: crate::util::slice::to_byte_slice(&index),
+            draw_count: 3
+        };
+
+        frame.record_object(&d);
 
         Some(frame)
     }

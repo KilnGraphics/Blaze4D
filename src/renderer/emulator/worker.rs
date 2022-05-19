@@ -7,18 +7,21 @@ use crate::device::device::VkQueue;
 use crate::prelude::*;
 use crate::renderer::emulator::pass::{PassId, PassEventListener};
 use crate::renderer::emulator::{EmulatorRenderer, OutputConfiguration, RenderConfiguration};
+use crate::renderer::emulator::buffer::BufferPool;
 use crate::vk::DeviceEnvironment;
 use crate::vk::objects::buffer::{Buffer, BufferId};
 use crate::vk::objects::semaphore::SemaphoreOp;
 
 pub struct Share {
+    pool: Arc<Mutex<BufferPool>>,
     frame_semaphore: vk::Semaphore,
     channel: Mutex<Channel>,
     signal: Condvar,
+    family: u32,
 }
 
 impl Share {
-    pub fn new(device: DeviceEnvironment) -> Self {
+    pub fn new(device: DeviceEnvironment, pool: Arc<Mutex<BufferPool>>) -> Self {
         let mut timeline = vk::SemaphoreTypeCreateInfo::builder()
             .semaphore_type(vk::SemaphoreType::TIMELINE)
             .initial_value(0);
@@ -31,14 +34,16 @@ impl Share {
         }.unwrap();
 
         Self {
+            pool,
             frame_semaphore,
             channel: Mutex::new(Channel::new()),
             signal: Condvar::new(),
+            family: device.get_device().get_main_queue().get_queue_family_index(),
         }
     }
 
     pub fn get_render_queue_family(&self) -> u32 {
-        todo!()
+        self.family
     }
 
     /// Returns a timeline semaphore op that can be used to determine when a frame has finished
@@ -71,15 +76,15 @@ impl Share {
     }
 
     pub fn use_dynamic_buffer(&self, id: PassId, buffer: Buffer) {
-        todo!()
+        self.push_task(id, Task::UseDynamicBuffer(buffer));
     }
 
     pub fn set_dynamic_buffer_wait(&self, id: PassId, buffer: BufferId, wait_op: SemaphoreOp) {
-        todo!()
+        self.push_task(id, Task::SetDynamicBufferWait(buffer, wait_op));
     }
 
     pub fn draw(&self, id: PassId, task: DrawTask) {
-        todo!()
+        self.push_task(id, Task::Draw(task));
     }
 
     fn push_task(&self, id: PassId, task: Task) {
@@ -157,7 +162,7 @@ pub(super) fn run_worker(device: DeviceEnvironment, share: Arc<Share>) {
             }
             Task::EndFrame => {
                 let mut frame = frames.pop_frame(id).unwrap();
-                frame.finish_and_submit(device.get_device(), &queue);
+                frame.finish_and_submit(&device, &queue, &share.pool);
                 old_frames.push(frame);
             }
             Task::AddOutput(config, index, wait_semaphore, wait_value) =>
@@ -175,9 +180,14 @@ pub(super) fn run_worker(device: DeviceEnvironment, share: Arc<Share>) {
             Task::SetModelWorldMat(mat) =>
                 frames.get_frame(id).unwrap().set_model_world_mat(mat),
 
-            Task::UseDynamicBuffer(_) => {}
-            Task::SetDynamicBufferWait(_, _) => {}
-            Task::Draw(_) => {}
+            Task::UseDynamicBuffer(buffer) =>
+                frames.get_frame(id).unwrap().use_dynamic_buffer(&device, buffer),
+
+            Task::SetDynamicBufferWait(buffer, wait) =>
+                frames.get_frame(id).unwrap().set_dynamic_buffer_wait(buffer, wait),
+
+            Task::Draw(task) =>
+                frames.get_frame(id).unwrap().draw(&device, task),
         }
     }
 }
@@ -286,6 +296,11 @@ struct FrameState {
     event_listeners: Vec<Box<dyn PassEventListener + Send + Sync>>,
     command_buffer: vk::CommandBuffer,
 
+    available_buffers: Vec<Buffer>,
+
+    current_vertex_buffer: Option<BufferId>,
+    current_index_buffer: Option<BufferId>,
+
     end_semaphore: vk::Semaphore,
     end_value: u64,
 }
@@ -318,6 +333,11 @@ impl FrameState {
             event_listeners: Vec::new(),
             command_buffer,
 
+            available_buffers: Vec::new(),
+
+            current_vertex_buffer: None,
+            current_index_buffer: None,
+
             end_semaphore: signal_semaphore,
             end_value: signal_value,
         }
@@ -346,13 +366,87 @@ impl FrameState {
         self.config.set_model_world_mat(self.command_buffer, mat);
     }
 
-    pub fn finish_and_submit(&mut self, device: &DeviceContext, queue: &VkQueue) {
+    pub fn use_dynamic_buffer(&mut self, device: &DeviceEnvironment, buffer: Buffer) {
+        self.available_buffers.push(buffer);
+
+        if device.get_transfer().get_queue_family() != device.get_device().get_main_queue().get_queue_family_index() {
+            let buffer_barrier = vk::BufferMemoryBarrier::builder()
+                .buffer(buffer.get_handle())
+                .offset(0)
+                .size(vk::WHOLE_SIZE)
+                .dst_access_mask(vk::AccessFlags::MEMORY_READ)
+                .src_queue_family_index(device.get_transfer().get_queue_family())
+                .dst_queue_family_index(device.get_device().get_main_queue().get_queue_family_index());
+
+            unsafe {
+                device.vk().cmd_pipeline_barrier(
+                    self.command_buffer,
+                    vk::PipelineStageFlags::NONE,
+                    vk::PipelineStageFlags::ALL_GRAPHICS,
+                    vk::DependencyFlags::empty(),
+                    &[],
+                    std::slice::from_ref(&buffer_barrier),
+                    &[]
+                )
+            };
+        }
+    }
+
+    pub fn set_dynamic_buffer_wait(&mut self, _: BufferId, wait_op: SemaphoreOp) {
+        self.wait_semaphores.push(wait_op.semaphore);
+        self.wait_values.push(wait_op.value.unwrap_or(0));
+    }
+
+    pub fn draw(&mut self, device: &DeviceEnvironment, task: DrawTask) {
+        if self.current_vertex_buffer != Some(task.vertex_buffer) {
+            unsafe {
+                device.vk().cmd_bind_vertex_buffers(self.command_buffer, 0, std::slice::from_ref(&self.find_buffer(task.vertex_buffer)), &[0])
+            };
+            self.current_vertex_buffer = Some(task.vertex_buffer);
+        }
+        if self.current_index_buffer != Some(task.index_buffer) {
+            unsafe {
+                device.vk().cmd_bind_index_buffer(self.command_buffer, self.find_buffer(task.index_buffer), 0, vk::IndexType::UINT32)
+            };
+            self.current_index_buffer = Some(task.index_buffer);
+        }
+
+        unsafe {
+            device.vk().cmd_draw_indexed(self.command_buffer, task.vertex_count, 1, task.first_index, task.first_vertex as i32, 0)
+        };
+    }
+
+    pub fn finish_and_submit(&mut self, device: &DeviceEnvironment, queue: &VkQueue, buffer_pool: &Mutex<BufferPool>) {
         unsafe {
             device.vk().cmd_end_render_pass(self.command_buffer);
         }
 
         for (output, index) in &self.output_configs {
             output.record(self.command_buffer, self.index, *index);
+        }
+
+        if device.get_transfer().get_queue_family() != queue.get_queue_family_index() {
+            for buffer in &self.available_buffers {
+                let barrier = vk::BufferMemoryBarrier::builder()
+                    .buffer(buffer.get_handle())
+                    .offset(0)
+                    .size(vk::WHOLE_SIZE)
+                    .src_access_mask(vk::AccessFlags::MEMORY_READ)
+                    .src_queue_family_index(queue.get_queue_family_index())
+                    .dst_queue_family_index(device.get_transfer().get_queue_family());
+
+                unsafe {
+                    device.vk().cmd_pipeline_barrier(
+                        self.command_buffer,
+                        vk::PipelineStageFlags::ALL_GRAPHICS,
+                        vk::PipelineStageFlags::NONE,
+                        vk::DependencyFlags::empty(),
+                        &[],
+                        std::slice::from_ref(&barrier),
+                        &[]
+                    )
+                };
+            }
         }
 
         unsafe {
@@ -378,6 +472,11 @@ impl FrameState {
         for listener in &self.event_listeners {
             listener.on_post_submit();
         }
+
+        let mut pool_guard = buffer_pool.lock().unwrap();
+        for buffer in &self.available_buffers {
+            pool_guard.return_buffer(buffer.get_id(), Some(SemaphoreOp::new_timeline(self.end_semaphore, self.end_value)))
+        }
     }
 
     pub fn is_done(&self, device: &DeviceContext) -> bool {
@@ -386,6 +485,16 @@ impl FrameState {
         }.unwrap();
 
         value >= self.end_value
+    }
+
+    fn find_buffer(&self, id: BufferId) -> vk::Buffer {
+        for buffer in &self.available_buffers {
+            if buffer.get_id() == id {
+                return buffer.get_handle();
+            }
+        }
+        log::error!("Failed to find buffer {:?} in {:?}", id, self.available_buffers);
+        panic!();
     }
 }
 

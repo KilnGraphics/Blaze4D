@@ -17,9 +17,9 @@ use crate::vk::objects::allocator::{Allocation, AllocationStrategy};
 
 #[repr(C)]
 #[derive(Copy, Clone)]
-struct TestVertex {
-    position: Vec3f32,
-    uv: Vec2f32
+pub struct TestVertex {
+    pub(crate) position: Vec3f32,
+    pub(crate) uv: Vec2f32
 }
 
 const TEST_BUFFER_DATA: &[TestVertex] = &[
@@ -333,6 +333,10 @@ impl RenderConfiguration {
             render_objects: frame_objects,
             render_size,
         }
+    }
+
+    pub(super) fn get_tmp_vertex_size(&self) -> usize {
+        size_of::<TestVertex>()
     }
 
     pub(super) fn get_next_index(&self) -> usize {

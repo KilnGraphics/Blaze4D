@@ -6,6 +6,7 @@ use crate::renderer::emulator::buffer::{BufferAllocation, BufferSubAllocator};
 use crate::renderer::emulator::{EmulatorRenderer, OutputConfiguration, RenderConfiguration};
 use crate::renderer::emulator::worker::DrawTask;
 use crate::device::transfer::{BufferAvailabilityOp, BufferTransferRanges};
+use crate::prelude::Vec2u32;
 use crate::vk::objects::semaphore::SemaphoreOps;
 
 #[derive(Copy, Clone, PartialEq, Eq, PartialOrd, Ord, Debug, Hash)]
@@ -21,93 +22,17 @@ impl PassId {
     }
 }
 
-struct FrameShare {
-    id: PassId,
-    renderer: Arc<EmulatorRenderer>,
-    buffers: BufferSubAllocator,
-}
-
-impl FrameShare {
-    pub fn record_object(&mut self, object: &ObjectData) {
-        let vertex_size = self.get_pipeline_vertex_size();
-        let vertex_buffer = self.push_data(object.vertex_data, vertex_size);
-        let index_buffer = self.push_data(object.index_data, 4);
-
-        let draw_task = DrawTask {
-            vertex_buffer: vertex_buffer.buffer.get_id(),
-            index_buffer: index_buffer.buffer.get_id(),
-            first_vertex: (vertex_buffer.offset / (vertex_size as usize)) as u32,
-            first_index: (index_buffer.offset / 4usize) as u32,
-            vertex_count: object.draw_count,
-        };
-        self.renderer.worker.draw(self.id, draw_task);
-    }
-
-    fn push_data(&mut self, data: &[u8], alignment: u32) -> BufferAllocation {
-        let alloc = {
-            match self.buffers.allocate(data.len(), alignment) {
-                None => {
-                    self.replace_sub_allocator(data.len());
-                    self.buffers.allocate(data.len(), alignment).expect("Failed to allocate after replacement")
-                },
-                Some(alloc) => alloc,
-            }
-        };
-
-        let mut staging = self.renderer.device.get_transfer().request_staging_memory(data.len());
-        staging.write(data);
-        staging.copy_to_buffer(alloc.buffer, BufferTransferRanges::new_single(
-            0,
-            alloc.offset as vk::DeviceSize,
-            data.len() as vk::DeviceSize
-        ));
-
-        alloc
-    }
-
-    fn get_pipeline_vertex_size(&self) -> u32 {
-        todo!()
-    }
-
-    fn acquire_sub_allocator(&self, min_size: usize) -> BufferSubAllocator {
-        let (buffer, size, wait_op) = self.renderer.buffer_pool.lock().unwrap().get_buffer(min_size);
-        self.renderer.device.get_transfer().make_buffer_available(BufferAvailabilityOp::new(
-            buffer, self.renderer.worker.get_render_queue_family(), SemaphoreOps::from_option(wait_op)
-        ));
-        self.renderer.worker.use_dynamic_buffer(self.id, buffer);
-
-        BufferSubAllocator::new(buffer, size)
-    }
-
-    fn finish_sub_allocator(&self, allocator: BufferSubAllocator) {
-        let buffer = allocator.get_buffer();
-        let transfer_id = self.renderer.device.get_transfer().release_buffer(BufferAvailabilityOp::new(
-            buffer,
-            self.renderer.worker.get_render_queue_family(),
-            SemaphoreOps::None
-        ));
-
-        let transfer_wait_op = self.renderer.device.get_transfer().get_wait_op(transfer_id);
-        self.renderer.worker.set_dynamic_buffer_wait(self.id, buffer.get_id(), transfer_wait_op);
-    }
-
-    fn replace_sub_allocator(&mut self, min_size: usize) {
-        let new = self.acquire_sub_allocator(min_size);
-        let old = std::mem::replace(&mut self.buffers, new);
-        self.finish_sub_allocator(old);
-    }
-}
-
-struct ObjectData<'a> {
-    vertex_data: &'a [u8],
-    index_data: &'a [u8],
-    draw_count: u32,
+pub struct ObjectData<'a> {
+    pub vertex_data: &'a [u8],
+    pub index_data: &'a [u8],
+    pub draw_count: u32,
 }
 
 pub struct Pass {
     id: PassId,
     renderer: Arc<EmulatorRenderer>,
     configuration: Arc<RenderConfiguration>,
+    current_buffer: Option<BufferSubAllocator>,
 }
 
 impl Pass {
@@ -121,6 +46,7 @@ impl Pass {
             id,
             renderer,
             configuration,
+            current_buffer: None,
         }
     }
 
@@ -136,12 +62,87 @@ impl Pass {
         self.renderer.worker.add_event_listener(self.id, listener);
     }
 
+    pub fn record_object(&mut self, object: &ObjectData) {
+        let vertex_size = self.configuration.get_tmp_vertex_size();
+        let vertex_buffer = self.push_data(object.vertex_data, vertex_size as u32);
+        let index_buffer = self.push_data(object.index_data, 4);
+
+        let draw_task = DrawTask {
+            vertex_buffer: vertex_buffer.buffer.get_id(),
+            index_buffer: index_buffer.buffer.get_id(),
+            first_vertex: (vertex_buffer.offset / (vertex_size as usize)) as u32,
+            first_index: (index_buffer.offset / 4usize) as u32,
+            vertex_count: object.draw_count,
+        };
+        self.renderer.worker.draw(self.id, draw_task);
+    }
+
     pub fn submit(self) {
+    }
+
+    fn push_data(&mut self, data: &[u8], alignment: u32) -> BufferAllocation {
+        let alloc = self.allocate_memory(data.len(), alignment);
+
+        let mut staging = self.renderer.device.get_transfer().request_staging_memory(data.len());
+        staging.write(data);
+        staging.copy_to_buffer(alloc.buffer, BufferTransferRanges::new_single(
+            0,
+            alloc.offset as vk::DeviceSize,
+            data.len() as vk::DeviceSize
+        ));
+
+        alloc
+    }
+
+    fn allocate_memory(&mut self, size: usize, alignment: u32) -> BufferAllocation {
+        if self.current_buffer.is_none() {
+            self.new_sub_allocator(size);
+        }
+
+        match self.current_buffer.as_mut().unwrap().allocate(size, alignment) {
+            None => {
+                self.new_sub_allocator(size);
+                self.current_buffer.as_mut().unwrap().allocate(size, alignment).unwrap()
+            }
+            Some(alloc) => {
+                alloc
+            }
+        }
+    }
+
+    fn new_sub_allocator(&mut self, min_size: usize) {
+        if let Some(old) = self.current_buffer.take() {
+            self.end_sub_allocator(old);
+        }
+
+        let (buffer, size, wait_op) = self.renderer.buffer_pool.lock().unwrap().get_buffer(min_size);
+        self.renderer.device.get_transfer().acquire_buffer(BufferAvailabilityOp::new(buffer, self.renderer.worker.get_render_queue_family(), SemaphoreOps::from_option(wait_op)));
+        self.renderer.worker.use_dynamic_buffer(self.id, buffer);
+
+        let allocator = BufferSubAllocator::new(buffer, size);
+
+        self.current_buffer = Some(allocator)
+    }
+
+    fn end_sub_allocator(&self, allocator: BufferSubAllocator) {
+        let buffer = allocator.get_buffer();
+        let transfer_id = self.renderer.device.get_transfer().release_buffer(BufferAvailabilityOp::new(
+            buffer,
+            self.renderer.worker.get_render_queue_family(),
+            SemaphoreOps::None
+        ));
+
+        let transfer_wait_op = self.renderer.device.get_transfer().get_wait_op(transfer_id);
+        self.renderer.worker.set_dynamic_buffer_wait(self.id, buffer.get_id(), transfer_wait_op);
     }
 }
 
 impl Drop for Pass {
     fn drop(&mut self) {
+        if let Some(alloc) = self.current_buffer.take() {
+            self.end_sub_allocator(alloc);
+        }
+        self.renderer.device.get_transfer().flush();
         self.renderer.worker.end_frame(self.id);
     }
 }
