@@ -20,7 +20,6 @@ use crate::device::transfer::{BufferAvailabilityOp, BufferTransferRanges, Transf
 use crate::objects::id::ImageId;
 use crate::objects::{ObjectSet, ObjectSetProvider};
 use crate::vk::objects::buffer::Buffer;
-use crate::vk::objects::semaphore::SemaphoreOps;
 
 use crate::prelude::*;
 use crate::vk::DeviceEnvironment;

@@ -5,9 +5,9 @@ use ash::vk;
 
 use crate::renderer::emulator::pass::PassId;
 use crate::device::transfer::{BufferAvailabilityOp};
+use crate::objects::sync::SemaphoreOp;
 use crate::vk::objects::allocator::{Allocation, AllocationStrategy};
 use crate::vk::objects::buffer::{Buffer, BufferId};
-use crate::vk::objects::semaphore::{SemaphoreOp, SemaphoreOps};
 
 use crate::prelude::*;
 
@@ -166,7 +166,7 @@ impl PoolBuffer {
             if let Some(wait_op) = wait_op {
                 if let Some(value) = wait_op.value {
                     let semaphore_value = unsafe {
-                        device.vk().get_semaphore_counter_value(wait_op.semaphore)
+                        device.vk().get_semaphore_counter_value(wait_op.semaphore.get_handle())
                     }.unwrap();
                     if semaphore_value < value {
                         return false;

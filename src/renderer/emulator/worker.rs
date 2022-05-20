@@ -3,6 +3,7 @@ use std::fmt::{Debug, Formatter};
 use std::sync::{Arc, Condvar, Mutex};
 use ash::vk;
 use crate::device::device::VkQueue;
+use crate::objects::sync::SemaphoreOp;
 
 use crate::prelude::*;
 use crate::renderer::emulator::pass::{PassId, PassEventListener};
@@ -10,7 +11,6 @@ use crate::renderer::emulator::{EmulatorRenderer, OutputConfiguration, RenderCon
 use crate::renderer::emulator::buffer::BufferPool;
 use crate::vk::DeviceEnvironment;
 use crate::vk::objects::buffer::{Buffer, BufferId};
-use crate::vk::objects::semaphore::SemaphoreOp;
 
 pub struct Share {
     pool: Arc<Mutex<BufferPool>>,
@@ -52,7 +52,7 @@ impl Share {
     /// It is guaranteed that all resources associated with the frame may be freed safely after
     /// the semaphore is triggered.
     pub fn get_frame_end_semaphore(&self, id: PassId) -> SemaphoreOp {
-        SemaphoreOp::new_timeline(self.frame_semaphore, id.get_raw())
+        todo!()
     }
 
     pub fn start_frame(&self, id: PassId, configuration: Arc<RenderConfiguration>, index: usize, signal_semaphore: vk::Semaphore, signal_value: u64) {
@@ -393,8 +393,7 @@ impl FrameState {
     }
 
     pub fn set_dynamic_buffer_wait(&mut self, _: BufferId, wait_op: SemaphoreOp) {
-        self.wait_semaphores.push(wait_op.semaphore);
-        self.wait_values.push(wait_op.value.unwrap_or(0));
+        todo!()
     }
 
     pub fn draw(&mut self, device: &DeviceEnvironment, task: DrawTask) {
@@ -475,7 +474,7 @@ impl FrameState {
 
         let mut pool_guard = buffer_pool.lock().unwrap();
         for buffer in &self.available_buffers {
-            pool_guard.return_buffer(buffer.get_id(), Some(SemaphoreOp::new_timeline(self.end_semaphore, self.end_value)))
+            todo!()
         }
     }
 

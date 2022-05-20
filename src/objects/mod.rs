@@ -1,4 +1,5 @@
 pub mod id;
+pub mod sync;
 
 mod object_set;
 

@@ -6,8 +6,8 @@ use crate::renderer::emulator::buffer::{BufferAllocation, BufferSubAllocator};
 use crate::renderer::emulator::{EmulatorRenderer, OutputConfiguration, RenderConfiguration};
 use crate::renderer::emulator::worker::DrawTask;
 use crate::device::transfer::{BufferAvailabilityOp, BufferTransferRanges};
+use crate::objects::sync::SemaphoreOps;
 use crate::prelude::Vec2u32;
-use crate::vk::objects::semaphore::SemaphoreOps;
 
 #[derive(Copy, Clone, PartialEq, Eq, PartialOrd, Ord, Debug, Hash)]
 pub struct PassId(u64);
@@ -116,7 +116,6 @@ impl Pass {
         }
 
         let (buffer, size, wait_op) = self.renderer.buffer_pool.lock().unwrap().get_buffer(min_size);
-        self.renderer.device.get_transfer().acquire_buffer(BufferAvailabilityOp::new(buffer, self.renderer.worker.get_render_queue_family(), SemaphoreOps::from_option(wait_op)));
         self.renderer.worker.use_dynamic_buffer(self.id, buffer);
 
         let allocator = BufferSubAllocator::new(buffer, size);
@@ -125,14 +124,17 @@ impl Pass {
     }
 
     fn end_sub_allocator(&self, allocator: BufferSubAllocator) {
-        let buffer = allocator.get_buffer();
-        let transfer_id = self.renderer.device.get_transfer().release_buffer(BufferAvailabilityOp::new(
-            buffer,
-            self.renderer.worker.get_render_queue_family(),
-            SemaphoreOps::None
-        ));
+        let transfer = self.renderer.device.get_transfer();
 
-        let transfer_wait_op = self.renderer.device.get_transfer().get_wait_op(transfer_id);
+        let buffer = allocator.get_buffer();
+        let op = transfer.prepare_buffer_release(buffer, Some((
+            vk::PipelineStageFlags2::VERTEX_INPUT | vk::PipelineStageFlags2::INDEX_INPUT,
+            vk::AccessFlags2::VERTEX_ATTRIBUTE_READ | vk::AccessFlags2::INDEX_READ,
+            self.renderer.worker.get_render_queue_family()
+        )));
+        let release_id = transfer.release_buffer(op.clone()).unwrap();
+
+        let transfer_wait_op = transfer.generate_wait_semaphore(release_id);
         self.renderer.worker.set_dynamic_buffer_wait(self.id, buffer.get_id(), transfer_wait_op);
     }
 }
@@ -142,7 +144,7 @@ impl Drop for Pass {
         if let Some(alloc) = self.current_buffer.take() {
             self.end_sub_allocator(alloc);
         }
-        self.renderer.device.get_transfer().flush();
+        // self.renderer.device.get_transfer().flush();
         self.renderer.worker.end_frame(self.id);
     }
 }

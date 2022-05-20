@@ -190,7 +190,7 @@ impl DeviceEnvironment {
         let instance = device.get_instance().clone();
 
         let allocator = Arc::new(Allocator::new(instance.vk().clone(), device.vk().clone(), *device.get_physical_device()));
-        let transfer = Transfer::new(device.clone(), allocator.clone());
+        let transfer = Arc::new(Transfer::new(device.clone(), allocator.clone(), device.get_transfer_queue()));
         let utils = DeviceUtils::new(device.clone(), allocator.clone());
 
         Self {

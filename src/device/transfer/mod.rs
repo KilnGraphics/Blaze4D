@@ -1,5 +1,7 @@
 mod resource_state;
 mod worker;
+mod allocator;
+mod recorder;
 
 use std::collections::{VecDeque};
 use std::sync::{Arc, Condvar, Mutex};
@@ -15,20 +17,20 @@ use crate::vk::objects::allocator::{Allocation, AllocationStrategy, Allocator};
 use crate::vk::objects::buffer::{Buffer, BufferId};
 
 use worker::*;
+use crate::objects::sync::{SemaphoreOp, SemaphoreOps};
 use crate::vk::objects::image::{Image, ImageId};
-use crate::vk::objects::semaphore::{SemaphoreOp, SemaphoreOps};
 
-#[derive(Copy, PartialEq, Eq, PartialOrd, Ord, Debug, Hash)]
+#[derive(Copy, Clone, PartialEq, Eq, PartialOrd, Ord, Debug, Hash)]
 pub enum AcquireError {
     AlreadyAvailable,
 }
 
-#[derive(Copy, PartialEq, Eq, PartialOrd, Ord, Debug, Hash)]
+#[derive(Copy, Clone, PartialEq, Eq, PartialOrd, Ord, Debug, Hash)]
 pub enum ReleaseError {
     NotAvailable,
 }
 
-#[derive(Copy, PartialEq, Eq, PartialOrd, Ord, Debug, Hash)]
+#[derive(Copy, Clone, PartialEq, Eq, PartialOrd, Ord, Debug, Hash)]
 pub struct ReleaseId(u64);
 
 impl ReleaseId {
@@ -44,12 +46,24 @@ impl ReleaseId {
 pub struct Transfer {
     share: Arc<Share>,
     queue_family: u32,
-    worker: JoinHandle<()>,
+    worker: Option<JoinHandle<()>>,
 }
 
 impl Transfer {
-    pub fn new(device: DeviceEnvironment, queue: VkQueue) -> Self {
-        todo!()
+    pub fn new(device: Arc<DeviceContext>, alloc: Arc<Allocator>, queue: VkQueue) -> Self {
+        let queue_family = queue.get_queue_family_index();
+        let share = Arc::new(Share::new(device, alloc));
+
+        let share2 = share.clone();
+        let worker = std::thread::spawn(move || {
+            run_worker(share2, queue)
+        });
+
+        Self {
+            share,
+            queue_family,
+            worker: Some(worker)
+        }
     }
 
     /// Returns the queue family index of the queue that is used for transfer operations.
@@ -125,7 +139,7 @@ impl Transfer {
                     .dst_stage_mask(stage)
                     .dst_access_mask(access)
                     .src_queue_family_index(self.queue_family)
-                    .dst_queue_family_index(queue)
+                    .dst_queue_family_index(family)
                     .buffer(buffer.get_handle())
                     .offset(0)
                     .size(vk::WHOLE_SIZE)
@@ -286,88 +300,44 @@ impl Transfer {
         Ok(ReleaseId::from_raw(id))
     }
 
+    /// Returns some staging memory which can be used to upload to or download data from the device.
+    ///
+    /// The returned memory is at least as large as `capacity` but may be larger.
     pub fn request_staging_memory(&self, capacity: usize) -> StagingMemory {
-        let info = vk::BufferCreateInfo::builder()
-            .size(capacity as vk::DeviceSize)
-            .usage(vk::BufferUsageFlags::TRANSFER_SRC | vk::BufferUsageFlags::TRANSFER_DST)
-            .sharing_mode(vk::SharingMode::EXCLUSIVE);
-
-        let buffer = unsafe { self.device.vk().create_buffer(&info, None) }.unwrap();
-
-        let allocation = self.allocator.allocate_buffer_memory(buffer, &AllocationStrategy::AutoGpuCpu).unwrap();
-
-        unsafe {
-            self.device.vk().bind_buffer_memory(buffer, allocation.memory(), allocation.offset())
-        }.unwrap();
-
-        let memory = unsafe {
-            std::slice::from_raw_parts_mut(allocation.mapped_ptr().unwrap().as_ptr() as *mut u8, capacity)
-        };
-
-        let buffer = Buffer::new(buffer);
-
-        self.push_task(TaskInfo::AcquireStagingMemory(buffer));
+        let (id, alloc) = self.share.allocate_staging(capacity as vk::DeviceSize);
 
         StagingMemory {
-            transfer: self,
-            memory,
-            last_transfer: 0,
-            buffer,
-            buffer_offset: 0,
-            allocation: Some(allocation),
+            transfer: &self,
+            memory: unsafe {
+                std::slice::from_raw_parts_mut(alloc.get_memory().as_ptr(), alloc.get_size() as usize)
+            },
+            memory_id: id,
+            buffer_offset: alloc.get_offset()
         }
     }
 
-    pub fn flush(&self) -> u64 {
-        let mut guard = self.channel.lock().unwrap();
-
-        let id = guard.current_task_id;
-
-        guard.task_queue.push_back(Task{ id, info: TaskInfo::Flush });
-        drop(guard);
-
-        self.condvar.notify_one();
-
-        id
-    }
-
-    fn push_task(&self, task: TaskInfo) -> u64 {
-        let mut guard = self.channel.lock().unwrap();
-
-        guard.current_task_id += 1;
-        let id = guard.current_task_id;
-
-        guard.task_queue.push_back(Task{ id, info: task });
-        drop(guard);
-
-        self.condvar.notify_one();
-
-        id
-    }
-
-    fn create_semaphore(device: &DeviceContext) -> vk::Semaphore {
-        let mut type_info = vk::SemaphoreTypeCreateInfo::builder()
-            .semaphore_type(vk::SemaphoreType::TIMELINE)
-            .initial_value(0);
-
-        let info = vk::SemaphoreCreateInfo::builder()
-            .push_next(&mut type_info);
-
-        unsafe {
-            device.vk().create_semaphore(&info, None)
-        }.expect("Failed to create semaphore")
+    pub fn generate_wait_semaphore(&self, id: ReleaseId) -> SemaphoreOp {
+        self.share.get_release_wait_op(id.get_raw())
     }
 }
 
 impl Drop for Transfer {
     fn drop(&mut self) {
-        unsafe {
-            self.device.vk().destroy_semaphore(self.semaphore, None);
+        self.share.terminate();
+        if let Some(worker) = self.worker.take() {
+            match worker.join() {
+                Err(_) => {
+                    log::error!("Transfer channel worker panicked!");
+                },
+                _ => {}
+            }
+        } else {
+            log::error!("Transfer channel worker join handle has been taken before drop!");
         }
     }
 }
 
-#[derive(Copy, Clone, PartialEq, Eq, Debug)]
+#[derive(Copy, Clone, Debug)]
 pub struct BufferAvailabilityOp {
     buffer: Buffer,
     barrier: Option<vk::BufferMemoryBarrier2>,
@@ -385,7 +355,11 @@ impl BufferAvailabilityOp {
     }
 }
 
-#[derive(Copy, Clone, PartialEq, Eq, Debug)]
+// vk::BufferMemoryBarrier2 does not implement send so we have to do it here
+unsafe impl Send for BufferAvailabilityOp {
+}
+
+#[derive(Copy, Clone, Debug)]
 pub struct ImageAvailabilityOp {
     image: Image,
     aspect_mask: vk::ImageAspectFlags,
@@ -407,13 +381,15 @@ impl ImageAvailabilityOp {
     }
 }
 
+// vk::ImageMemoryBarrier2 does not implement send so we have to do it here
+unsafe impl Send for ImageAvailabilityOp {
+}
+
 pub struct StagingMemory<'a> {
     transfer: &'a Transfer,
     memory: &'a mut [u8],
-    last_transfer: u64,
-    buffer: Buffer,
+    memory_id: UUID,
     buffer_offset: vk::DeviceSize,
-    allocation: Option<Allocation>,
 }
 
 impl<'a> StagingMemory<'a> {
@@ -465,46 +441,44 @@ impl<'a> StagingMemory<'a> {
         Ok(())
     }
 
-    pub fn copy_to_buffer<T: Into<BufferId>>(&mut self, dst_buffer: T, mut ranges: BufferTransferRanges) -> u64 {
+    pub fn copy_to_buffer<T: Into<BufferId>>(&mut self, dst_buffer: T, mut ranges: BufferTransferRanges) {
         ranges.add_src_offset(self.buffer_offset);
-        let task = TaskInfo::BufferTransfer(BufferTransfer {
-            src_buffer: self.buffer.into(),
+        let task = Task::BufferTransfer(BufferTransfer {
+            src_buffer: BufferId::from_raw(self.memory_id),
             dst_buffer: dst_buffer.into(),
             ranges
         });
-        let id = self.transfer.push_task(task);
-        self.last_transfer = id;
-        id
+        self.transfer.share.push_task(task);
     }
 
-    pub fn copy_from_buffer<T: Into<BufferId>>(&mut self, src_buffer: T, mut ranges: BufferTransferRanges) -> u64 {
+    pub fn copy_from_buffer<T: Into<BufferId>>(&mut self, src_buffer: T, mut ranges: BufferTransferRanges) {
         ranges.add_dst_offset(self.buffer_offset);
-        let task = TaskInfo::BufferTransfer(BufferTransfer {
+        let task = Task::BufferTransfer(BufferTransfer {
             src_buffer: src_buffer.into(),
-            dst_buffer: self.buffer.into(),
+            dst_buffer: BufferId::from_raw(self.memory_id),
             ranges
         });
-        let id = self.transfer.push_task(task);
-        self.last_transfer = id;
-        id
+        self.transfer.share.push_task(task);
     }
 
-    pub fn copy_to_image<T: Into<ImageId>>(&mut self, dst_image: T, mut ranges: BufferImageTransferRanges) -> u64 {
+    pub fn copy_to_image<T: Into<ImageId>>(&mut self, dst_image: T, mut ranges: BufferImageTransferRanges) {
         ranges.add_buffer_offset(self.buffer_offset);
-        let task = TaskInfo::BufferToImageTransfer(BufferToImageTransfer {
-            src_buffer: self.buffer.get_id(),
+        let task = Task::BufferToImageTransfer(BufferToImageTransfer {
+            src_buffer: BufferId::from_raw(self.memory_id),
             dst_image: dst_image.into(),
             ranges
         });
-        let id = self.transfer.push_task(task);
-        self.last_transfer = id;
-        id
+        self.transfer.share.push_task(task);
+    }
+
+    pub fn flush(&self) {
+
     }
 }
 
 impl<'a> Drop for StagingMemory<'a> {
     fn drop(&mut self) {
-        self.transfer.push_task(TaskInfo::FreeStagingMemory(self.buffer, self.allocation.take().unwrap()));
+        self.transfer.share.push_task(Task::StagingRelease(self.memory_id));
     }
 }
 

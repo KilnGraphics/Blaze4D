@@ -66,3 +66,4 @@ declare_object_id!(ImageId, vk::Image);
 declare_object_id!(ImageViewId, vk::ImageView);
 declare_object_id!(SurfaceId, vk::SurfaceKHR);
 declare_object_id!(SwapchainId, vk::SwapchainKHR);
+declare_object_id!(SemaphoreId, vk::Semaphore);

@@ -60,6 +60,13 @@ impl Buffer {
         }
     }
 
+    pub fn from_raw(id: BufferId, handle: vk::Buffer) -> Self {
+        Self {
+            id,
+            handle
+        }
+    }
+
     pub fn get_id(&self) -> BufferId {
         self.id
     }
