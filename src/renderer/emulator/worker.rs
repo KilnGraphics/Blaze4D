@@ -3,6 +3,7 @@ use std::fmt::{Debug, Formatter};
 use std::sync::{Arc, Condvar, Mutex};
 use ash::vk;
 use crate::device::device::VkQueue;
+use crate::device::transfer::SyncId;
 use crate::objects::sync::SemaphoreOp;
 
 use crate::prelude::*;
@@ -75,12 +76,12 @@ impl Share {
         self.push_task(id, Task::AddEventListener(listener));
     }
 
-    pub fn use_dynamic_buffer(&self, id: PassId, buffer: Buffer) {
-        self.push_task(id, Task::UseDynamicBuffer(buffer));
+    pub fn use_dynamic_buffer(&self, id: PassId, buffer: Buffer, barrier: Option<vk::BufferMemoryBarrier2>) {
+        self.push_task(id, Task::UseDynamicBuffer(buffer, barrier));
     }
 
-    pub fn set_dynamic_buffer_wait(&self, id: PassId, buffer: BufferId, wait_op: SemaphoreOp) {
-        self.push_task(id, Task::SetDynamicBufferWait(buffer, wait_op));
+    pub fn set_dynamic_buffer_wait(&self, id: PassId, buffer: BufferId, sync_id: SyncId) {
+        self.push_task(id, Task::SetDynamicBufferWait(buffer, sync_id));
     }
 
     pub fn draw(&self, id: PassId, task: DrawTask) {
@@ -123,9 +124,13 @@ enum Task {
     AddEventListener(Box<dyn PassEventListener + Send + Sync>),
     SetWorldNdcMat(Mat4f32),
     SetModelWorldMat(Mat4f32),
-    UseDynamicBuffer(Buffer),
-    SetDynamicBufferWait(BufferId, SemaphoreOp),
+    UseDynamicBuffer(Buffer, Option<vk::BufferMemoryBarrier2>),
+    SetDynamicBufferWait(BufferId, SyncId),
     Draw(DrawTask),
+}
+
+// Needed because of the option barrier in UseDynamicBuffer
+unsafe impl Send for Task {
 }
 
 pub struct DrawTask {
@@ -147,6 +152,7 @@ pub(super) fn run_worker(device: DeviceEnvironment, share: Arc<Share>) {
         old_frames.retain(|old: &FrameState| {
             if old.is_done(device.get_device()) {
                 pool.return_buffer(old.command_buffer);
+                pool.return_buffer(old.barrier_buffer);
                 false
             } else {
                 true
@@ -157,7 +163,7 @@ pub(super) fn run_worker(device: DeviceEnvironment, share: Arc<Share>) {
 
         match task {
             Task::StartFrame(config, index, signal_semaphore, signal_value) => {
-                let frame = FrameState::new(device.get_device(), config, index, signal_semaphore, signal_value, pool.get_buffer());
+                let frame = FrameState::new(device.get_device(), config, index, signal_semaphore, signal_value, pool.get_buffer(), pool.get_buffer());
                 frames.add_frame(id, frame);
             }
             Task::EndFrame => {
@@ -180,11 +186,11 @@ pub(super) fn run_worker(device: DeviceEnvironment, share: Arc<Share>) {
             Task::SetModelWorldMat(mat) =>
                 frames.get_frame(id).unwrap().set_model_world_mat(mat),
 
-            Task::UseDynamicBuffer(buffer) =>
-                frames.get_frame(id).unwrap().use_dynamic_buffer(&device, buffer),
+            Task::UseDynamicBuffer(buffer, barrier) =>
+                frames.get_frame(id).unwrap().use_dynamic_buffer(buffer, barrier),
 
-            Task::SetDynamicBufferWait(buffer, wait) =>
-                frames.get_frame(id).unwrap().set_dynamic_buffer_wait(buffer, wait),
+            Task::SetDynamicBufferWait(buffer, sync_id) =>
+                frames.get_frame(id).unwrap().set_dynamic_buffer_wait(buffer, sync_id),
 
             Task::Draw(task) =>
                 frames.get_frame(id).unwrap().draw(&device, task),
@@ -303,10 +309,14 @@ struct FrameState {
 
     end_semaphore: vk::Semaphore,
     end_value: u64,
+
+    barrier_buffer: vk::CommandBuffer,
+    pre_barriers: Vec<vk::BufferMemoryBarrier2>,
+    sync_wait: Option<u64>,
 }
 
 impl FrameState {
-    pub fn new(device: &DeviceContext, config: Arc<RenderConfiguration>, index: usize, signal_semaphore: vk::Semaphore, signal_value: u64, command_buffer: vk::CommandBuffer) -> Self {
+    pub fn new(device: &DeviceContext, config: Arc<RenderConfiguration>, index: usize, signal_semaphore: vk::Semaphore, signal_value: u64, command_buffer: vk::CommandBuffer, cmd2: vk::CommandBuffer) -> Self {
         let info = vk::CommandBufferBeginInfo::builder()
             .flags(vk::CommandBufferUsageFlags::ONE_TIME_SUBMIT);
 
@@ -340,6 +350,10 @@ impl FrameState {
 
             end_semaphore: signal_semaphore,
             end_value: signal_value,
+
+            barrier_buffer: cmd2,
+            pre_barriers: Vec::new(),
+            sync_wait: None,
         }
     }
 
@@ -366,34 +380,16 @@ impl FrameState {
         self.config.set_model_world_mat(self.command_buffer, mat);
     }
 
-    pub fn use_dynamic_buffer(&mut self, device: &DeviceEnvironment, buffer: Buffer) {
+    pub fn use_dynamic_buffer(&mut self, buffer: Buffer, barrier: Option<vk::BufferMemoryBarrier2>) {
         self.available_buffers.push(buffer);
 
-        if device.get_transfer().get_queue_family() != device.get_device().get_main_queue().get_queue_family_index() {
-            let buffer_barrier = vk::BufferMemoryBarrier::builder()
-                .buffer(buffer.get_handle())
-                .offset(0)
-                .size(vk::WHOLE_SIZE)
-                .dst_access_mask(vk::AccessFlags::MEMORY_READ)
-                .src_queue_family_index(device.get_transfer().get_queue_family())
-                .dst_queue_family_index(device.get_device().get_main_queue().get_queue_family_index());
-
-            unsafe {
-                device.vk().cmd_pipeline_barrier(
-                    self.command_buffer,
-                    vk::PipelineStageFlags::NONE,
-                    vk::PipelineStageFlags::ALL_GRAPHICS,
-                    vk::DependencyFlags::empty(),
-                    &[],
-                    std::slice::from_ref(&buffer_barrier),
-                    &[]
-                )
-            };
+        if let Some(barrier) = barrier {
+            self.pre_barriers.push(barrier);
         }
     }
 
-    pub fn set_dynamic_buffer_wait(&mut self, _: BufferId, wait_op: SemaphoreOp) {
-        todo!()
+    pub fn set_dynamic_buffer_wait(&mut self, _: BufferId, sync_id: SyncId) {
+        self.sync_wait = Some(self.sync_wait.map_or(sync_id.get_raw(), |old| std::cmp::max(old, sync_id.get_raw())));
     }
 
     pub fn draw(&mut self, device: &DeviceEnvironment, task: DrawTask) {
@@ -424,33 +420,40 @@ impl FrameState {
             output.record(self.command_buffer, self.index, *index);
         }
 
-        if device.get_transfer().get_queue_family() != queue.get_queue_family_index() {
-            for buffer in &self.available_buffers {
-                let barrier = vk::BufferMemoryBarrier::builder()
-                    .buffer(buffer.get_handle())
-                    .offset(0)
-                    .size(vk::WHOLE_SIZE)
-                    .src_access_mask(vk::AccessFlags::MEMORY_READ)
-                    .src_queue_family_index(queue.get_queue_family_index())
-                    .dst_queue_family_index(device.get_transfer().get_queue_family());
-
-                unsafe {
-                    device.vk().cmd_pipeline_barrier(
-                        self.command_buffer,
-                        vk::PipelineStageFlags::ALL_GRAPHICS,
-                        vk::PipelineStageFlags::NONE,
-                        vk::DependencyFlags::empty(),
-                        &[],
-                        std::slice::from_ref(&barrier),
-                        &[]
-                    )
-                };
-            }
-        }
-
         unsafe {
             device.vk().end_command_buffer(self.command_buffer)
         }.map_err(|err| {log::error!("Failed to end command buffer recording!"); err}).unwrap();
+
+        let mut command_buffers = Vec::with_capacity(2);
+
+        if !self.pre_barriers.is_empty() {
+            let info = vk::CommandBufferBeginInfo::builder()
+                .flags(vk::CommandBufferUsageFlags::ONE_TIME_SUBMIT);
+            unsafe {
+                device.vk().begin_command_buffer(self.barrier_buffer, &info)
+            }.unwrap();
+
+            let info = vk::DependencyInfo::builder()
+                .buffer_memory_barriers(self.pre_barriers.as_slice());
+
+            unsafe {
+                device.vk().cmd_pipeline_barrier2(self.barrier_buffer, &info)
+            };
+
+            unsafe {
+                device.vk().end_command_buffer(self.barrier_buffer)
+            }.unwrap();
+
+            command_buffers.push(self.barrier_buffer);
+        }
+        command_buffers.push(self.command_buffer);
+
+        if let Some(sync_id) = self.sync_wait {
+            device.get_transfer().wait_for_submit(SyncId::from_raw(sync_id));
+            let wait_op = device.get_transfer().generate_wait_semaphore(SyncId::from_raw(sync_id));
+            self.wait_semaphores.push(wait_op.semaphore.get_handle());
+            self.wait_values.push(wait_op.value.unwrap_or(0));
+        }
 
         let mut timeline_info = vk::TimelineSemaphoreSubmitInfo::builder()
             .wait_semaphore_values(self.wait_values.as_slice())
@@ -460,7 +463,7 @@ impl FrameState {
         let submit_info = vk::SubmitInfo::builder()
             .wait_semaphores(self.wait_semaphores.as_slice())
             .wait_dst_stage_mask(stages.as_ref())
-            .command_buffers(std::slice::from_ref(&self.command_buffer))
+            .command_buffers(command_buffers.as_slice())
             .signal_semaphores(self.signal_semaphores.as_slice())
             .push_next(&mut timeline_info);
 
@@ -474,7 +477,7 @@ impl FrameState {
 
         let mut pool_guard = buffer_pool.lock().unwrap();
         for buffer in &self.available_buffers {
-            todo!()
+            pool_guard.return_buffer(buffer.get_id(), None); // TODO add wait op
         }
     }
 

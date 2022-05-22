@@ -1,5 +1,6 @@
 #[macro_use]
 extern crate static_assertions;
+extern crate core;
 
 pub mod device;
 pub mod instance;

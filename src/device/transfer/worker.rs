@@ -3,6 +3,7 @@ use std::sync::LockResult;
 use std::time::{Duration, Instant};
 use winit::event::VirtualKeyCode::M;
 use crate::device::transfer::allocator::{PoolAllocation, PoolAllocationId, PoolAllocator};
+use crate::device::transfer::recorder::Recorder;
 
 use crate::device::transfer::resource_state::{BufferState, ImageStateTracker};
 use crate::objects::id::SemaphoreId;
@@ -44,7 +45,7 @@ impl Share {
             channel: Mutex::new(Channel {
                 task_queue: VecDeque::with_capacity(32),
                 last_submitted_id: 0,
-                next_release_id: 1,
+                next_sync_id: 1,
                 terminate: false,
             }),
             new_submit_condvar: Condvar::new(),
@@ -74,8 +75,8 @@ impl Share {
 
     pub(super) fn push_buffer_release_task(&self, op: BufferAvailabilityOp) -> u64 {
         let mut guard = self.channel.lock().unwrap();
-        let id = guard.next_release_id;
-        guard.next_release_id += 1;
+        let id = guard.next_sync_id;
+        guard.next_sync_id += 1;
         guard.task_queue.push_back(Task::BufferRelease(op, id));
         drop(guard);
 
@@ -85,8 +86,8 @@ impl Share {
 
     pub(super) fn push_image_release_task(&self, op: ImageAvailabilityOp) -> u64 {
         let mut guard = self.channel.lock().unwrap();
-        let id = guard.next_release_id;
-        guard.next_release_id += 1;
+        let id = guard.next_sync_id;
+        guard.next_sync_id += 1;
         guard.task_queue.push_back(Task::ImageRelease(op, id));
         drop(guard);
 
@@ -94,7 +95,7 @@ impl Share {
         id
     }
 
-    pub(super) fn wait_for_release_submit(&self, id: u64) {
+    pub(super) fn wait_for_submit(&self, id: u64) {
         let mut guard = self.channel.lock().unwrap();
         loop {
             if guard.last_submitted_id >= id {
@@ -104,7 +105,18 @@ impl Share {
         }
     }
 
-    pub(super) fn get_release_wait_op(&self, id: u64) -> SemaphoreOp {
+    pub(super) fn wait_for_complete(&self, id: u64) {
+        let semaphore = self.semaphore.get_handle();
+        let info = vk::SemaphoreWaitInfo::builder()
+            .semaphores(std::slice::from_ref(&semaphore))
+            .values(std::slice::from_ref(&id));
+
+        unsafe {
+            self.device.vk().wait_semaphores(&info, u64::MAX)
+        }.unwrap();
+    }
+
+    pub(super) fn get_sync_wait_op(&self, id: u64) -> SemaphoreOp {
         SemaphoreOp::new_timeline(self.semaphore, id)
     }
 
@@ -121,14 +133,17 @@ impl Share {
         self.worker_condvar.notify_all();
     }
 
-    fn try_get_next_task(&self, timeout: Duration) -> Option<Task> {
+    fn try_get_next_task(&self, timeout: Duration) -> Result<Option<Task>, ()> {
         let mut guard = self.channel.lock().unwrap();
         if let Some(task) = guard.task_queue.pop_front() {
-            return Some(task);
+            return Ok(Some(task));
+        }
+        if guard.terminate {
+            return Err(());
         }
 
         let (mut guard, _) = self.worker_condvar.wait_timeout(guard, timeout).unwrap();
-        guard.task_queue.pop_front()
+        Ok(guard.task_queue.pop_front())
     }
 }
 
@@ -143,14 +158,13 @@ impl Drop for Share {
 pub(super) struct Channel {
     task_queue: VecDeque<Task>,
     last_submitted_id: u64,
-    next_release_id: u64,
+    next_sync_id: u64,
     terminate: bool,
 }
 
 #[derive(Debug)]
 pub(super) enum Task {
-    FlushRelease(u64),
-    FlushStaging(UUID),
+    Flush(u64),
     BufferAcquire(BufferAvailabilityOp, SemaphoreOps),
     BufferRelease(BufferAvailabilityOp, u64),
     ImageAcquire(ImageAvailabilityOp, SemaphoreOps),
@@ -163,4 +177,104 @@ pub(super) enum Task {
 }
 
 pub(super) fn run_worker(share: Arc<Share>, queue: VkQueue) {
+    let mut recorder = Recorder::new(share.device.clone(), queue);
+
+    let mut buffers: HashMap<UUID, (BufferState, Option<PoolAllocationId>)> = HashMap::new();
+
+    loop {
+        let frees = recorder.process_submitted(share.semaphore.get_handle());
+        for free in frees {
+            share.allocator.lock().unwrap().free(free);
+        }
+
+        let task = share.try_get_next_task(Duration::from_millis(10));
+        let task = match task {
+            Ok(task) => task,
+            Err(_) => break,
+        };
+
+        if let Some(task) = task {
+            match task {
+                Task::Flush(_) => {
+                    let sync_id = recorder.submit(share.semaphore.get_handle());
+                    if let Some(id) = sync_id {
+                        share.channel.lock().unwrap().last_submitted_id = id;
+                        share.new_submit_condvar.notify_all();
+                    }
+                }
+
+                Task::BufferAcquire(acquire, waits) => {
+                    recorder.add_wait_ops(waits);
+                    if let Some(barrier) = acquire.get_barrier() {
+                        recorder.get_buffer_barriers().push(*barrier);
+                    }
+                    buffers.insert(acquire.get_buffer().get_id().as_uuid(), (BufferState::new(acquire.buffer, 0, vk::WHOLE_SIZE), None));
+                }
+
+                Task::BufferRelease(release, id) => {
+                    buffers.remove(&release.buffer.get_id());
+                    if let Some(barrier) = release.get_barrier() {
+                        recorder.get_buffer_barriers().push(*barrier);
+                    }
+                    recorder.push_sync(id);
+                }
+
+                Task::ImageAcquire(_, _) => {}
+                Task::ImageRelease(_, _) => {}
+
+                Task::StagingAcquire(alloc_id, id, buffer, offset, size) => {
+                    buffers.insert(id, (BufferState::new(Buffer::from_raw(BufferId::from_raw(id), buffer), offset, size), Some(alloc_id)));
+                }
+
+                Task::StagingRelease(id) => {
+                    let (_, alloc_id) = buffers.remove(&id).unwrap();
+                    if let Some(alloc_id) = alloc_id {
+                        recorder.push_free(alloc_id);
+                    } else {
+                        panic!()
+                    }
+                }
+
+                Task::BufferTransfer(transfer) => {
+                    let mut info = vk::CopyBufferInfo2::builder();
+
+                    if transfer.src_buffer == transfer.dst_buffer {
+                        let (buffer, _) = buffers.get_mut(&transfer.src_buffer.as_uuid()).unwrap();
+                        buffer.update_state(true, true, recorder.get_buffer_barriers());
+                        info = info.src_buffer(buffer.get_handle()).dst_buffer(buffer.get_handle());
+
+                    } else {
+                        let (src, _) = buffers.get_mut(&transfer.src_buffer.as_uuid()).unwrap();
+                        src.update_state(true, false, recorder.get_buffer_barriers());
+                        info = info.src_buffer(src.get_handle());
+
+                        let (dst, _) = buffers.get_mut(&transfer.dst_buffer.as_uuid()).unwrap();
+                        dst.update_state(false, true, recorder.get_buffer_barriers());
+                        info = info.dst_buffer(dst.get_handle());
+                    }
+
+                    let mut copy_regions = Vec::with_capacity(transfer.ranges.as_slice().len());
+                    for region in transfer.ranges.as_slice() {
+                        copy_regions.push(vk::BufferCopy2::builder()
+                            .src_offset(region.src_offset)
+                            .dst_offset(region.dst_offset)
+                            .size(region.size)
+                            .build()
+                        );
+                    }
+
+                    info = info.regions(copy_regions.as_slice());
+
+                    recorder.flush_barriers();
+
+                    unsafe {
+                        share.device.vk().cmd_copy_buffer2(recorder.get_command_buffer(), &info)
+                    };
+                }
+
+                Task::BufferToImageTransfer(_) => {}
+                Task::ImageToBufferTransfer(_) => {}
+            }
+        }
+    }
 }

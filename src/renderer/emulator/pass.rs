@@ -7,7 +7,9 @@ use crate::renderer::emulator::{EmulatorRenderer, OutputConfiguration, RenderCon
 use crate::renderer::emulator::worker::DrawTask;
 use crate::device::transfer::{BufferAvailabilityOp, BufferTransferRanges};
 use crate::objects::sync::SemaphoreOps;
-use crate::prelude::Vec2u32;
+use crate::vk::objects::buffer::Buffer;
+
+use crate::prelude::*;
 
 #[derive(Copy, Clone, PartialEq, Eq, PartialOrd, Ord, Debug, Hash)]
 pub struct PassId(u64);
@@ -28,14 +30,14 @@ pub struct ObjectData<'a> {
     pub draw_count: u32,
 }
 
-pub struct Pass {
+pub struct PassRecorder {
     id: PassId,
     renderer: Arc<EmulatorRenderer>,
     configuration: Arc<RenderConfiguration>,
     current_buffer: Option<BufferSubAllocator>,
 }
 
-impl Pass {
+impl PassRecorder {
     pub(super) fn new(id: PassId, renderer: Arc<EmulatorRenderer>, configuration: Arc<RenderConfiguration>) -> Self {
         let index = configuration.get_next_index();
         let (signal_semaphore, signal_value) = configuration.prepare_index(index);
@@ -116,7 +118,15 @@ impl Pass {
         }
 
         let (buffer, size, wait_op) = self.renderer.buffer_pool.lock().unwrap().get_buffer(min_size);
-        self.renderer.worker.use_dynamic_buffer(self.id, buffer);
+        let op = self.renderer.device.get_transfer().prepare_buffer_acquire(buffer, None);
+        self.renderer.device.get_transfer().acquire_buffer(op, SemaphoreOps::from_option(wait_op)).unwrap();
+
+        let op = self.renderer.device.get_transfer().prepare_buffer_release(buffer, Some((
+            vk::PipelineStageFlags2::VERTEX_INPUT | vk::PipelineStageFlags2::INDEX_INPUT,
+            vk::AccessFlags2::VERTEX_ATTRIBUTE_READ | vk::AccessFlags2::INDEX_READ,
+            self.renderer.worker.get_render_queue_family()
+        )));
+        self.renderer.worker.use_dynamic_buffer(self.id, buffer, op.get_barrier().cloned());
 
         let allocator = BufferSubAllocator::new(buffer, size);
 
@@ -132,14 +142,13 @@ impl Pass {
             vk::AccessFlags2::VERTEX_ATTRIBUTE_READ | vk::AccessFlags2::INDEX_READ,
             self.renderer.worker.get_render_queue_family()
         )));
-        let release_id = transfer.release_buffer(op.clone()).unwrap();
+        let sync_id = transfer.release_buffer(op.clone()).unwrap();
 
-        let transfer_wait_op = transfer.generate_wait_semaphore(release_id);
-        self.renderer.worker.set_dynamic_buffer_wait(self.id, buffer.get_id(), transfer_wait_op);
+        self.renderer.worker.set_dynamic_buffer_wait(self.id, buffer.get_id(), sync_id);
     }
 }
 
-impl Drop for Pass {
+impl Drop for PassRecorder {
     fn drop(&mut self) {
         if let Some(alloc) = self.current_buffer.take() {
             self.end_sub_allocator(alloc);

@@ -22,7 +22,7 @@ use crate::objects::{ObjectSet, ObjectSetProvider};
 use crate::vk::objects::surface::{SurfaceProvider};
 
 use crate::prelude::*;
-use crate::renderer::emulator::pass::{ObjectData, Pass, PassEventListener};
+use crate::renderer::emulator::pass::{ObjectData, PassRecorder, PassEventListener};
 
 pub struct Blaze4D {
     instance: Arc<InstanceContext>,
@@ -127,7 +127,7 @@ impl Blaze4D {
         Some(guard.try_acquire_next_image()?.0)
     }
 
-    pub fn try_start_frame<T: Fn() -> Option<Vec2u32>>(&self, size_cb: T) -> Option<Pass> {
+    pub fn try_start_frame<T: Fn() -> Option<Vec2u32>>(&self, size_cb: T) -> Option<PassRecorder> {
         let image = self.try_acquire_next_image(size_cb)?;
         let mut frame = self.emulator.start_frame(image.swapchain.emulator_render_config.clone());
         let queue = self.device.get_device().get_main_queue();

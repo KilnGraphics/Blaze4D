@@ -27,6 +27,10 @@ impl BufferState {
         }
     }
 
+    pub fn get_handle(&self) -> vk::Buffer {
+        self.handle
+    }
+
     pub fn update_state(&mut self, read: bool, write: bool, barriers: &mut Vec<vk::BufferMemoryBarrier2>) {
         let mut src_access_mask = vk::AccessFlags2::empty();
         if read && self.write_pending {

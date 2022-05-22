@@ -14,7 +14,7 @@ use concurrent_queue::ConcurrentQueue;
 
 use crate::device::device_utils::BlitPass;
 use crate::renderer::emulator::buffer::{BufferAllocation, BufferPool, BufferSubAllocator};
-use crate::renderer::emulator::pass::{Pass, PassId};
+use crate::renderer::emulator::pass::{PassRecorder, PassId};
 use crate::renderer::emulator::worker::{DrawTask, run_worker, Share};
 use crate::device::transfer::{BufferAvailabilityOp, BufferTransferRanges, Transfer};
 use crate::objects::id::ImageId;
@@ -85,8 +85,8 @@ impl EmulatorRenderer {
         ))
     }
 
-    pub fn start_frame(&self, configuration: Arc<RenderConfiguration>) -> Pass {
+    pub fn start_frame(&self, configuration: Arc<RenderConfiguration>) -> PassRecorder {
         let id = PassId::from_raw(self.next_frame_id.fetch_add(1, Ordering::SeqCst));
-        Pass::new(id, self.weak.upgrade().unwrap(), configuration)
+        PassRecorder::new(id, self.weak.upgrade().unwrap(), configuration)
     }
 }
