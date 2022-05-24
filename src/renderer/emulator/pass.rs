@@ -4,12 +4,13 @@ use ash::vk;
 use json::object;
 use crate::renderer::emulator::buffer::{BufferAllocation, BufferSubAllocator};
 use crate::renderer::emulator::{EmulatorRenderer, OutputConfiguration, RenderConfiguration};
-use crate::renderer::emulator::worker::DrawTask;
+use crate::renderer::emulator::worker::{DrawTask, WorkerTask};
 use crate::device::transfer::{BufferAvailabilityOp, BufferTransferRanges};
 use crate::objects::sync::SemaphoreOps;
 use crate::vk::objects::buffer::Buffer;
 
 use crate::prelude::*;
+use crate::renderer::emulator::pipeline::{DrawTask, EmulatorPipeline, PipelineTask};
 
 #[derive(Copy, Clone, PartialEq, Eq, PartialOrd, Ord, Debug, Hash)]
 pub struct PassId(u64);
@@ -27,59 +28,53 @@ impl PassId {
 pub struct ObjectData<'a> {
     pub vertex_data: &'a [u8],
     pub index_data: &'a [u8],
-    pub draw_count: u32,
+    pub index_count: u32,
+    pub type_id: u32,
 }
 
 pub struct PassRecorder {
     id: PassId,
     renderer: Arc<EmulatorRenderer>,
-    configuration: Arc<RenderConfiguration>,
+    pipeline: Arc<dyn EmulatorPipeline>,
     current_buffer: Option<BufferSubAllocator>,
 }
 
 impl PassRecorder {
-    pub(super) fn new(id: PassId, renderer: Arc<EmulatorRenderer>, configuration: Arc<RenderConfiguration>) -> Self {
-        let index = configuration.get_next_index();
-        let (signal_semaphore, signal_value) = configuration.prepare_index(index);
-
-        renderer.worker.start_frame(id, configuration.clone(), index, signal_semaphore, signal_value);
+    pub(super) fn new(id: PassId, renderer: Arc<EmulatorRenderer>, pipeline: Arc<dyn EmulatorPipeline>) -> Self {
+        renderer.worker.push_task(id, WorkerTask::StartPass(pipeline.start_pass()));
 
         Self {
             id,
             renderer,
-            configuration,
+            pipeline,
             current_buffer: None,
         }
     }
 
-    pub fn add_output(&self, output: Arc<OutputConfiguration>, dst_image_index: usize, wait_semaphore: vk::Semaphore, wait_value: Option<u64>) {
-        self.renderer.worker.add_output(self.id, output, dst_image_index, wait_semaphore, wait_value);
+    pub fn set_model_view_matrix(&mut self, matrix: Mat4f32) {
+        self.renderer.worker.push_task(self.id, WorkerTask::PipelineTask(PipelineTask::SetModelViewMatrix(matrix)));
     }
 
-    pub fn add_signal_op(&self, semaphore: vk::Semaphore, value: Option<u64>) {
-        self.renderer.worker.add_signal_op(self.id, semaphore, value);
-    }
-
-    pub fn add_event_listener(&self, listener: Box<dyn PassEventListener + Send + Sync>) {
-        self.renderer.worker.add_event_listener(self.id, listener);
+    pub fn set_projection_matrix(&mut self, matrix: Mat4f32) {
+        self.renderer.worker.push_task(self.id, WorkerTask::PipelineTask(PipelineTask::SetProjectionMatrix(matrix)));
     }
 
     pub fn record_object(&mut self, object: &ObjectData) {
-        let vertex_size = self.configuration.get_tmp_vertex_size();
-        let vertex_buffer = self.push_data(object.vertex_data, vertex_size as u32);
+        let vertex_size = self.pipeline.get_type_table()[object.type_id].vertex_stride;
+
+        let vertex_buffer = self.push_data(object.vertex_data, vertex_size);
         let index_buffer = self.push_data(object.index_data, 4);
 
         let draw_task = DrawTask {
-            vertex_buffer: vertex_buffer.buffer.get_id(),
-            index_buffer: index_buffer.buffer.get_id(),
-            first_vertex: (vertex_buffer.offset / (vertex_size as usize)) as u32,
+            vertex_buffer: vertex_buffer.buffer,
+            index_buffer: index_buffer.buffer,
+            vertex_offset: (vertex_buffer.offset / (vertex_size as usize)) as i32,
             first_index: (index_buffer.offset / 4usize) as u32,
-            vertex_count: object.draw_count,
+            index_type: vk::IndexType::UINT32,
+            index_count: object.index_count,
+            type_id: object.type_id,
         };
-        self.renderer.worker.draw(self.id, draw_task);
-    }
-
-    pub fn submit(self) {
+        self.renderer.worker.push_task(self.id, WorkerTask::PipelineTask(PipelineTask::Draw(draw_task)));
     }
 
     fn push_data(&mut self, data: &[u8], alignment: u32) -> BufferAllocation {
@@ -126,7 +121,7 @@ impl PassRecorder {
             vk::AccessFlags2::VERTEX_ATTRIBUTE_READ | vk::AccessFlags2::INDEX_READ,
             self.renderer.worker.get_render_queue_family()
         )));
-        self.renderer.worker.use_dynamic_buffer(self.id, buffer, op.get_barrier().cloned());
+        self.renderer.worker.push_task(self.id, WorkerTask::UseDynamicBuffer(buffer, op.get_barrier().cloned()));
 
         let allocator = BufferSubAllocator::new(buffer, size);
 
@@ -143,8 +138,9 @@ impl PassRecorder {
             self.renderer.worker.get_render_queue_family()
         )));
         let sync_id = transfer.release_buffer(op.clone()).unwrap();
+        transfer.flush(sync_id);
 
-        self.renderer.worker.set_dynamic_buffer_wait(self.id, buffer.get_id(), sync_id);
+        self.renderer.worker.push_task(self.id, WorkerTask::WaitTransferSync(sync_id))
     }
 }
 
@@ -153,16 +149,6 @@ impl Drop for PassRecorder {
         if let Some(alloc) = self.current_buffer.take() {
             self.end_sub_allocator(alloc);
         }
-        // self.renderer.device.get_transfer().flush();
-        self.renderer.worker.end_frame(self.id);
+        self.renderer.worker.push_task(self.id, WorkerTask::EndPass);
     }
-}
-
-pub trait PassEventListener {
-    /// Called after all command buffers have been submitted for execution
-    fn on_post_submit(&self);
-
-    /// Called after all submitted commands have finished execution. It is guaranteed that any
-    /// external object which has be passed to the pass can now be used or destroyed.
-    fn on_execution_completed(&self);
 }

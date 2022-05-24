@@ -6,6 +6,8 @@ use std::sync::{Arc, Mutex, Weak};
 use std::sync::atomic::{AtomicU64, AtomicUsize};
 
 use ash::vk;
+use bumpalo::Bump;
+use crate::device::device::VkQueue;
 use crate::device::device_utils::BlitPass;
 use crate::objects::id::ImageId;
 use crate::objects::{ObjectSet, ObjectSetProvider};
@@ -14,6 +16,69 @@ use crate::vk::DeviceEnvironment;
 
 use crate::prelude::*;
 use crate::vk::objects::allocator::{Allocation, AllocationStrategy};
+use crate::vk::objects::buffer::Buffer;
+use crate::vk::objects::image::Image;
+
+pub use super::worker::SubmitRecorder;
+pub use super::worker::PooledObjectProvider;
+
+pub trait EmulatorPipeline: Send + Sync {
+    /// Starts one pass of the pipeline
+    fn start_pass(&self) -> Box<dyn EmulatorPipelinePass + Send>;
+
+    /// Returns a list of all allowed pipeline types.
+    ///
+    /// The index into this list must be equal to the id of the type.
+    fn get_type_table(&self) -> &[PipelineTypeInfo];
+}
+
+pub struct PipelineTypeInfo {
+    /// The stride used when accessing the vertex data
+    pub vertex_stride: u32,
+}
+
+/// Represents one execution of a [`EmulatorPipeline`]
+pub trait EmulatorPipelinePass {
+    fn init(&mut self, queue: VkQueue, obj: &mut PooledObjectProvider);
+
+    fn process_task(&mut self, task: PipelineTask, obj: &mut PooledObjectProvider);
+
+    /// Records tasks for submission
+    fn record<'a>(&mut self, obj: &mut PooledObjectProvider, submits: &mut SubmitRecorder<'a>, alloc: &'a Bump);
+}
+
+#[derive(Copy, Clone, PartialEq, Debug)]
+pub enum PipelineTask {
+    SetModelViewMatrix(Mat4f32),
+    SetProjectionMatrix(Mat4f32),
+    Draw(DrawTask),
+}
+
+#[derive(Copy, Clone, PartialEq, Eq, Debug, Hash)]
+pub struct DrawTask {
+    pub vertex_buffer: Buffer,
+    pub index_buffer: Buffer,
+    pub vertex_offset: i32,
+    pub first_index: u32,
+    pub index_type: vk::IndexType,
+    pub index_count: u32,
+    pub type_id: u32,
+}
+
+pub trait EmulatorOutput {
+    fn on_used(&mut self, pass: &dyn EmulatorPipelinePass, obj: &mut PooledObjectProvider);
+
+    fn record<'a>(&mut self, obj: &mut PooledObjectProvider, submits: &mut SubmitRecorder<'a>, alloc: &'a Bump);
+
+    fn on_post_submit(&mut self);
+}
+
+
+
+
+
+
+
 
 #[repr(C)]
 #[derive(Copy, Clone)]

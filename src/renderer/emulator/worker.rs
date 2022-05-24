@@ -1,21 +1,29 @@
+use std::cell::RefCell;
 use std::collections::VecDeque;
 use std::fmt::{Debug, Formatter};
+use std::marker::PhantomData;
+use std::rc::Rc;
 use std::sync::{Arc, Condvar, Mutex};
+
+use ash::prelude::VkResult;
 use ash::vk;
+use bumpalo::Bump;
+
 use crate::device::device::VkQueue;
-use crate::device::transfer::SyncId;
+use crate::device::transfer::{SyncId, Transfer};
 use crate::objects::sync::SemaphoreOp;
 
-use crate::prelude::*;
 use crate::renderer::emulator::pass::{PassId, PassEventListener};
 use crate::renderer::emulator::{EmulatorRenderer, OutputConfiguration, RenderConfiguration};
 use crate::renderer::emulator::buffer::BufferPool;
+use crate::renderer::emulator::pipeline::{EmulatorOutput, EmulatorPipeline, EmulatorPipelinePass, PipelineTask};
 use crate::vk::DeviceEnvironment;
 use crate::vk::objects::buffer::{Buffer, BufferId};
 
+use crate::prelude::*;
+
 pub struct Share {
     pool: Arc<Mutex<BufferPool>>,
-    frame_semaphore: vk::Semaphore,
     channel: Mutex<Channel>,
     signal: Condvar,
     family: u32,
@@ -23,20 +31,8 @@ pub struct Share {
 
 impl Share {
     pub fn new(device: DeviceEnvironment, pool: Arc<Mutex<BufferPool>>) -> Self {
-        let mut timeline = vk::SemaphoreTypeCreateInfo::builder()
-            .semaphore_type(vk::SemaphoreType::TIMELINE)
-            .initial_value(0);
-
-        let info = vk::SemaphoreCreateInfo::builder()
-            .push_next(&mut timeline);
-
-        let frame_semaphore = unsafe {
-            device.vk().create_semaphore(&info, None)
-        }.unwrap();
-
         Self {
             pool,
-            frame_semaphore,
             channel: Mutex::new(Channel::new()),
             signal: Condvar::new(),
             family: device.get_device().get_main_queue().get_queue_family_index(),
@@ -47,53 +43,12 @@ impl Share {
         self.family
     }
 
-    /// Returns a timeline semaphore op that can be used to determine when a frame has finished
-    /// rendering.
-    ///
-    /// It is guaranteed that all resources associated with the frame may be freed safely after
-    /// the semaphore is triggered.
-    pub fn get_frame_end_semaphore(&self, id: PassId) -> SemaphoreOp {
-        todo!()
-    }
-
-    pub fn start_frame(&self, id: PassId, configuration: Arc<RenderConfiguration>, index: usize, signal_semaphore: vk::Semaphore, signal_value: u64) {
-        self.push_task(id, Task::StartFrame(configuration, index, signal_semaphore, signal_value));
-    }
-
-    pub fn end_frame(&self, id: PassId) {
-        self.push_task(id, Task::EndFrame);
-    }
-
-    pub fn add_output(&self, id: PassId, config: Arc<OutputConfiguration>, dst_image_index: usize, wait_semaphore: vk::Semaphore, wait_value: Option<u64>) {
-        self.push_task(id, Task::AddOutput(config, dst_image_index, wait_semaphore, wait_value.unwrap_or(0)));
-    }
-
-    pub fn add_signal_op(&self, id: PassId, semaphore: vk::Semaphore, value: Option<u64>) {
-        self.push_task(id, Task::AddSignalOp(semaphore, value.unwrap_or(0)));
-    }
-
-    pub fn add_event_listener(&self, id: PassId, listener: Box<dyn PassEventListener + Send + Sync>) {
-        self.push_task(id, Task::AddEventListener(listener));
-    }
-
-    pub fn use_dynamic_buffer(&self, id: PassId, buffer: Buffer, barrier: Option<vk::BufferMemoryBarrier2>) {
-        self.push_task(id, Task::UseDynamicBuffer(buffer, barrier));
-    }
-
-    pub fn set_dynamic_buffer_wait(&self, id: PassId, buffer: BufferId, sync_id: SyncId) {
-        self.push_task(id, Task::SetDynamicBufferWait(buffer, sync_id));
-    }
-
-    pub fn draw(&self, id: PassId, task: DrawTask) {
-        self.push_task(id, Task::Draw(task));
-    }
-
-    fn push_task(&self, id: PassId, task: Task) {
+    pub(super) fn push_task(&self, id: PassId, task: WorkerTask) {
         self.channel.lock().unwrap().queue.push_back((id, task));
         self.signal.notify_one();
     }
 
-    fn get_next_task(&self) -> (PassId, Task) {
+    fn get_next_task(&self) -> (PassId, WorkerTask) {
         let mut guard = self.channel.lock().unwrap();
         loop {
             if let Some(task) = guard.queue.pop_front() {
@@ -105,7 +60,7 @@ impl Share {
 }
 
 struct Channel {
-    queue: VecDeque<(PassId, Task)>,
+    queue: VecDeque<(PassId, WorkerTask)>,
 }
 
 impl Channel {
@@ -116,43 +71,35 @@ impl Channel {
     }
 }
 
-enum Task {
-    StartFrame(Arc<RenderConfiguration>, usize, vk::Semaphore, u64),
-    EndFrame,
-    AddOutput(Arc<OutputConfiguration>, usize, vk::Semaphore, u64),
-    AddSignalOp(vk::Semaphore, u64),
-    AddEventListener(Box<dyn PassEventListener + Send + Sync>),
-    SetWorldNdcMat(Mat4f32),
-    SetModelWorldMat(Mat4f32),
+pub(super) enum WorkerTask {
+    StartPass(Box<dyn EmulatorPipelinePass + Send>),
+    EndPass,
     UseDynamicBuffer(Buffer, Option<vk::BufferMemoryBarrier2>),
-    SetDynamicBufferWait(BufferId, SyncId),
-    Draw(DrawTask),
+    UseOutput(Box<dyn EmulatorOutput + Send>),
+    WaitTransferSync(SyncId),
+    PipelineTask(PipelineTask),
 }
 
 // Needed because of the option barrier in UseDynamicBuffer
-unsafe impl Send for Task {
-}
-
-pub struct DrawTask {
-    pub vertex_buffer: BufferId,
-    pub index_buffer: BufferId,
-    pub first_vertex: u32,
-    pub first_index: u32,
-    pub vertex_count: u32,
+unsafe impl Send for WorkerTask {
 }
 
 pub(super) fn run_worker(device: DeviceEnvironment, share: Arc<Share>) {
-    let mut pool = CommandPool::new(device.get_device().clone());
-    let mut frames = Frames::new();
+    let queue = device.get_device().get_main_queue();
+
+    let pool = Rc::new(RefCell::new(WorkerObjectPool::new(device.get_device().clone(), queue.get_queue_family_index())));
+    let mut frames = PassList::new();
     let mut old_frames = Vec::new();
 
     let queue = device.get_device().get_main_queue();
 
     loop {
-        old_frames.retain(|old: &FrameState| {
-            if old.is_done(device.get_device()) {
-                pool.return_buffer(old.command_buffer);
-                pool.return_buffer(old.barrier_buffer);
+        old_frames.retain(|old: &PassState| {
+            if old.is_complete() {
+                let mut guard = share.pool.lock().unwrap();
+                for buffer in &old.dynamic_buffers {
+                    guard.return_buffer(buffer.get_id(), None);
+                }
                 false
             } else {
                 true
@@ -162,56 +109,48 @@ pub(super) fn run_worker(device: DeviceEnvironment, share: Arc<Share>) {
         let (id, task) = share.get_next_task();
 
         match task {
-            Task::StartFrame(config, index, signal_semaphore, signal_value) => {
-                let frame = FrameState::new(device.get_device(), config, index, signal_semaphore, signal_value, pool.get_buffer(), pool.get_buffer());
-                frames.add_frame(id, frame);
+            WorkerTask::StartPass(pipeline) => {
+                let state = PassState::new(&pipeline, &device, &queue, pool.clone());
+                frames.add_pass(id, state);
             }
-            Task::EndFrame => {
-                let mut frame = frames.pop_frame(id).unwrap();
-                frame.finish_and_submit(&device, &queue, &share.pool);
-                old_frames.push(frame);
+
+            WorkerTask::EndPass => {
+                let mut pass = frames.pop_pass(id).unwrap();
+                pass.submit(&queue);
+                old_frames.push(pass);
             }
-            Task::AddOutput(config, index, wait_semaphore, wait_value) =>
-                frames.get_frame(id).unwrap().add_output(config, index, wait_semaphore, wait_value),
 
-            Task::AddSignalOp(semaphore, value) =>
-                frames.get_frame(id).unwrap().add_signal_op(semaphore, value),
+            WorkerTask::UseDynamicBuffer(buffer, barrier) => {
+                frames.get_pass(id).unwrap().use_dynamic_buffer(buffer, barrier.as_ref());
+            }
 
-            Task::AddEventListener(listener) =>
-                frames.get_frame(id).unwrap().add_event_listener(listener),
+            WorkerTask::UseOutput(output) => {
+                frames.get_pass(id).unwrap().use_output(output);
+            }
 
-            Task::SetWorldNdcMat(mat) =>
-                frames.get_frame(id).unwrap().set_world_ndc_mat(mat),
+            WorkerTask::WaitTransferSync(sync_id) => {
+                frames.get_pass(id).unwrap().wait_transfer(sync_id);
+            }
 
-            Task::SetModelWorldMat(mat) =>
-                frames.get_frame(id).unwrap().set_model_world_mat(mat),
-
-            Task::UseDynamicBuffer(buffer, barrier) =>
-                frames.get_frame(id).unwrap().use_dynamic_buffer(buffer, barrier),
-
-            Task::SetDynamicBufferWait(buffer, sync_id) =>
-                frames.get_frame(id).unwrap().set_dynamic_buffer_wait(buffer, sync_id),
-
-            Task::Draw(task) =>
-                frames.get_frame(id).unwrap().draw(&device, task),
+            WorkerTask::PipelineTask(task) => {
+                frames.get_pass(id).unwrap().process_task(task);
+            }
         }
     }
 }
 
-struct CommandPool {
+struct WorkerObjectPool {
     device: Arc<DeviceContext>,
-    queue: VkQueue,
     command_pool: vk::CommandPool,
     command_buffers: Vec<vk::CommandBuffer>,
+    fences: Vec<vk::Fence>,
 }
 
-impl CommandPool {
-    fn new(device: Arc<DeviceContext>) -> Self {
-        let queue = device.get_main_queue();
-
+impl WorkerObjectPool {
+    fn new(device: Arc<DeviceContext>, queue_family: u32) -> Self {
         let info = vk::CommandPoolCreateInfo::builder()
             .flags(vk::CommandPoolCreateFlags::RESET_COMMAND_BUFFER | vk::CommandPoolCreateFlags::TRANSIENT)
-            .queue_family_index(queue.get_queue_family_index());
+            .queue_family_index(queue_family);
 
         let command_pool = unsafe {
             device.vk().create_command_pool(&info, None)
@@ -219,9 +158,9 @@ impl CommandPool {
 
         Self {
             device,
-            queue,
             command_pool,
             command_buffers: Vec::new(),
+            fences: Vec::new(),
         }
     }
 
@@ -230,13 +169,13 @@ impl CommandPool {
             let info = vk::CommandBufferAllocateInfo::builder()
                 .command_pool(self.command_pool)
                 .level(vk::CommandBufferLevel::PRIMARY)
-                .command_buffer_count(1);
+                .command_buffer_count(8);
 
-            let buffer = *unsafe {
-                self.device.vk().allocate_command_buffers(&info).unwrap().get(0).unwrap()
-            };
+            let buffers = unsafe {
+                self.device.vk().allocate_command_buffers(&info)
+            }.unwrap();
 
-            self.command_buffers.push(buffer);
+            self.command_buffers.extend(buffers);
         }
 
         self.command_buffers.pop().unwrap()
@@ -245,265 +184,280 @@ impl CommandPool {
     fn return_buffer(&mut self, buffer: vk::CommandBuffer) {
         self.command_buffers.push(buffer)
     }
-}
 
-impl Drop for CommandPool {
-    fn drop(&mut self) {
-        unsafe {
-            self.device.vk().destroy_command_pool(self.command_pool, None)
-        };
+    fn return_buffers(&mut self, buffers: &[vk::CommandBuffer]) {
+        self.command_buffers.extend_from_slice(buffers);
+    }
+
+    fn get_fence(&mut self) -> vk::Fence {
+        if self.fences.is_empty() {
+            let info = vk::FenceCreateInfo::builder();
+
+            let fence = unsafe {
+                self.device.vk().create_fence(&info, None)
+            }.unwrap();
+
+            return fence;
+        }
+
+        self.fences.pop().unwrap()
+    }
+
+    fn return_fence(&mut self, fence: vk::Fence) {
+        self.fences.push(fence);
     }
 }
 
-struct Frames {
-    frames: Vec<(PassId, FrameState)>,
+pub struct PooledObjectProvider {
+    pool: Rc<RefCell<WorkerObjectPool>>,
+    used_buffers: Vec<vk::CommandBuffer>,
+    used_fences: Vec<vk::Fence>,
 }
 
-impl Frames {
+impl PooledObjectProvider {
+    fn new(pool: Rc<RefCell<WorkerObjectPool>>) -> Self {
+        Self {
+            pool,
+            used_buffers: Vec::with_capacity(8),
+            used_fences: Vec::with_capacity(4),
+        }
+    }
+
+    pub fn get_command_buffer(&mut self) -> vk::CommandBuffer {
+        let buffer = self.pool.borrow_mut().get_buffer();
+        self.used_buffers.push(buffer);
+
+        buffer
+    }
+
+    pub fn get_begin_command_buffer(&mut self) -> VkResult<vk::CommandBuffer> {
+        let cmd = self.get_command_buffer();
+
+        let info = vk::CommandBufferBeginInfo::builder()
+            .flags(vk::CommandBufferUsageFlags::ONE_TIME_SUBMIT);
+
+        unsafe {
+            self.pool.borrow().device.vk().begin_command_buffer(cmd, &info)
+        }?;
+
+        Ok(cmd)
+    }
+
+    pub fn get_fence(&mut self) -> vk::Fence {
+        let fence = self.pool.borrow_mut().get_fence();
+        self.used_fences.push(fence);
+
+        fence
+    }
+}
+
+impl Drop for PooledObjectProvider {
+    fn drop(&mut self) {
+        self.pool.borrow_mut().return_buffers(self.used_buffers.as_slice());
+    }
+}
+
+pub struct SubmitRecorder<'a> {
+    submits: Vec<vk::SubmitInfo2>,
+    _phantom: PhantomData<&'a ()>,
+}
+
+impl<'a> SubmitRecorder<'a> {
+    fn new(capacity: usize) -> Self {
+        Self {
+            submits: Vec::with_capacity(capacity),
+            _phantom: PhantomData,
+        }
+    }
+
+    pub fn push(&mut self, submit: vk::SubmitInfo2Builder<'a>) {
+        self.submits.push(submit.build());
+    }
+
+    fn as_slice(&self) -> &[vk::SubmitInfo2] {
+        self.submits.as_slice()
+    }
+}
+
+struct PassState {
+    device: Arc<DeviceContext>,
+    transfer: Arc<Transfer>,
+    object_pool: PooledObjectProvider,
+
+    pass: Box<dyn EmulatorPipelinePass>,
+    outputs: Vec<Box<dyn EmulatorOutput>>,
+
+    dynamic_buffers: Vec<Buffer>,
+    transfer_sync_wait: Option<SyncId>,
+
+    pre_cmd: vk::CommandBuffer,
+    post_cmd: vk::CommandBuffer,
+
+    end_fence: Option<vk::Fence>,
+}
+
+impl PassState {
+    fn new(pipeline: &dyn EmulatorPipeline, device: &DeviceEnvironment, queue: &VkQueue, pool: Rc<RefCell<WorkerObjectPool>>) -> Self {
+        let mut object_pool = PooledObjectProvider::new(pool);
+
+        let pre_cmd = object_pool.get_begin_command_buffer().unwrap();
+        let post_cmd = object_pool.get_begin_command_buffer().unwrap();
+
+        let pass = pipeline.start_pass(&queue, &mut object_pool);
+
+        Self {
+            device: device.get_device().clone(),
+            transfer: device.get_transfer().clone(),
+            object_pool,
+
+            pass,
+            outputs: Vec::with_capacity(8),
+
+            dynamic_buffers: Vec::with_capacity(8),
+            transfer_sync_wait: None,
+
+            pre_cmd,
+            post_cmd,
+
+            end_fence: None,
+        }
+    }
+
+    fn wait_transfer(&mut self, sync_id: SyncId) {
+        self.transfer_sync_wait = Some(self.transfer_sync_wait.map_or(sync_id, |old| std::cmp::max(old, sync_id)));
+    }
+
+    fn use_dynamic_buffer(&mut self, buffer: Buffer, pre_barrier: Option<&vk::BufferMemoryBarrier2>) {
+        self.dynamic_buffers.push(buffer);
+
+        if let Some(pre_barrier) = pre_barrier {
+            let info = vk::DependencyInfo::builder()
+                .buffer_memory_barriers(std::slice::from_ref(pre_barrier));
+
+            unsafe {
+                self.device.vk().cmd_pipeline_barrier2(self.pre_cmd, &info)
+            };
+        }
+    }
+
+    fn use_output(&mut self, mut output: Box<dyn EmulatorOutput>) {
+        output.on_used(&self.pass, &mut self.object_pool);
+        self.outputs.push(output);
+    }
+
+    fn process_task(&mut self, task: PipelineTask) {
+        self.pass.process_task(task, &mut self.object_pool);
+    }
+
+    fn submit(&mut self, queue: &VkQueue) {
+        assert!(self.end_fence.is_none());
+        let end_fence = self.object_pool.get_fence();
+        self.end_fence = Some(end_fence);
+
+        unsafe {
+            self.device.vk().end_command_buffer(self.pre_cmd)
+        }.unwrap();
+
+        unsafe {
+            self.device.vk().end_command_buffer(self.post_cmd)
+        }.unwrap();
+
+        let submit_alloc = Bump::new();
+        let mut submit_recorder = SubmitRecorder::new(32);
+
+        self.record_pre_submits(&mut submit_recorder, &submit_alloc);
+        self.pass.record(&mut self.object_pool, &mut submit_recorder, &submit_alloc);
+        for output in &mut self.outputs {
+            output.record(&mut self.object_pool, &mut submit_recorder, &submit_alloc);
+        }
+        self.record_post_submits(&mut submit_recorder, &submit_alloc);
+
+        if let Some(sync_id) = &self.transfer_sync_wait {
+            // Release barriers on the transfer queue must be submitted before the acquire barriers on the graphics queue
+            self.transfer.wait_for_submit(*sync_id)
+        }
+        unsafe {
+            queue.submit_2(submit_recorder.as_slice(), Some(end_fence))
+        }.unwrap();
+
+        for output in &mut self.outputs {
+            output.on_post_submit();
+        }
+    }
+
+    fn is_complete(&self) -> bool {
+        if let Some(fence) = self.end_fence {
+            unsafe {
+                self.device.vk().get_fence_status(fence)
+            }.unwrap()
+        } else {
+            panic!("Illegal state");
+        }
+    }
+
+    fn record_pre_submits<'a>(&self, recorder: &mut SubmitRecorder<'a>, alloc: &'a Bump) {
+        let wait_infos: &[vk::SemaphoreSubmitInfo] = if let Some(sync_id) = &self.transfer_sync_wait {
+            let op = self.transfer.generate_wait_semaphore(*sync_id);
+            alloc.alloc([
+                vk::SemaphoreSubmitInfo::builder()
+                    .semaphore(op.semaphore.get_handle())
+                    .value(op.value.unwrap_or(0))
+                    .stage_mask(vk::PipelineStageFlags2::VERTEX_INPUT | vk::PipelineStageFlags2::INDEX_INPUT)
+                    .build()
+            ])
+        } else {
+            alloc.alloc([])
+        };
+
+        let cmd_infos = alloc.alloc([
+            vk::CommandBufferSubmitInfo::builder()
+                .command_buffer(self.pre_cmd)
+                .build()
+        ]);
+
+        let submit_info = vk::SubmitInfo2::builder()
+            .wait_semaphore_infos(wait_infos)
+            .command_buffer_infos(cmd_infos);
+
+        recorder.push(submit_info);
+    }
+
+    fn record_post_submits<'a>(&self, _: &mut SubmitRecorder<'a>, _: &'a Bump) {
+    }
+}
+
+struct PassList {
+    frames: Vec<(PassId, PassState)>,
+}
+
+impl PassList {
     fn new() -> Self {
         Self {
             frames: Vec::new(),
         }
     }
 
-    fn add_frame(&mut self, id: PassId, state: FrameState) {
+    fn add_pass(&mut self, id: PassId, state: PassState) {
         self.frames.push((id, state))
     }
 
-    fn pop_frame(&mut self, id: PassId) -> Option<FrameState> {
+    fn pop_pass(&mut self, id: PassId) -> Option<PassState> {
         let mut index = None;
-        for (frame_index, (frame_id, _)) in self.frames.iter().enumerate() {
-            if id == *frame_id {
-                index = Some(frame_index);
+        for (pass_index, (pass_id, _)) in self.frames.iter().enumerate() {
+            if id == *pass_id {
+                index = Some(pass_index);
             }
         }
 
         index.map(|index| self.frames.swap_remove(index).1)
     }
 
-    fn get_frame(&mut self, id: PassId) -> Option<&mut FrameState> {
-        for (frame_id, frame) in &mut self.frames {
-            if id == *frame_id {
-                return Some(frame);
+    fn get_pass(&mut self, id: PassId) -> Option<&mut PassState> {
+        for (pass_id, pass) in &mut self.frames {
+            if id == *pass_id {
+                return Some(pass);
             }
         }
         None
-    }
-}
-
-struct FrameState {
-    config: Arc<RenderConfiguration>,
-    index: usize,
-    output_configs: Vec<(Arc<OutputConfiguration>, usize)>,
-    wait_semaphores: Vec<vk::Semaphore>,
-    wait_values: Vec<u64>,
-    signal_semaphores: Vec<vk::Semaphore>,
-    signal_values: Vec<u64>,
-    event_listeners: Vec<Box<dyn PassEventListener + Send + Sync>>,
-    command_buffer: vk::CommandBuffer,
-
-    available_buffers: Vec<Buffer>,
-
-    current_vertex_buffer: Option<BufferId>,
-    current_index_buffer: Option<BufferId>,
-
-    end_semaphore: vk::Semaphore,
-    end_value: u64,
-
-    barrier_buffer: vk::CommandBuffer,
-    pre_barriers: Vec<vk::BufferMemoryBarrier2>,
-    sync_wait: Option<u64>,
-}
-
-impl FrameState {
-    pub fn new(device: &DeviceContext, config: Arc<RenderConfiguration>, index: usize, signal_semaphore: vk::Semaphore, signal_value: u64, command_buffer: vk::CommandBuffer, cmd2: vk::CommandBuffer) -> Self {
-        let info = vk::CommandBufferBeginInfo::builder()
-            .flags(vk::CommandBufferUsageFlags::ONE_TIME_SUBMIT);
-
-        unsafe {
-            device.vk().begin_command_buffer(command_buffer, &info)
-        }.unwrap();
-
-        config.begin_render_pass(command_buffer, index);
-
-        let mat = Mat4f32::identity();
-        config.set_world_ndc_mat(command_buffer, mat);
-        config.set_model_world_mat(command_buffer, mat);
-
-        config.test_draw(command_buffer);
-
-        Self {
-            config,
-            index,
-            output_configs: Vec::with_capacity(4),
-            wait_semaphores: Vec::new(),
-            wait_values: Vec::new(),
-            signal_semaphores: vec![signal_semaphore],
-            signal_values: vec![signal_value],
-            event_listeners: Vec::new(),
-            command_buffer,
-
-            available_buffers: Vec::new(),
-
-            current_vertex_buffer: None,
-            current_index_buffer: None,
-
-            end_semaphore: signal_semaphore,
-            end_value: signal_value,
-
-            barrier_buffer: cmd2,
-            pre_barriers: Vec::new(),
-            sync_wait: None,
-        }
-    }
-
-    pub fn add_output(&mut self, config: Arc<OutputConfiguration>, index: usize, wait_semaphore: vk::Semaphore, wait_value: u64) {
-        self.output_configs.push((config, index));
-        self.wait_semaphores.push(wait_semaphore);
-        self.wait_values.push(wait_value);
-    }
-
-    pub fn add_signal_op(&mut self, semaphore: vk::Semaphore, value: u64) {
-        self.signal_semaphores.push(semaphore);
-        self.signal_values.push(value);
-    }
-
-    pub fn add_event_listener(&mut self, listener: Box<dyn PassEventListener + Send + Sync>) {
-        self.event_listeners.push(listener);
-    }
-
-    pub fn set_world_ndc_mat(&self, mat: Mat4f32) {
-        self.config.set_world_ndc_mat(self.command_buffer, mat);
-    }
-
-    pub fn set_model_world_mat(&self, mat: Mat4f32) {
-        self.config.set_model_world_mat(self.command_buffer, mat);
-    }
-
-    pub fn use_dynamic_buffer(&mut self, buffer: Buffer, barrier: Option<vk::BufferMemoryBarrier2>) {
-        self.available_buffers.push(buffer);
-
-        if let Some(barrier) = barrier {
-            self.pre_barriers.push(barrier);
-        }
-    }
-
-    pub fn set_dynamic_buffer_wait(&mut self, _: BufferId, sync_id: SyncId) {
-        self.sync_wait = Some(self.sync_wait.map_or(sync_id.get_raw(), |old| std::cmp::max(old, sync_id.get_raw())));
-    }
-
-    pub fn draw(&mut self, device: &DeviceEnvironment, task: DrawTask) {
-        if self.current_vertex_buffer != Some(task.vertex_buffer) {
-            unsafe {
-                device.vk().cmd_bind_vertex_buffers(self.command_buffer, 0, std::slice::from_ref(&self.find_buffer(task.vertex_buffer)), &[0])
-            };
-            self.current_vertex_buffer = Some(task.vertex_buffer);
-        }
-        if self.current_index_buffer != Some(task.index_buffer) {
-            unsafe {
-                device.vk().cmd_bind_index_buffer(self.command_buffer, self.find_buffer(task.index_buffer), 0, vk::IndexType::UINT32)
-            };
-            self.current_index_buffer = Some(task.index_buffer);
-        }
-
-        unsafe {
-            device.vk().cmd_draw_indexed(self.command_buffer, task.vertex_count, 1, task.first_index, task.first_vertex as i32, 0)
-        };
-    }
-
-    pub fn finish_and_submit(&mut self, device: &DeviceEnvironment, queue: &VkQueue, buffer_pool: &Mutex<BufferPool>) {
-        unsafe {
-            device.vk().cmd_end_render_pass(self.command_buffer);
-        }
-
-        for (output, index) in &self.output_configs {
-            output.record(self.command_buffer, self.index, *index);
-        }
-
-        unsafe {
-            device.vk().end_command_buffer(self.command_buffer)
-        }.map_err(|err| {log::error!("Failed to end command buffer recording!"); err}).unwrap();
-
-        let mut command_buffers = Vec::with_capacity(2);
-
-        if !self.pre_barriers.is_empty() {
-            let info = vk::CommandBufferBeginInfo::builder()
-                .flags(vk::CommandBufferUsageFlags::ONE_TIME_SUBMIT);
-            unsafe {
-                device.vk().begin_command_buffer(self.barrier_buffer, &info)
-            }.unwrap();
-
-            let info = vk::DependencyInfo::builder()
-                .buffer_memory_barriers(self.pre_barriers.as_slice());
-
-            unsafe {
-                device.vk().cmd_pipeline_barrier2(self.barrier_buffer, &info)
-            };
-
-            unsafe {
-                device.vk().end_command_buffer(self.barrier_buffer)
-            }.unwrap();
-
-            command_buffers.push(self.barrier_buffer);
-        }
-        command_buffers.push(self.command_buffer);
-
-        if let Some(sync_id) = self.sync_wait {
-            device.get_transfer().wait_for_submit(SyncId::from_raw(sync_id));
-            let wait_op = device.get_transfer().generate_wait_semaphore(SyncId::from_raw(sync_id));
-            self.wait_semaphores.push(wait_op.semaphore.get_handle());
-            self.wait_values.push(wait_op.value.unwrap_or(0));
-        }
-
-        let mut timeline_info = vk::TimelineSemaphoreSubmitInfo::builder()
-            .wait_semaphore_values(self.wait_values.as_slice())
-            .signal_semaphore_values(self.signal_values.as_slice());
-
-        let stages: Box<_> = std::iter::repeat(vk::PipelineStageFlags::ALL_COMMANDS).take(self.wait_values.len()).collect();
-        let submit_info = vk::SubmitInfo::builder()
-            .wait_semaphores(self.wait_semaphores.as_slice())
-            .wait_dst_stage_mask(stages.as_ref())
-            .command_buffers(command_buffers.as_slice())
-            .signal_semaphores(self.signal_semaphores.as_slice())
-            .push_next(&mut timeline_info);
-
-        unsafe {
-            queue.submit(std::slice::from_ref(&submit_info), None)
-        }.map_err(|err| {log::error!("Failed to submit command buffer!"); err}).unwrap();
-
-        for listener in &self.event_listeners {
-            listener.on_post_submit();
-        }
-
-        let mut pool_guard = buffer_pool.lock().unwrap();
-        for buffer in &self.available_buffers {
-            pool_guard.return_buffer(buffer.get_id(), None); // TODO add wait op
-        }
-    }
-
-    pub fn is_done(&self, device: &DeviceContext) -> bool {
-        let value = unsafe {
-            device.vk().get_semaphore_counter_value(self.end_semaphore)
-        }.unwrap();
-
-        value >= self.end_value
-    }
-
-    fn find_buffer(&self, id: BufferId) -> vk::Buffer {
-        for buffer in &self.available_buffers {
-            if buffer.get_id() == id {
-                return buffer.get_handle();
-            }
-        }
-        log::error!("Failed to find buffer {:?} in {:?}", id, self.available_buffers);
-        panic!();
-    }
-}
-
-impl Drop for FrameState {
-    fn drop(&mut self) {
-        for listener in &self.event_listeners {
-            listener.on_execution_completed();
-        }
     }
 }

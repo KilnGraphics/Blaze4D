@@ -140,3 +140,12 @@ tasks.register<CompileShaders>("compileUtilsShaders") {
         output("blit_frag.spv")
     });
 }
+
+tasks.register<CompileShaders>("compileEmulatorShaders") {
+    baseDir.set(RelativePath(false, "emulator"));
+
+    addModule("DebugPosition", {
+        source("debug/position.vert")
+        output("debug_position_vert.spv")
+    });
+}

@@ -101,7 +101,8 @@ impl Share {
             if guard.last_submitted_id >= id {
                 return;
             }
-            guard = self.new_submit_condvar.wait(guard).unwrap();
+            let (guard2, _) = self.new_submit_condvar.wait_timeout(guard, Duration::from_millis(10)).unwrap();
+            guard = guard2;
         }
     }
 

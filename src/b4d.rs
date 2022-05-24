@@ -157,7 +157,7 @@ impl Blaze4D {
         let d = ObjectData {
             vertex_data: crate::util::slice::to_byte_slice(&data),
             index_data: crate::util::slice::to_byte_slice(&index),
-            draw_count: 3
+            index_count: 3
         };
 
         frame.record_object(&d);

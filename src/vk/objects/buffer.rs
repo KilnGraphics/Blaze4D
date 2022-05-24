@@ -4,47 +4,11 @@ use std::hash::{Hash, Hasher};
 use std::ops::Deref;
 use ash::vk;
 use ash::vk::Handle;
+use crate::objects::id::BufferId;
 
 use crate::UUID;
 use crate::vk::objects::allocator::MappedMemory;
 use crate::vk::objects::Format;
-
-#[derive(Copy, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
-pub struct BufferId(UUID);
-
-impl BufferId {
-    pub fn new() -> Self {
-        Self(UUID::new())
-    }
-
-    pub fn from_raw(id: UUID) -> Self {
-        Self(id)
-    }
-
-    pub fn as_uuid(&self) -> UUID {
-        self.0
-    }
-}
-
-impl Deref for BufferId {
-    type Target = UUID;
-
-    fn deref(&self) -> &Self::Target {
-        &self.0
-    }
-}
-
-impl From<BufferId> for UUID {
-    fn from(id: BufferId) -> Self {
-        id.0
-    }
-}
-
-impl Debug for BufferId {
-    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        f.write_fmt(format_args!("BufferId({:#016X})", self.0.get_raw()))
-    }
-}
 
 #[derive(Copy, Clone)]
 pub struct Buffer {

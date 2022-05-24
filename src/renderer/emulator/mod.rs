@@ -1,9 +1,9 @@
-mod pipeline;
 mod buffer;
-pub mod pass;
 mod worker;
+pub mod pipeline;
+pub mod debug_pipeline;
+pub mod pass;
 
-use std::iter::repeat_with;
 use std::ops::DerefMut;
 use std::sync::{Arc, Mutex, MutexGuard, Weak};
 use std::sync::atomic::{AtomicU64, AtomicUsize, Ordering};
@@ -25,10 +25,7 @@ use crate::prelude::*;
 use crate::vk::DeviceEnvironment;
 use crate::vk::objects::allocator::{Allocation, AllocationStrategy};
 
-pub use pipeline::RenderPath;
-pub use pipeline::RenderConfiguration;
-pub use pipeline::OutputConfiguration;
-pub use pipeline::TestVertex;
+use crate::renderer::emulator::pipeline::EmulatorPipeline;
 
 pub(crate) struct EmulatorRenderer {
     weak: Weak<EmulatorRenderer>,
@@ -61,32 +58,8 @@ impl EmulatorRenderer {
         renderer
     }
 
-    pub fn crate_test_render_path(&self) -> Arc<RenderPath> {
-        Arc::new(RenderPath::new(self.device.clone()))
-    }
-
-    pub fn create_output_configuration(
-        &self,
-        render_configuration: Arc<RenderConfiguration>,
-        output_size: Vec2u32,
-        dst_images: &[ImageId],
-        dst_set: ObjectSet,
-        dst_format: vk::Format,
-        final_layout: vk::ImageLayout
-    ) -> Arc<OutputConfiguration> {
-
-        Arc::new(OutputConfiguration::new(
-            render_configuration,
-            output_size,
-            dst_images,
-            dst_set,
-            dst_format,
-            final_layout
-        ))
-    }
-
-    pub fn start_frame(&self, configuration: Arc<RenderConfiguration>) -> PassRecorder {
+    pub fn start_frame(&self, pipeline: Arc<dyn EmulatorPipeline>) -> PassRecorder {
         let id = PassId::from_raw(self.next_frame_id.fetch_add(1, Ordering::SeqCst));
-        PassRecorder::new(id, self.weak.upgrade().unwrap(), configuration)
+        PassRecorder::new(id, self.weak.upgrade().unwrap(), pipeline)
     }
 }
