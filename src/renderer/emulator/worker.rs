@@ -6,10 +6,11 @@ use std::sync::{Arc, Condvar, Mutex};
 
 use ash::prelude::VkResult;
 use ash::vk;
+use ash::vk::BufferMemoryBarrier2;
 use bumpalo::Bump;
 
 use crate::device::device::VkQueue;
-use crate::device::transfer::{SyncId, Transfer};
+use crate::device::transfer::{BufferReleaseOp, SyncId, Transfer};
 
 use crate::renderer::emulator::pass::PassId;
 use crate::renderer::emulator::buffer::BufferPool;
@@ -71,7 +72,7 @@ impl Channel {
 pub(super) enum WorkerTask {
     StartPass(Box<dyn EmulatorPipelinePass + Send>),
     EndPass,
-    UseDynamicBuffer(Buffer, Option<vk::BufferMemoryBarrier2>),
+    UseDynamicBuffer(Buffer),
     UseOutput(Box<dyn EmulatorOutput + Send>),
     WaitTransferSync(SyncId),
     PipelineTask(PipelineTask),
@@ -117,8 +118,13 @@ pub(super) fn run_worker(device: DeviceEnvironment, share: Arc<Share>) {
                 old_frames.push(pass);
             }
 
-            WorkerTask::UseDynamicBuffer(buffer, barrier) => {
-                frames.get_pass(id).unwrap().use_dynamic_buffer(buffer, barrier.as_ref());
+            WorkerTask::UseDynamicBuffer(buffer) => {
+                let op = device.get_transfer().prepare_buffer_release(buffer, Some((
+                    vk::PipelineStageFlags2::VERTEX_INPUT | vk::PipelineStageFlags2::INDEX_INPUT,
+                    vk::AccessFlags2::VERTEX_ATTRIBUTE_READ | vk::AccessFlags2::INDEX_READ,
+                    queue.get_queue_family_index()
+                )));
+                frames.get_pass(id).unwrap().use_dynamic_buffer(buffer, op.make_barrier().as_ref());
             }
 
             WorkerTask::UseOutput(output) => {
@@ -324,7 +330,7 @@ impl PassState {
         self.transfer_sync_wait = Some(self.transfer_sync_wait.map_or(sync_id, |old| std::cmp::max(old, sync_id)));
     }
 
-    fn use_dynamic_buffer(&mut self, buffer: Buffer, pre_barrier: Option<&vk::BufferMemoryBarrier2>) {
+    fn use_dynamic_buffer(&mut self, buffer: Buffer, pre_barrier: Option<&BufferMemoryBarrier2>) {
         self.dynamic_buffers.push(buffer);
 
         if let Some(pre_barrier) = pre_barrier {

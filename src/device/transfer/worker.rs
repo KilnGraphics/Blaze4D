@@ -71,7 +71,7 @@ impl Share {
         self.worker_condvar.notify_one();
     }
 
-    pub(super) fn push_buffer_release_task(&self, op: BufferAvailabilityOp) -> u64 {
+    pub(super) fn push_buffer_release_task(&self, op: BufferReleaseOp) -> u64 {
         let mut guard = self.channel.lock().unwrap();
         let id = guard.next_sync_id;
         guard.next_sync_id += 1;
@@ -164,8 +164,8 @@ pub(super) struct Channel {
 #[derive(Debug)]
 pub(super) enum Task {
     Flush(u64),
-    BufferAcquire(BufferAvailabilityOp, SemaphoreOps),
-    BufferRelease(BufferAvailabilityOp, u64),
+    BufferAcquire(BufferAcquireOp, SemaphoreOps),
+    BufferRelease(BufferReleaseOp, u64),
     ImageAcquire(ImageAvailabilityOp, SemaphoreOps),
     ImageRelease(ImageAvailabilityOp, u64),
     StagingAcquire(PoolAllocationId, UUID, vk::Buffer, vk::DeviceSize, vk::DeviceSize),
@@ -204,16 +204,16 @@ pub(super) fn run_worker(share: Arc<Share>, queue: VkQueue) {
 
                 Task::BufferAcquire(acquire, waits) => {
                     recorder.add_wait_ops(waits);
-                    if let Some(barrier) = acquire.get_barrier() {
-                        recorder.get_buffer_barriers().push(*barrier);
+                    if let Some(barrier) = acquire.make_transfer_barrier(vk::PipelineStageFlags2::TRANSFER, vk::AccessFlags2::TRANSFER_READ | vk::AccessFlags2::TRANSFER_WRITE) {
+                        recorder.get_buffer_barriers().push(barrier);
                     }
                     buffers.insert(acquire.get_buffer().get_id().as_uuid(), (BufferState::new(acquire.buffer, 0, vk::WHOLE_SIZE), None));
                 }
 
                 Task::BufferRelease(release, id) => {
                     buffers.remove(&release.buffer.get_id());
-                    if let Some(barrier) = release.get_barrier() {
-                        recorder.get_buffer_barriers().push(*barrier);
+                    if let Some(barrier) = release.make_transfer_barrier(vk::PipelineStageFlags2::TRANSFER, vk::AccessFlags2::TRANSFER_READ | vk::AccessFlags2::TRANSFER_WRITE) {
+                        recorder.get_buffer_barriers().push(barrier);
                     }
                     recorder.push_sync(id);
                 }

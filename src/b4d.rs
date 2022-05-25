@@ -16,7 +16,7 @@ use crate::vk::objects::surface::{SurfaceProvider};
 use crate::prelude::*;
 use crate::renderer::emulator::debug_pipeline::{DepthPipelineConfig, DepthPipelineCore, DepthTypeInfo};
 use crate::renderer::emulator::EmulatorRenderer;
-use crate::renderer::emulator::pass::{PassRecorder};
+use crate::renderer::emulator::pass::{ObjectData, PassRecorder};
 use crate::renderer::emulator::pipeline::{EmulatorPipeline, SwapchainOutput};
 
 pub struct Blaze4D {
@@ -69,8 +69,42 @@ impl Blaze4D {
     }
 
     pub fn try_start_frame(&self, window_size: Vec2u32) -> Option<PassRecorder> {
-        if let Some(recorder) = self.render_config.lock().unwrap().try_start_frame(&self.emulator, window_size) {
+        if let Some(mut recorder) = self.render_config.lock().unwrap().try_start_frame(&self.emulator, window_size) {
 
+            recorder.set_model_view_matrix(Mat4f32::identity());
+            recorder.set_projection_matrix(Mat4f32::identity());
+
+            let vertex_data = [
+                TestVertex {
+                    position: Vec3f32::new(-0.5f32, 0.5f32, 0.5f32)
+                },
+                TestVertex {
+                    position: Vec3f32::new(0.0f32, -0.5f32, 0.5f32)
+                },
+                TestVertex {
+                    position: Vec3f32::new(0.5f32, 0.5f32, 0.5f32)
+                },
+                TestVertex {
+                    position: Vec3f32::new(-0.75f32, 0.25f32, 0.25f32)
+                },
+                TestVertex {
+                    position: Vec3f32::new(0.0f32, -0.75f32, 0.25f32)
+                },
+                TestVertex {
+                    position: Vec3f32::new(0.25f32, 0.25f32, 0.25f32)
+                }
+            ];
+
+            let index_data = [0u32, 1u32, 2u32, 3u32, 4u32, 5u32];
+
+            let data = ObjectData {
+                vertex_data: crate::util::slice::to_byte_slice(&vertex_data),
+                index_data: crate::util::slice::to_byte_slice(&index_data),
+                index_count: 6,
+                type_id: 0
+            };
+
+            recorder.record_object(&data);
 
             Some(recorder)
         } else {
@@ -95,7 +129,7 @@ impl RenderConfig {
             device,
             main_surface,
 
-            vertex_formats: Box::new([TestVertexFormat::get_format()]),
+            vertex_formats: Box::new([TestVertex::get_format()]),
             current_swapchain: None,
             current_pipeline: None,
         }
@@ -180,11 +214,12 @@ struct B4DVertexFormat {
 
 
 #[repr(C)]
-struct TestVertexFormat {
+#[derive(Copy, Clone)]
+struct TestVertex {
     position: Vec3f32,
 }
 
-impl TestVertexFormat {
+impl TestVertex {
     fn get_format() -> B4DVertexFormat {
         B4DVertexFormat {
             stride: std::mem::size_of::<Self>() as u32,

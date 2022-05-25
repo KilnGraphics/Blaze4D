@@ -79,31 +79,30 @@ impl Transfer {
     /// - If `usage` is [`Some`] the contents should be the source stage mask, source access mask
     /// and the source queue family index needed for a potential barrier. This function will
     /// determine if a memory barrier is necessary and if so generate one.
-    pub fn prepare_buffer_acquire(&self, buffer: Buffer, usage: Option<(vk::PipelineStageFlags2, vk::AccessFlags2, u32)>) -> BufferAvailabilityOp {
-        let barrier = if let Some((stage, access, family)) = usage {
-            if family != self.queue_family {
-                Some(vk::BufferMemoryBarrier2::builder()
-                    .src_stage_mask(stage)
-                    .src_access_mask(access)
-                    .dst_stage_mask(vk::PipelineStageFlags2::TRANSFER)
-                    .dst_access_mask(vk::AccessFlags2::TRANSFER_READ | vk::AccessFlags2::TRANSFER_WRITE)
-                    .src_queue_family_index(family)
-                    .dst_queue_family_index(self.queue_family)
-                    .buffer(buffer.get_handle())
-                    .offset(0)
-                    .size(vk::WHOLE_SIZE)
-                    .build()
-                )
-            } else {
-                None
+    pub fn prepare_buffer_acquire(&self, buffer: Buffer, usage: Option<(vk::PipelineStageFlags2, vk::AccessFlags2, u32)>) -> BufferAcquireOp {
+        if let Some((src_stage_mask, src_access_mask, src_queue_family)) = usage {
+            let queue_info =
+                if src_queue_family == self.queue_family {
+                    None
+                } else {
+                    Some((src_queue_family, self.queue_family))
+                };
+
+            BufferAcquireOp {
+                buffer,
+                offset: 0,
+                size: vk::WHOLE_SIZE,
+                src_info: Some((src_stage_mask, src_access_mask)),
+                queue_info,
             }
         } else {
-            None
-        };
-
-        BufferAvailabilityOp {
-            buffer,
-            barrier,
+            BufferAcquireOp {
+                buffer,
+                offset: 0,
+                size: vk::WHOLE_SIZE,
+                src_info: None,
+                queue_info: None
+            }
         }
     }
 
@@ -115,7 +114,7 @@ impl Transfer {
     ///
     /// A list of wait semaphores can be provided through `semaphores`. All provided semaphores must
     /// have been submitted before this function is called.
-    pub fn acquire_buffer(&self, op: BufferAvailabilityOp, semaphores: SemaphoreOps) -> Result<(), AcquireError> {
+    pub fn acquire_buffer(&self, op: BufferAcquireOp, semaphores: SemaphoreOps) -> Result<(), AcquireError> {
         self.share.push_task(Task::BufferAcquire(op, semaphores));
         Ok(())
     }
@@ -129,31 +128,30 @@ impl Transfer {
     /// - If `usage` is [`Some`] the contents should be the destination stage mask, destination
     /// access mask and the destination queue family index needed for a potential barrier. This
     /// function will determine if a memory barrier is necessary and if so generate one.
-    pub fn prepare_buffer_release(&self, buffer: Buffer, usage: Option<(vk::PipelineStageFlags2, vk::AccessFlags2, u32)>) -> BufferAvailabilityOp {
-        let barrier = if let Some((stage, access, family)) = usage {
-            if family != self.queue_family {
-                Some(vk::BufferMemoryBarrier2::builder()
-                    .src_stage_mask(vk::PipelineStageFlags2::TRANSFER)
-                    .src_access_mask(vk::AccessFlags2::TRANSFER_READ | vk::AccessFlags2::TRANSFER_WRITE)
-                    .dst_stage_mask(stage)
-                    .dst_access_mask(access)
-                    .src_queue_family_index(self.queue_family)
-                    .dst_queue_family_index(family)
-                    .buffer(buffer.get_handle())
-                    .offset(0)
-                    .size(vk::WHOLE_SIZE)
-                    .build()
-                )
-            } else {
-                None
+    pub fn prepare_buffer_release(&self, buffer: Buffer, usage: Option<(vk::PipelineStageFlags2, vk::AccessFlags2, u32)>) -> BufferReleaseOp {
+        if let Some((dst_stage_mask, dst_access_mask, dst_queue_family)) = usage {
+            let queue_info =
+                if dst_queue_family == self.queue_family {
+                    None
+                } else {
+                    Some((self.queue_family, dst_queue_family))
+                };
+
+            BufferReleaseOp {
+                buffer,
+                offset: 0,
+                size: vk::WHOLE_SIZE,
+                dst_info: Some((dst_stage_mask, dst_access_mask)),
+                queue_info,
             }
         } else {
-            None
-        };
-
-        BufferAvailabilityOp {
-            buffer,
-            barrier
+            BufferReleaseOp {
+                buffer,
+                offset: 0,
+                size: vk::WHOLE_SIZE,
+                dst_info: None,
+                queue_info: None
+            }
         }
     }
 
@@ -169,7 +167,7 @@ impl Transfer {
     ///
     /// A wait semaphore for future submissions can be generated by calling
     /// [`generate_wait_semaphore`] with the returned id.
-    pub fn release_buffer(&self, op: BufferAvailabilityOp) -> Result<SyncId, ReleaseError> {
+    pub fn release_buffer(&self, op: BufferReleaseOp) -> Result<SyncId, ReleaseError> {
         let id = self.share.push_buffer_release_task(op);
         Ok(SyncId::from_raw(id))
     }
@@ -349,25 +347,128 @@ impl Drop for Transfer {
 }
 
 #[derive(Copy, Clone, Debug)]
-pub struct BufferAvailabilityOp {
+pub struct BufferAcquireOp {
     buffer: Buffer,
-    barrier: Option<vk::BufferMemoryBarrier2>,
+    offset: vk::DeviceSize,
+    size: vk::DeviceSize,
+    src_info: Option<(vk::PipelineStageFlags2, vk::AccessFlags2)>,
+    queue_info: Option<(u32, u32)>,
 }
 
-impl BufferAvailabilityOp {
-    /// Returns the generated barrier
-    pub fn get_barrier(&self) -> Option<&vk::BufferMemoryBarrier2> {
-        self.barrier.as_ref()
+impl BufferAcquireOp {
+    /// Returns a barrier which needs to be submitted by the user of the transfer engine before
+    /// calling [`Transfer::acquire_buffer`]. If [`None`] is returned no barrier needs to be
+    /// submitted.
+    pub fn make_barrier(&self) -> Option<vk::BufferMemoryBarrier2> {
+        // We only generate a user barrier if a queue family transfer is necessary
+        self.queue_info.as_ref().map(|(src_queue_family, dst_queue_family)| {
+            let (src_stage_mask, src_access_mask) = self.src_info.as_ref().unwrap();
+
+            vk::BufferMemoryBarrier2::builder()
+                .buffer(self.buffer.get_handle())
+                .offset(self.offset)
+                .size(self.size)
+                .src_stage_mask(*src_stage_mask)
+                .src_access_mask(*src_access_mask)
+                .src_queue_family_index(*src_queue_family)
+                .dst_queue_family_index(*dst_queue_family)
+                .build()
+        })
     }
 
     /// Returns the buffer used in this op
     pub fn get_buffer(&self) -> Buffer {
         self.buffer
     }
+
+    /// Returns a barrier which needs to be submitted by the transfer engine before using the buffer.
+    fn make_transfer_barrier(&self, dst_stage_mask: vk::PipelineStageFlags2, dst_access_mask: vk::AccessFlags2) -> Option<vk::BufferMemoryBarrier2> {
+        self.src_info.as_ref().map(|(src_stage_mask, src_access_mask)| {
+            let mut barrier = vk::BufferMemoryBarrier2::builder()
+                .buffer(self.buffer.get_handle())
+                .offset(self.offset)
+                .size(self.size)
+                .dst_stage_mask(dst_stage_mask)
+                .dst_access_mask(dst_access_mask);
+
+            if let Some((src_queue_family, dst_queue_family)) = &self.queue_info {
+                barrier = barrier
+                    .src_queue_family_index(*src_queue_family)
+                    .dst_queue_family_index(*dst_queue_family);
+            } else {
+                barrier = barrier
+                    .src_stage_mask(*src_stage_mask)
+                    .src_access_mask(*src_access_mask);
+            }
+
+            barrier.build()
+        })
+    }
 }
 
-// vk::BufferMemoryBarrier2 does not implement send so we have to do it here
-unsafe impl Send for BufferAvailabilityOp {
+#[derive(Copy, Clone, Debug)]
+pub struct BufferReleaseOp {
+    buffer: Buffer,
+    offset: vk::DeviceSize,
+    size: vk::DeviceSize,
+    dst_info: Option<(vk::PipelineStageFlags2, vk::AccessFlags2)>,
+    queue_info: Option<(u32, u32)>,
+}
+
+impl BufferReleaseOp {
+    /// Returns a barrier which needs to be submitted by the user of the transfer engine after
+    /// calling [`Transfer::release_buffer`]. If [`None`] is returned no barrier needs to be
+    /// submitted.
+    ///
+    /// Note that vulkan requires a potential queue family acquire barrier to be submitted after
+    /// its corresponding release barrier. Since operations in the transfer engine are submitted
+    /// asynchronously the user may need to call [`Transfer::wait_for_submit`] before submitting
+    /// this barrier.
+    pub fn make_barrier(&self) -> Option<vk::BufferMemoryBarrier2> {
+        // We only generate a user barrier if a queue family transfer is necessary
+        self.queue_info.as_ref().map(|(src_queue_family, dst_queue_family)| {
+            let (dst_stage_mask, dst_access_mask) = self.dst_info.as_ref().unwrap();
+
+            vk::BufferMemoryBarrier2::builder()
+                .buffer(self.buffer.get_handle())
+                .offset(self.offset)
+                .size(self.size)
+                .dst_stage_mask(*dst_stage_mask)
+                .dst_access_mask(*dst_access_mask)
+                .src_queue_family_index(*src_queue_family)
+                .dst_queue_family_index(*dst_queue_family)
+                .build()
+        })
+    }
+
+    /// Returns the buffer used in this op
+    pub fn get_buffer(&self) -> Buffer {
+        self.buffer
+    }
+
+    /// Returns a barrier which needs to be submitted by the transfer engine before using the buffer.
+    fn make_transfer_barrier(&self, src_stage_mask: vk::PipelineStageFlags2, src_access_mask: vk::AccessFlags2) -> Option<vk::BufferMemoryBarrier2> {
+        self.dst_info.as_ref().map(|(dst_stage_mask, dst_access_mask)| {
+            let mut barrier = vk::BufferMemoryBarrier2::builder()
+                .buffer(self.buffer.get_handle())
+                .offset(self.offset)
+                .size(self.size)
+                .src_stage_mask(src_stage_mask)
+                .src_access_mask(src_access_mask);
+
+            if let Some((src_queue_family, dst_queue_family)) = &self.queue_info {
+                barrier = barrier
+                    .src_queue_family_index(*src_queue_family)
+                    .dst_queue_family_index(*dst_queue_family);
+            } else {
+                barrier = barrier
+                    .dst_stage_mask(*dst_stage_mask)
+                    .dst_access_mask(*dst_access_mask);
+            }
+
+            barrier.build()
+        })
+    }
 }
 
 #[derive(Copy, Clone, Debug)]

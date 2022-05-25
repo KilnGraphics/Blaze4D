@@ -119,12 +119,7 @@ impl PassRecorder {
         let op = self.renderer.device.get_transfer().prepare_buffer_acquire(buffer, None);
         self.renderer.device.get_transfer().acquire_buffer(op, SemaphoreOps::from_option(wait_op)).unwrap();
 
-        let op = self.renderer.device.get_transfer().prepare_buffer_release(buffer, Some((
-            vk::PipelineStageFlags2::VERTEX_INPUT | vk::PipelineStageFlags2::INDEX_INPUT,
-            vk::AccessFlags2::VERTEX_ATTRIBUTE_READ | vk::AccessFlags2::INDEX_READ,
-            self.renderer.worker.get_render_queue_family()
-        )));
-        self.renderer.worker.push_task(self.id, WorkerTask::UseDynamicBuffer(buffer, op.get_barrier().cloned()));
+        self.renderer.worker.push_task(self.id, WorkerTask::UseDynamicBuffer(buffer));
 
         let allocator = BufferSubAllocator::new(buffer, size);
 

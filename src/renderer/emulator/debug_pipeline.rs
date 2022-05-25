@@ -418,6 +418,7 @@ struct DepthPipelinePass {
     index: usize,
 
     command_buffer: Option<vk::CommandBuffer>,
+    current_pipeline: Option<u32>,
     current_vertex_buffer: Option<BufferId>,
     current_index_buffer: Option<BufferId>,
 }
@@ -429,6 +430,7 @@ impl DepthPipelinePass {
             index,
 
             command_buffer: None,
+            current_pipeline: None,
             current_vertex_buffer: None,
             current_index_buffer: None,
         }
@@ -437,6 +439,16 @@ impl DepthPipelinePass {
     fn draw(&mut self, draw_task: &DrawTask) {
         let device = self.config.core.device.get_device();
         let cmd = *self.command_buffer.as_ref().unwrap();
+
+        if self.current_pipeline != Some(draw_task.type_id) {
+            let pipeline = self.config.core.pipelines[draw_task.type_id as usize];
+
+            unsafe {
+                device.vk().cmd_bind_pipeline(cmd, vk::PipelineBindPoint::GRAPHICS, pipeline)
+            };
+
+            self.current_pipeline = Some(draw_task.type_id);
+        }
 
         if self.current_vertex_buffer != Some(draw_task.vertex_buffer.get_id()) {
             unsafe {

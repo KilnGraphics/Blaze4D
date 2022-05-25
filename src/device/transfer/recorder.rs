@@ -71,6 +71,7 @@ impl Recorder {
                     self.command_pool.return_buffer(cmd);
                     frees.extend(free);
                 } else {
+                    self.submitted_buffers.push_front((Some(release), cmd, free));
                     break;
                 }
             } else {
@@ -215,11 +216,11 @@ impl CommandBufferPool {
     }
 
     fn get_buffer(&mut self) -> vk::CommandBuffer {
-        match self.buffers.first() {
-            Some(buffer) => *buffer,
+        match self.buffers.pop() {
+            Some(buffer) => buffer,
             None => {
                 self.allocate_buffers();
-                *self.buffers.first().unwrap()
+                self.buffers.pop().unwrap()
             }
         }
     }
