@@ -68,43 +68,15 @@ impl Blaze4D {
         }
     }
 
+    pub fn set_emulator_vertex_formats(&self, formats: Box<[B4DVertexFormat]>) {
+        self.render_config.lock().unwrap().set_vertex_formats(formats);
+    }
+
     pub fn try_start_frame(&self, window_size: Vec2u32) -> Option<PassRecorder> {
         if let Some(mut recorder) = self.render_config.lock().unwrap().try_start_frame(&self.emulator, window_size) {
 
             recorder.set_model_view_matrix(Mat4f32::identity());
             recorder.set_projection_matrix(Mat4f32::identity());
-
-            let vertex_data = [
-                TestVertex {
-                    position: Vec3f32::new(-0.5f32, 0.5f32, 0.5f32)
-                },
-                TestVertex {
-                    position: Vec3f32::new(0.0f32, -0.5f32, 0.5f32)
-                },
-                TestVertex {
-                    position: Vec3f32::new(0.5f32, 0.5f32, 0.5f32)
-                },
-                TestVertex {
-                    position: Vec3f32::new(-0.75f32, 0.25f32, 0.25f32)
-                },
-                TestVertex {
-                    position: Vec3f32::new(0.0f32, -0.75f32, 0.25f32)
-                },
-                TestVertex {
-                    position: Vec3f32::new(0.25f32, 0.25f32, 0.25f32)
-                }
-            ];
-
-            let index_data = [0u32, 1u32, 2u32, 3u32, 4u32, 5u32];
-
-            let data = ObjectData {
-                vertex_data: crate::util::slice::to_byte_slice(&vertex_data),
-                index_data: crate::util::slice::to_byte_slice(&index_data),
-                index_count: 6,
-                type_id: 0
-            };
-
-            recorder.record_object(&data);
 
             Some(recorder)
         } else {
@@ -129,10 +101,15 @@ impl RenderConfig {
             device,
             main_surface,
 
-            vertex_formats: Box::new([TestVertex::get_format()]),
+            vertex_formats: Box::new([]),
             current_swapchain: None,
             current_pipeline: None,
         }
+    }
+
+    fn set_vertex_formats(&mut self, formats: Box<[B4DVertexFormat]>) {
+        self.vertex_formats = formats;
+        self.current_pipeline = None;
     }
 
     fn try_start_frame(&mut self, renderer: &EmulatorRenderer, size: Vec2u32) -> Option<PassRecorder> {
@@ -149,7 +126,7 @@ impl RenderConfig {
                     vertex_stride: format.stride,
                     vertex_position_offset: format.position.0,
                     vertex_position_format: format.position.1,
-                    topology: vk::PrimitiveTopology::TRIANGLE_LIST,
+                    topology: format.topology,
                     primitive_restart: false,
                     discard: false
                 }
@@ -205,11 +182,12 @@ impl RenderConfig {
     }
 }
 
-struct B4DVertexFormat {
-    stride: u32,
-    position: (u32, vk::Format),
-    color: Option<(u32, vk::Format)>,
-    uv: Option<(u32, vk::Format)>,
+pub struct B4DVertexFormat {
+    pub topology: vk::PrimitiveTopology,
+    pub stride: u32,
+    pub position: (u32, vk::Format),
+    pub color: Option<(u32, vk::Format)>,
+    pub uv: Option<(u32, vk::Format)>,
 }
 
 
@@ -222,6 +200,7 @@ struct TestVertex {
 impl TestVertex {
     fn get_format() -> B4DVertexFormat {
         B4DVertexFormat {
+            topology: vk::PrimitiveTopology::TRIANGLE_LIST,
             stride: std::mem::size_of::<Self>() as u32,
             position: (0, vk::Format::R32G32B32_SFLOAT),
             color: None,

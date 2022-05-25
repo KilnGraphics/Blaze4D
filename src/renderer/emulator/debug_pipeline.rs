@@ -162,7 +162,7 @@ impl DepthPipelineCore {
                 vk::PipelineDepthStencilStateCreateInfo::builder()
                     .depth_test_enable(true)
                     .depth_write_enable(!type_info.discard)
-                    .depth_compare_op(vk::CompareOp::GREATER)
+                    .depth_compare_op(vk::CompareOp::LESS)
             );
 
             vk::GraphicsPipelineCreateInfo::builder()
@@ -520,7 +520,7 @@ impl EmulatorPipelinePass for DepthPipelinePass {
         let clear_values = [
             vk::ClearValue {
                 depth_stencil: vk::ClearDepthStencilValue {
-                    depth: 0.0,
+                    depth: 1.0,
                     stencil: 0
                 }
             }
