@@ -1,6 +1,5 @@
 use std::cell::RefCell;
 use std::collections::VecDeque;
-use std::fmt::{Debug, Formatter};
 use std::marker::PhantomData;
 use std::rc::Rc;
 use std::sync::{Arc, Condvar, Mutex};
@@ -11,14 +10,12 @@ use bumpalo::Bump;
 
 use crate::device::device::VkQueue;
 use crate::device::transfer::{SyncId, Transfer};
-use crate::objects::sync::SemaphoreOp;
 
-use crate::renderer::emulator::pass::{PassId, PassEventListener};
-use crate::renderer::emulator::{EmulatorRenderer, OutputConfiguration, RenderConfiguration};
+use crate::renderer::emulator::pass::PassId;
 use crate::renderer::emulator::buffer::BufferPool;
-use crate::renderer::emulator::pipeline::{EmulatorOutput, EmulatorPipeline, EmulatorPipelinePass, PipelineTask};
+use crate::renderer::emulator::pipeline::{EmulatorOutput, EmulatorPipelinePass, PipelineTask};
 use crate::vk::DeviceEnvironment;
-use crate::vk::objects::buffer::{Buffer, BufferId};
+use crate::vk::objects::buffer::Buffer;
 
 use crate::prelude::*;
 
@@ -109,8 +106,8 @@ pub(super) fn run_worker(device: DeviceEnvironment, share: Arc<Share>) {
         let (id, task) = share.get_next_task();
 
         match task {
-            WorkerTask::StartPass(pipeline) => {
-                let state = PassState::new(&pipeline, &device, &queue, pool.clone());
+            WorkerTask::StartPass(pass) => {
+                let state = PassState::new(pass, &device, &queue, pool.clone());
                 frames.add_pass(id, state);
             }
 
@@ -297,13 +294,13 @@ struct PassState {
 }
 
 impl PassState {
-    fn new(pipeline: &dyn EmulatorPipeline, device: &DeviceEnvironment, queue: &VkQueue, pool: Rc<RefCell<WorkerObjectPool>>) -> Self {
+    fn new(mut pass: Box<dyn EmulatorPipelinePass>, device: &DeviceEnvironment, queue: &VkQueue, pool: Rc<RefCell<WorkerObjectPool>>) -> Self {
         let mut object_pool = PooledObjectProvider::new(pool);
 
         let pre_cmd = object_pool.get_begin_command_buffer().unwrap();
         let post_cmd = object_pool.get_begin_command_buffer().unwrap();
 
-        let pass = pipeline.start_pass(&queue, &mut object_pool);
+        pass.init(queue, &mut object_pool);
 
         Self {
             device: device.get_device().clone(),
@@ -341,7 +338,7 @@ impl PassState {
     }
 
     fn use_output(&mut self, mut output: Box<dyn EmulatorOutput>) {
-        output.on_used(&self.pass, &mut self.object_pool);
+        output.init(self.pass.as_ref(), &mut self.object_pool);
         self.outputs.push(output);
     }
 
@@ -381,7 +378,7 @@ impl PassState {
         }.unwrap();
 
         for output in &mut self.outputs {
-            output.on_post_submit();
+            output.on_post_submit(&queue);
         }
     }
 

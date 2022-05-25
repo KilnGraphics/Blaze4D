@@ -7,7 +7,7 @@ use crate::device::device::VkQueue;
 use crate::objects::id::BufferId;
 
 use crate::prelude::*;
-use crate::renderer::emulator::pipeline::{DrawTask, EmulatorPipeline, EmulatorPipelinePass, OutputInfo, PipelineTask, PipelineTypeInfo, PooledObjectProvider, SubmitRecorder};
+use crate::renderer::emulator::pipeline::{DrawTask, EmulatorPipeline, EmulatorPipelinePass, PipelineTask, PipelineTypeInfo, PooledObjectProvider, SubmitRecorder};
 use crate::vk::objects::allocator::{Allocation, AllocationStrategy};
 
 pub struct DepthTypeInfo {
@@ -147,8 +147,8 @@ impl DepthPipelineCore {
 
             let input_state = alloc.alloc(
                 vk::PipelineVertexInputStateCreateInfo::builder()
-                    .vertex_binding_descriptions(&input_bindings)
-                    .vertex_attribute_descriptions(&input_attributes)
+                    .vertex_binding_descriptions(input_bindings)
+                    .vertex_attribute_descriptions(input_attributes)
             );
 
             let input_assembly_state = alloc.alloc(
@@ -222,11 +222,14 @@ pub struct DepthPipelineConfig {
     viewport_size: Vec2u32,
     objects: Box<[DepthPipelineObjects]>,
     next_index: AtomicUsize,
+    outputs: Box<[vk::ImageView]>,
 }
 
 impl DepthPipelineConfig {
     pub fn new(core: Arc<DepthPipelineCore>, viewport_size: Vec2u32) -> Arc<Self> {
-        let objects = std::iter::repeat_with(|| DepthPipelineObjects::new(&core, viewport_size)).take(2).collect();
+        let objects: Box<[DepthPipelineObjects]> = std::iter::repeat_with(|| DepthPipelineObjects::new(&core, viewport_size)).take(2).collect();
+
+        let outputs = objects.iter().map(|obj| obj.sampler_view).collect();
 
         Arc::new_cyclic(|weak| Self {
             core,
@@ -234,6 +237,7 @@ impl DepthPipelineConfig {
             viewport_size,
             objects,
             next_index: AtomicUsize::new(0),
+            outputs,
         })
     }
 
@@ -258,6 +262,10 @@ impl EmulatorPipeline for DepthPipelineConfig {
 
     fn get_type_table(&self) -> &[PipelineTypeInfo] {
         self.core.type_infos.as_ref()
+    }
+
+    fn get_outputs(&self) -> (Vec2u32, &[vk::ImageView]) {
+        (self.viewport_size, self.outputs.as_ref())
     }
 }
 
@@ -486,7 +494,7 @@ impl DepthPipelinePass {
 }
 
 impl EmulatorPipelinePass for DepthPipelinePass {
-    fn init(&mut self, _: VkQueue, obj: &mut PooledObjectProvider) {
+    fn init(&mut self, _: &VkQueue, obj: &mut PooledObjectProvider) {
         let cmd = obj.get_begin_command_buffer().unwrap();
         self.command_buffer = Some(cmd);
 
@@ -545,8 +553,32 @@ impl EmulatorPipelinePass for DepthPipelinePass {
         let device = self.config.core.device.get_device();
         let cmd = self.command_buffer.take().unwrap();
 
+        let image_barrier = vk::ImageMemoryBarrier2::builder()
+            .src_stage_mask(vk::PipelineStageFlags2::COLOR_ATTACHMENT_OUTPUT)
+            .src_access_mask(vk::AccessFlags2::COLOR_ATTACHMENT_WRITE)
+            .dst_stage_mask(vk::PipelineStageFlags2::ALL_COMMANDS)
+            .dst_access_mask(vk::AccessFlags2::MEMORY_READ)
+            .old_layout(vk::ImageLayout::SHADER_READ_ONLY_OPTIMAL)
+            .new_layout(vk::ImageLayout::SHADER_READ_ONLY_OPTIMAL)
+            .src_queue_family_index(0)
+            .dst_queue_family_index(0)
+            .image(self.config.objects[self.index].image)
+            .subresource_range(vk::ImageSubresourceRange {
+                aspect_mask: vk::ImageAspectFlags::DEPTH,
+                base_mip_level: 0,
+                level_count: 1,
+                base_array_layer: 0,
+                layer_count: 1
+            });
+
+        let info = vk::DependencyInfo::builder()
+            .image_memory_barriers(std::slice::from_ref(&image_barrier));
+
         unsafe {
             device.vk().cmd_end_render_pass(cmd);
+
+            device.vk().cmd_pipeline_barrier2(cmd, &info);
+
             device.vk().end_command_buffer(cmd).unwrap();
         }
 
@@ -558,6 +590,10 @@ impl EmulatorPipelinePass for DepthPipelinePass {
             .command_buffer_infos(std::slice::from_ref(command_buffer_info))
         );
     }
+
+    fn get_output_index(&self) -> usize {
+        self.index
+    }
 }
 
 impl Drop for DepthPipelinePass {
@@ -566,5 +602,5 @@ impl Drop for DepthPipelinePass {
     }
 }
 
-const DEBUG_POSITION_VERTEX_ENTRY: &'static CStr = CStr::from_bytes_with_nul(b"main\0").unwrap();
+const DEBUG_POSITION_VERTEX_ENTRY: &'static CStr = unsafe { CStr::from_bytes_with_nul_unchecked(b"main\0") }; // GOD I LOVE RUSTS FFI API IT IS SO NICE AND DEFINITELY NOT STUPID WITH WHICH FUNCTIONS ARE CONST AND WHICH AREN'T
 const DEBUG_POSITION_VERTEX_BIN: &'static [u8] = include_bytes!(concat!(env!("B4D_RESOURCE_DIR"), "emulator/debug_position_vert.spv"));

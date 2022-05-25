@@ -1,16 +1,17 @@
 use std::fmt::{Debug, Formatter};
 use std::ops::{BitAnd, BitOr};
 use std::sync::{Arc, Mutex, MutexGuard, Weak};
+use std::sync::atomic::{AtomicU64, AtomicUsize, Ordering};
 
 use ash::prelude::VkResult;
 use ash::vk;
-use ash::vk::{Flags, Handle};
+use ash::vk::Flags;
 
-use crate::objects::id::{ImageId, ObjectId};
-use crate::objects::ObjectSetProvider;
+use crate::objects::sync::{Semaphore, SemaphoreOp};
 use crate::vk::objects::surface::SurfaceProvider;
 
 use crate::prelude::*;
+use crate::vk::objects::image::Image;
 
 pub struct DeviceSurface {
     device: Arc<DeviceContext>,
@@ -336,7 +337,9 @@ pub struct SurfaceSwapchain {
     surface: Arc<DeviceSurface>,
     set_id: UUID,
     swapchain: Mutex<vk::SwapchainKHR>,
-    images: Box<[(ImageId, vk::Image)]>,
+    acquire_objects: Box<[AcquireObjects]>,
+    acquire_next_index: AtomicUsize,
+    image_objects: Box<[ImageObjects]>,
 
     size: Vec2u32,
     format: vk::SurfaceFormatKHR,
@@ -345,16 +348,21 @@ pub struct SurfaceSwapchain {
 
 impl SurfaceSwapchain {
     fn new(surface: Arc<DeviceSurface>, swapchain: vk::SwapchainKHR, images: &[vk::Image], size: Vec2u32, format: vk::SurfaceFormatKHR, usage: vk::ImageUsageFlags) -> Self {
-        let mut image_data = Vec::with_capacity(images.len());
-        for image in images {
-            image_data.push((ImageId::new(), *image));
-        }
+        let device = &surface.device;
+
+        let acquire_objects = images.iter().map(|_| AcquireObjects::new(device)).collect();
+
+        let image_objects = images.iter().map(|image|
+            ImageObjects::new(device, Image::new(*image), format.format)
+        ).collect();
 
         Self {
             surface,
             set_id: UUID::new(),
             swapchain: Mutex::new(swapchain),
-            images: image_data.into_boxed_slice(),
+            acquire_objects,
+            acquire_next_index: AtomicUsize::new(0),
+            image_objects,
 
             size,
             format,
@@ -374,9 +382,9 @@ impl SurfaceSwapchain {
         &self.swapchain
     }
 
-    /// Returns all swpachain images and their ids.
-    pub fn get_images(&self) -> &[(ImageId, vk::Image)] {
-        self.images.as_ref()
+    /// Returns all swpachain images.
+    pub fn get_images(&self) -> &[ImageObjects] {
+        self.image_objects.as_ref()
     }
 
     /// Returns the size of the images.
@@ -394,15 +402,42 @@ impl SurfaceSwapchain {
         self.usage
     }
 
-    pub fn acquire_next_image(&self, timeout: u64, semaphore: Option<vk::Semaphore>, fence: Option<vk::Fence>) -> VkResult<(u32, bool)> {
-        let swapchain_khr = self.surface.device.swapchain_khr().unwrap();
-        let guard = self.swapchain.lock().unwrap();
-        let result = unsafe {
-            swapchain_khr.acquire_next_image(*guard, timeout, semaphore.unwrap_or(vk::Semaphore::null()), fence.unwrap_or(vk::Fence::null()))
+    pub fn acquire_next_image(&self, timeout: u64, fence: Option<vk::Fence>) -> VkResult<(AcquiredImageInfo, bool)> {
+        let acquire = self.acquire_objects.get(self.get_next_acquire()).unwrap();
+        let (ready_op, acquire_semaphore) = match acquire.wait_and_get(&self.surface.device, timeout) {
+            None => {
+                return Err(vk::Result::TIMEOUT)
+            }
+            Some(objects) => objects
         };
+
+        let swapchain_khr = self.surface.device.swapchain_khr().unwrap();
+
+        let guard = self.swapchain.lock().unwrap();
+        let (image_index, suboptimal) = unsafe {
+            swapchain_khr.acquire_next_image(*guard, timeout, acquire_semaphore.get_handle(), fence.unwrap_or(vk::Fence::null()))
+        }?;
         drop(guard);
 
-        result
+        Ok((AcquiredImageInfo {
+            acquire_semaphore: SemaphoreOp::new_binary(acquire_semaphore),
+            acquire_ready_semaphore: ready_op,
+            image_index,
+        }, suboptimal))
+    }
+
+    pub fn get_device(&self) -> &Arc<DeviceContext> {
+        &self.surface.device
+    }
+
+    fn get_next_acquire(&self) -> usize {
+        loop {
+            let old = self.acquire_next_index.load(Ordering::SeqCst);
+            let new = (old + 1) % self.acquire_objects.len();
+            if self.acquire_next_index.compare_exchange(old, new, Ordering::SeqCst, Ordering::SeqCst).is_ok() {
+                return old;
+            }
+        }
     }
 }
 
@@ -414,6 +449,14 @@ impl Debug for SurfaceSwapchain {
 
 impl Drop for SurfaceSwapchain {
     fn drop(&mut self) {
+        let device = &self.surface.device;
+        for acquire in self.acquire_objects.iter_mut() {
+            acquire.destroy(device);
+        }
+        for image in self.image_objects.iter_mut() {
+            image.destroy(device);
+        }
+
         let mut guard = self.surface.current_swapchain.lock().unwrap();
 
         // We do this inside the guard to propagate potential panics
@@ -430,19 +473,141 @@ impl Drop for SurfaceSwapchain {
     }
 }
 
-impl ObjectSetProvider for SurfaceSwapchain {
-    fn get_id(&self) -> UUID {
-        self.set_id
+struct AcquireObjects {
+    ready_semaphore: Semaphore,
+    ready_wait_value: AtomicU64,
+    acquire_semaphore: Semaphore,
+}
+
+impl AcquireObjects {
+    fn new(device: &DeviceContext) -> Self {
+        let mut timeline = vk::SemaphoreTypeCreateInfo::builder()
+            .semaphore_type(vk::SemaphoreType::TIMELINE)
+            .initial_value(0);
+
+        let info = vk::SemaphoreCreateInfo::builder()
+            .push_next(&mut timeline);
+
+        let ready_semaphore = Semaphore::new(unsafe {
+            device.vk().create_semaphore(&info, None)
+        }.unwrap());
+
+        let info = vk::SemaphoreCreateInfo::builder();
+
+        let acquire_semaphore = Semaphore::new(unsafe {
+            device.vk().create_semaphore(&info, None)
+        }.unwrap());
+
+        Self {
+            ready_semaphore,
+            ready_wait_value: AtomicU64::new(0),
+            acquire_semaphore
+        }
     }
 
-    fn get_handle(&self, id: UUID) -> Option<u64> {
-        // We only expect a small number of images (<10) so a linear search will be the fastest option
-        for (image_id, image) in self.images.as_ref() {
-            if image_id.as_uuid() == id {
-                return Some(image.as_raw());
+    fn wait_and_get(&self, device: &DeviceContext, timeout: u64) -> Option<(SemaphoreOp, Semaphore)> {
+        let semaphore = self.ready_semaphore.get_handle();
+        loop {
+            let value = self.ready_wait_value.load(Ordering::SeqCst);
+            let wait = vk::SemaphoreWaitInfo::builder()
+                .semaphores(std::slice::from_ref(&semaphore))
+                .values(std::slice::from_ref(&value));
+
+            match unsafe {
+                device.vk().wait_semaphores(&wait, timeout)
+            } {
+                Ok(_) => {
+                    let next = value + 1;
+                    if self.ready_wait_value.compare_exchange(value, next, Ordering::SeqCst, Ordering::SeqCst).is_ok() {
+                        return Some((SemaphoreOp::new_timeline(self.ready_semaphore, next), self.acquire_semaphore));
+                    }
+                }
+                Err(vk::Result::TIMEOUT) => {
+                    return None;
+                },
+                Err(err) => {
+                    panic!("Error while waiting for semaphore {:?}", err);
+                }
             }
         }
-
-        None
     }
+
+    fn destroy(&mut self, device: &DeviceContext) {
+        unsafe {
+            device.vk().destroy_semaphore(self.acquire_semaphore.get_handle(), None);
+            device.vk().destroy_semaphore(self.ready_semaphore.get_handle(), None);
+        }
+    }
+}
+
+pub struct ImageObjects {
+    image: Image,
+    framebuffer_view: vk::ImageView,
+    present_semaphore: Semaphore,
+}
+
+impl ImageObjects {
+    fn new(device: &DeviceContext, image: Image, format: vk::Format) -> Self {
+        let info = vk::ImageViewCreateInfo::builder()
+            .image(image.get_handle())
+            .view_type(vk::ImageViewType::TYPE_2D)
+            .format(format)
+            .components(vk::ComponentMapping {
+                r: vk::ComponentSwizzle::IDENTITY,
+                g: vk::ComponentSwizzle::IDENTITY,
+                b: vk::ComponentSwizzle::IDENTITY,
+                a: vk::ComponentSwizzle::IDENTITY
+            })
+            .subresource_range(vk::ImageSubresourceRange {
+                aspect_mask: vk::ImageAspectFlags::COLOR,
+                base_mip_level: 0,
+                level_count: 1,
+                base_array_layer: 0,
+                layer_count: vk::REMAINING_ARRAY_LAYERS
+            });
+
+        let framebuffer_view = unsafe {
+            device.vk().create_image_view(&info, None)
+        }.unwrap();
+
+        let info = vk::SemaphoreCreateInfo::builder();
+
+        let present_semaphore = Semaphore::new(unsafe {
+            device.vk().create_semaphore(&info, None)
+        }.unwrap());
+
+        Self {
+            image,
+            framebuffer_view,
+            present_semaphore
+        }
+    }
+
+    pub fn get_image(&self) -> Image {
+        self.image
+    }
+
+    pub fn get_framebuffer_view(&self) -> vk::ImageView {
+        self.framebuffer_view
+    }
+
+    pub fn get_present_semaphore(&self) -> Semaphore {
+        self.present_semaphore
+    }
+
+    fn destroy(&mut self, device: &DeviceContext) {
+        unsafe {
+            device.vk().destroy_semaphore(self.present_semaphore.get_handle(), None);
+            device.vk().destroy_image_view(self.framebuffer_view, None);
+        }
+    }
+}
+
+pub struct AcquiredImageInfo {
+    /// Semaphore wait op waiting for the acquire operation to complete.
+    pub acquire_semaphore: SemaphoreOp,
+    /// Semaphore signal op which should be signaled when the acquire semaphore can be used again.
+    pub acquire_ready_semaphore: SemaphoreOp,
+    /// The index of the swapchain image acquired.
+    pub image_index: u32,
 }

@@ -1,49 +1,13 @@
 use std::cmp::Ordering;
 use std::fmt::{Debug, Formatter};
 use std::hash::{Hash, Hasher};
-use std::ops::Deref;
 
 use ash::vk;
 use ash::vk::Handle;
+use crate::objects::id::{ImageId, ObjectId};
 use crate::UUID;
 use crate::vk::objects::Format;
 
-#[derive(Copy, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
-pub struct ImageId(UUID);
-
-impl ImageId {
-    pub fn new() -> Self {
-        Self(UUID::new())
-    }
-
-    pub fn from_raw(id: UUID) -> Self {
-        Self(id)
-    }
-
-    pub fn as_uuid(&self) -> UUID {
-        self.0
-    }
-}
-
-impl Deref for ImageId {
-    type Target = UUID;
-
-    fn deref(&self) -> &Self::Target {
-        &self.0
-    }
-}
-
-impl From<ImageId> for UUID {
-    fn from(id: ImageId) -> Self {
-        id.0
-    }
-}
-
-impl Debug for ImageId {
-    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        f.write_fmt(format_args!("ImageId({:#016X})", self.0.get_raw()))
-    }
-}
 
 #[derive(Copy, Clone)]
 pub struct Image {

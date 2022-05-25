@@ -1,12 +1,8 @@
-use std::ops::Deref;
 use std::sync::{Arc, Mutex};
-use ash::prelude::VkResult;
 use ash::vk;
-use winit::event::VirtualKeyCode::Tab;
 use crate::debug::target::TargetShare;
 
 use crate::prelude::*;
-use crate::device::device::VkQueue;
 
 use super::target::Target;
 use super::target::TargetDrawGlobals;

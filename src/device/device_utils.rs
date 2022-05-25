@@ -352,6 +352,10 @@ impl BlitPass {
             device.vk().cmd_end_render_pass(command_buffer);
         }
     }
+
+    pub fn get_device(&self) -> &Arc<DeviceContext> {
+        &self.utils.blit_utils.device
+    }
 }
 
 impl Drop for BlitPass {

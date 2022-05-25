@@ -1,11 +1,10 @@
 use std::collections::HashMap;
 
 use ash::vk;
+use crate::objects::id::ImageId;
 
-use crate::vk::objects::buffer::{Buffer, BufferId};
-use crate::vk::objects::image::{Image, ImageId};
-
-use crate::prelude::*;
+use crate::vk::objects::buffer::Buffer;
+use crate::vk::objects::image::Image;
 
 pub struct BufferState {
     handle: vk::Buffer,

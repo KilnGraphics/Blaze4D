@@ -1,5 +1,4 @@
 use std::collections::HashMap;
-use std::ops::Div;
 use json::JsonValue;
 use png::{BitDepth, ColorType};
 

@@ -1,16 +1,15 @@
-use std::sync::{Arc, Mutex};
-use std::sync::atomic::{AtomicU64, Ordering};
+use std::sync::Arc;
+
 use ash::vk;
-use json::object;
+
 use crate::renderer::emulator::buffer::{BufferAllocation, BufferSubAllocator};
-use crate::renderer::emulator::{EmulatorRenderer, OutputConfiguration, RenderConfiguration};
-use crate::renderer::emulator::worker::{DrawTask, WorkerTask};
-use crate::device::transfer::{BufferAvailabilityOp, BufferTransferRanges};
+use crate::renderer::emulator::EmulatorRenderer;
+use crate::renderer::emulator::worker::WorkerTask;
+use crate::device::transfer::BufferTransferRanges;
 use crate::objects::sync::SemaphoreOps;
-use crate::vk::objects::buffer::Buffer;
 
 use crate::prelude::*;
-use crate::renderer::emulator::pipeline::{DrawTask, EmulatorPipeline, PipelineTask};
+use crate::renderer::emulator::pipeline::{DrawTask, EmulatorOutput, EmulatorPipeline, PipelineTask};
 
 #[derive(Copy, Clone, PartialEq, Eq, PartialOrd, Ord, Debug, Hash)]
 pub struct PassId(u64);
@@ -51,6 +50,10 @@ impl PassRecorder {
         }
     }
 
+    pub fn use_output(&mut self, output: Box<dyn EmulatorOutput + Send>) {
+        self.renderer.worker.push_task(self.id, WorkerTask::UseOutput(output));
+    }
+
     pub fn set_model_view_matrix(&mut self, matrix: Mat4f32) {
         self.renderer.worker.push_task(self.id, WorkerTask::PipelineTask(PipelineTask::SetModelViewMatrix(matrix)));
     }
@@ -60,7 +63,7 @@ impl PassRecorder {
     }
 
     pub fn record_object(&mut self, object: &ObjectData) {
-        let vertex_size = self.pipeline.get_type_table()[object.type_id].vertex_stride;
+        let vertex_size = self.pipeline.get_type_table()[object.type_id as usize].vertex_stride;
 
         let vertex_buffer = self.push_data(object.vertex_data, vertex_size);
         let index_buffer = self.push_data(object.index_data, 4);

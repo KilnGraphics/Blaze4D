@@ -1,13 +1,9 @@
-use std::collections::VecDeque;
-use std::ops::{Deref, Index};
-
 use ash::vk;
 
-use crate::renderer::emulator::pass::PassId;
-use crate::device::transfer::{BufferAvailabilityOp};
+use crate::objects::id::BufferId;
 use crate::objects::sync::SemaphoreOp;
 use crate::vk::objects::allocator::{Allocation, AllocationStrategy};
-use crate::vk::objects::buffer::{Buffer, BufferId};
+use crate::vk::objects::buffer::Buffer;
 
 use crate::prelude::*;
 

@@ -1,10 +1,9 @@
 use std::cmp::Ordering;
 use std::fmt::{Debug, Formatter};
 use std::hash::{Hash, Hasher};
-use std::ops::Deref;
 use ash::vk;
 use ash::vk::Handle;
-use crate::objects::id::BufferId;
+use crate::objects::id::{BufferId, ObjectId};
 
 use crate::UUID;
 use crate::vk::objects::allocator::MappedMemory;

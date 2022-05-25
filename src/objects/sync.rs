@@ -1,10 +1,8 @@
 use std::cmp::Ordering;
-use std::collections::HashMap;
 use std::fmt::{Debug, Formatter};
 use std::hash::{Hash, Hasher};
 use ash::vk;
 use ash::vk::Handle;
-use winit::event::VirtualKeyCode::H;
 use crate::objects::id::SemaphoreId;
 
 #[derive(Copy, Clone)]

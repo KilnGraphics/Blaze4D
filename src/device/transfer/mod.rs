@@ -6,19 +6,18 @@ mod recorder;
 use std::collections::{VecDeque};
 use std::sync::{Arc, Condvar, Mutex};
 use std::thread::JoinHandle;
-use std::time::Duration;
 
 use ash::vk;
 
 use crate::prelude::*;
 use crate::device::device::VkQueue;
-use crate::vk::DeviceEnvironment;
-use crate::vk::objects::allocator::{Allocation, AllocationStrategy, Allocator};
-use crate::vk::objects::buffer::{Buffer, BufferId};
+use crate::vk::objects::allocator::Allocator;
+use crate::vk::objects::buffer::Buffer;
 
 use worker::*;
+use crate::objects::id::{BufferId, ImageId, ObjectId};
 use crate::objects::sync::{SemaphoreOp, SemaphoreOps};
-use crate::vk::objects::image::{Image, ImageId};
+use crate::vk::objects::image::Image;
 
 #[derive(Copy, Clone, PartialEq, Eq, PartialOrd, Ord, Debug, Hash)]
 pub enum AcquireError {

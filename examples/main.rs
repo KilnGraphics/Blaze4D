@@ -1,7 +1,5 @@
 extern crate b4d_core;
 
-use std::collections::VecDeque;
-use std::io::{BufRead, stdin};
 use winit::event::{Event, WindowEvent};
 use winit::event_loop::{ControlFlow, EventLoop};
 use b4d_core::prelude::Vec2u32;
@@ -43,7 +41,7 @@ fn main() {
                 /*if let Some(image) = b4d.try_acquire_next_image(|| Some(current_size)) {
                     b4d.tmp_present(image);
                 }*/
-                b4d.try_start_frame(|| Some(current_size));
+                b4d.try_start_frame(current_size);
                 draw_times.push(now.elapsed());
 
                 if last_update.elapsed().as_secs() >= 2 {
