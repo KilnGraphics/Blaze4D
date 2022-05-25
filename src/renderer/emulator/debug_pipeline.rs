@@ -394,9 +394,9 @@ impl DepthPipelineObjects {
             .view_type(vk::ImageViewType::TYPE_2D)
             .format(core.depth_format)
             .components(vk::ComponentMapping {
-                r: vk::ComponentSwizzle::IDENTITY,
-                g: vk::ComponentSwizzle::IDENTITY,
-                b: vk::ComponentSwizzle::IDENTITY,
+                r: vk::ComponentSwizzle::R,
+                g: vk::ComponentSwizzle::R,
+                b: vk::ComponentSwizzle::R,
                 a: vk::ComponentSwizzle::ONE
             })
             .subresource_range(vk::ImageSubresourceRange {
