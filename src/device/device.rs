@@ -1,5 +1,6 @@
+use core::panic::{UnwindSafe, RefUnwindSafe};
+
 use std::cmp::Ordering;
-use std::panic::UnwindSafe;
 use std::sync::{Arc, Mutex, MutexGuard, Weak};
 use ash::prelude::VkResult;
 
@@ -105,6 +106,8 @@ impl Drop for DeviceContext {
     }
 }
 
+assert_impl_all!(DeviceContext: Send, Sync, UnwindSafe, RefUnwindSafe);
+
 /// Internal struct used to prevent a cyclic dependency between the DeviceContext and the Queue
 #[derive(Clone)]
 pub(crate) struct VkQueueTemplate {
@@ -176,6 +179,8 @@ impl Queue {
         self.family
     }
 }
+
+assert_impl_all!(Queue: Send, Sync, UnwindSafe, RefUnwindSafe);
 
 #[derive(Clone)]
 pub struct DeviceEnvironment {

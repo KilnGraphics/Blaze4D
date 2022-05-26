@@ -1,3 +1,5 @@
+use core::panic::{UnwindSafe, RefUnwindSafe};
+
 use std::cmp::Ordering;
 use std::collections::HashMap;
 use std::fmt::{Debug, Formatter};
@@ -163,3 +165,5 @@ impl Debug for InstanceContext {
         self.id.fmt(f)
     }
 }
+
+assert_impl_all!(InstanceContext: Send, Sync, UnwindSafe, RefUnwindSafe);
