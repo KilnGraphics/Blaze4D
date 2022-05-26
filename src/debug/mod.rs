@@ -8,7 +8,7 @@ use ash::vk;
 use crate::debug::text::{CharacterVertexData, FontData, TextColor, TextGenerator, TextSection, TextStyle};
 
 use crate::prelude::*;
-use crate::device::device::VkQueue;
+use crate::device::device::Queue;
 use crate::vk::DeviceEnvironment;
 
 use crate::vk::objects::allocator::{Allocation, AllocationStrategy};
@@ -194,7 +194,7 @@ struct DebugElement {
 
 struct DebugVk {
     device: DeviceEnvironment,
-    queue: VkQueue,
+    queue: Queue,
     vertex_buffer: vk::Buffer,
     vertex_buffer_size: usize,
     vertex_buffer_allocation: Allocation,
@@ -380,7 +380,7 @@ impl DebugVk {
         sampler
     }
 
-    fn create_command_pool_buffer(device: &DeviceEnvironment, queue: &VkQueue) -> (vk::CommandPool, vk::CommandBuffer) {
+    fn create_command_pool_buffer(device: &DeviceEnvironment, queue: &Queue) -> (vk::CommandPool, vk::CommandBuffer) {
         let info = vk::CommandPoolCreateInfo::builder()
             .flags(vk::CommandPoolCreateFlags::TRANSIENT)
             .queue_family_index(queue.get_queue_family_index());
@@ -739,7 +739,7 @@ impl DebugVk {
         }
     }
 
-    fn upload_atlas(device: &DeviceEnvironment, queue: &VkQueue, cmd: vk::CommandBuffer, buffer: vk::Buffer, image: vk::Image, size: Vec2u32, count: u32) -> vk::Fence {
+    fn upload_atlas(device: &DeviceEnvironment, queue: &Queue, cmd: vk::CommandBuffer, buffer: vk::Buffer, image: vk::Image, size: Vec2u32, count: u32) -> vk::Fence {
         let info = vk::CommandBufferBeginInfo::builder()
             .flags(vk::CommandBufferUsageFlags::ONE_TIME_SUBMIT);
 

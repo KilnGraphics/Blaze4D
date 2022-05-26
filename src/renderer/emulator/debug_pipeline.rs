@@ -3,7 +3,7 @@ use std::sync::{Arc, Weak};
 use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering};
 use ash::vk;
 use bumpalo::Bump;
-use crate::device::device::VkQueue;
+use crate::device::device::Queue;
 use crate::objects::id::BufferId;
 
 use crate::prelude::*;
@@ -506,7 +506,7 @@ impl DepthPipelinePass {
 }
 
 impl EmulatorPipelinePass for DepthPipelinePass {
-    fn init(&mut self, _: &VkQueue, obj: &mut PooledObjectProvider) {
+    fn init(&mut self, _: &Queue, obj: &mut PooledObjectProvider) {
         let cmd = obj.get_begin_command_buffer().unwrap();
         self.command_buffer = Some(cmd);
 

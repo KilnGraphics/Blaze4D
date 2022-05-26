@@ -2,7 +2,7 @@ use std::collections::VecDeque;
 use std::sync::Arc;
 
 use ash::vk;
-use crate::device::device::VkQueue;
+use crate::device::device::Queue;
 use crate::device::transfer::allocator::PoolAllocationId;
 use crate::objects::sync::{SemaphoreOp, SemaphoreOps};
 
@@ -10,7 +10,7 @@ use crate::prelude::DeviceContext;
 
 pub(super) struct Recorder {
     device: Arc<DeviceContext>,
-    queue: VkQueue,
+    queue: Queue,
 
     command_pool: CommandBufferPool,
     submitted_buffers: VecDeque<(Option<u64>, vk::CommandBuffer, Vec<PoolAllocationId>)>,
@@ -28,7 +28,7 @@ pub(super) struct Recorder {
 }
 
 impl Recorder {
-    pub(super) fn new(device: Arc<DeviceContext>, queue: VkQueue) -> Self {
+    pub(super) fn new(device: Arc<DeviceContext>, queue: Queue) -> Self {
         let command_pool = CommandBufferPool::new(device.clone(), queue.get_queue_family_index());
 
         Self {

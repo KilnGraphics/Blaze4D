@@ -4,13 +4,14 @@ mod allocator;
 mod recorder;
 
 use std::collections::{VecDeque};
+use std::panic;
 use std::sync::{Arc, Condvar, Mutex};
 use std::thread::JoinHandle;
 
 use ash::vk;
 
 use crate::prelude::*;
-use crate::device::device::VkQueue;
+use crate::device::device::Queue;
 use crate::vk::objects::allocator::Allocator;
 use crate::vk::objects::buffer::Buffer;
 
@@ -49,13 +50,16 @@ pub struct Transfer {
 }
 
 impl Transfer {
-    pub fn new(device: Arc<DeviceContext>, alloc: Arc<Allocator>, queue: VkQueue) -> Self {
+    pub fn new(device: Arc<DeviceContext>, alloc: Arc<Allocator>, queue: Queue) -> Self {
         let queue_family = queue.get_queue_family_index();
+        log::debug!("Creating transfer engine on queue family {:?}", queue_family);
+
         let share = Arc::new(Share::new(device, alloc));
 
         let share2 = share.clone();
         let worker = std::thread::spawn(move || {
-            run_worker(share2, queue)
+            log::debug!("Starting transfer worker on queue family {:?}", queue_family);
+            run_worker(share2, queue);
         });
 
         Self {

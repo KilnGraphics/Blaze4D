@@ -175,7 +175,7 @@ pub(super) enum Task {
     ImageToBufferTransfer(ImageToBufferTransfer),
 }
 
-pub(super) fn run_worker(share: Arc<Share>, queue: VkQueue) {
+pub(super) fn run_worker(share: Arc<Share>, queue: Queue) {
     let mut recorder = Recorder::new(share.device.clone(), queue);
 
     let mut buffers: HashMap<UUID, (BufferState, Option<PoolAllocationId>)> = HashMap::new();

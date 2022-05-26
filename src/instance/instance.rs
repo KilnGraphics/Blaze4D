@@ -69,7 +69,7 @@ impl InstanceContext {
         surface_khr: Option<ash::extensions::khr::Surface>,
 
         surfaces: HashMap<SurfaceId, Box<dyn SurfaceProvider>>,
-        debug_messengers: Box<[crate::instance::init::DebugUtilsMessengerWrapper]>
+        debug_messengers: Box<[DebugUtilsMessengerWrapper]>
     ) -> Arc<Self> {
         Arc::new(Self {
             id: NamedUUID::with_str("Instance"),

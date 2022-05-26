@@ -3,7 +3,7 @@ use std::sync::{Arc, Mutex};
 use ash::vk;
 
 use crate::prelude::*;
-use crate::device::device::VkQueue;
+use crate::device::device::Queue;
 use crate::vk::objects::allocator::{Allocation, AllocationStrategy};
 
 use super::manager::DebugOverlayImpl;
@@ -484,7 +484,7 @@ impl TargetShareCache {
 }
 
 struct TargetShareResources {
-    queue: VkQueue,
+    queue: Queue,
     apply_wait_fence: vk::Fence,
     descriptor_pool: vk::DescriptorPool,
     #[allow(unused)] // We only need this during command recording and its dropped together with the pool
@@ -994,7 +994,7 @@ impl TargetShareResources {
 }
 
 pub(super) struct TargetDrawGlobals {
-    queue: VkQueue,
+    queue: Queue,
     vertex_shader: vk::ShaderModule,
     fragment_shader: vk::ShaderModule,
     descriptor_set_layout: vk::DescriptorSetLayout,
@@ -1002,7 +1002,7 @@ pub(super) struct TargetDrawGlobals {
 }
 
 impl TargetDrawGlobals {
-    pub fn new(device: &DeviceEnvironment, queue: VkQueue) -> Result<Self, ResourceResetError> {
+    pub fn new(device: &DeviceEnvironment, queue: Queue) -> Result<Self, ResourceResetError> {
         let (vertex_shader, fragment_shader) = unsafe { Self::load_shader_modules(device) }?;
 
         let (descriptor_set_layout, pipeline_layout) = unsafe { Self::create_layouts(device) }.map_err(|err| {

@@ -1,7 +1,8 @@
 use std::ffi::CStr;
+use std::panic::{RefUnwindSafe, UnwindSafe};
 use ash::vk;
 
-pub trait DebugMessengerCallback: Send + Sync {
+pub trait DebugMessengerCallback: Send + Sync + UnwindSafe + RefUnwindSafe {
     fn on_message(
         &self,
         message_severity: vk::DebugUtilsMessageSeverityFlagsEXT,

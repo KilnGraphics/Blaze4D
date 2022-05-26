@@ -1,5 +1,6 @@
 use std::collections::HashSet;
 use std::ffi::{c_void, CStr, CString};
+use std::panic::{RefUnwindSafe, UnwindSafe};
 use std::str::Utf8Error;
 use std::sync::Arc;
 use ash::vk;
@@ -199,10 +200,19 @@ extern "system" fn debug_utils_messenger_callback_wrapper(
     p_user_data: *mut c_void
 ) -> vk::Bool32 {
     if let Some(callback) = unsafe { (p_user_data as *const DebugUtilsMessengerWrapper).as_ref() } {
-        let data = unsafe { p_callback_data.as_ref().unwrap() };
+        let data = unsafe {
+            p_callback_data.as_ref().unwrap_or_else(|| std::process::abort()) // If this is null something went very wrong
+        };
         let message = unsafe { CStr::from_ptr(data.p_message) };
 
-        callback.callback.on_message(message_severity, message_types, message, data);
+        std::panic::catch_unwind(|| {
+            // This is called by c code so we must catch any panics
+            callback.callback.on_message(message_severity, message_types, message, data);
+        }).unwrap_or_else(|| {
+            log::error!("Debug utils messenger panicked! Aborting...");
+            // TODO is there a better way to deal with this?
+            std::process::exit(1);
+        })
     } else {
         log::warn!("Wrapped debug utils messenger was called with null user data!");
     }

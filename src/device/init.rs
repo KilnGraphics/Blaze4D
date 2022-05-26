@@ -115,9 +115,10 @@ pub fn create_device(config: DeviceCreateConfig, instance: Arc<InstanceContext>)
         .push_next(&mut features1_2);
 
     let flags = if config.disable_robustness {
-        vp::DeviceCreateFlagBits::MERGE_EXTENSIONS | vp::DeviceCreateFlagBits::DISABLE_ROBUST_ACCESS | vp::DeviceCreateFlagBits::OVERRIDE_FEATURES
+        // TODO god this is such a mess
+        vp::DeviceCreateFlagBits::OVERRIDE_EXTENSIONS | vp::DeviceCreateFlagBits::DISABLE_ROBUST_ACCESS | vp::DeviceCreateFlagBits::OVERRIDE_FEATURES
     } else {
-        vp::DeviceCreateFlagBits::MERGE_EXTENSIONS | vp::DeviceCreateFlagBits::OVERRIDE_FEATURES
+        vp::DeviceCreateFlagBits::OVERRIDE_EXTENSIONS | vp::DeviceCreateFlagBits::OVERRIDE_FEATURES
     };
     let vp_device_create_info = vp::DeviceCreateInfo::builder()
         .profile(instance.get_profile())

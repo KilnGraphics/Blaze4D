@@ -1,4 +1,5 @@
 use std::cmp::Ordering;
+use std::panic::UnwindSafe;
 use std::sync::{Arc, Mutex, MutexGuard, Weak};
 use ash::prelude::VkResult;
 
@@ -66,11 +67,11 @@ impl DeviceContext {
         &self.physical_device
     }
 
-    pub fn get_main_queue(&self) -> VkQueue {
+    pub fn get_main_queue(&self) -> Queue {
         self.main_queue.promote(self.weak.upgrade().unwrap())
     }
 
-    pub fn get_transfer_queue(&self) -> VkQueue {
+    pub fn get_transfer_queue(&self) -> Queue {
         self.transfer_queue.promote(self.weak.upgrade().unwrap())
     }
 }
@@ -119,8 +120,8 @@ impl VkQueueTemplate {
         }
     }
 
-    pub fn promote(&self, device: Arc<DeviceContext>) -> VkQueue {
-        VkQueue {
+    pub fn promote(&self, device: Arc<DeviceContext>) -> Queue {
+        Queue {
             device,
             queue: self.queue.clone(),
             family: self.family
@@ -129,13 +130,13 @@ impl VkQueueTemplate {
 }
 
 #[derive(Clone)]
-pub struct VkQueue {
+pub struct Queue {
     device: Arc<DeviceContext>,
     queue: Arc<Mutex<vk::Queue>>,
     family: u32,
 }
 
-impl VkQueue {
+impl Queue {
     pub unsafe fn submit(&self, submits: &[vk::SubmitInfo], fence: Option<vk::Fence>) -> VkResult<()> {
         let fence = fence.unwrap_or(vk::Fence::null());
 

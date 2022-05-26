@@ -9,7 +9,7 @@ use ash::vk;
 use ash::vk::BufferMemoryBarrier2;
 use bumpalo::Bump;
 
-use crate::device::device::VkQueue;
+use crate::device::device::Queue;
 use crate::device::transfer::{BufferReleaseOp, SyncId, Transfer};
 
 use crate::renderer::emulator::pass::PassId;
@@ -300,7 +300,7 @@ struct PassState {
 }
 
 impl PassState {
-    fn new(mut pass: Box<dyn EmulatorPipelinePass>, device: &DeviceEnvironment, queue: &VkQueue, pool: Rc<RefCell<WorkerObjectPool>>) -> Self {
+    fn new(mut pass: Box<dyn EmulatorPipelinePass>, device: &DeviceEnvironment, queue: &Queue, pool: Rc<RefCell<WorkerObjectPool>>) -> Self {
         let mut object_pool = PooledObjectProvider::new(pool);
 
         let pre_cmd = object_pool.get_begin_command_buffer().unwrap();
@@ -352,7 +352,7 @@ impl PassState {
         self.pass.process_task(task, &mut self.object_pool);
     }
 
-    fn submit(&mut self, queue: &VkQueue) {
+    fn submit(&mut self, queue: &Queue) {
         assert!(self.end_fence.is_none());
         let end_fence = self.object_pool.get_fence();
         self.end_fence = Some(end_fence);

@@ -1,3 +1,5 @@
+defaultTasks("compileDebugShaders", "compileUtilsShaders", "compileEmulatorShaders")
+
 enum class ShaderType(val cliString: String) {
     AUTO(""),
     VERTEX("-fshader-stage=vertex"),

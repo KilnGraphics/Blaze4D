@@ -4,7 +4,7 @@ use ash::prelude::VkResult;
 
 use ash::vk;
 use bumpalo::Bump;
-use crate::device::device::VkQueue;
+use crate::device::device::Queue;
 use crate::device::device_utils::BlitPass;
 use crate::device::surface::{AcquiredImageInfo, SurfaceSwapchain};
 
@@ -36,7 +36,7 @@ pub struct PipelineTypeInfo {
 
 /// Represents one execution of a [`EmulatorPipeline`]
 pub trait EmulatorPipelinePass {
-    fn init(&mut self, queue: &VkQueue, obj: &mut PooledObjectProvider);
+    fn init(&mut self, queue: &Queue, obj: &mut PooledObjectProvider);
 
     fn process_task(&mut self, task: PipelineTask, obj: &mut PooledObjectProvider);
 
@@ -69,7 +69,7 @@ pub trait EmulatorOutput {
 
     fn record<'a>(&mut self, obj: &mut PooledObjectProvider, submits: &mut SubmitRecorder<'a>, alloc: &'a Bump);
 
-    fn on_post_submit(&mut self, queue: &VkQueue);
+    fn on_post_submit(&mut self, queue: &Queue);
 }
 
 pub struct OutputUtil {
@@ -238,7 +238,7 @@ impl EmulatorOutput for SwapchainOutputInstance {
         );
     }
 
-    fn on_post_submit(&mut self, queue: &VkQueue) {
+    fn on_post_submit(&mut self, queue: &Queue) {
         let present_semaphore = self.output.swapchain.get_images()[self.image_info.image_index as usize].get_present_semaphore().get_handle();
 
         let guard = self.output.swapchain.get_swapchain().lock().unwrap();
