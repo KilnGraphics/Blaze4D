@@ -219,3 +219,21 @@ extern "system" fn debug_utils_messenger_callback_wrapper(
 
     return vk::FALSE;
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn basic_init() {
+        let config = InstanceCreateConfig::new(
+            vp::LunargDesktopPortability2021::profile_properties(),
+            VulkanVersion::VK_1_1,
+            CString::from(CStr::from_bytes_with_nul(b"B4DCoreTest\0").unwrap()),
+            1,
+        );
+
+        let instance = create_instance(config).unwrap();
+        assert_eq!(instance.get_profile().profile_name, vp::LunargDesktopPortability2021::profile_properties().profile_name);
+    }
+}

@@ -745,6 +745,7 @@ pub struct ImageToBufferTransfer {
 
 #[cfg(test)]
 mod tests {
+    use crate::vk::objects::allocator::AllocationStrategy;
     use crate::vk::test::make_headless_instance_device;
     use super::*;
 
