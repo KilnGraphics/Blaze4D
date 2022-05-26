@@ -160,10 +160,19 @@ impl SwapchainOutput {
     }
 
     pub fn next_image(&self) -> Option<(Box<dyn EmulatorOutput + Send>, bool)> {
-        let arc = self.weak.upgrade().unwrap();
-        let (info, suboptimal) = self.swapchain.acquire_next_image(u64::MAX, None).ok()?;
-
-        Some((Box::new(SwapchainOutputInstance::new(arc, info)), suboptimal))
+        loop {
+            let arc = self.weak.upgrade().unwrap();
+            match self.swapchain.acquire_next_image(1000000000, None) {
+                Ok((info, suboptimal)) =>
+                    return Some((Box::new(SwapchainOutputInstance::new(arc, info)), suboptimal)),
+                Err(vk::Result::TIMEOUT) =>
+                    log::warn!("1s timeout reached while waiting for next swapchain image in SwapchainOutput::next_image"),
+                Err(err) => {
+                    log::error!("vkAcquireNextImageKHR returned {:?} in SwapchainOutput::next_image", err);
+                    panic!()
+                }
+            }
+        }
     }
 }
 

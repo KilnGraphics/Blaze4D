@@ -4,6 +4,7 @@ use std::marker::PhantomData;
 use std::panic::{RefUnwindSafe, UnwindSafe};
 use std::rc::Rc;
 use std::sync::{Arc, Condvar, Mutex};
+use std::time::{Duration, Instant};
 
 use ash::prelude::VkResult;
 use ash::vk;
@@ -47,15 +48,40 @@ impl Share {
         self.signal.notify_one();
     }
 
-    fn get_next_task(&self) -> (PassId, WorkerTask) {
-        let mut guard = self.channel.lock().unwrap();
+    fn try_get_next_task_timeout(&self, timeout: Duration) -> NextTaskResult {
+        let start = Instant::now();
+
+        let mut guard = self.channel.lock().unwrap_or_else(|_| {
+            log::error!("Poisoned channel mutex in Share::try_get_next_task!");
+            panic!()
+        });
+
         loop {
-            if let Some(task) = guard.queue.pop_front() {
-                return task;
+            if let Some((id, task)) = guard.queue.pop_front() {
+                return NextTaskResult::Ok(id, task);
             }
-            guard = self.signal.wait(guard).unwrap();
+
+            let diff = (start + timeout).saturating_duration_since(Instant::now());
+            if diff.is_zero() {
+                return NextTaskResult::Timeout;
+            }
+
+            let (new_guard, timeout) = self.signal.wait_timeout(guard, diff).unwrap_or_else(|_| {
+                log::error!("Poisoned channel mutex in Share::try_get_next_task!");
+                panic!()
+            });
+            guard = new_guard;
+
+            if timeout.timed_out() {
+                return NextTaskResult::Timeout;
+            }
         }
     }
+}
+
+enum NextTaskResult {
+    Ok(PassId, WorkerTask),
+    Timeout,
 }
 
 // TODO this is needed because condvar is not unwind safe can we do better?
@@ -111,7 +137,10 @@ pub(super) fn run_worker(device: DeviceEnvironment, share: Arc<Share>) {
             }
         });
 
-        let (id, task) = share.get_next_task();
+        let (id, task) = match share.try_get_next_task_timeout(Duration::from_micros(500)) {
+            NextTaskResult::Ok(id, task) => (id, task),
+            NextTaskResult::Timeout => continue,
+        };
 
         match task {
             WorkerTask::StartPass(pass) => {

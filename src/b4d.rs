@@ -1,5 +1,6 @@
 use std::ffi::CString;
 use std::sync::{Arc, Mutex};
+use std::time::{Duration, Instant};
 
 use ash::vk;
 
@@ -91,6 +92,7 @@ struct RenderConfig {
 
     vertex_formats: Box<[B4DVertexFormat]>,
 
+    last_rebuild: Instant,
     current_swapchain: Option<Arc<SurfaceSwapchain>>,
     current_pipeline: Option<(Arc<dyn EmulatorPipeline>, Arc<SwapchainOutput>)>,
 }
@@ -102,6 +104,8 @@ impl RenderConfig {
             main_surface,
 
             vertex_formats: Box::new([]),
+
+            last_rebuild: Instant::now() - Duration::from_secs(100),
             current_swapchain: None,
             current_pipeline: None,
         }
@@ -113,7 +117,16 @@ impl RenderConfig {
     }
 
     fn try_start_frame(&mut self, renderer: &EmulatorRenderer, size: Vec2u32) -> Option<PassRecorder> {
-        if self.current_swapchain.is_none() {
+        let mut force_rebuild = false;
+
+        // This if block only exists because of wayland
+        if let Some(current) = self.current_swapchain.as_ref() {
+            if current.get_image_size() != size {
+                force_rebuild = true;
+            }
+        }
+
+        if self.current_swapchain.is_none() || force_rebuild {
             if !self.try_create_swapchain(size) {
                 return None;
             }
@@ -121,6 +134,8 @@ impl RenderConfig {
         }
 
         if self.current_pipeline.is_none() {
+            log::info!("No pipeline present. Rebuilding for size {:?}", size);
+
             let depth_infos: Box<_> = self.vertex_formats.iter().map(|format| {
                 DepthTypeInfo {
                     vertex_stride: format.stride,
@@ -162,6 +177,15 @@ impl RenderConfig {
     }
 
     fn try_create_swapchain(&mut self, size: Vec2u32) -> bool {
+        log::info!("Attempting to rebuild swapchain with size {:?}", size);
+
+        let diff = (self.last_rebuild + Duration::from_millis(50)).saturating_duration_since(Instant::now());
+        if !diff.is_zero() {
+            // Need to wait
+            std::thread::sleep(diff);
+        }
+        self.last_rebuild = Instant::now();
+
         let config = SwapchainConfig {
             formats: Box::new([vk::SurfaceFormatKHR{ format: vk::Format::R8G8B8A8_SRGB, color_space: vk::ColorSpaceKHR::SRGB_NONLINEAR }]),
             required_usage: vk::ImageUsageFlags::COLOR_ATTACHMENT,
@@ -175,6 +199,7 @@ impl RenderConfig {
                 true
             }
             Err(_) => {
+                log::info!("Failed to create swapchain of size {:?}", size);
                 self.current_swapchain = None;
                 false
             }

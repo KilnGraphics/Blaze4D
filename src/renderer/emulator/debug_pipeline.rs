@@ -1,6 +1,7 @@
 use std::ffi::CStr;
 use std::sync::{Arc, Weak};
 use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering};
+use std::time::Instant;
 use ash::vk;
 use bumpalo::Bump;
 use crate::device::device::Queue;
@@ -303,11 +304,16 @@ impl DepthPipelineObjects {
     }
 
     fn wait_and_take(&self) {
+        let mut start = Instant::now();
         loop {
             if self.ready.compare_exchange(true, false, Ordering::SeqCst, Ordering::SeqCst).is_ok() {
                 return;
             }
             std::thread::yield_now();
+            if start.elapsed().as_millis() > 1000 {
+                log::warn!("Hit 1s timeout waiting for next depth pipeline object");
+                start = Instant::now();
+            }
         }
     }
 

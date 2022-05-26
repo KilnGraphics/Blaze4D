@@ -46,6 +46,7 @@ fn main() {
             Event::MainEventsCleared => {
                 let now = std::time::Instant::now();
                 if let Some(mut recorder) = b4d.try_start_frame(current_size) {
+
                     recorder.set_projection_matrix(make_projection_matrix(current_size, 90f32));
 
                     let elapsed = start.elapsed().as_secs_f32();
