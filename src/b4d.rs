@@ -38,7 +38,7 @@ impl Blaze4D {
             CString::new("Minecraft").unwrap(),
             vk::make_api_version(0, 0, 1, 0)
         );
-        instance_config.enable_validation();
+        // instance_config.enable_validation();
         let main_surface = instance_config.add_surface_provider(main_window);
         instance_config.add_debug_messenger(Box::new(RustLogDebugMessenger::new()));
 
@@ -46,6 +46,7 @@ impl Blaze4D {
 
         let mut device_config = DeviceCreateConfig::new();
         device_config.add_surface(main_surface);
+        device_config.disable_robustness();
 
         let (device, surfaces) = create_device(device_config, instance.clone()).unwrap();
         let main_surface = surfaces.into_iter().fold(None, |res, (id, surface)| {

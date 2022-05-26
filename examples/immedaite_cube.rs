@@ -61,7 +61,20 @@ fn main() {
                         type_id: 0
                     };
 
-                    recorder.record_object(&data);
+                    for x in -10i32..=0i32 {
+                        for y in -10i32..=0i32 {
+                            for z in -10i32..=0i32 {
+                                let translation = Mat4f32::new_translation(&Vec3f32::new(
+                                    0f32 + ((x as f32) / 10f32),
+                                    0f32 + ((y as f32) / 10f32),
+                                    5f32 + ((z as f32) / 10f32)
+                                ));
+                                recorder.set_model_view_matrix(translation * rotation);
+                                recorder.record_object(&data);
+                            }
+                        }
+                    }
+
                 }
                 draw_times.push(now.elapsed());
 

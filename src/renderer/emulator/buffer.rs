@@ -69,7 +69,7 @@ impl BufferPool {
             self.buffers.get_mut(index).unwrap()
 
         } else {
-            let buffer = PoolBuffer::new(256000000);
+            let buffer = PoolBuffer::new(512000000);
             self.buffers.push(buffer);
 
             self.buffers.last_mut().unwrap()

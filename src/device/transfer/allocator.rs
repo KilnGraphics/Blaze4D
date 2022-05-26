@@ -13,7 +13,7 @@ pub(super) struct PoolAllocator {
 impl PoolAllocator {
     pub(super) fn new(device: Arc<DeviceContext>, allocator: Arc<Allocator>) -> Self {
         let pools = [
-            Pool::new(device.clone(), allocator.clone(), 2u64.pow(20), 64),
+            Pool::new(device.clone(), allocator.clone(), 2u64.pow(10), 2048),
             Pool::new(device.clone(), allocator.clone(), 2u64.pow(21), 32),
             Pool::new(device.clone(), allocator.clone(), 2u64.pow(22), 16),
             Pool::new(device.clone(), allocator.clone(), 2u64.pow(23), 8),
