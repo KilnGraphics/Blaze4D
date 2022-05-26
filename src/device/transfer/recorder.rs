@@ -1,5 +1,6 @@
 use std::collections::VecDeque;
 use std::sync::Arc;
+use ash::prelude::VkResult;
 
 use ash::vk;
 use crate::device::device::Queue;
@@ -13,7 +14,7 @@ pub(super) struct Recorder {
     queue: Queue,
 
     command_pool: CommandBufferPool,
-    submitted_buffers: VecDeque<(Option<u64>, vk::CommandBuffer, Vec<PoolAllocationId>)>,
+    submitted: VecDeque<SubmitArtifact>,
 
     cmd: Option<vk::CommandBuffer>,
 
@@ -35,7 +36,7 @@ impl Recorder {
             device,
             queue,
             command_pool,
-            submitted_buffers: VecDeque::new(),
+            submitted: VecDeque::new(),
             cmd: None,
             max_sync: None,
             pool_frees: Vec::new(),
@@ -46,46 +47,35 @@ impl Recorder {
         }
     }
 
-    pub(super) fn push_free(&mut self, free: PoolAllocationId) {
-        self.pool_frees.push(free);
-    }
-
-    pub(super) fn process_submitted(&mut self, release_semaphore: vk::Semaphore) -> Vec<PoolAllocationId> {
+    /// Processes the list of old submitted tasks freeing their resources once safe to do so.
+    pub(super) fn process_submitted(&mut self, semaphore: vk::Semaphore) -> Vec<PoolAllocationId> {
         let value = unsafe {
-            self.device.vk().get_semaphore_counter_value(release_semaphore)
-        }.unwrap();
+            self.device.vk().get_semaphore_counter_value(semaphore)
+        }.unwrap_or_else(|err| {
+            log::error!("vkGetSemaphoreCounterValue returned {:?} in Recorder::process_submitted", err);
+            panic!()
+        });
 
         let mut frees = Vec::new();
-        let mut cache: Vec<(vk::CommandBuffer, Vec<PoolAllocationId>)> = Vec::new();
 
-        while let Some((release, cmd, free)) = self.submitted_buffers.pop_front() {
-            if let Some(release) = release {
-                if release <= value {
-                    for (cmd, free) in cache.iter() {
-                        self.command_pool.return_buffer(*cmd);
-                        for f in free {
-                            frees.push(*f);
-                        }
-                    }
-                    cache.clear();
-                    self.command_pool.return_buffer(cmd);
-                    frees.extend(free);
-                } else {
-                    self.submitted_buffers.push_front((Some(release), cmd, free));
-                    break;
+        while let Some(artifact) = self.submitted.pop_front() {
+            if artifact.is_complete(value) {
+                for buffer in artifact.command_buffers {
+                    self.command_pool.return_buffer(buffer);
                 }
+                frees.extend(artifact.staging_allocations);
             } else {
-                cache.push((cmd, free));
+                self.submitted.push_front(artifact);
+                break;
             }
-        }
-
-        for (cmd, free) in cache {
-            self.submitted_buffers.push_front((None, cmd, free));
         }
 
         frees
     }
 
+    /// Returns the currently building command buffer.
+    ///
+    /// If none exists allocates and begins a new one.
     pub(super) fn get_command_buffer(&mut self) -> vk::CommandBuffer {
         if let Some(cmd) = self.cmd {
             cmd
@@ -97,13 +87,26 @@ impl Recorder {
 
             unsafe {
                 self.device.vk().begin_command_buffer(cmd, &info)
-            }.unwrap();
+            }.unwrap_or_else(|err| {
+                log::error!("vkBeginCommandBuffer returned {:?} in Recorder::get_command_buffer!", err);
+                panic!()
+            });
 
             self.cmd = Some(cmd);
             cmd
         }
     }
 
+    /// Adds a staging memory free to the list of resources associated with the currently building
+    /// submission.
+    ///
+    /// Once the currently building submission is submitted and finishes execution the allocation
+    /// will be returned by a call to [`Recorder::process_submitted`] and can be freed.
+    pub(super) fn push_free(&mut self, free: PoolAllocationId) {
+        self.pool_frees.push(free);
+    }
+
+    /// Adds a sync id signal operation to the currently building submission.
     pub(super) fn push_sync(&mut self, sync_id: u64) {
         self.max_sync = Some(self.max_sync.map_or(sync_id, |max| std::cmp::max(max, sync_id)));
     }
@@ -139,7 +142,10 @@ impl Recorder {
         if let Some(cmd) = self.cmd.take() {
             unsafe {
                 self.device.vk().end_command_buffer(cmd)
-            }.unwrap();
+            }.unwrap_or_else(|err| {
+                log::error!("vkEndCommandBuffer returned {:?} in Recorder::submit", err);
+                panic!()
+            });
 
             let mut wait_info = Vec::with_capacity(self.wait_ops.len());
             for wait_op in &self.wait_ops {
@@ -180,15 +186,57 @@ impl Recorder {
 
             unsafe {
                 self.queue.submit_2(std::slice::from_ref(&info), None)
-            }.unwrap();
+            }.unwrap_or_else(|err| {
+                log::error!("vkQueueSubmit2 returned {:?} in Recorder::submit", err);
+                panic!()
+            });
 
-            self.submitted_buffers.push_back((self.max_sync, cmd, std::mem::replace(&mut self.pool_frees, Vec::new())));
+            let staging_frees = std::mem::replace(&mut self.pool_frees, Vec::new());
+            self.push_submit(self.max_sync, vec![cmd], staging_frees);
 
             self.wait_ops.clear();
             self.signal_ops.clear();
         }
 
         self.max_sync.take()
+    }
+
+    fn push_submit(&mut self, max_sync: Option<u64>, command_buffers: Vec<vk::CommandBuffer>, staging_allocations: Vec<PoolAllocationId>) {
+        if let Some(tail) = self.submitted.back_mut() {
+            if tail.sync_id.is_none() {
+                // The last submitted has no sync id so we can (and must) merge.
+                tail.sync_id = max_sync;
+                tail.command_buffers.extend(command_buffers);
+                tail.staging_allocations.extend(staging_allocations);
+
+                return;
+            }
+        }
+
+        self.submitted.push_back(SubmitArtifact {
+            sync_id: max_sync,
+            command_buffers,
+            staging_allocations,
+        })
+    }
+}
+
+struct SubmitArtifact {
+    sync_id: Option<u64>,
+    command_buffers: Vec<vk::CommandBuffer>,
+    staging_allocations: Vec<PoolAllocationId>,
+}
+
+impl SubmitArtifact {
+    /// Returns true if all submissions associated with this artifact have completed execution.
+    ///
+    /// The current value of the sync semaphore needs to be passed.
+    fn is_complete(&self, sync_value: u64) -> bool {
+        if let Some(sync_id) = self.sync_id {
+            sync_id <= sync_value
+        } else {
+            false // If we have no sync id we can never know if were done
+        }
     }
 }
 
@@ -237,7 +285,10 @@ impl CommandBufferPool {
 
         let buffers = unsafe {
             self.device.vk().allocate_command_buffers(&info)
-        }.unwrap();
+        }.unwrap_or_else(|err| {
+            log::error!("vkAllocateCommandBuffers returned {:?} in CommandBufferPool::allocate_buffers", err);
+            panic!()
+        });
 
         self.buffers.extend(buffers)
     }
