@@ -1,6 +1,7 @@
 use std::cell::RefCell;
 use std::collections::VecDeque;
 use std::marker::PhantomData;
+use std::panic::{RefUnwindSafe, UnwindSafe};
 use std::rc::Rc;
 use std::sync::{Arc, Condvar, Mutex};
 
@@ -55,6 +56,12 @@ impl Share {
             guard = self.signal.wait(guard).unwrap();
         }
     }
+}
+
+// TODO this is needed because condvar is not unwind safe can we do better?
+impl UnwindSafe for Share {
+}
+impl RefUnwindSafe for Share {
 }
 
 struct Channel {

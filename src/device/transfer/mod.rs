@@ -4,7 +4,7 @@ mod allocator;
 mod recorder;
 
 use std::collections::{VecDeque};
-use std::panic;
+use std::panic::{RefUnwindSafe, UnwindSafe};
 use std::sync::{Arc, Condvar, Mutex};
 use std::thread::JoinHandle;
 
@@ -49,6 +49,12 @@ pub struct Transfer {
     worker: Option<JoinHandle<()>>,
 }
 
+// TODO i hate this
+impl UnwindSafe for Transfer {
+}
+impl RefUnwindSafe for Transfer {
+}
+
 impl Transfer {
     pub fn new(device: Arc<DeviceContext>, alloc: Arc<Allocator>, queue: Queue) -> Self {
         let queue_family = queue.get_queue_family_index();
@@ -59,7 +65,12 @@ impl Transfer {
         let share2 = share.clone();
         let worker = std::thread::spawn(move || {
             log::debug!("Starting transfer worker on queue family {:?}", queue_family);
-            run_worker(share2, queue);
+            std::panic::catch_unwind(|| {
+                run_worker(share2, queue);
+            }).unwrap_or_else(|r| {
+                log::error!("Transfer worker panicked: {:?}", r);
+                std::process::exit(1);
+            })
         });
 
         Self {

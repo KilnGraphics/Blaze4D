@@ -40,7 +40,12 @@ impl EmulatorRenderer {
         let share = renderer.worker.clone();
 
         std::thread::spawn(move || {
-            run_worker(device, share);
+            std::panic::catch_unwind(|| {
+                run_worker(device, share);
+            }).unwrap_or_else(|_| {
+                log::error!("Emulator worker panicked!");
+                std::process::exit(1);
+            })
         });
 
         renderer

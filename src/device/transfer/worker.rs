@@ -1,4 +1,5 @@
 use std::collections::HashMap;
+use std::panic::{RefUnwindSafe, UnwindSafe};
 use std::time::Duration;
 use crate::device::transfer::allocator::{PoolAllocation, PoolAllocationId, PoolAllocator};
 use crate::device::transfer::recorder::Recorder;
@@ -20,6 +21,12 @@ pub(super) struct Share {
 
     device: Arc<DeviceContext>,
     semaphore: Semaphore,
+}
+
+// TODO this is needed because condvar is not unwind safe can we do better?
+impl UnwindSafe for Share {
+}
+impl RefUnwindSafe for Share {
 }
 
 impl Share {
