@@ -1,6 +1,5 @@
 use std::collections::VecDeque;
 use std::sync::Arc;
-use ash::prelude::VkResult;
 
 use ash::vk;
 use crate::device::device::Queue;

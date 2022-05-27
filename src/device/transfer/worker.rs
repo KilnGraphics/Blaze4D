@@ -1,9 +1,6 @@
 use std::collections::HashMap;
 use std::panic::{RefUnwindSafe, UnwindSafe};
-use std::sync::atomic::AtomicBool;
-use std::sync::LockResult;
 use std::time::{Duration, Instant};
-use ash::prelude::VkResult;
 use crate::device::transfer::allocator::{PoolAllocation, PoolAllocationId, PoolAllocator};
 use crate::device::transfer::recorder::Recorder;
 

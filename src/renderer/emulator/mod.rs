@@ -9,7 +9,6 @@ pub mod pass;
 use std::sync::{Arc, Mutex, Weak};
 use std::sync::atomic::{AtomicU64, Ordering};
 use ash::vk;
-use gpu_allocator::d3d12::Allocation;
 
 use crate::renderer::emulator::buffer::BufferPool;
 use crate::renderer::emulator::pass::{PassId, PassRecorder};
@@ -19,7 +18,6 @@ use crate::vk::DeviceEnvironment;
 
 use crate::renderer::emulator::pipeline::EmulatorPipeline;
 use crate::UUID;
-use crate::vk::objects::buffer::Buffer;
 
 pub use global_objects::StaticMeshId;
 
@@ -89,6 +87,15 @@ impl EmulatorRenderer {
         let id = PassId::from_raw(self.next_frame_id.fetch_add(1, Ordering::SeqCst));
         PassRecorder::new(id, self.weak.upgrade().unwrap(), pipeline)
     }
+}
+
+impl PartialEq for EmulatorRenderer {
+    fn eq(&self, other: &Self) -> bool {
+        self.id.eq(&other.id)
+    }
+}
+
+impl Eq for EmulatorRenderer {
 }
 
 /// Information needed by the emulator renderer to process vertex data.

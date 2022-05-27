@@ -4,7 +4,7 @@ use std::sync::Arc;
 use ash::vk;
 
 use crate::renderer::emulator::buffer::{BufferAllocation, BufferSubAllocator};
-use crate::renderer::emulator::{EmulatorRenderer, MeshData, StaticMeshId, VertexFormatId};
+use crate::renderer::emulator::{EmulatorRenderer, MeshData, StaticMeshId};
 use crate::renderer::emulator::worker::WorkerTask;
 use crate::device::transfer::{BufferTransferRanges, StagingMemory};
 use crate::objects::sync::SemaphoreOps;

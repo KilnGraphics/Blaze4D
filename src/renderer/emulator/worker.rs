@@ -1,5 +1,5 @@
 use std::cell::RefCell;
-use std::collections::{HashMap, VecDeque};
+use std::collections::VecDeque;
 use std::marker::PhantomData;
 use std::panic::{RefUnwindSafe, UnwindSafe};
 use std::rc::Rc;
@@ -12,7 +12,7 @@ use ash::vk::BufferMemoryBarrier2;
 use bumpalo::Bump;
 
 use crate::device::device::Queue;
-use crate::device::transfer::{BufferReleaseOp, SyncId, Transfer};
+use crate::device::transfer::{SyncId, Transfer};
 
 use crate::renderer::emulator::pass::PassId;
 use crate::renderer::emulator::buffer::BufferPool;
@@ -21,8 +21,8 @@ use crate::vk::DeviceEnvironment;
 use crate::vk::objects::buffer::Buffer;
 
 use crate::prelude::*;
-use crate::renderer::emulator::{MeshData, StaticMeshId};
-use crate::renderer::emulator::global_objects::{GlobalObjects, StaticMesh};
+use crate::renderer::emulator::StaticMeshId;
+use crate::renderer::emulator::global_objects::GlobalObjects;
 
 pub struct Share {
     device: DeviceEnvironment,

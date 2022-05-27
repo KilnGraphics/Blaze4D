@@ -1,6 +1,5 @@
 use std::collections::HashSet;
 use std::ffi::{c_void, CStr, CString};
-use std::panic::{RefUnwindSafe, UnwindSafe};
 use std::str::Utf8Error;
 use std::sync::Arc;
 use ash::vk;
