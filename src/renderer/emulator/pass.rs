@@ -3,7 +3,7 @@ use std::sync::Arc;
 use ash::vk;
 
 use crate::renderer::emulator::buffer::{BufferAllocation, BufferSubAllocator};
-use crate::renderer::emulator::{EmulatorRenderer, MeshData, VertexFormatId};
+use crate::renderer::emulator::{EmulatorRenderer, MeshData, StaticMeshId, VertexFormatId};
 use crate::renderer::emulator::worker::WorkerTask;
 use crate::device::transfer::{BufferTransferRanges, StagingMemory};
 use crate::objects::sync::SemaphoreOps;
@@ -59,16 +59,8 @@ impl PassRecorder {
         self.renderer.worker.push_task(self.id, WorkerTask::PipelineTask(PipelineTask::SetProjectionMatrix(matrix)));
     }
 
-    pub fn record_object(&mut self, data: &MeshData, type_id: u32) {
-        let index_size = match data.index_type {
-            vk::IndexType::UINT32 => 4u32,
-            vk::IndexType::UINT16 => 2u32,
-            vk::IndexType::UINT8_EXT => 1u32,
-            index_type => {
-                log::error!("Unknown index type {:?}", index_type);
-                panic!()
-            }
-        };
+    pub fn draw_immediate(&mut self, data: &MeshData, type_id: u32) {
+        let index_size = data.get_index_size();
 
         let vertex_format = self.renderer.get_vertex_format(data.vertex_format_id).unwrap_or_else(|| {
             log::error!("Invalid vertex format id {:?}", data.vertex_format_id);
@@ -87,6 +79,30 @@ impl PassRecorder {
             index_count: data.index_count,
             type_id,
         };
+        self.renderer.worker.push_task(self.id, WorkerTask::PipelineTask(PipelineTask::Draw(draw_task)));
+    }
+
+    pub fn draw_static(&mut self, mesh_id: StaticMeshId, type_id: u32) {
+        let ((buffer, first_index, index_type, index_count), op) = self.renderer.worker.use_mesh(mesh_id);
+
+        /// TODO how do we deal with multiple acquires
+        if let Some((sync, op)) = op {
+            self.renderer.worker.push_task(self.id, WorkerTask::WaitTransferSync(sync));
+            self.renderer.worker.push_task(self.id, WorkerTask::UseStaticBuffer(buffer, Some(op)));
+        } else {
+            self.renderer.worker.push_task(self.id, WorkerTask::UseStaticBuffer(buffer, None));
+        }
+
+        let draw_task = DrawTask {
+            vertex_buffer: buffer,
+            index_buffer: buffer,
+            vertex_offset: 0,
+            first_index,
+            index_type,
+            index_count,
+            type_id
+        };
+
         self.renderer.worker.push_task(self.id, WorkerTask::PipelineTask(PipelineTask::Draw(draw_task)));
     }
 

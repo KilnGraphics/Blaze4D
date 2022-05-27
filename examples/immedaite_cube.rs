@@ -28,6 +28,18 @@ fn main() {
 
     let mut current_size = Vec2u32::new(800, 600);
 
+
+    let data = MeshData {
+        vertex_data: b4d_core::util::slice::to_byte_slice(&CUBE_VERTICES),
+        index_data: b4d_core::util::slice::to_byte_slice(&CUBE_INDICES),
+        index_count: CUBE_INDICES.len() as u32,
+        index_type: vk::IndexType::UINT32,
+        vertex_format_id: format_id,
+    };
+
+    let mesh_id = b4d.create_static_mesh(&data);
+
+
     let start = std::time::Instant::now();
 
     event_loop.run(move |event, _, control_flow| {
@@ -66,6 +78,15 @@ fn main() {
                         vertex_format_id: format_id,
                     };
 
+                    let translation = Mat4f32::new_translation(&Vec3f32::new(
+                        0f32,
+                        0f32,
+                        5f32
+                    ));
+                    recorder.set_model_view_matrix(translation * rotation);
+                    // recorder.draw_static(mesh_id, 0);
+
+
                     for x in -10i32..=10i32 {
                         for y in -10i32..=10i32 {
                             for z in -10i32..=10i32 {
@@ -75,11 +96,13 @@ fn main() {
                                     5f32 + ((z as f32) / 5f32)
                                 ));
                                 recorder.set_model_view_matrix(translation * rotation);
-                                recorder.record_object(&data, 0);
+                                // recorder.draw_static(mesh_id, 0);
+                                recorder.draw_immediate(&data, 0);
                             }
                         }
                     }
 
+                    drop(recorder);
                 }
                 draw_times.push(now.elapsed());
 

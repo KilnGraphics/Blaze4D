@@ -16,7 +16,7 @@ use crate::vk::objects::surface::SurfaceProvider;
 
 use crate::prelude::*;
 use crate::renderer::emulator::debug_pipeline::{DepthPipelineConfig, DepthPipelineCore, DepthTypeInfo};
-use crate::renderer::emulator::{EmulatorRenderer, MeshData, VertexFormatSetBuilder};
+use crate::renderer::emulator::{EmulatorRenderer, MeshData, StaticMeshId, VertexFormatSetBuilder};
 use crate::renderer::emulator::pass::PassRecorder;
 use crate::renderer::emulator::pipeline::{EmulatorPipeline, SwapchainOutput};
 
@@ -68,6 +68,14 @@ impl Blaze4D {
 
             render_config,
         }
+    }
+
+    pub fn create_static_mesh(&self, data: &MeshData) -> StaticMeshId {
+        self.emulator.create_static_mesh(data)
+    }
+
+    pub fn drop_static_mesh(&self, id: StaticMeshId) {
+        self.emulator.drop_static_mesh(id);
     }
 
     pub fn set_emulator_vertex_formats(&self, formats: Box<[B4DVertexFormat]>) {

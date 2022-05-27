@@ -1,5 +1,7 @@
 mod buffer;
 mod worker;
+mod static_mesh;
+
 pub mod pipeline;
 pub mod debug_pipeline;
 pub mod pass;
@@ -7,6 +9,7 @@ pub mod pass;
 use std::sync::{Arc, Mutex, Weak};
 use std::sync::atomic::{AtomicU64, Ordering};
 use ash::vk;
+use gpu_allocator::d3d12::Allocation;
 
 use crate::renderer::emulator::buffer::BufferPool;
 use crate::renderer::emulator::pass::{PassId, PassRecorder};
@@ -16,6 +19,9 @@ use crate::vk::DeviceEnvironment;
 
 use crate::renderer::emulator::pipeline::EmulatorPipeline;
 use crate::UUID;
+use crate::vk::objects::buffer::Buffer;
+
+pub use static_mesh::StaticMeshId;
 
 pub(crate) struct EmulatorRenderer {
     id: UUID,
@@ -71,6 +77,14 @@ impl EmulatorRenderer {
         self.vertex_formats.get(id.get_raw() as usize)
     }
 
+    pub fn create_static_mesh(&self, data: &MeshData) -> StaticMeshId {
+        self.worker.create_static_mesh(data)
+    }
+
+    pub fn drop_static_mesh(&self, id: StaticMeshId) {
+        self.worker.mark_static_mesh(id)
+    }
+
     pub fn start_pass(&self, pipeline: Arc<dyn EmulatorPipeline>) -> PassRecorder {
         let id = PassId::from_raw(self.next_frame_id.fetch_add(1, Ordering::SeqCst));
         PassRecorder::new(id, self.weak.upgrade().unwrap(), pipeline)
@@ -123,4 +137,18 @@ pub struct MeshData<'a> {
     pub index_count: u32,
     pub index_type: vk::IndexType,
     pub vertex_format_id: VertexFormatId,
+}
+
+impl<'a> MeshData<'a> {
+    pub fn get_index_size(&self) -> u32 {
+        match self.index_type {
+            vk::IndexType::UINT8_EXT => 1u32,
+            vk::IndexType::UINT16 => 2u32,
+            vk::IndexType::UINT32 => 4u32,
+            _ => {
+                log::error!("Invalid index type");
+                panic!()
+            }
+        }
+    }
 }

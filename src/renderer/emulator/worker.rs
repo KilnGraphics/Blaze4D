@@ -1,5 +1,5 @@
 use std::cell::RefCell;
-use std::collections::VecDeque;
+use std::collections::{HashMap, VecDeque};
 use std::marker::PhantomData;
 use std::panic::{RefUnwindSafe, UnwindSafe};
 use std::rc::Rc;
@@ -21,8 +21,12 @@ use crate::vk::DeviceEnvironment;
 use crate::vk::objects::buffer::Buffer;
 
 use crate::prelude::*;
+use crate::renderer::emulator::{MeshData, StaticMeshId};
+use crate::renderer::emulator::static_mesh::StaticMesh;
 
 pub struct Share {
+    device: DeviceEnvironment,
+    static_meshes: Mutex<HashMap<StaticMeshId, StaticMesh>>,
     pool: Arc<Mutex<BufferPool>>,
     channel: Mutex<Channel>,
     signal: Condvar,
@@ -31,11 +35,47 @@ pub struct Share {
 
 impl Share {
     pub fn new(device: DeviceEnvironment, pool: Arc<Mutex<BufferPool>>) -> Self {
+        let queue_family = device.get_device().get_main_queue().get_queue_family_index();
+
         Self {
+            device,
+            static_meshes: Mutex::new(HashMap::new()),
             pool,
             channel: Mutex::new(Channel::new()),
             signal: Condvar::new(),
-            family: device.get_device().get_main_queue().get_queue_family_index(),
+            family: queue_family,
+        }
+    }
+
+    pub(super) fn create_static_mesh(&self, data: &MeshData) -> StaticMeshId {
+        let mesh = StaticMesh::new(&self.device, data, self.family);
+        let id = StaticMeshId::new();
+        self.static_meshes.lock().unwrap().insert(id, mesh);
+
+        id
+    }
+
+    pub(super) fn mark_static_mesh(&self, id: StaticMeshId) {
+        let mut guard = self.static_meshes.lock().unwrap();
+
+        let mesh = guard.get_mut(&id).unwrap();
+        if mesh.mark_destroy(&self.device) {
+            guard.remove(&id);
+        }
+    }
+
+    pub(super) fn use_mesh(&self, id: StaticMeshId) -> ((Buffer, u32, vk::IndexType, u32), Option<(SyncId, BufferReleaseOp)>) {
+        let mut guard = self.static_meshes.lock().unwrap();
+        let mesh = guard.get_mut(&id).unwrap();
+        let op = mesh.inc_mesh();
+
+        (mesh.get_data(), op)
+    }
+
+    pub(super) fn release_mesh(&self, id: StaticMeshId) {
+        let mut guard = self.static_meshes.lock().unwrap();
+        if guard.get_mut(&id).unwrap().dec_mesh(&self.device) {
+            guard.remove(&id);
         }
     }
 
@@ -106,6 +146,7 @@ pub(super) enum WorkerTask {
     StartPass(Box<dyn EmulatorPipelinePass + Send>),
     EndPass,
     UseDynamicBuffer(Buffer),
+    UseStaticBuffer(Buffer, Option<BufferReleaseOp>),
     UseOutput(Box<dyn EmulatorOutput + Send>),
     WaitTransferSync(SyncId),
     PipelineTask(PipelineTask),
@@ -161,6 +202,12 @@ pub(super) fn run_worker(device: DeviceEnvironment, share: Arc<Share>) {
                     queue.get_queue_family_index()
                 )));
                 frames.get_pass(id).unwrap().use_dynamic_buffer(buffer, op.make_barrier().as_ref());
+            }
+
+            WorkerTask::UseStaticBuffer(_, op) => {
+                if let Some(op) = op {
+                    frames.get_pass(id).unwrap().wait_barrier(op.make_barrier().as_ref());
+                }
             }
 
             WorkerTask::UseOutput(output) => {
@@ -369,6 +416,17 @@ impl PassState {
     fn use_dynamic_buffer(&mut self, buffer: Buffer, pre_barrier: Option<&BufferMemoryBarrier2>) {
         self.dynamic_buffers.push(buffer);
 
+        if let Some(pre_barrier) = pre_barrier {
+            let info = vk::DependencyInfo::builder()
+                .buffer_memory_barriers(std::slice::from_ref(pre_barrier));
+
+            unsafe {
+                self.device.vk().cmd_pipeline_barrier2(self.pre_cmd, &info)
+            };
+        }
+    }
+
+    fn wait_barrier(&mut self, pre_barrier: Option<&BufferMemoryBarrier2>) {
         if let Some(pre_barrier) = pre_barrier {
             let info = vk::DependencyInfo::builder()
                 .buffer_memory_barriers(std::slice::from_ref(pre_barrier));
