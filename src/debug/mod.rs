@@ -1,4 +1,6 @@
 //! Debug overlay
+//!
+//! very much work in progress and not a high priority. Probably doesnt work right now.
 
 use std::collections::HashMap;
 use std::ffi::CStr;
