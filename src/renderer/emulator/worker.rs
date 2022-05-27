@@ -22,11 +22,11 @@ use crate::vk::objects::buffer::Buffer;
 
 use crate::prelude::*;
 use crate::renderer::emulator::{MeshData, StaticMeshId};
-use crate::renderer::emulator::static_mesh::StaticMesh;
+use crate::renderer::emulator::global_objects::{GlobalObjects, StaticMesh};
 
 pub struct Share {
     device: DeviceEnvironment,
-    static_meshes: Mutex<HashMap<StaticMeshId, StaticMesh>>,
+    pub(super) global_objects: GlobalObjects,
     pool: Arc<Mutex<BufferPool>>,
     channel: Mutex<Channel>,
     signal: Condvar,
@@ -35,47 +35,18 @@ pub struct Share {
 
 impl Share {
     pub fn new(device: DeviceEnvironment, pool: Arc<Mutex<BufferPool>>) -> Self {
-        let queue_family = device.get_device().get_main_queue().get_queue_family_index();
+        let queue = device.get_device().get_main_queue();
+        let queue_family = queue.get_queue_family_index();
+
+        let global_objects = GlobalObjects::new(device.clone(), queue);
 
         Self {
             device,
-            static_meshes: Mutex::new(HashMap::new()),
+            global_objects,
             pool,
             channel: Mutex::new(Channel::new()),
             signal: Condvar::new(),
             family: queue_family,
-        }
-    }
-
-    pub(super) fn create_static_mesh(&self, data: &MeshData) -> StaticMeshId {
-        let mesh = StaticMesh::new(&self.device, data, self.family);
-        let id = StaticMeshId::new();
-        self.static_meshes.lock().unwrap().insert(id, mesh);
-
-        id
-    }
-
-    pub(super) fn mark_static_mesh(&self, id: StaticMeshId) {
-        let mut guard = self.static_meshes.lock().unwrap();
-
-        let mesh = guard.get_mut(&id).unwrap();
-        if mesh.mark_destroy(&self.device) {
-            guard.remove(&id);
-        }
-    }
-
-    pub(super) fn use_mesh(&self, id: StaticMeshId) -> ((Buffer, u32, vk::IndexType, u32), Option<(SyncId, BufferReleaseOp)>) {
-        let mut guard = self.static_meshes.lock().unwrap();
-        let mesh = guard.get_mut(&id).unwrap();
-        let op = mesh.inc_mesh();
-
-        (mesh.get_data(), op)
-    }
-
-    pub(super) fn release_mesh(&self, id: StaticMeshId) {
-        let mut guard = self.static_meshes.lock().unwrap();
-        if guard.get_mut(&id).unwrap().dec_mesh(&self.device) {
-            guard.remove(&id);
         }
     }
 
@@ -146,14 +117,10 @@ pub(super) enum WorkerTask {
     StartPass(Box<dyn EmulatorPipelinePass + Send>),
     EndPass,
     UseDynamicBuffer(Buffer),
-    UseStaticBuffer(Buffer, Option<BufferReleaseOp>),
+    UseStaticMesh(StaticMeshId),
     UseOutput(Box<dyn EmulatorOutput + Send>),
     WaitTransferSync(SyncId),
     PipelineTask(PipelineTask),
-}
-
-// Needed because of the option barrier in UseDynamicBuffer
-unsafe impl Send for WorkerTask {
 }
 
 pub(super) fn run_worker(device: DeviceEnvironment, share: Arc<Share>) {
@@ -166,11 +133,17 @@ pub(super) fn run_worker(device: DeviceEnvironment, share: Arc<Share>) {
     let queue = device.get_device().get_main_queue();
 
     loop {
+        share.global_objects.update();
+
         old_frames.retain(|old: &PassState| {
             if old.is_complete() {
                 let mut guard = share.pool.lock().unwrap();
                 for buffer in &old.dynamic_buffers {
                     guard.return_buffer(buffer.get_id(), None);
+                }
+                drop(guard);
+                for static_mesh in &old.static_meshes {
+                    share.global_objects.dec_static_mesh(*static_mesh);
                 }
                 false
             } else {
@@ -190,6 +163,7 @@ pub(super) fn run_worker(device: DeviceEnvironment, share: Arc<Share>) {
             }
 
             WorkerTask::EndPass => {
+                share.global_objects.flush();
                 let mut pass = frames.pop_pass(id).unwrap();
                 pass.submit(&queue);
                 old_frames.push(pass);
@@ -204,10 +178,8 @@ pub(super) fn run_worker(device: DeviceEnvironment, share: Arc<Share>) {
                 frames.get_pass(id).unwrap().use_dynamic_buffer(buffer, op.make_barrier().as_ref());
             }
 
-            WorkerTask::UseStaticBuffer(_, op) => {
-                if let Some(op) = op {
-                    frames.get_pass(id).unwrap().wait_barrier(op.make_barrier().as_ref());
-                }
+            WorkerTask::UseStaticMesh(mesh_id) => {
+                frames.get_pass(id).unwrap().static_meshes.push(mesh_id);
             }
 
             WorkerTask::UseOutput(output) => {
@@ -374,6 +346,7 @@ struct PassState {
     outputs: Vec<Box<dyn EmulatorOutput>>,
 
     dynamic_buffers: Vec<Buffer>,
+    static_meshes: Vec<StaticMeshId>,
     transfer_sync_wait: Option<SyncId>,
 
     pre_cmd: vk::CommandBuffer,
@@ -400,6 +373,7 @@ impl PassState {
             outputs: Vec::with_capacity(8),
 
             dynamic_buffers: Vec::with_capacity(8),
+            static_meshes: Vec::new(),
             transfer_sync_wait: None,
 
             pre_cmd,

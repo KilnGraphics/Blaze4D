@@ -1,3 +1,4 @@
+use std::collections::HashMap;
 use std::sync::Arc;
 
 use ash::vk;
@@ -9,6 +10,7 @@ use crate::device::transfer::{BufferTransferRanges, StagingMemory};
 use crate::objects::sync::SemaphoreOps;
 
 use crate::prelude::*;
+use crate::renderer::emulator::global_objects::StaticMeshDrawInfo;
 use crate::renderer::emulator::pipeline::{DrawTask, EmulatorOutput, EmulatorPipeline, PipelineTask};
 
 #[derive(Copy, Clone, PartialEq, Eq, PartialOrd, Ord, Debug, Hash)]
@@ -29,6 +31,8 @@ pub struct PassRecorder {
     renderer: Arc<EmulatorRenderer>,
     pipeline: Arc<dyn EmulatorPipeline>,
 
+    used_static_meshes: HashMap<StaticMeshId, StaticMeshDrawInfo>,
+
     current_buffer: Option<(BufferSubAllocator, StagingMemory)>,
     written_size: usize,
 }
@@ -41,6 +45,8 @@ impl PassRecorder {
             id,
             renderer,
             pipeline,
+
+            used_static_meshes: HashMap::new(),
 
             current_buffer: None,
             written_size: 0,
@@ -83,23 +89,22 @@ impl PassRecorder {
     }
 
     pub fn draw_static(&mut self, mesh_id: StaticMeshId, type_id: u32) {
-        let ((buffer, first_index, index_type, index_count), op) = self.renderer.worker.use_mesh(mesh_id);
+        if !self.used_static_meshes.contains_key(&mesh_id) {
+            let draw_info = self.renderer.worker.global_objects.inc_static_mesh(mesh_id);
+            self.used_static_meshes.insert(mesh_id, draw_info);
 
-        /// TODO how do we deal with multiple acquires
-        if let Some((sync, op)) = op {
-            self.renderer.worker.push_task(self.id, WorkerTask::WaitTransferSync(sync));
-            self.renderer.worker.push_task(self.id, WorkerTask::UseStaticBuffer(buffer, Some(op)));
-        } else {
-            self.renderer.worker.push_task(self.id, WorkerTask::UseStaticBuffer(buffer, None));
+            self.renderer.worker.push_task(self.id, WorkerTask::UseStaticMesh(mesh_id));
         }
 
+        let draw_info = self.used_static_meshes.get(&mesh_id).unwrap();
+
         let draw_task = DrawTask {
-            vertex_buffer: buffer,
-            index_buffer: buffer,
+            vertex_buffer: draw_info.buffer,
+            index_buffer: draw_info.buffer,
             vertex_offset: 0,
-            first_index,
-            index_type,
-            index_count,
+            first_index: draw_info.first_index,
+            index_type: draw_info.index_type,
+            index_count: draw_info.index_count,
             type_id
         };
 

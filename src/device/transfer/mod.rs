@@ -334,10 +334,12 @@ impl Transfer {
     }
 
     pub fn wait_for_submit(&self, id: SyncId) {
+        self.flush(id);
         self.share.wait_for_submit(id.get_raw());
     }
 
     pub fn wait_for_complete(&self, id: SyncId) {
+        self.flush(id);
         self.share.wait_for_complete(id.get_raw());
     }
 

@@ -1,6 +1,6 @@
 mod buffer;
 mod worker;
-mod static_mesh;
+mod global_objects;
 
 pub mod pipeline;
 pub mod debug_pipeline;
@@ -21,7 +21,7 @@ use crate::renderer::emulator::pipeline::EmulatorPipeline;
 use crate::UUID;
 use crate::vk::objects::buffer::Buffer;
 
-pub use static_mesh::StaticMeshId;
+pub use global_objects::StaticMeshId;
 
 pub(crate) struct EmulatorRenderer {
     id: UUID,
@@ -78,11 +78,11 @@ impl EmulatorRenderer {
     }
 
     pub fn create_static_mesh(&self, data: &MeshData) -> StaticMeshId {
-        self.worker.create_static_mesh(data)
+        self.worker.global_objects.create_static_mesh(data)
     }
 
     pub fn drop_static_mesh(&self, id: StaticMeshId) {
-        self.worker.mark_static_mesh(id)
+        self.worker.global_objects.mark_static_mesh(id)
     }
 
     pub fn start_pass(&self, pipeline: Arc<dyn EmulatorPipeline>) -> PassRecorder {
