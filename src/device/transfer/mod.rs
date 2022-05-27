@@ -5,7 +5,7 @@ mod recorder;
 
 use std::collections::{VecDeque};
 use std::panic::{RefUnwindSafe, UnwindSafe};
-use std::sync::{Arc, Condvar, Mutex};
+use std::sync::{Arc, Condvar, Mutex, Weak};
 use std::thread::JoinHandle;
 
 use ash::vk;
@@ -44,6 +44,7 @@ impl SyncId {
 }
 
 pub struct Transfer {
+    weak: Weak<Self>,
     share: Arc<Share>,
     queue_family: u32,
     worker: Option<JoinHandle<()>>,
@@ -56,7 +57,7 @@ impl RefUnwindSafe for Transfer {
 }
 
 impl Transfer {
-    pub fn new(device: Arc<DeviceContext>, alloc: Arc<Allocator>, queue: Queue) -> Self {
+    pub fn new(device: Arc<DeviceContext>, alloc: Arc<Allocator>, queue: Queue) -> Arc<Self> {
         let queue_family = queue.get_queue_family_index();
         log::debug!("Creating transfer engine on queue family {:?}", queue_family);
 
@@ -73,11 +74,12 @@ impl Transfer {
             })
         });
 
-        Self {
+        Arc::new_cyclic(|weak| Self {
+            weak: weak.clone(),
             share,
             queue_family,
             worker: Some(worker)
-        }
+        })
     }
 
     /// Returns the queue family index of the queue that is used for transfer operations.
@@ -319,10 +321,9 @@ impl Transfer {
         let (id, alloc) = self.share.allocate_staging(capacity as vk::DeviceSize);
 
         StagingMemory {
-            transfer: &self,
-            memory: unsafe {
-                std::slice::from_raw_parts_mut(alloc.get_memory().as_ptr(), alloc.get_size() as usize)
-            },
+            transfer: self.weak.upgrade().unwrap(),
+            memory: alloc.get_memory().as_ptr(),
+            memory_size: alloc.get_size() as usize,
             memory_id: id,
             buffer_offset: alloc.get_offset()
         }
@@ -512,63 +513,73 @@ impl ImageAvailabilityOp {
 unsafe impl Send for ImageAvailabilityOp {
 }
 
-pub struct StagingMemory<'a> {
-    transfer: &'a Transfer,
-    memory: &'a mut [u8],
+pub struct StagingMemory {
+    transfer: Arc<Transfer>,
+    memory: *mut u8,
+    memory_size: usize,
     memory_id: UUID,
     buffer_offset: vk::DeviceSize,
 }
 
-impl<'a> StagingMemory<'a> {
-    /// Returns a slice to the staging memory range
-    pub fn get_memory(&mut self) -> &mut [u8] {
-        &mut self.memory
+impl StagingMemory {
+    pub fn get_memory_size(&self) -> usize {
+        self.memory_size
     }
 
     /// Writes the data stored in the slice to the memory and returns the number of bytes written.
     /// If the data does not fit into the available memory range [`None`] is returned.
-    pub fn write<T: Copy>(&mut self, data: &[T]) -> Option<usize> {
+    ///
+    /// # Safety
+    /// This function is fully safe from out of bounds memory accesses. However it is the
+    /// responsibility of the caller to ensure that no concurrent writes take place on the same
+    /// subregion.
+    pub unsafe fn write<T: Copy>(&self, data: &[T]) -> Option<usize> {
         self.write_offset(data, 0)
     }
 
     /// Writes the data stored in the slice to the memory at the specified offset and returns the
     /// number of bytes written.
     /// If the data does not fit into the available memory range [`None`] is returned.
-    pub fn write_offset<T: Copy>(&mut self, data: &[T], offset: usize) -> Option<usize> {
+    ///
+    /// # Safety
+    /// This function is fully safe from out of bounds memory accesses. However it is the
+    /// responsibility of the caller to ensure that no concurrent writes take place on the same
+    /// subregion.
+    pub unsafe fn write_offset<T: Copy>(&self, data: &[T], offset: usize) -> Option<usize> {
+        assert!(offset <= (isize::MAX as usize));
+
         let byte_count = data.len() * std::mem::size_of::<T>();
-        if (offset + byte_count) > self.memory.len() {
+        if (offset + byte_count) > self.memory_size {
             return None;
         }
 
-        let src = unsafe {
-            std::slice::from_raw_parts(data.as_ptr() as *const u8, byte_count)
-        };
-        let dst = &mut self.memory[offset..byte_count];
+        let src = std::slice::from_raw_parts(data.as_ptr() as *const u8, byte_count);
+        let dst = std::slice::from_raw_parts_mut(self.memory.offset(offset as isize), byte_count);
         dst.copy_from_slice(src);
 
         Some(byte_count)
     }
 
-    pub fn read<T: Copy>(&self, data: &mut [T]) -> Result<(), ()> {
+    pub unsafe fn read<T: Copy>(&self, data: &mut [T]) -> Result<(), ()> {
         self.read_offset(data, 0)
     }
 
-    pub fn read_offset<T: Copy>(&self, data: &mut [T], offset: usize) -> Result<(), ()> {
+    pub unsafe fn read_offset<T: Copy>(&self, data: &mut [T], offset: usize) -> Result<(), ()> {
+        assert!(offset <= (isize::MAX as usize));
+
         let byte_count = data.len() * std::mem::size_of::<T>();
-        if (offset + byte_count) > self.memory.len() {
+        if (offset + byte_count) > self.memory_size {
             return Err(());
         }
 
-        let src = &self.memory[offset..byte_count];
-        let dst = unsafe {
-            std::slice::from_raw_parts_mut(data.as_ptr() as *mut u8, byte_count)
-        };
+        let src = std::slice::from_raw_parts(self.memory.offset(offset as isize), byte_count);
+        let dst = std::slice::from_raw_parts_mut(data.as_ptr() as *mut u8, byte_count);
         dst.copy_from_slice(src);
 
         Ok(())
     }
 
-    pub fn copy_to_buffer<T: Into<BufferId>>(&mut self, dst_buffer: T, mut ranges: BufferTransferRanges) {
+    pub unsafe fn copy_to_buffer<T: Into<BufferId>>(&self, dst_buffer: T, mut ranges: BufferTransferRanges) {
         ranges.add_src_offset(self.buffer_offset);
         let task = Task::BufferTransfer(BufferTransfer {
             src_buffer: BufferId::from_raw(self.memory_id),
@@ -578,7 +589,7 @@ impl<'a> StagingMemory<'a> {
         self.transfer.share.push_task(task);
     }
 
-    pub fn copy_from_buffer<T: Into<BufferId>>(&mut self, src_buffer: T, mut ranges: BufferTransferRanges) {
+    pub unsafe fn copy_from_buffer<T: Into<BufferId>>(&self, src_buffer: T, mut ranges: BufferTransferRanges) {
         ranges.add_dst_offset(self.buffer_offset);
         let task = Task::BufferTransfer(BufferTransfer {
             src_buffer: src_buffer.into(),
@@ -588,7 +599,7 @@ impl<'a> StagingMemory<'a> {
         self.transfer.share.push_task(task);
     }
 
-    pub fn copy_to_image<T: Into<ImageId>>(&mut self, dst_image: T, mut ranges: BufferImageTransferRanges) {
+    pub unsafe fn copy_to_image<T: Into<ImageId>>(&self, dst_image: T, mut ranges: BufferImageTransferRanges) {
         ranges.add_buffer_offset(self.buffer_offset);
         let task = Task::BufferToImageTransfer(BufferToImageTransfer {
             src_buffer: BufferId::from_raw(self.memory_id),
@@ -599,11 +610,17 @@ impl<'a> StagingMemory<'a> {
     }
 
     pub fn flush(&self) {
-
+        todo!()
     }
 }
 
-impl<'a> Drop for StagingMemory<'a> {
+unsafe impl Send for StagingMemory {
+}
+
+unsafe impl Sync for StagingMemory {
+}
+
+impl Drop for StagingMemory {
     fn drop(&mut self) {
         self.transfer.share.push_task(Task::StagingRelease(self.memory_id));
     }

@@ -3,9 +3,9 @@ use std::sync::Arc;
 use ash::vk;
 
 use crate::renderer::emulator::buffer::{BufferAllocation, BufferSubAllocator};
-use crate::renderer::emulator::EmulatorRenderer;
+use crate::renderer::emulator::{EmulatorRenderer, MeshData, VertexFormatId};
 use crate::renderer::emulator::worker::WorkerTask;
-use crate::device::transfer::BufferTransferRanges;
+use crate::device::transfer::{BufferTransferRanges, StagingMemory};
 use crate::objects::sync::SemaphoreOps;
 
 use crate::prelude::*;
@@ -24,18 +24,13 @@ impl PassId {
     }
 }
 
-pub struct ObjectData<'a> {
-    pub vertex_data: &'a [u8],
-    pub index_data: &'a [u8],
-    pub index_count: u32,
-    pub type_id: u32,
-}
-
 pub struct PassRecorder {
     id: PassId,
     renderer: Arc<EmulatorRenderer>,
     pipeline: Arc<dyn EmulatorPipeline>,
-    current_buffer: Option<BufferSubAllocator>,
+
+    current_buffer: Option<(BufferSubAllocator, StagingMemory)>,
+    written_size: usize,
 }
 
 impl PassRecorder {
@@ -46,7 +41,9 @@ impl PassRecorder {
             id,
             renderer,
             pipeline,
+
             current_buffer: None,
+            written_size: 0,
         }
     }
 
@@ -62,34 +59,45 @@ impl PassRecorder {
         self.renderer.worker.push_task(self.id, WorkerTask::PipelineTask(PipelineTask::SetProjectionMatrix(matrix)));
     }
 
-    pub fn record_object(&mut self, object: &ObjectData) {
-        let vertex_size = self.pipeline.get_type_table()[object.type_id as usize].vertex_stride;
+    pub fn record_object(&mut self, data: &MeshData, type_id: u32) {
+        let index_size = match data.index_type {
+            vk::IndexType::UINT32 => 4u32,
+            vk::IndexType::UINT16 => 2u32,
+            vk::IndexType::UINT8_EXT => 1u32,
+            index_type => {
+                log::error!("Unknown index type {:?}", index_type);
+                panic!()
+            }
+        };
 
-        let vertex_buffer = self.push_data(object.vertex_data, vertex_size);
-        let index_buffer = self.push_data(object.index_data, 4);
+        let vertex_format = self.renderer.get_vertex_format(data.vertex_format_id).unwrap_or_else(|| {
+            log::error!("Invalid vertex format id {:?}", data.vertex_format_id);
+            panic!()
+        }).clone();
+
+        let vertex_buffer = self.push_data(data.vertex_data, vertex_format.stride as u32);
+        let index_buffer = self.push_data(data.index_data, index_size);
 
         let draw_task = DrawTask {
             vertex_buffer: vertex_buffer.buffer,
             index_buffer: index_buffer.buffer,
-            vertex_offset: (vertex_buffer.offset / (vertex_size as usize)) as i32,
-            first_index: (index_buffer.offset / 4usize) as u32,
-            index_type: vk::IndexType::UINT32,
-            index_count: object.index_count,
-            type_id: object.type_id,
+            vertex_offset: (vertex_buffer.offset / vertex_format.stride) as i32,
+            first_index: (index_buffer.offset / (index_size as usize)) as u32,
+            index_type: data.index_type,
+            index_count: data.index_count,
+            type_id,
         };
         self.renderer.worker.push_task(self.id, WorkerTask::PipelineTask(PipelineTask::Draw(draw_task)));
     }
 
     fn push_data(&mut self, data: &[u8], alignment: u32) -> BufferAllocation {
         let alloc = self.allocate_memory(data.len(), alignment);
+        let (_, staging) = self.current_buffer.as_ref().unwrap();
 
-        let mut staging = self.renderer.device.get_transfer().request_staging_memory(data.len());
-        staging.write(data);
-        staging.copy_to_buffer(alloc.buffer, BufferTransferRanges::new_single(
-            0,
-            alloc.offset as vk::DeviceSize,
-            data.len() as vk::DeviceSize
-        ));
+        unsafe {
+            staging.write_offset(data, alloc.offset);
+        }
+        self.written_size = alloc.offset + data.len();
 
         alloc
     }
@@ -99,10 +107,10 @@ impl PassRecorder {
             self.new_sub_allocator(size);
         }
 
-        match self.current_buffer.as_mut().unwrap().allocate(size, alignment) {
+        match self.current_buffer.as_mut().unwrap().0.allocate(size, alignment) {
             None => {
                 self.new_sub_allocator(size);
-                self.current_buffer.as_mut().unwrap().allocate(size, alignment).unwrap()
+                self.current_buffer.as_mut().unwrap().0.allocate(size, alignment).unwrap()
             }
             Some(alloc) => {
                 alloc
@@ -111,9 +119,7 @@ impl PassRecorder {
     }
 
     fn new_sub_allocator(&mut self, min_size: usize) {
-        if let Some(old) = self.current_buffer.take() {
-            self.end_sub_allocator(old);
-        }
+        self.end_sub_allocator();
 
         let (buffer, size, wait_op) = self.renderer.buffer_pool.lock().unwrap().get_buffer(min_size);
         let op = self.renderer.device.get_transfer().prepare_buffer_acquire(buffer, None);
@@ -122,31 +128,41 @@ impl PassRecorder {
         self.renderer.worker.push_task(self.id, WorkerTask::UseDynamicBuffer(buffer));
 
         let allocator = BufferSubAllocator::new(buffer, size);
+        let staging = self.renderer.device.get_transfer().request_staging_memory(allocator.get_buffer_size());
 
-        self.current_buffer = Some(allocator)
+        self.current_buffer = Some((allocator, staging))
     }
 
-    fn end_sub_allocator(&self, allocator: BufferSubAllocator) {
-        let transfer = self.renderer.device.get_transfer();
+    fn end_sub_allocator(&mut self) {
+        if let Some((allocator, staging)) = self.current_buffer.take() {
+            let transfer = self.renderer.device.get_transfer();
+            let buffer = allocator.get_buffer();
 
-        let buffer = allocator.get_buffer();
-        let op = transfer.prepare_buffer_release(buffer, Some((
-            vk::PipelineStageFlags2::VERTEX_INPUT | vk::PipelineStageFlags2::INDEX_INPUT,
-            vk::AccessFlags2::VERTEX_ATTRIBUTE_READ | vk::AccessFlags2::INDEX_READ,
-            self.renderer.worker.get_render_queue_family()
-        )));
-        let sync_id = transfer.release_buffer(op.clone()).unwrap();
-        transfer.flush(sync_id);
+            unsafe {
+                staging.copy_to_buffer(buffer, BufferTransferRanges::new_single(
+                    0,
+                    0,
+                    self.written_size as vk::DeviceSize
+                ));
+            }
+            self.written_size = 0;
 
-        self.renderer.worker.push_task(self.id, WorkerTask::WaitTransferSync(sync_id))
+            let op = transfer.prepare_buffer_release(buffer, Some((
+                vk::PipelineStageFlags2::VERTEX_INPUT | vk::PipelineStageFlags2::INDEX_INPUT,
+                vk::AccessFlags2::VERTEX_ATTRIBUTE_READ | vk::AccessFlags2::INDEX_READ,
+                self.renderer.worker.get_render_queue_family()
+            )));
+            let sync_id = transfer.release_buffer(op.clone()).unwrap();
+            transfer.flush(sync_id);
+
+            self.renderer.worker.push_task(self.id, WorkerTask::WaitTransferSync(sync_id))
+        }
     }
 }
 
 impl Drop for PassRecorder {
     fn drop(&mut self) {
-        if let Some(alloc) = self.current_buffer.take() {
-            self.end_sub_allocator(alloc);
-        }
+        self.end_sub_allocator();
         self.renderer.worker.push_task(self.id, WorkerTask::EndPass);
     }
 }

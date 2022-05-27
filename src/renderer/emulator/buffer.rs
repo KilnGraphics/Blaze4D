@@ -53,7 +53,7 @@ impl BufferPool {
     }
 
     fn find_or_create_buffer(&mut self, min_size: usize) -> &mut PoolBuffer {
-        if min_size > 256000000 {
+        if min_size > 2usize.pow(25) {
             panic!("Fuck this buffer with size {:?}", min_size)
         }
 
@@ -69,7 +69,7 @@ impl BufferPool {
             self.buffers.get_mut(index).unwrap()
 
         } else {
-            let buffer = PoolBuffer::new(512000000);
+            let buffer = PoolBuffer::new(2usize.pow(25));
             self.buffers.push(buffer);
 
             self.buffers.last_mut().unwrap()
@@ -205,6 +205,10 @@ impl BufferSubAllocator {
             offset: 0,
             size,
         }
+    }
+
+    pub fn get_buffer_size(&self) -> usize {
+        self.size
     }
 
     pub fn get_buffer(&self) -> Buffer {

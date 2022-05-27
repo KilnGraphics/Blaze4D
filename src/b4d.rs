@@ -12,12 +12,12 @@ use crate::device::init::{create_device, DeviceCreateConfig};
 use crate::device::surface::{DeviceSurface, SurfaceSwapchain, SwapchainConfig};
 use crate::instance::init::{create_instance, InstanceCreateConfig};
 use crate::instance::instance::VulkanVersion;
-use crate::vk::objects::surface::{SurfaceProvider};
+use crate::vk::objects::surface::SurfaceProvider;
 
 use crate::prelude::*;
 use crate::renderer::emulator::debug_pipeline::{DepthPipelineConfig, DepthPipelineCore, DepthTypeInfo};
-use crate::renderer::emulator::EmulatorRenderer;
-use crate::renderer::emulator::pass::{ObjectData, PassRecorder};
+use crate::renderer::emulator::{EmulatorRenderer, MeshData, VertexFormatSetBuilder};
+use crate::renderer::emulator::pass::PassRecorder;
 use crate::renderer::emulator::pipeline::{EmulatorPipeline, SwapchainOutput};
 
 pub struct Blaze4D {
@@ -29,7 +29,7 @@ pub struct Blaze4D {
 }
 
 impl Blaze4D {
-    pub fn new(main_window: Box<dyn SurfaceProvider>) -> Self {
+    pub fn new(main_window: Box<dyn SurfaceProvider>, vertex_formats: VertexFormatSetBuilder) -> Self {
         crate::debug::text::ldfnt();
 
         let mut instance_config = InstanceCreateConfig::new(
@@ -59,7 +59,7 @@ impl Blaze4D {
 
         let render_config = Mutex::new(RenderConfig::new(device.clone(), main_surface));
 
-        let emulator = EmulatorRenderer::new(device.clone());
+        let emulator = EmulatorRenderer::new(device.clone(), vertex_formats);
 
         Self {
             instance,
@@ -241,9 +241,10 @@ pub unsafe extern "C" fn b4d_init(surface: *mut GLFWSurfaceProvider) -> *mut Bla
 
     let surface: Box<dyn SurfaceProvider> = Box::from_raw(surface);
 
-    let b4d = Box::leak(Box::new(Blaze4D::new(surface)));
+    //let b4d = Box::leak(Box::new(Blaze4D::new(surface)));
 
-    b4d
+    //b4d
+    std::ptr::null_mut()
 }
 
 #[no_mangle]

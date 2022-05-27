@@ -197,6 +197,8 @@ impl DeviceSurface {
     }
 
     fn find_best_present_mode(&self, _: &SwapchainConfig) -> Result<vk::PresentModeKHR, SwapchainCreateError> {
+        return Ok(vk::PresentModeKHR::IMMEDIATE); // TODO revert this
+
         let supported = self.get_surface_present_modes()?;
 
         if supported.contains(&vk::PresentModeKHR::MAILBOX) {

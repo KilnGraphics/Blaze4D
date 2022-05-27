@@ -6,7 +6,7 @@ use winit::event_loop::{ControlFlow, EventLoop};
 use b4d_core::b4d::B4DVertexFormat;
 
 use b4d_core::prelude::*;
-use b4d_core::renderer::emulator::pass::ObjectData;
+use b4d_core::renderer::emulator::{MeshData, VertexFormatInfo, VertexFormatSetBuilder};
 
 use b4d_core::window::WinitWindow;
 
@@ -16,7 +16,11 @@ fn main() {
     let event_loop = EventLoop::new();
     let window = Box::new(WinitWindow::new("ImmediateCube", 800.0, 600.0, &event_loop));
 
-    let b4d = b4d_core::b4d::Blaze4D::new(window);
+    let mut format_set = VertexFormatSetBuilder::new();
+    let format_id = format_set.add_format(VertexFormatInfo {
+        stride: Vertex::make_b4d_vertex_format().stride as usize,
+    });
+    let b4d = b4d_core::b4d::Blaze4D::new(window, format_set);
     b4d.set_emulator_vertex_formats(Box::new([Vertex::make_b4d_vertex_format()]));
 
     let mut draw_times = Vec::with_capacity(1000);
@@ -54,23 +58,24 @@ fn main() {
                     let translation = Mat4f32::new_translation(&Vec3f32::new(0f32, 0f32, 5f32));
                     recorder.set_model_view_matrix(translation * rotation);
 
-                    let data = ObjectData {
+                    let data = MeshData {
                         vertex_data: b4d_core::util::slice::to_byte_slice(&CUBE_VERTICES),
                         index_data: b4d_core::util::slice::to_byte_slice(&CUBE_INDICES),
                         index_count: CUBE_INDICES.len() as u32,
-                        type_id: 0
+                        index_type: vk::IndexType::UINT32,
+                        vertex_format_id: format_id,
                     };
 
-                    for x in -10i32..=0i32 {
-                        for y in -10i32..=0i32 {
-                            for z in -10i32..=0i32 {
+                    for x in -10i32..=10i32 {
+                        for y in -10i32..=10i32 {
+                            for z in -10i32..=10i32 {
                                 let translation = Mat4f32::new_translation(&Vec3f32::new(
-                                    0f32 + ((x as f32) / 10f32),
-                                    0f32 + ((y as f32) / 10f32),
-                                    5f32 + ((z as f32) / 10f32)
+                                    0f32 + ((x as f32) / 5f32),
+                                    0f32 + ((y as f32) / 5f32),
+                                    5f32 + ((z as f32) / 5f32)
                                 ));
                                 recorder.set_model_view_matrix(translation * rotation);
-                                recorder.record_object(&data);
+                                recorder.record_object(&data, 0);
                             }
                         }
                     }
