@@ -74,13 +74,13 @@ fn main() {
                     recorder.set_model_view_matrix(translation * rotation);
 
 
-                    for x in -10i32..=10i32 {
-                        for y in -10i32..=10i32 {
-                            for z in -10i32..=10i32 {
+                    for x in -5i32..=5i32 {
+                        for y in -5i32..=5i32 {
+                            for z in -5i32..=5i32 {
                                 let translation = Mat4f32::new_translation(&Vec3f32::new(
-                                    0f32 + ((x as f32) / 5f32),
-                                    0f32 + ((y as f32) / 5f32),
-                                    5f32 + ((z as f32) / 5f32)
+                                    0f32 + ((x as f32) / 2f32),
+                                    0f32 + ((y as f32) / 2f32),
+                                    5f32 + ((z as f32) / 2f32)
                                 ));
                                 recorder.set_model_view_matrix(translation * rotation);
                                 recorder.draw_immediate(&data, 0);

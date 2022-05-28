@@ -196,6 +196,7 @@ impl RenderConfig {
         self.last_rebuild = Instant::now();
 
         let config = SwapchainConfig {
+            allow_tearing: true, // We set this to true to unlock fps for testing
             formats: Box::new([vk::SurfaceFormatKHR{ format: vk::Format::R8G8B8A8_SRGB, color_space: vk::ColorSpaceKHR::SRGB_NONLINEAR }]),
             required_usage: vk::ImageUsageFlags::COLOR_ATTACHMENT,
             optional_usage: vk::ImageUsageFlags::empty(),

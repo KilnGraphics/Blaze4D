@@ -196,13 +196,15 @@ impl DeviceSurface {
         Ok(config.required_usage.bitor(optional))
     }
 
-    fn find_best_present_mode(&self, _: &SwapchainConfig) -> Result<vk::PresentModeKHR, SwapchainCreateError> {
-        return Ok(vk::PresentModeKHR::IMMEDIATE); // TODO revert this
-
+    fn find_best_present_mode(&self, config: &SwapchainConfig) -> Result<vk::PresentModeKHR, SwapchainCreateError> {
         let supported = self.get_surface_present_modes()?;
 
         if supported.contains(&vk::PresentModeKHR::MAILBOX) {
             return Ok(vk::PresentModeKHR::MAILBOX);
+        }
+
+        if config.allow_tearing && supported.contains(&vk::PresentModeKHR::IMMEDIATE) {
+            return Ok(vk::PresentModeKHR::IMMEDIATE);
         }
 
         Ok(vk::PresentModeKHR::FIFO)
@@ -309,6 +311,7 @@ impl SurfaceSwapchainInfo {
 }
 
 pub struct SwapchainConfig {
+    pub allow_tearing: bool,
     pub formats: Box<[vk::SurfaceFormatKHR]>,
     pub required_usage: vk::ImageUsageFlags,
     pub optional_usage: vk::ImageUsageFlags,
