@@ -885,21 +885,27 @@ mod tests {
         transfer.acquire_buffer(op, SemaphoreOps::None).unwrap();
 
         let mut write_mem = transfer.request_staging_memory(byte_size);
-        write_mem.write(data.as_slice());
-        write_mem.copy_to_buffer(buffer, BufferTransferRanges::new_single(0, 0, byte_size as vk::DeviceSize));
+        unsafe {
+            write_mem.write(data.as_slice());
+            write_mem.copy_to_buffer(buffer, BufferTransferRanges::new_single(0, 0, byte_size as vk::DeviceSize));
+        }
 
         let mut dst_data = Vec::new();
         dst_data.resize(data.len(), 0u32);
 
         let mut read_mem = transfer.request_staging_memory(byte_size);
-        read_mem.copy_from_buffer(buffer, BufferTransferRanges::new_single(0, 0, byte_size as vk::DeviceSize));
+        unsafe {
+            read_mem.copy_from_buffer(buffer, BufferTransferRanges::new_single(0, 0, byte_size as vk::DeviceSize));
+        }
 
         let op = transfer.prepare_buffer_release(buffer, None);
         let id = transfer.release_buffer(op).unwrap();
         transfer.flush(id);
 
         transfer.wait_for_complete(id);
-        read_mem.read(dst_data.as_mut_slice()).unwrap();
+        unsafe {
+            read_mem.read(dst_data.as_mut_slice()).unwrap();
+        }
 
         unsafe {
             device.vk().destroy_buffer(buffer.get_handle(), None)

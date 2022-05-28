@@ -20,7 +20,7 @@ fn main() {
     let format_id = format_set.add_format(VertexFormatInfo {
         stride: Vertex::make_b4d_vertex_format().stride as usize,
     });
-    let b4d = b4d_core::b4d::Blaze4D::new(window, format_set);
+    let b4d = b4d_core::b4d::Blaze4D::new(window, format_set, false);
     b4d.set_emulator_vertex_formats(Box::new([Vertex::make_b4d_vertex_format()]));
 
     let mut draw_times = Vec::with_capacity(1000);

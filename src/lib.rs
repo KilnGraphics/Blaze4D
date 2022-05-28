@@ -15,6 +15,7 @@ pub mod debug;
 
 mod glfw_surface;
 pub mod window;
+mod c_api;
 
 
 pub mod prelude {

@@ -1,3 +1,4 @@
+use std::env;
 use std::ffi::CString;
 use std::sync::{Arc, Mutex};
 use std::time::{Duration, Instant};
@@ -29,7 +30,10 @@ pub struct Blaze4D {
 }
 
 impl Blaze4D {
-    pub fn new(main_window: Box<dyn SurfaceProvider>, vertex_formats: VertexFormatSetBuilder) -> Self {
+    /// Creates a new Blaze4D instance and starts all engine modules.
+    ///
+    /// The supported vertex formats for the [`EmulatorRenderer`] must be provided here.
+    pub fn new(main_window: Box<dyn SurfaceProvider>, vertex_formats: VertexFormatSetBuilder, enable_validation: bool) -> Self {
         crate::debug::text::ldfnt();
 
         let mut instance_config = InstanceCreateConfig::new(
@@ -38,7 +42,9 @@ impl Blaze4D {
             CString::new("Minecraft").unwrap(),
             vk::make_api_version(0, 0, 1, 0)
         );
-        // instance_config.enable_validation();
+        if enable_validation {
+            instance_config.enable_validation();
+        }
         let main_surface = instance_config.add_surface_provider(main_window);
         instance_config.add_debug_messenger(Box::new(RustLogDebugMessenger::new()));
 
@@ -224,40 +230,4 @@ pub struct B4DVertexFormat {
     pub position: (u32, vk::Format),
     pub color: Option<(u32, vk::Format)>,
     pub uv: Option<(u32, vk::Format)>,
-}
-
-
-#[repr(C)]
-#[derive(Copy, Clone)]
-struct TestVertex {
-    position: Vec3f32,
-}
-
-impl TestVertex {
-    fn get_format() -> B4DVertexFormat {
-        B4DVertexFormat {
-            topology: vk::PrimitiveTopology::TRIANGLE_LIST,
-            stride: std::mem::size_of::<Self>() as u32,
-            position: (0, vk::Format::R32G32B32_SFLOAT),
-            color: None,
-            uv: None
-        }
-    }
-}
-
-#[no_mangle]
-pub unsafe extern "C" fn b4d_init(surface: *mut GLFWSurfaceProvider) -> *mut Blaze4D {
-    env_logger::init();
-
-    let surface: Box<dyn SurfaceProvider> = Box::from_raw(surface);
-
-    //let b4d = Box::leak(Box::new(Blaze4D::new(surface)));
-
-    //b4d
-    std::ptr::null_mut()
-}
-
-#[no_mangle]
-pub unsafe extern "C" fn b4d_destroy(b4d: *mut Blaze4D) {
-    Box::from_raw(b4d);
 }

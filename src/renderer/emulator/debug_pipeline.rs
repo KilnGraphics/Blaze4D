@@ -1,3 +1,5 @@
+//! Provides a collection of [`EmulatorPipeline`] implementations useful for debugging.
+
 use std::ffi::CStr;
 use std::sync::{Arc, Weak};
 use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering};
@@ -23,6 +25,7 @@ pub struct DepthTypeInfo {
     pub discard: bool,
 }
 
+/// A debugging pipeline only generating a depth image.
 pub struct DepthPipelineCore {
     device: DeviceEnvironment,
     depth_format: vk::Format,

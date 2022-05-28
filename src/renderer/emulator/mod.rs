@@ -114,7 +114,7 @@ impl Eq for EmulatorRenderer {
 
 /// Information needed by the emulator renderer to process vertex data.
 ///
-/// Individual pipelines may need additional information which is encoded in the pipeline type. See
+/// Individual pipelines may need additional information which is encoded in the type id. See
 /// [`EmulatorPipeline`] for more details.
 #[derive(Copy, Clone, Debug)]
 pub struct VertexFormatInfo {
