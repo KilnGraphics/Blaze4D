@@ -199,41 +199,40 @@ impl Transfer {
     /// - If `usage` is [`Some`] the contents should be the source stage mask, source access mask,
     /// the source queue family index and the source image layout. This function will determine if a
     /// memory barrier is necessary and if so generate one.
-    pub fn prepare_image_acquire(&self, image: Image, aspect_mask: vk::ImageAspectFlags, usage: Option<(vk::PipelineStageFlags2, vk::AccessFlags2, u32, vk::ImageLayout)>) -> ImageAvailabilityOp {
-        let (barrier, local_layout) = if let Some((stage, access, family, layout)) = usage {
-            // If the layout is undefined there is no need for a barrier
-            if layout != vk::ImageLayout::UNDEFINED && (family != self.queue_family || layout != vk::ImageLayout::GENERAL) {
-                (Some(vk::ImageMemoryBarrier2::builder()
-                    .src_stage_mask(stage)
-                    .src_access_mask(access)
-                    .dst_stage_mask(vk::PipelineStageFlags2::TRANSFER)
-                    .dst_access_mask(vk::AccessFlags2::TRANSFER_READ | vk::AccessFlags2::TRANSFER_WRITE)
-                    .old_layout(layout)
-                    .new_layout(vk::ImageLayout::GENERAL)
-                    .src_queue_family_index(family)
-                    .dst_queue_family_index(self.queue_family)
-                    .image(image.get_handle())
-                    .subresource_range(vk::ImageSubresourceRange {
-                        aspect_mask,
-                        base_mip_level: 0,
-                        level_count: vk::REMAINING_MIP_LEVELS,
-                        base_array_layer: 0,
-                        layer_count: vk::REMAINING_ARRAY_LAYERS
-                    })
-                    .build()
-                ), vk::ImageLayout::GENERAL)
-            } else {
-                (None, layout)
+    pub fn prepare_image_acquire(&self, image: Image, aspect_mask: vk::ImageAspectFlags, usage: Option<(vk::PipelineStageFlags2, vk::AccessFlags2, u32, vk::ImageLayout)>) -> ImageAcquireOp {
+        if let Some((src_stage_mask, src_access_mask, src_queue_family, src_layout)) = usage {
+            let queue_info =
+                if src_queue_family == self.queue_family {
+                    None
+                } else {
+                    Some((src_queue_family, src_queue_family))
+                };
+
+            ImageAcquireOp {
+                image,
+                subresource_range: vk::ImageSubresourceRange {
+                    aspect_mask,
+                    base_mip_level: 0,
+                    level_count: vk::REMAINING_MIP_LEVELS,
+                    base_array_layer: 0,
+                    layer_count: vk::REMAINING_ARRAY_LAYERS
+                },
+                src_info: Some((src_stage_mask, src_access_mask, src_layout)),
+                queue_info
             }
         } else {
-            (None, vk::ImageLayout::UNDEFINED)
-        };
-
-        ImageAvailabilityOp {
-            image,
-            aspect_mask,
-            local_layout,
-            barrier
+            ImageAcquireOp {
+                image,
+                subresource_range: vk::ImageSubresourceRange {
+                    aspect_mask,
+                    base_mip_level: 0,
+                    level_count: vk::REMAINING_MIP_LEVELS,
+                    base_array_layer: 0,
+                    layer_count: vk::REMAINING_ARRAY_LAYERS,
+                },
+                src_info: None,
+                queue_info: None
+            }
         }
     }
 
@@ -245,7 +244,7 @@ impl Transfer {
     ///
     /// A list of wait semaphores can be provided through `semaphores`. All provided semaphores must
     /// have been submitted before this function is called.
-    pub fn make_image_available(&self, op: ImageAvailabilityOp, semaphores: SemaphoreOps) -> Result<(), AcquireError> {
+    pub fn make_image_available(&self, op: ImageAcquireOp, semaphores: SemaphoreOps) -> Result<(), AcquireError> {
         self.share.push_task(Task::ImageAcquire(op, semaphores));
         Ok(())
     }
@@ -259,41 +258,34 @@ impl Transfer {
     /// - If `usage` is [`Some`] the contents should be the destination stage mask, destination
     /// access maks, destination queue family and destination image layout. This function will
     /// determine if a memory barrier is necessary and if so generate one.
-    pub fn prepare_image_release(&self, image: Image, aspect_mask: vk::ImageAspectFlags, usage: Option<(vk::PipelineStageFlags2, vk::AccessFlags2, u32, vk::ImageLayout)>) -> ImageAvailabilityOp {
-        let (barrier, local_layout) = if let Some((stage, access, family, layout)) = usage {
-            // If the layout is undefined there is no need for a barrier
-            if layout != vk::ImageLayout::UNDEFINED && (family != self.queue_family) {
-                (Some(vk::ImageMemoryBarrier2::builder()
-                    .src_stage_mask(vk::PipelineStageFlags2::TRANSFER)
-                    .src_access_mask(vk::AccessFlags2::TRANSFER_READ | vk::AccessFlags2::TRANSFER_WRITE)
-                    .dst_stage_mask(stage)
-                    .dst_access_mask(access)
-                    .old_layout(vk::ImageLayout::GENERAL)
-                    .new_layout(layout)
-                    .src_queue_family_index(self.queue_family)
-                    .dst_queue_family_index(family)
-                    .image(image.get_handle())
-                    .subresource_range(vk::ImageSubresourceRange {
-                        aspect_mask,
-                        base_mip_level: 0,
-                        level_count: vk::REMAINING_MIP_LEVELS,
-                        base_array_layer: 0,
-                        layer_count: vk::REMAINING_ARRAY_LAYERS
-                    })
-                    .build()
-                ), vk::ImageLayout::GENERAL)
-            } else {
-                (None, layout)
+    pub fn prepare_image_release(&self, image: Image, aspect_mask: vk::ImageAspectFlags, usage: Option<(vk::PipelineStageFlags2, vk::AccessFlags2, u32, vk::ImageLayout)>) -> ImageReleaseOp {
+        if let Some((dst_stage_mask, dst_access_mask, dst_queue_family, dst_layout)) = usage {
+            let queue_info =
+                if dst_queue_family == self.queue_family {
+                    None
+                } else {
+                    Some((self.queue_family, dst_queue_family))
+                };
+
+            ImageReleaseOp {
+                image,
+                subresource_range: vk::ImageSubresourceRange {
+                    aspect_mask,
+                    base_mip_level: 0,
+                    level_count: vk::REMAINING_MIP_LEVELS,
+                    base_array_layer: 0,
+                    layer_count: vk::REMAINING_ARRAY_LAYERS,
+                },
+                dst_info: Some((dst_stage_mask, dst_access_mask, dst_layout)),
+                queue_info
             }
         } else {
-            (None, vk::ImageLayout::UNDEFINED)
-        };
-
-        ImageAvailabilityOp {
-            image,
-            aspect_mask,
-            local_layout,
-            barrier,
+            ImageReleaseOp {
+                image,
+                subresource_range: Default::default(),
+                dst_info: None,
+                queue_info: None
+            }
         }
     }
 
@@ -309,7 +301,7 @@ impl Transfer {
     ///
     /// A wait semaphore for future submissions can be generated by calling
     /// [`generate_wait_semaphore`] with the returned id.
-    pub fn release_image(&self, op: ImageAvailabilityOp) -> Result<SyncId, ReleaseError> {
+    pub fn release_image(&self, op: ImageReleaseOp) -> Result<SyncId, ReleaseError> {
         let id = self.share.push_image_release_task(op);
         Ok(SyncId::from_raw(id))
     }
@@ -490,29 +482,119 @@ impl BufferReleaseOp {
 }
 
 #[derive(Copy, Clone, Debug)]
-pub struct ImageAvailabilityOp {
+pub struct ImageAcquireOp {
     image: Image,
-    aspect_mask: vk::ImageAspectFlags,
-    /// The layout the image will be in after a acquire or the layout the image should be in
-    /// before a release on the transfer queue.
-    local_layout: vk::ImageLayout,
-    barrier: Option<vk::ImageMemoryBarrier2>,
+    subresource_range: vk::ImageSubresourceRange,
+    src_info: Option<(vk::PipelineStageFlags2, vk::AccessFlags2, vk::ImageLayout)>,
+    queue_info: Option<(u32, u32)>,
 }
 
-impl ImageAvailabilityOp {
-    /// Returns the generated barrier
-    pub fn get_barrier(&self) -> Option<&vk::ImageMemoryBarrier2> {
-        self.barrier.as_ref()
+impl ImageAcquireOp {
+    pub fn make_barrier(&self) -> Option<vk::ImageMemoryBarrier2> {
+        // We only need a barrier on the user side if a queue family transfer is necessary
+        self.queue_info.as_ref().map(|(src_queue_family, dst_queue_family)| {
+            let (src_stage_mask, src_access_mask, src_layout) = self.src_info.unwrap();
+
+            vk::ImageMemoryBarrier2::builder()
+                .src_stage_mask(src_stage_mask)
+                .src_access_mask(src_access_mask)
+                .old_layout(src_layout)
+                .new_layout(vk::ImageLayout::GENERAL)
+                .src_queue_family_index(*src_queue_family)
+                .dst_queue_family_index(*dst_queue_family)
+                .image(self.image.get_handle())
+                .subresource_range(self.subresource_range)
+                .build()
+        })
     }
 
     /// Returns the image used in this op
     pub fn get_image(&self) -> Image {
         self.image
     }
+
+    /// Returns a barrier which needs to be submitted by the transfer engine before using the image.
+    fn make_transfer_barrier(&self, dst_stage_mask: vk::PipelineStageFlags2, dst_access_mask: vk::AccessFlags2) -> Option<vk::ImageMemoryBarrier2> {
+        self.src_info.as_ref().map(|(src_stage_mask, src_access_mask, src_layout)| {
+            let mut barrier = vk::ImageMemoryBarrier2::builder()
+                .image(self.image.get_handle())
+                .subresource_range(self.subresource_range)
+                .dst_stage_mask(dst_stage_mask)
+                .dst_access_mask(dst_access_mask)
+                .old_layout(*src_layout)
+                .new_layout(vk::ImageLayout::GENERAL);
+
+            if let Some((src_queue_family, dst_queue_family)) = &self.queue_info {
+                barrier = barrier
+                    .src_queue_family_index(*src_queue_family)
+                    .dst_queue_family_index(*dst_queue_family);
+            } else {
+                barrier = barrier
+                    .src_stage_mask(*src_stage_mask)
+                    .src_access_mask(*src_access_mask);
+            }
+
+            barrier.build()
+        })
+    }
 }
 
-// vk::ImageMemoryBarrier2 does not implement send so we have to do it here
-unsafe impl Send for ImageAvailabilityOp {
+#[derive(Copy, Clone, Debug)]
+pub struct ImageReleaseOp {
+    image: Image,
+    subresource_range: vk::ImageSubresourceRange,
+    dst_info: Option<(vk::PipelineStageFlags2, vk::AccessFlags2, vk::ImageLayout)>,
+    queue_info: Option<(u32, u32)>,
+}
+
+impl ImageReleaseOp {
+    pub fn make_barrier(&self) -> Option<vk::ImageMemoryBarrier2> {
+        // We only need a barrier on the user side if a queue family transfer is necessary
+        self.queue_info.as_ref().map(|(src_queue_family, dst_queue_family)| {
+            let (dst_stage_mask, dst_access_mask, dst_layout) = self.dst_info.unwrap();
+
+            vk::ImageMemoryBarrier2::builder()
+                .dst_stage_mask(dst_stage_mask)
+                .dst_access_mask(dst_access_mask)
+                .old_layout(vk::ImageLayout::GENERAL)
+                .new_layout(dst_layout)
+                .src_queue_family_index(*src_queue_family)
+                .dst_queue_family_index(*dst_queue_family)
+                .image(self.image.get_handle())
+                .subresource_range(self.subresource_range)
+                .build()
+        })
+    }
+
+    /// Returns the image used in this op
+    pub fn get_image(&self) -> Image {
+        self.image
+    }
+
+    /// Returns a barrier which needs to be submitted by the transfer engine before using the image.
+    fn make_transfer_barrier(&self, src_stage_mask: vk::PipelineStageFlags2, src_access_mask: vk::AccessFlags2) -> Option<vk::ImageMemoryBarrier2> {
+        self.dst_info.as_ref().map(|(dst_stage_mask, dst_access_mask, dst_layout)| {
+            let mut barrier = vk::ImageMemoryBarrier2::builder()
+                .image(self.image.get_handle())
+                .subresource_range(self.subresource_range)
+                .src_stage_mask(src_stage_mask)
+                .src_access_mask(src_access_mask)
+                .old_layout(vk::ImageLayout::GENERAL)
+                .new_layout(*dst_layout);
+
+            if let Some((src_queue_family, dst_queue_family)) = &self.queue_info {
+                barrier = barrier
+                    .src_queue_family_index(*src_queue_family)
+                    .dst_queue_family_index(*dst_queue_family);
+            } else {
+                barrier = barrier
+                    .dst_stage_mask(*dst_stage_mask)
+                    .dst_access_mask(*dst_access_mask);
+            }
+
+            barrier.build()
+        })
+    }
 }
 
 pub struct StagingMemory {
@@ -686,7 +768,7 @@ impl BufferTransferRanges {
     }
 }
 
-#[derive(Debug)]
+#[derive(Clone, Debug)]
 pub struct BufferTransfer {
     pub src_buffer: BufferId,
     pub dst_buffer: BufferId,
@@ -748,18 +830,18 @@ impl BufferImageTransferRanges {
     }
 }
 
-#[derive(Debug)]
+#[derive(Clone, Debug)]
 pub struct BufferToImageTransfer {
-    src_buffer: BufferId,
-    dst_image: ImageId,
-    ranges: BufferImageTransferRanges,
+    pub src_buffer: BufferId,
+    pub dst_image: ImageId,
+    pub ranges: BufferImageTransferRanges,
 }
 
-#[derive(Debug)]
+#[derive(Clone, Debug)]
 pub struct ImageToBufferTransfer {
-    src_image: ImageId,
-    dst_buffer: BufferId,
-    ranges: BufferImageTransferRanges,
+    pub src_image: ImageId,
+    pub dst_buffer: BufferId,
+    pub ranges: BufferImageTransferRanges,
 }
 
 #[cfg(test)]

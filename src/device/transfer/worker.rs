@@ -105,7 +105,7 @@ impl Share {
     }
 
     /// Pushes a image release tasks to the queue and returns its sync id.
-    pub(super) fn push_image_release_task(&self, op: ImageAvailabilityOp) -> u64 {
+    pub(super) fn push_image_release_task(&self, op: ImageReleaseOp) -> u64 {
         let mut guard = self.channel.lock().unwrap_or_else(|_| {
             log::error!("Poisoned channel mutex in Share::push_image_release_task!");
             panic!()
@@ -248,8 +248,8 @@ pub(super) enum Task {
     Flush(u64),
     BufferAcquire(BufferAcquireOp, SemaphoreOps),
     BufferRelease(BufferReleaseOp, u64),
-    ImageAcquire(ImageAvailabilityOp, SemaphoreOps),
-    ImageRelease(ImageAvailabilityOp, u64),
+    ImageAcquire(ImageAcquireOp, SemaphoreOps),
+    ImageRelease(ImageReleaseOp, u64),
     StagingAcquire(PoolAllocationId, UUID, vk::Buffer, vk::DeviceSize, vk::DeviceSize),
     StagingRelease(UUID),
     BufferTransfer(BufferTransfer),
