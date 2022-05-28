@@ -5,7 +5,7 @@ use std::ops::Deref;
 use ash::vk;
 use ash::vk::Handle;
 
-use crate::UUID;
+use crate::prelude::*;
 
 pub trait ObjectId: Copy + Clone + PartialEq + Eq + PartialOrd + Ord + Hash + Debug {
     type HandleType: Handle + Copy;

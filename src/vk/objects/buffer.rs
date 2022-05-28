@@ -5,9 +5,10 @@ use ash::vk;
 use ash::vk::Handle;
 use crate::objects::id::{BufferId, ObjectId};
 
-use crate::UUID;
 use crate::vk::objects::allocator::MappedMemory;
 use crate::vk::objects::Format;
+
+use crate::prelude::*;
 
 #[derive(Copy, Clone)]
 pub struct Buffer {

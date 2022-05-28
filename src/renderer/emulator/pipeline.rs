@@ -9,41 +9,108 @@ use crate::device::device_utils::BlitPass;
 use crate::device::surface::{AcquiredImageInfo, SurfaceSwapchain};
 
 use crate::vk::DeviceEnvironment;
+use crate::vk::objects::buffer::Buffer;
 
 use crate::prelude::*;
 
-use crate::vk::objects::buffer::Buffer;
-
+pub use super::VertexFormatId;
 pub use super::worker::SubmitRecorder;
 pub use super::worker::PooledObjectProvider;
 
+#[derive(Copy, Clone, PartialEq, Eq, PartialOrd, Ord, Debug, Hash)]
+pub struct TypeId(u32);
+
+impl TypeId {
+    pub fn from_raw(raw: u32) -> Self {
+        Self(raw)
+    }
+
+    pub fn get_raw(&self) -> u32 {
+        self.0
+    }
+}
+
+/// A [`EmulatorPipeline`] performs the actual rendering inside a pass.
+///
+/// To define how objects should be rendered a pipeline can define multiple types. The meaning of
+/// each type is pipeline dependant however the [`EmulatorRenderer`] requires some information about
+/// the type which must be provided through [`EmulatorPipeline::get_type_info`].
 pub trait EmulatorPipeline: Send + Sync {
-    /// Starts one pass of the pipeline
+
+    /// Called internally by the emulator renderer when a pass is started. All rendering will be
+    /// performed using the returned object.
+    ///
+    /// This function must be called on thread with [`EmulatorRenderer::start_pass`] and thus may be
+    /// used to block execution. For example to prevent an infinite build up of un-submitted passes
+    /// if the user submits tasks faster than the gpu can process them.
     fn start_pass(&self) -> Box<dyn EmulatorPipelinePass + Send>;
 
-    /// Returns a list of all allowed pipeline types.
+    /// Returns information about a type.
     ///
-    /// The index into this list must be equal to the id of the type.
-    fn get_type_table(&self) -> &[PipelineTypeInfo];
+    /// A invalid type id is a serious error and should result in a panic.
+    fn get_type_info(&self, type_id: TypeId) -> &PipelineTypeInfo;
 
-    fn get_outputs(&self) -> (Vec2u32, &[vk::ImageView]);
+    /// Returns the size and a list of image views which can be used as source images for samplers
+    /// for the output of the pipeline.
+    ///
+    /// **This is a temporary api and needs a rework to improve flexibility and elegance**
+    fn get_output(&self) -> (Vec2u32, &[vk::ImageView]);
 }
 
 pub struct PipelineTypeInfo {
-    /// The stride used when accessing the vertex data
-    pub vertex_stride: u32,
+    /// The vertex format used by the type. This must be a valid vertex format registered in
+    /// the [`EmulatorRenderer`] used to execute a pass.
+    pub vertex_format: VertexFormatId,
 }
 
-/// Represents one execution of a [`EmulatorPipeline`]
+/// Represents one execution of a [`EmulatorPipeline`].
+///
+/// A pass is processed in 3 stages.
+/// 1. Uninitialized: The pass has just been created by calling [`EmulatorPipeline::start_pass`].
+/// 2. Recording: The pass is currently recording tasks.
+/// 3. Submitted: All command buffers have been submitted for execution.
+///
+/// Any instance of this struct will not be dropped until all submitted command buffers have
+/// finished execution. If it is dropped it may assume that all used resources are safe to be
+/// reused. A pass may be aborted at any moment for any reason.
 pub trait EmulatorPipelinePass {
+
+    /// Called to initialize internal state.
+    ///
+    /// This transitions the pass from the uninitialized state to the recording state.
+    ///
+    /// The queue which will be used to submit command buffers is provided. All resources (i.e.
+    /// buffers, images etc.) passed to this pass will be owned by this queue family.
     fn init(&mut self, queue: &Queue, obj: &mut PooledObjectProvider);
 
+    /// Called to process a task.
+    ///
+    /// Must only be called while the pass is in the recording state.
     fn process_task(&mut self, task: PipelineTask, obj: &mut PooledObjectProvider);
 
-    /// Records tasks for submission
+    /// Called to record any necessary command buffer submissions for the execution of the pass.
+    /// The recorded submits will be submitted by the calling code.
+    ///
+    /// This transitions the pass from the recording state to the submitted state.
     fn record<'a>(&mut self, obj: &mut PooledObjectProvider, submits: &mut SubmitRecorder<'a>, alloc: &'a Bump);
 
+    /// Returns the index into the image view list returned by [`EmulatorPipeline::get_output`]
+    /// determining which image view should be used to access the output of the pass.
+    ///
+    /// **This is a temporary api and needs a rework to improve flexibility and elegance**
     fn get_output_index(&self) -> usize;
+
+    /// Called to retrieve a list of fences used to wait for internally submitted commands.
+    ///
+    /// In order to guarantee that any submissions made by the pass internally have completed
+    /// execution this function returns a list of fences such that waiting on all fences implies
+    /// that all submissions are done executing and resources can be safely reused.
+    ///
+    /// If any other function (except [`drop`]) of this pass are called after this function, the
+    /// list of returned fences becomes invalid and a new call to this function must be made.
+    ///
+    /// TODO this is currently not used by the worker
+    fn get_internal_fences(&self, fences: &mut Vec<vk::Fence>);
 }
 
 #[derive(Copy, Clone, PartialEq, Debug)]
@@ -64,14 +131,27 @@ pub struct DrawTask {
     pub type_id: u32,
 }
 
+/// Used to process the output of a [`EmulatorPipelinePass`].
+///
+/// Any instance of this struct will not be dropped until all submitted command buffers have
+/// finished execution. If it is dropped it may assume that all used resources are safe to be
+/// reused.
+///
+/// **This is a temporary api and needs a rework to improve flexibility and elegance**
 pub trait EmulatorOutput {
+    /// Initializes the output to use the specified [`EmulatorPipelinePass`].
     fn init(&mut self, pass: &dyn EmulatorPipelinePass, obj: &mut PooledObjectProvider);
 
+    /// Records any necessary submissions.
+    /// The recorded submits will be submitted by the calling code.
     fn record<'a>(&mut self, obj: &mut PooledObjectProvider, submits: &mut SubmitRecorder<'a>, alloc: &'a Bump);
 
+    /// Called after the submits recorded by [`EmulatorOutput::record`] have been submitted for
+    /// execution. This is particularly useful to perform any queue present operations.
     fn on_post_submit(&mut self, queue: &Queue);
 }
 
+/// A utility struct providing a [`BlitPass`] for the output of a [`EmulatorPipeline`].
 pub struct OutputUtil {
     pipeline: Arc<dyn EmulatorPipeline>,
     descriptor_pool: vk::DescriptorPool,
@@ -81,7 +161,7 @@ pub struct OutputUtil {
 
 impl OutputUtil {
     pub fn new(device: &DeviceEnvironment, pipeline: Arc<dyn EmulatorPipeline>, format: vk::Format, final_layout: vk::ImageLayout) -> Self {
-        let (_, sampler_views) = pipeline.get_outputs();
+        let (_, sampler_views) = pipeline.get_output();
 
         let blit_pass = device.get_utils().blit_utils().create_blit_pass(format, vk::AttachmentLoadOp::DONT_CARE, vk::ImageLayout::UNDEFINED, final_layout);
 
@@ -96,10 +176,17 @@ impl OutputUtil {
         }
     }
 
+    /// Creates a framebuffer which can be used as a draw target for the blit pass.
+    ///
+    /// The returned framebuffer is fully owned by the calling code and must be destroyed before
+    /// this struct is dropped.
     pub fn create_framebuffer(&self, image_view: vk::ImageView, size: Vec2u32) -> VkResult<vk::Framebuffer> {
         self.blit_pass.create_framebuffer(image_view, size)
     }
 
+    /// Records one execution of the blit pass.
+    ///
+    /// The pipeline index is the index returned by [`EmulatorPipelinePass::get_output_index`].
     pub fn record(&self, command_buffer: vk::CommandBuffer, output_framebuffer: vk::Framebuffer, output_size: Vec2u32, pipeline_index: usize) {
         self.blit_pass.record_blit(
             command_buffer,
@@ -136,6 +223,8 @@ impl Drop for OutputUtil {
     }
 }
 
+/// A [`EmulatorOutput`] implementation which copes the output image to a swapchain image and
+/// presents it.
 pub struct SwapchainOutput {
     weak: Weak<Self>,
     swapchain: Arc<SurfaceSwapchain>,
@@ -159,6 +248,12 @@ impl SwapchainOutput {
         })
     }
 
+    /// Attempts to acquire a new image from the swapchain blocking until it does.
+    ///
+    /// Returns [`None`] if the swapchain is out of date.
+    ///
+    /// If it successfully acquires a image returns a [`EmulatorOutput`] instance for the image as
+    /// well as a boolean flag set to true if the swapchain is suboptimal.
     pub fn next_image(&self) -> Option<(Box<dyn EmulatorOutput + Send>, bool)> {
         loop {
             let arc = self.weak.upgrade().unwrap();

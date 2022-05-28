@@ -16,8 +16,8 @@ use crate::vk::objects::surface::SurfaceProvider;
 
 use crate::prelude::*;
 use crate::renderer::emulator::debug_pipeline::{DepthPipelineConfig, DepthPipelineCore, DepthTypeInfo};
-use crate::renderer::emulator::{EmulatorRenderer, MeshData, StaticMeshId, VertexFormatSetBuilder};
-use crate::renderer::emulator::pass::PassRecorder;
+use crate::renderer::emulator::{EmulatorRenderer, MeshData, StaticMeshId, VertexFormatId, VertexFormatSetBuilder};
+use crate::renderer::emulator::PassRecorder;
 use crate::renderer::emulator::pipeline::{EmulatorPipeline, SwapchainOutput};
 
 pub struct Blaze4D {
@@ -147,6 +147,7 @@ impl RenderConfig {
 
             let depth_infos: Box<_> = self.vertex_formats.iter().map(|format| {
                 DepthTypeInfo {
+                    vertex_format_id: VertexFormatId::from_raw(0), // TODO
                     vertex_stride: format.stride,
                     vertex_position_offset: format.position.0,
                     vertex_position_format: format.position.1,

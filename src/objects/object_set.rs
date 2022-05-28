@@ -6,7 +6,8 @@ use std::sync::Arc;
 use ash::vk::Handle;
 
 use super::id::ObjectId;
-use crate::UUID;
+
+use crate::prelude::*;
 
 pub trait ObjectSetProvider: Debug {
     fn get_id(&self) -> UUID;

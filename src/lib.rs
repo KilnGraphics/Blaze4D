@@ -13,16 +13,13 @@ pub mod b4d;
 
 pub mod debug;
 
-pub use util::id::UUID;
-pub use util::id::NamedUUID;
-
 mod glfw_surface;
 pub mod window;
 
 
 pub mod prelude {
-    pub use crate::UUID;
-    pub use crate::NamedUUID;
+    pub use crate::util::id::UUID;
+    pub use crate::util::id::NamedUUID;
 
     pub use crate::instance::instance::InstanceContext;
     pub use crate::device::device::DeviceContext;

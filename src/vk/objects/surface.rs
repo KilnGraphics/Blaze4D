@@ -3,8 +3,8 @@ use std::fmt::{Debug, Formatter};
 use std::ops::Deref;
 
 use ash::vk;
-use crate::instance::instance::InstanceContext;
-use crate::UUID;
+
+use crate::prelude::*;
 
 #[derive(Copy, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct SurfaceId(UUID);

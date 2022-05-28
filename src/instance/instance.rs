@@ -10,9 +10,10 @@ use ash::vk;
 use vk_profiles_rs::vp;
 
 use crate::instance::init::DebugUtilsMessengerWrapper;
-use crate::NamedUUID;
 use crate::objects::id::SurfaceId;
 use crate::vk::objects::surface::{SurfaceInitError, SurfaceProvider};
+
+use crate::prelude::*;
 
 #[derive(Copy, Clone, Eq, PartialEq, Ord, PartialOrd)]
 pub struct VulkanVersion(u32);

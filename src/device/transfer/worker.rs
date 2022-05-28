@@ -171,8 +171,8 @@ impl Share {
     /// Sets the terminate flag notifying the worker thread that it should complete all pending tasks
     /// and shut down.
     ///
-    /// Any tasks in the queue will be executed before terminating (TODO this is not done now) but
-    /// any tasks pushed into the queue after this function is called may not be executed.
+    /// Any tasks in the queue will be executed before terminating but any tasks pushed into the
+    /// queue after this function is called may not be executed.
     pub(super) fn terminate(&self) {
         let mut guard = self.channel.lock()
             .unwrap_or_else(|_| {
@@ -200,6 +200,7 @@ impl Share {
                 return NextTaskResult::Ok(task);
             }
             if guard.terminate {
+                // We only terminate after the queue is empty and the terminate signal has been sent
                 return NextTaskResult::Terminate;
             }
 

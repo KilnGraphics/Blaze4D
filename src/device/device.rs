@@ -8,9 +8,10 @@ use ash::vk;
 use crate::device::device_utils::DeviceUtils;
 use crate::device::transfer::Transfer;
 
-use crate::NamedUUID;
 use crate::instance::instance::InstanceContext;
 use crate::vk::objects::allocator::Allocator;
+
+use crate::prelude::*;
 
 pub struct DeviceContext {
     weak: Weak<DeviceContext>,

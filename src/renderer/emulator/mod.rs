@@ -1,25 +1,39 @@
+//! The emulator renderer renders objects in a minecraft compatible manner.
+//!
+//! The [`EmulatorRenderer`] provides the necessary infrastructure for rendering but does not render
+//! itself. Responsibilities includes management of long living resources such as static meshes /
+//! textures and efficient uploading of short lived immediate objects used only inside one pass.
+//! Rendering itself, is performed by [`EmulatorPipeline`] instances. This maximises flexibility of
+//! the renderer.
+//!
+//! All rendering is done inside passes using a [`PassRecorder`]. Every pass uses a single
+//! [`EmulatorPipeline`] to render its objects. Passes do not have to have a one to one
+//! correspondence with frames. It is fully possible to use multiple passes and then combining the
+//! output of each externally to form a frame. Or use passes asynchronously to the main render loop.
+//! However currently b4d uses a single pass to render a single frame.
+
 mod buffer;
 mod worker;
 mod global_objects;
+mod pass;
 
 pub mod pipeline;
 pub mod debug_pipeline;
-pub mod pass;
 
 use std::sync::{Arc, Mutex, Weak};
 use std::sync::atomic::{AtomicU64, Ordering};
 use ash::vk;
 
 use crate::renderer::emulator::buffer::BufferPool;
-use crate::renderer::emulator::pass::{PassId, PassRecorder};
 use crate::renderer::emulator::worker::{run_worker, Share};
-
-use crate::vk::DeviceEnvironment;
-
 use crate::renderer::emulator::pipeline::EmulatorPipeline;
-use crate::UUID;
+
+use crate::prelude::*;
 
 pub use global_objects::StaticMeshId;
+
+pub use pass::PassId;
+pub use pass::PassRecorder;
 
 pub(crate) struct EmulatorRenderer {
     id: UUID,

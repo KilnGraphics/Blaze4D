@@ -3,15 +3,18 @@ use std::sync::{Arc, Weak};
 use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering};
 use std::time::Instant;
 use ash::vk;
+use ash::vk::Fence;
 use bumpalo::Bump;
 use crate::device::device::Queue;
 use crate::objects::id::BufferId;
 
 use crate::prelude::*;
-use crate::renderer::emulator::pipeline::{DrawTask, EmulatorPipeline, EmulatorPipelinePass, PipelineTask, PipelineTypeInfo, PooledObjectProvider, SubmitRecorder};
+use crate::renderer::emulator::pipeline::{DrawTask, EmulatorPipeline, EmulatorPipelinePass, PipelineTask, PipelineTypeInfo, PooledObjectProvider, SubmitRecorder, TypeId};
+use crate::renderer::emulator::VertexFormatId;
 use crate::vk::objects::allocator::{Allocation, AllocationStrategy};
 
 pub struct DepthTypeInfo {
+    pub vertex_format_id: VertexFormatId,
     pub vertex_stride: u32,
     pub vertex_position_offset: u32,
     pub vertex_position_format: vk::Format,
@@ -31,7 +34,7 @@ pub struct DepthPipelineCore {
 
 impl DepthPipelineCore {
     pub fn new(device: DeviceEnvironment, types: &[DepthTypeInfo]) -> Self {
-        let type_infos: Box<_> = types.iter().map(|info| PipelineTypeInfo{ vertex_stride: info.vertex_stride }).collect();
+        let type_infos: Box<_> = types.iter().map(|info| PipelineTypeInfo{ vertex_format: info.vertex_format_id }).collect();
 
         let depth_format = vk::Format::D16_UNORM;
 
@@ -261,11 +264,11 @@ impl EmulatorPipeline for DepthPipelineConfig {
         Box::new(DepthPipelinePass::new(self.weak.upgrade().unwrap(), index))
     }
 
-    fn get_type_table(&self) -> &[PipelineTypeInfo] {
-        self.core.type_infos.as_ref()
+    fn get_type_info(&self, type_id: TypeId) -> &PipelineTypeInfo {
+        &self.core.type_infos[type_id.get_raw() as usize]
     }
 
-    fn get_outputs(&self) -> (Vec2u32, &[vk::ImageView]) {
+    fn get_output(&self) -> (Vec2u32, &[vk::ImageView]) {
         (self.viewport_size, self.outputs.as_ref())
     }
 }
@@ -611,6 +614,10 @@ impl EmulatorPipelinePass for DepthPipelinePass {
 
     fn get_output_index(&self) -> usize {
         self.index
+    }
+
+    fn get_internal_fences(&self, _: &mut Vec<Fence>) {
+        // We dont submit anything internally so there is nothing to wait on
     }
 }
 

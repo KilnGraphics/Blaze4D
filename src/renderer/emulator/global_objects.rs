@@ -7,7 +7,6 @@ use crate::device::device::Queue;
 use crate::device::transfer::{BufferReleaseOp, BufferTransferRanges, SyncId};
 use crate::objects::sync::{Semaphore, SemaphoreOp, SemaphoreOps};
 use crate::renderer::emulator::MeshData;
-use crate::UUID;
 use crate::vk::objects::allocator::{Allocation, AllocationStrategy};
 use crate::vk::objects::buffer::Buffer;
 
