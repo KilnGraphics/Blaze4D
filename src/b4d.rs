@@ -15,7 +15,7 @@ use crate::vk::objects::surface::SurfaceProvider;
 
 use crate::prelude::*;
 use crate::renderer::emulator::debug_pipeline::{DepthPipelineConfig, DepthPipelineCore, DepthTypeInfo};
-use crate::renderer::emulator::{EmulatorRenderer, MeshData, StaticMeshId, VertexFormatId, VertexFormatSetBuilder};
+use crate::renderer::emulator::{EmulatorRenderer, MeshData, StaticMeshId};
 use crate::renderer::emulator::PassRecorder;
 use crate::renderer::emulator::pipeline::{EmulatorPipeline, SwapchainOutput};
 
@@ -31,7 +31,7 @@ impl Blaze4D {
     /// Creates a new Blaze4D instance and starts all engine modules.
     ///
     /// The supported vertex formats for the [`EmulatorRenderer`] must be provided here.
-    pub fn new(main_window: Box<dyn SurfaceProvider>, vertex_formats: VertexFormatSetBuilder, enable_validation: bool) -> Self {
+    pub fn new(main_window: Box<dyn SurfaceProvider>, enable_validation: bool) -> Self {
         crate::debug::text::ldfnt();
 
         let mut instance_config = InstanceCreateConfig::new(
@@ -63,7 +63,7 @@ impl Blaze4D {
 
         let render_config = Mutex::new(RenderConfig::new(device.clone(), main_surface));
 
-        let emulator = EmulatorRenderer::new(device.clone(), vertex_formats);
+        let emulator = EmulatorRenderer::new(device.clone());
 
         Self {
             instance,
@@ -151,7 +151,6 @@ impl RenderConfig {
 
             let depth_infos: Box<_> = self.vertex_formats.iter().map(|format| {
                 DepthTypeInfo {
-                    vertex_format_id: VertexFormatId::from_raw(0), // TODO
                     vertex_stride: format.stride,
                     vertex_position_offset: format.position.0,
                     vertex_position_format: format.position.1,

@@ -8,7 +8,7 @@ use crate::b4d::{B4DVertexFormat, Blaze4D};
 use crate::glfw_surface::GLFWSurfaceProvider;
 use crate::prelude::{Mat4f32, UUID, Vec2u32};
 
-use crate::renderer::emulator::{MeshData, PassRecorder, StaticMeshId, VertexFormatId, VertexFormatInfo, VertexFormatSetBuilder};
+use crate::renderer::emulator::{MeshData, PassRecorder, StaticMeshId};
 use crate::window::WinitWindow;
 
 #[repr(C)]
@@ -17,18 +17,27 @@ struct CMeshData {
     vertex_data_len: u64,
     index_data_ptr: *const u8,
     index_data_len: u64,
+    vertex_stride: u32,
     index_count: u32,
-    vertex_format_id: u32,
 }
 
 impl CMeshData {
     unsafe fn to_mesh_data(&self) -> MeshData {
+        if self.vertex_data_ptr.is_null() {
+            log::error!("Vertex data pointer is null");
+            panic!();
+        }
+        if self.index_data_ptr.is_null() {
+            log::error!("Index data pointer is null");
+            panic!();
+        }
+
         MeshData {
             vertex_data: std::slice::from_raw_parts(self.vertex_data_ptr, self.vertex_data_len as usize),
             index_data: std::slice::from_raw_parts(self.index_data_ptr, self.index_data_len as usize),
+            vertex_stride: self.vertex_stride,
             index_count: self.index_count,
             index_type: vk::IndexType::UINT32,
-            vertex_format_id: VertexFormatId::from_raw(self.vertex_format_id),
         }
     }
 }
@@ -53,68 +62,23 @@ impl CB4DVertexFormat {
     }
 }
 
-/// Creates a new [`VertexFormatSetBuilder`] instance and allocates memory for it.
-#[no_mangle]
-unsafe extern "C" fn b4d_emulator_vertex_format_set_builder_new() -> *mut VertexFormatSetBuilder {
-    catch_unwind(|| {
-        Box::leak(Box::new(VertexFormatSetBuilder::new())) as *mut VertexFormatSetBuilder
-    }).unwrap_or_else(|_| {
-        log::error!("panic in b4d_emulator_vertex_format_set_builder_new");
-        exit(1);
-    })
-}
-
-/// Destroys a [`VertexFormatSetBuilder`] instance and frees its memory.
-#[no_mangle]
-unsafe extern "C" fn b4d_emulator_vertex_format_set_builder_destroy(builder: *mut VertexFormatSetBuilder) {
-    catch_unwind(|| {
-        if builder.is_null() {
-            log::error!("Passed null builder to b4d_emulator_vertex_format_set_builder_destroy");
-            exit(1);
-        }
-        Box::from_raw(builder);
-    }).unwrap_or_else(|_| {
-        log::error!("panic in b4d_emulator_vertex_format_set_builder_destroy");
-        exit(1);
-    })
-}
-
-/// Calls [`VertexFormatSetBuilder::add_format`] on the provided builder.
-#[no_mangle]
-unsafe extern "C" fn b4d_emulator_vertex_format_builder_add_format(builder: *mut VertexFormatSetBuilder, stride: u32) {
-    catch_unwind(|| {
-        builder.as_mut().unwrap_or_else(|| {
-            log::error!("Passed null builder to b4d_emulator_vertex_format_builder_add_format");
-            exit(1);
-        }).add_format(VertexFormatInfo {
-            stride: stride as usize
-        });
-    }).unwrap_or_else(|_| {
-        log::error!("panic in b4d_emulator_vertex_format_builder_add_format");
-        exit(1);
-    })
-}
-
 /// Creates a new [`Blaze4D`] instance.
 ///
 /// This function will take ownership of the provided surface and vertex format set builder. The
 /// pointers must not be used again afterwards.
 #[no_mangle]
-unsafe extern "C" fn b4d_init(surface: *mut GLFWSurfaceProvider, vertex_formats: *mut VertexFormatSetBuilder, enable_validation: bool) -> *mut B4DDebugWrapper {
+unsafe extern "C" fn b4d_init(surface: *mut GLFWSurfaceProvider, enable_validation: u32) -> *mut B4DDebugWrapper {
     catch_unwind(|| {
         /*if surface.is_null() {
             log::error!("Passed null surface to b4d_init");
             exit(1);
         }*/
-        if vertex_formats.is_null() {
-            log::error!("Passed null vertex formats to b4d_init");
-            exit(1);
-        }
 
         // let surface_provider: Box<dyn SurfaceProvider> = Box::from_raw(surface);
-        let vertex_formats = *Box::from_raw(vertex_formats);
 
-        Box::leak(Box::new(B4DDebugWrapper::new(vertex_formats, enable_validation)))
+        let enable_validation = enable_validation != 0;
+
+        Box::leak(Box::new(B4DDebugWrapper::new(enable_validation)))
     }).unwrap_or_else(|_| {
         log::error!("panic in b4d_init");
         exit(1);
@@ -311,13 +275,13 @@ struct B4DDebugWrapper {
 }
 
 impl B4DDebugWrapper {
-    fn new(vertex_formats: VertexFormatSetBuilder, enable_validation: bool) -> Self {
+    fn new(enable_validation: bool) -> Self {
         env_logger::init();
 
         let event_loop = EventLoop::new();
         let window = Box::new(WinitWindow::new("Blaze4D", 800.0, 600.0, &event_loop));
 
-        let b4d = Blaze4D::new(window, vertex_formats, enable_validation);
+        let b4d = Blaze4D::new(window, enable_validation);
 
         Self {
             b4d,

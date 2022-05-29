@@ -14,7 +14,6 @@ use crate::vk::objects::buffer::Buffer;
 
 use crate::prelude::*;
 
-pub use super::VertexFormatId;
 pub use super::worker::SubmitRecorder;
 pub use super::worker::PooledObjectProvider;
 
@@ -59,9 +58,6 @@ pub trait EmulatorPipeline: Send + Sync + UnwindSafe + RefUnwindSafe {
 }
 
 pub struct PipelineTypeInfo {
-    /// The vertex format used by the type. This must be a valid vertex format registered in
-    /// the [`EmulatorRenderer`] used to execute a pass.
-    pub vertex_format: VertexFormatId,
 }
 
 /// Represents one execution of a [`EmulatorPipeline`].

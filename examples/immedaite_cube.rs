@@ -6,7 +6,7 @@ use winit::event_loop::{ControlFlow, EventLoop};
 use b4d_core::b4d::B4DVertexFormat;
 
 use b4d_core::prelude::*;
-use b4d_core::renderer::emulator::{MeshData, VertexFormatInfo, VertexFormatSetBuilder};
+use b4d_core::renderer::emulator::MeshData;
 
 use b4d_core::window::WinitWindow;
 
@@ -16,11 +16,7 @@ fn main() {
     let event_loop = EventLoop::new();
     let window = Box::new(WinitWindow::new("ImmediateCube", 800.0, 600.0, &event_loop));
 
-    let mut format_set = VertexFormatSetBuilder::new();
-    let format_id = format_set.add_format(VertexFormatInfo {
-        stride: Vertex::make_b4d_vertex_format().stride as usize,
-    });
-    let b4d = b4d_core::b4d::Blaze4D::new(window, format_set, false);
+    let b4d = b4d_core::b4d::Blaze4D::new(window, false);
     b4d.set_emulator_vertex_formats(Box::new([Vertex::make_b4d_vertex_format()]));
 
     let mut draw_times = Vec::with_capacity(1000);
@@ -61,9 +57,9 @@ fn main() {
                     let data = MeshData {
                         vertex_data: b4d_core::util::slice::to_byte_slice(&CUBE_VERTICES),
                         index_data: b4d_core::util::slice::to_byte_slice(&CUBE_INDICES),
+                        vertex_stride: std::mem::size_of::<Vertex>() as u32,
                         index_count: CUBE_INDICES.len() as u32,
                         index_type: vk::IndexType::UINT32,
-                        vertex_format_id: format_id,
                     };
 
                     let translation = Mat4f32::new_translation(&Vec3f32::new(

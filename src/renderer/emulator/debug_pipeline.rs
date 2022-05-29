@@ -12,11 +12,9 @@ use crate::objects::id::BufferId;
 
 use crate::prelude::*;
 use crate::renderer::emulator::pipeline::{DrawTask, EmulatorPipeline, EmulatorPipelinePass, PipelineTask, PipelineTypeInfo, PooledObjectProvider, SubmitRecorder, TypeId};
-use crate::renderer::emulator::VertexFormatId;
 use crate::vk::objects::allocator::{Allocation, AllocationStrategy};
 
 pub struct DepthTypeInfo {
-    pub vertex_format_id: VertexFormatId,
     pub vertex_stride: u32,
     pub vertex_position_offset: u32,
     pub vertex_position_format: vk::Format,
@@ -37,7 +35,7 @@ pub struct DepthPipelineCore {
 
 impl DepthPipelineCore {
     pub fn new(device: DeviceEnvironment, types: &[DepthTypeInfo]) -> Self {
-        let type_infos: Box<_> = types.iter().map(|info| PipelineTypeInfo{ vertex_format: info.vertex_format_id }).collect();
+        let type_infos: Box<_> = types.iter().map(|_| PipelineTypeInfo{}).collect();
 
         let depth_format = vk::Format::D16_UNORM;
 

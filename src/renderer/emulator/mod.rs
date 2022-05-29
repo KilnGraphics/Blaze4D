@@ -42,11 +42,10 @@ pub(crate) struct EmulatorRenderer {
     worker: Arc<Share>,
     next_frame_id: AtomicU64,
     buffer_pool: Arc<Mutex<BufferPool>>,
-    vertex_formats: Box<[VertexFormatInfo]>,
 }
 
 impl EmulatorRenderer {
-    pub(crate) fn new(device: DeviceEnvironment, vertex_formats: VertexFormatSetBuilder) -> Arc<Self> {
+    pub(crate) fn new(device: DeviceEnvironment) -> Arc<Self> {
         let renderer = Arc::new_cyclic(|weak| {
             let pool = Arc::new(Mutex::new(BufferPool::new(device.clone())));
 
@@ -57,7 +56,6 @@ impl EmulatorRenderer {
                 worker: Arc::new(Share::new(device.clone(), pool.clone())),
                 next_frame_id: AtomicU64::new(1),
                 buffer_pool: pool,
-                vertex_formats: vertex_formats.formats.into_boxed_slice(),
             }
         });
 
@@ -73,13 +71,6 @@ impl EmulatorRenderer {
         });
 
         renderer
-    }
-
-    /// Returns the vertex format info for some id.
-    ///
-    /// If the id is invalid [`None`] is returned.
-    pub fn get_vertex_format_info(&self, id: VertexFormatId) -> Option<&VertexFormatInfo> {
-        self.vertex_formats.get(id.get_raw() as usize)
     }
 
     pub fn create_static_mesh(&self, data: &MeshData) -> StaticMeshId {
@@ -105,52 +96,12 @@ impl PartialEq for EmulatorRenderer {
 impl Eq for EmulatorRenderer {
 }
 
-/// Information needed by the emulator renderer to process vertex data.
-///
-/// Individual pipelines may need additional information which is encoded in the type id. See
-/// [`EmulatorPipeline`] for more details.
-#[derive(Copy, Clone, Debug)]
-pub struct VertexFormatInfo {
-    pub stride: usize,
-}
-
-pub struct VertexFormatSetBuilder {
-    formats: Vec<VertexFormatInfo>,
-}
-
-impl VertexFormatSetBuilder {
-    pub fn new() -> Self {
-        Self {
-            formats: Vec::new(),
-        }
-    }
-
-    pub fn add_format(&mut self, format: VertexFormatInfo) -> VertexFormatId {
-        let id = self.formats.len();
-        self.formats.push(format);
-        VertexFormatId::from_raw(id as u32)
-    }
-}
-
-#[derive(Copy, Clone, PartialEq, Eq, PartialOrd, Ord, Debug, Hash)]
-pub struct VertexFormatId(u32);
-
-impl VertexFormatId {
-    pub fn from_raw(raw: u32) -> Self {
-        Self(raw)
-    }
-
-    pub fn get_raw(&self) -> u32 {
-        self.0
-    }
-}
-
 pub struct MeshData<'a> {
     pub vertex_data: &'a [u8],
     pub index_data: &'a [u8],
+    pub vertex_stride: u32,
     pub index_count: u32,
     pub index_type: vk::IndexType,
-    pub vertex_format_id: VertexFormatId,
 }
 
 impl<'a> MeshData<'a> {

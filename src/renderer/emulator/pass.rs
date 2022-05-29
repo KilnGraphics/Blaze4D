@@ -69,18 +69,13 @@ impl PassRecorder {
     pub fn draw_immediate(&mut self, data: &MeshData, type_id: u32) {
         let index_size = data.get_index_size();
 
-        let vertex_format = self.renderer.get_vertex_format_info(data.vertex_format_id).unwrap_or_else(|| {
-            log::error!("Invalid vertex format id {:?}", data.vertex_format_id);
-            panic!()
-        }).clone();
-
-        let vertex_buffer = self.push_data(data.vertex_data, vertex_format.stride as u32);
+        let vertex_buffer = self.push_data(data.vertex_data, data.vertex_stride);
         let index_buffer = self.push_data(data.index_data, index_size);
 
         let draw_task = DrawTask {
             vertex_buffer: vertex_buffer.buffer,
             index_buffer: index_buffer.buffer,
-            vertex_offset: (vertex_buffer.offset / vertex_format.stride) as i32,
+            vertex_offset: (vertex_buffer.offset / (data.vertex_stride as usize)) as i32,
             first_index: (index_buffer.offset / (index_size as usize)) as u32,
             index_type: data.index_type,
             index_count: data.index_count,
