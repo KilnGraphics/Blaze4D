@@ -1,4 +1,3 @@
-use std::env;
 use std::ffi::CString;
 use std::sync::{Arc, Mutex};
 use std::time::{Duration, Instant};
@@ -7,7 +6,6 @@ use ash::vk;
 
 use vk_profiles_rs::vp;
 
-use crate::glfw_surface::GLFWSurfaceProvider;
 use crate::instance::debug_messenger::RustLogDebugMessenger;
 use crate::device::init::{create_device, DeviceCreateConfig};
 use crate::device::surface::{DeviceSurface, SurfaceSwapchain, SwapchainConfig};

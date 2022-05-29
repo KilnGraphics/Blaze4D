@@ -29,6 +29,7 @@ impl PassId {
 pub struct PassRecorder {
     id: PassId,
     renderer: Arc<EmulatorRenderer>,
+    #[allow(unused)] // We just need to keep the pipeline alive
     pipeline: Arc<dyn EmulatorPipeline>,
 
     used_static_meshes: HashMap<StaticMeshId, StaticMeshDrawInfo>,
@@ -68,7 +69,7 @@ impl PassRecorder {
     pub fn draw_immediate(&mut self, data: &MeshData, type_id: u32) {
         let index_size = data.get_index_size();
 
-        let vertex_format = self.renderer.get_vertex_format(data.vertex_format_id).unwrap_or_else(|| {
+        let vertex_format = self.renderer.get_vertex_format_info(data.vertex_format_id).unwrap_or_else(|| {
             log::error!("Invalid vertex format id {:?}", data.vertex_format_id);
             panic!()
         }).clone();

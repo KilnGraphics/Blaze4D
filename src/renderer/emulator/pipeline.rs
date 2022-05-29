@@ -154,6 +154,7 @@ pub trait EmulatorOutput {
 
 /// A utility struct providing a [`BlitPass`] for the output of a [`EmulatorPipeline`].
 pub struct OutputUtil {
+    #[allow(unused)] // We just need to keep the pipeline alive
     pipeline: Arc<dyn EmulatorPipeline>,
     descriptor_pool: vk::DescriptorPool,
     descriptor_sets: Box<[vk::DescriptorSet]>,

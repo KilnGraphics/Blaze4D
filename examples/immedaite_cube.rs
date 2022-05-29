@@ -147,6 +147,7 @@ const CUBE_INDICES: [u32; 36] = [
 
 #[derive(Copy, Clone)]
 struct Vertex {
+    #[allow(unused)]
     position: Vec3f32,
 }
 

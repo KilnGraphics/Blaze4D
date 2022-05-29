@@ -573,7 +573,7 @@ impl EmulatorPipelinePass for DepthPipelinePass {
         }
     }
 
-    fn record<'a>(&mut self, obj: &mut PooledObjectProvider, submits: &mut SubmitRecorder<'a>, alloc: &'a Bump) {
+    fn record<'a>(&mut self, _: &mut PooledObjectProvider, submits: &mut SubmitRecorder<'a>, alloc: &'a Bump) {
         let device = self.config.core.device.get_device();
         let cmd = self.command_buffer.take().unwrap();
 

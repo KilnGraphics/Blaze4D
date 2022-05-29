@@ -285,11 +285,6 @@ impl PoolPage {
         self.free_slots == 0
     }
 
-    /// Returns true if there are no current allocations from this page.
-    fn is_empty(&self) -> bool {
-        self.free_slots == self.slots.len()
-    }
-
     fn get_slot_memory(&self, slot: u16) -> NonNull<u8> {
         let offset = (self.slot_size as isize) * (slot as isize);
         unsafe {

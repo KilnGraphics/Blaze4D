@@ -75,17 +75,10 @@ impl EmulatorRenderer {
         renderer
     }
 
-    /// Lists all supported vertex formats.
-    ///
-    /// The index into the slice is the id of the format.
-    pub fn get_vertex_formats(&self) -> &[VertexFormatInfo] {
-        self.vertex_formats.as_ref()
-    }
-
     /// Returns the vertex format info for some id.
     ///
     /// If the id is invalid [`None`] is returned.
-    pub fn get_vertex_format(&self, id: VertexFormatId) -> Option<&VertexFormatInfo> {
+    pub fn get_vertex_format_info(&self, id: VertexFormatId) -> Option<&VertexFormatInfo> {
         self.vertex_formats.get(id.get_raw() as usize)
     }
 

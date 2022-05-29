@@ -460,11 +460,11 @@ impl StaticMeshId {
         Self(UUID::new())
     }
 
-    pub fn from_raw(raw: UUID) -> Self {
+    pub fn from_uuid(raw: UUID) -> Self {
         Self(raw)
     }
 
-    pub fn get_raw(&self) -> UUID {
+    pub fn as_uuid(&self) -> UUID {
         self.0
     }
 }
