@@ -87,7 +87,7 @@ pub trait EmulatorPipelinePass {
     /// Called to process a task.
     ///
     /// Must only be called while the pass is in the recording state.
-    fn process_task(&mut self, task: PipelineTask, obj: &mut PooledObjectProvider);
+    fn process_task(&mut self, task: &PipelineTask, obj: &mut PooledObjectProvider);
 
     /// Called to record any necessary command buffer submissions for the execution of the pass.
     /// The recorded submits will be submitted by the calling code.

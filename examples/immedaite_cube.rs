@@ -51,12 +51,12 @@ fn main() {
                 let now = std::time::Instant::now();
                 if let Some(mut recorder) = b4d.try_start_frame(current_size) {
 
-                    recorder.set_projection_matrix(make_projection_matrix(current_size, 90f32));
+                    recorder.set_projection_matrix(&make_projection_matrix(current_size, 90f32));
 
                     let elapsed = start.elapsed().as_secs_f32();
                     let rotation = Mat4f32::new_rotation(Vec3f32::new(elapsed / 2.34f32, elapsed / 2.783f32, elapsed / 2.593f32));
                     let translation = Mat4f32::new_translation(&Vec3f32::new(0f32, 0f32, 5f32));
-                    recorder.set_model_view_matrix(translation * rotation);
+                    recorder.set_model_view_matrix(&(translation * rotation));
 
                     let data = MeshData {
                         vertex_data: b4d_core::util::slice::to_byte_slice(&CUBE_VERTICES),
@@ -71,7 +71,7 @@ fn main() {
                         0f32,
                         5f32
                     ));
-                    recorder.set_model_view_matrix(translation * rotation);
+                    recorder.set_model_view_matrix(&(translation * rotation));
 
 
                     for x in -5i32..=5i32 {
@@ -82,7 +82,7 @@ fn main() {
                                     0f32 + ((y as f32) / 2f32),
                                     5f32 + ((z as f32) / 2f32)
                                 ));
-                                recorder.set_model_view_matrix(translation * rotation);
+                                recorder.set_model_view_matrix(&(translation * rotation));
                                 recorder.draw_immediate(&data, 0);
                             }
                         }

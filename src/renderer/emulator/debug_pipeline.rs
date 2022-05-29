@@ -486,7 +486,7 @@ impl DepthPipelinePass {
         }
     }
 
-    fn set_model_view_matrix(&mut self, mat: Mat4f32) {
+    fn set_model_view_matrix(&mut self, mat: &Mat4f32) {
         let device = self.config.core.device.get_device();
         let cmd = *self.command_buffer.as_ref().unwrap();
 
@@ -496,12 +496,12 @@ impl DepthPipelinePass {
                 self.config.core.pipeline_layout,
                 vk::ShaderStageFlags::VERTEX,
                 0,
-                crate::util::slice::to_byte_slice(std::slice::from_ref(&mat))
+                crate::util::slice::to_byte_slice(std::slice::from_ref(mat))
             )
         }
     }
 
-    fn set_projection_matrix(&mut self, mat: Mat4f32) {
+    fn set_projection_matrix(&mut self, mat: &Mat4f32) {
         let device = self.config.core.device.get_device();
         let cmd = *self.command_buffer.as_ref().unwrap();
 
@@ -511,7 +511,7 @@ impl DepthPipelinePass {
                 self.config.core.pipeline_layout,
                 vk::ShaderStageFlags::VERTEX,
                 16 * 4,
-                crate::util::slice::to_byte_slice(std::slice::from_ref(&mat))
+                crate::util::slice::to_byte_slice(std::slice::from_ref(mat))
             )
         }
     }
@@ -562,7 +562,7 @@ impl EmulatorPipelinePass for DepthPipelinePass {
         }
     }
 
-    fn process_task(&mut self, task: PipelineTask, _: &mut PooledObjectProvider) {
+    fn process_task(&mut self, task: &PipelineTask, _: &mut PooledObjectProvider) {
         match task {
             PipelineTask::SetModelViewMatrix(mat) =>
                 self.set_model_view_matrix(mat),

@@ -89,8 +89,8 @@ impl Blaze4D {
     pub fn try_start_frame(&self, window_size: Vec2u32) -> Option<PassRecorder> {
         if let Some(mut recorder) = self.render_config.lock().unwrap().try_start_frame(&self.emulator, window_size) {
 
-            recorder.set_model_view_matrix(Mat4f32::identity());
-            recorder.set_projection_matrix(Mat4f32::identity());
+            recorder.set_model_view_matrix(&Mat4f32::identity());
+            recorder.set_projection_matrix(&Mat4f32::identity());
 
             Some(recorder)
         } else {

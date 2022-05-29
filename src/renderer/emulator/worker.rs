@@ -191,7 +191,7 @@ pub(super) fn run_worker(device: DeviceEnvironment, share: Arc<Share>) {
             }
 
             WorkerTask::PipelineTask(task) => {
-                frames.get_pass(id).unwrap().process_task(task);
+                frames.get_pass(id).unwrap().process_task(&task);
             }
         }
     }
@@ -416,7 +416,7 @@ impl PassState {
         self.outputs.push(output);
     }
 
-    fn process_task(&mut self, task: PipelineTask) {
+    fn process_task(&mut self, task: &PipelineTask) {
         self.pass.process_task(task, &mut self.object_pool);
     }
 

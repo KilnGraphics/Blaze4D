@@ -58,12 +58,12 @@ impl PassRecorder {
         self.renderer.worker.push_task(self.id, WorkerTask::UseOutput(output));
     }
 
-    pub fn set_model_view_matrix(&mut self, matrix: Mat4f32) {
-        self.renderer.worker.push_task(self.id, WorkerTask::PipelineTask(PipelineTask::SetModelViewMatrix(matrix)));
+    pub fn set_model_view_matrix(&mut self, matrix: &Mat4f32) {
+        self.renderer.worker.push_task(self.id, WorkerTask::PipelineTask(PipelineTask::SetModelViewMatrix(*matrix)));
     }
 
-    pub fn set_projection_matrix(&mut self, matrix: Mat4f32) {
-        self.renderer.worker.push_task(self.id, WorkerTask::PipelineTask(PipelineTask::SetProjectionMatrix(matrix)));
+    pub fn set_projection_matrix(&mut self, matrix: &Mat4f32) {
+        self.renderer.worker.push_task(self.id, WorkerTask::PipelineTask(PipelineTask::SetProjectionMatrix(*matrix)));
     }
 
     pub fn draw_immediate(&mut self, data: &MeshData, type_id: u32) {

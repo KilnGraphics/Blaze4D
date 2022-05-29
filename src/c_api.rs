@@ -185,7 +185,7 @@ unsafe extern "C" fn b4d_pass_set_model_view_matrix(pass: *mut PassRecorder, mat
             exit(1);
         });
 
-        pass.set_model_view_matrix(*matrix);
+        pass.set_model_view_matrix(matrix);
     }).unwrap_or_else(|_| {
         log::error!("panic in b4d_pass_set_model_view_matrix");
         exit(1);
@@ -204,7 +204,7 @@ unsafe extern "C" fn b4d_pass_set_projection_matrix(pass: *mut PassRecorder, mat
             exit(1);
         });
 
-        pass.set_projection_matrix(*matrix);
+        pass.set_projection_matrix(matrix);
     }).unwrap_or_else(|_| {
         log::error!("panic in b4d_pass_set_model_view_matrix");
         exit(1);
