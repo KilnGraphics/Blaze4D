@@ -1,7 +1,6 @@
 use std::ffi::{c_void, CStr, CString};
 use std::os::raw::c_char;
-use ash::{Entry, Instance, vk};
-use ash::vk::SurfaceKHR;
+use ash::vk;
 use crate::vk::objects::surface::{SurfaceInitError, SurfaceProvider};
 
 #[allow(non_camel_case_types)]
@@ -51,7 +50,7 @@ impl SurfaceProvider for GLFWSurfaceProvider {
         self.required_extension.clone()
     }
 
-    fn init(&mut self, entry: &Entry, instance: &Instance) -> Result<SurfaceKHR, SurfaceInitError> {
+    fn init(&mut self, entry: &ash::Entry, instance: &ash::Instance) -> Result<vk::SurfaceKHR, SurfaceInitError> {
         let surface_khr = ash::extensions::khr::Surface::new(entry, instance);
 
         let mut surface = vk::SurfaceKHR::null();
@@ -61,7 +60,7 @@ impl SurfaceProvider for GLFWSurfaceProvider {
         Ok(surface)
     }
 
-    fn get_handle(&self) -> Option<SurfaceKHR> {
+    fn get_handle(&self) -> Option<vk::SurfaceKHR> {
         self.surface.as_ref().map(|s| s.0)
     }
 }

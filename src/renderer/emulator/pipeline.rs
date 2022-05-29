@@ -1,4 +1,5 @@
 use std::hash::Hash;
+use std::panic::{RefUnwindSafe, UnwindSafe};
 use std::sync::{Arc, Weak};
 use ash::prelude::VkResult;
 
@@ -35,7 +36,7 @@ impl TypeId {
 /// To define how objects should be rendered a pipeline can define multiple types. The meaning of
 /// each type is pipeline dependant however the [`EmulatorRenderer`] requires some information about
 /// the type which must be provided through [`EmulatorPipeline::get_type_info`].
-pub trait EmulatorPipeline: Send + Sync {
+pub trait EmulatorPipeline: Send + Sync + UnwindSafe + RefUnwindSafe {
 
     /// Called internally by the emulator renderer when a pass is started. All rendering will be
     /// performed using the returned object.
