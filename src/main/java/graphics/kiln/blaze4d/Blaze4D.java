@@ -5,14 +5,12 @@ import jdk.incubator.foreign.*;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.StringFormatterMessageFactory;
-
-import java.lang.invoke.MethodHandle;
-import java.lang.invoke.MethodType;
-import java.util.Optional;
+import org.lwjgl.glfw.GLFW;
+import org.lwjgl.system.APIUtil;
 
 public class Blaze4D implements ClientModInitializer {
 
-//    public static final Logger LOGGER = LogManager.getLogger("Blaze4D", new StringFormatterMessageFactory());
+    public static final Logger LOGGER = LogManager.getLogger("Blaze4D", new StringFormatterMessageFactory());
 //    public static final boolean VALIDATION_ENABLED = Boolean.parseBoolean(System.getProperty("rosella:validation"));
 //    public static final boolean RENDERDOC_ENABLED = Boolean.parseBoolean(System.getProperty("rosella:renderdoc"));
 //
@@ -28,27 +26,26 @@ public class Blaze4D implements ClientModInitializer {
 
     @Override
     public void onInitializeClient() {
-        System.load("/home/lrai/Documents/Dev/b4d_core/target/debug/libb4d_core.so");
-        Optional<MemoryAddress> result = SymbolLookup.loaderLookup().lookup("b4d_core_init");
+        Blaze4DNatives.load();
 
-        if (result.isPresent()) {
-            MethodHandle init = CLinker.getInstance().downcallHandle(
-                    result.get(),
-                    MethodType.methodType(Void.class),
-                    FunctionDescriptor.ofVoid()
+        int[] major = new int[]{ 0 };
+        int[] minor = new int[]{ 0 };
+        int[] patch = new int[]{ 0 };
+        GLFW.glfwGetVersion(major, minor, patch);
+
+        LOGGER.error("GLFW VERSION: " + major[0] + "." + minor[0] + "." + patch[0]);
+
+        /*try {
+            Blaze4DNatives.b4dPreInitGlfw.invokeExact(
+                    MemoryAddress.ofLong(APIUtil.apiGetFunctionAddress(GLFW.getLibrary(), "glfwInitVulkanLoader"))
             );
-            try {
-                init.invoke();
-            } catch (Throwable e) {
-                throw new RuntimeException(e);
-            }
-        } else {
-            LogManager.getLogger().fatal("Failed to find init");
-        }
-
+        } catch(Throwable ex) {
+            throw new RuntimeException(ex);
+        }*/
 
 //        if (RENDERDOC_ENABLED) {
 //            System.loadLibrary("renderdoc");
 //        }
     }
+
 }

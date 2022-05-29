@@ -4,6 +4,9 @@ import com.mojang.blaze3d.platform.DisplayData;
 import com.mojang.blaze3d.platform.ScreenManager;
 import com.mojang.blaze3d.platform.WindowEventHandler;
 import com.oroarmor.aftermath.Aftermath;
+import graphics.kiln.blaze4d.Blaze4D;
+import graphics.kiln.blaze4d.Blaze4DNatives;
+import jdk.incubator.foreign.MemoryAddress;
 import net.fabricmc.loader.api.FabricLoader;
 import org.apache.logging.log4j.Logger;
 import org.lwjgl.glfw.Callbacks;
@@ -56,8 +59,8 @@ public abstract class WindowMixin {
 //        return null;
 //    }
 //
-//    @Inject(method = "<init>", at = @At(value = "TAIL"))
-//    private void initializeRosellaWindow(WindowEventHandler eventHandler, ScreenManager monitorTracker, DisplayData settings, String videoMode, String title, CallbackInfo ci) {
+    @Inject(method = "<init>", at = @At(value = "TAIL"))
+    private void initializeRosellaWindow(WindowEventHandler eventHandler, ScreenManager monitorTracker, DisplayData settings, String videoMode, String title, CallbackInfo ci) {
 //        Blaze4D.window = new GlfwWindow.SuppliedGlfwWindow(window);
 //        Blaze4D.rosella = new Rosella(Blaze4D.window, "Blaze4D", Blaze4D.VALIDATION_ENABLED);
 //        Blaze4D.finishSetup();
@@ -70,7 +73,7 @@ public abstract class WindowMixin {
 //                throwable.printStackTrace();
 //            }
 //        }
-//    }
+    }
 //
 //    @Inject(method = "onFramebufferResize", at = @At(value = "INVOKE", target = "Lcom/mojang/blaze3d/platform/WindowEventHandler;resizeDisplay()V"))
 //    private void hintRendererForRecreation(long window, int width, int height, CallbackInfo ci) {

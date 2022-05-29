@@ -52,7 +52,7 @@ dependencies {
 
 	include(implementation("com.oroarmor", "aftermath", "1.0.0-beta"))
 	
-	include(implementation("org.joml", "joml", "1.10.1"))
+	/*include(implementation("org.joml", "joml", "1.10.1"))
 	include(implementation("org.lwjgl", "lwjgl", lwjglVersion))
 	include(implementation("org.lwjgl", "lwjgl-shaderc", lwjglVersion))
 	include(implementation("org.lwjgl", "lwjgl-vma", lwjglVersion))
@@ -79,12 +79,12 @@ dependencies {
 
 	if (lwjglNatives == "natives-macos" || lwjglNatives == "natives-macos-arm64") {
 		include("org.lwjgl", "lwjgl-vulkan", lwjglVersion, classifier = lwjglNatives)
-	}
+	}*/
 
 	testImplementation("org.junit.jupiter", "junit-jupiter", "5.7.0")
 }
 
-configurations.all {
+/*configurations.all {
 	resolutionStrategy.cacheChangingModulesFor(0, "seconds")
     resolutionStrategy {
         dependencySubstitution {
@@ -95,7 +95,7 @@ configurations.all {
         force("org.lwjgl:lwjgl:$lwjglVersion")
         force("org.lwjgl:lwjgl-glfw:$lwjglVersion")
     }
-}
+}*/
 
 base {
 	archivesBaseName = "blaze4d"

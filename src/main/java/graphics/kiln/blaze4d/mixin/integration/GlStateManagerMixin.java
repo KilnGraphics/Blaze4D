@@ -1,15 +1,15 @@
 package graphics.kiln.blaze4d.mixin.integration;
 
 import com.mojang.blaze3d.platform.GlStateManager;
-import com.mojang.blaze3d.systems.RenderSystem;
-import com.sun.jna.platform.win32.GL;
-import it.unimi.dsi.fastutil.objects.Object2ObjectLinkedOpenHashMap;
-import org.jetbrains.annotations.Nullable;
-import org.lwjgl.opengl.GL13;
-import org.lwjgl.system.MemoryStack;
-import org.lwjgl.vulkan.VK10;
-import org.lwjgl.vulkan.VkExtensionProperties;
-import org.lwjgl.vulkan.VkPhysicalDevice;
+//import com.mojang.blaze3d.systems.RenderSystem;
+//import com.sun.jna.platform.win32.GL;
+//import it.unimi.dsi.fastutil.objects.Object2ObjectLinkedOpenHashMap;
+//import org.jetbrains.annotations.Nullable;
+//import org.lwjgl.opengl.GL13;
+//import org.lwjgl.system.MemoryStack;
+//import org.lwjgl.vulkan.VK10;
+//import org.lwjgl.vulkan.VkExtensionProperties;
+//import org.lwjgl.vulkan.VkPhysicalDevice;
 import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.Overwrite;
 import org.spongepowered.asm.mixin.Unique;
@@ -23,7 +23,7 @@ import java.nio.IntBuffer;
 import java.util.Map;
 import java.util.stream.Collectors;
 
-import static org.lwjgl.vulkan.VK10.vkEnumerateDeviceExtensionProperties;
+//import static org.lwjgl.vulkan.VK10.vkEnumerateDeviceExtensionProperties;
 
 /**
  * Buffer Implementation just in case mods use it
