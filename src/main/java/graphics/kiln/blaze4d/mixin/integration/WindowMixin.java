@@ -6,7 +6,6 @@ import com.mojang.blaze3d.platform.WindowEventHandler;
 import com.oroarmor.aftermath.Aftermath;
 import graphics.kiln.blaze4d.Blaze4D;
 import graphics.kiln.blaze4d.Blaze4DNatives;
-import jdk.incubator.foreign.MemoryAddress;
 import net.fabricmc.loader.api.FabricLoader;
 import org.apache.logging.log4j.Logger;
 import org.lwjgl.glfw.Callbacks;

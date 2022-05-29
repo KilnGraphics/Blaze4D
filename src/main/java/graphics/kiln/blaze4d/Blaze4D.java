@@ -1,7 +1,6 @@
 package graphics.kiln.blaze4d;
 
 import net.fabricmc.api.ClientModInitializer;
-import jdk.incubator.foreign.*;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.StringFormatterMessageFactory;

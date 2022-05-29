@@ -101,12 +101,13 @@ base {
 	archivesBaseName = "blaze4d"
 }
 
+/*
 java {
-	sourceCompatibility = JavaVersion.VERSION_17
-	targetCompatibility = JavaVersion.VERSION_17
+	sourceCompatibility = JavaVersion.VERSION_18
+	targetCompatibility = JavaVersion.VERSION_18
 
 	withSourcesJar()
-}
+}*/
 
 loom {
 	accessWidenerPath.set(file("src/main/resources/blaze4d.aw"))
@@ -146,7 +147,7 @@ tasks {
 
 	withType<JavaCompile> {
 		options.encoding = "UTF-8"
-		options.release.set(17)
+		options.release.set(18)
 		options.compilerArgs.add("--add-modules=jdk.incubator.foreign")
 	}
 

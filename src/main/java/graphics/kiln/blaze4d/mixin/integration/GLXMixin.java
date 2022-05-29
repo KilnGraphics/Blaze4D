@@ -3,7 +3,6 @@ package graphics.kiln.blaze4d.mixin.integration;
 import com.mojang.blaze3d.platform.GLX;
 import com.mojang.blaze3d.platform.GlStateManager;
 import graphics.kiln.blaze4d.Blaze4D;
-import jdk.incubator.foreign.MemoryAddress;
 import org.lwjgl.glfw.GLFW;
 import org.lwjgl.system.APIUtil;
 import org.spongepowered.asm.mixin.Mixin;
