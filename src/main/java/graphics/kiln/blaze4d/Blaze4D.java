@@ -1,5 +1,7 @@
 package graphics.kiln.blaze4d;
 
+import graphics.kiln.blaze4d.api.Blaze4DCore;
+import jdk.incubator.foreign.MemoryAddress;
 import net.fabricmc.api.ClientModInitializer;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -23,10 +25,11 @@ public class Blaze4D implements ClientModInitializer {
 //        rosella.renderer.rebuildCommandBuffers(rosella.renderer.mainRenderPass);
     }
 
+
+
     @Override
     public void onInitializeClient() {
         Blaze4DNatives.load();
-
         int[] major = new int[]{ 0 };
         int[] minor = new int[]{ 0 };
         int[] patch = new int[]{ 0 };
@@ -34,13 +37,7 @@ public class Blaze4D implements ClientModInitializer {
 
         LOGGER.error("GLFW VERSION: " + major[0] + "." + minor[0] + "." + patch[0]);
 
-        /*try {
-            Blaze4DNatives.b4dPreInitGlfw.invokeExact(
-                    MemoryAddress.ofLong(APIUtil.apiGetFunctionAddress(GLFW.getLibrary(), "glfwInitVulkanLoader"))
-            );
-        } catch(Throwable ex) {
-            throw new RuntimeException(ex);
-        }*/
+        // Blaze4DNatives.b4dPreInitGlfw(MemoryAddress.ofLong(APIUtil.apiGetFunctionAddress(GLFW.getLibrary(), "glfwInitVulkanLoader")));
 
 //        if (RENDERDOC_ENABLED) {
 //            System.loadLibrary("renderdoc");

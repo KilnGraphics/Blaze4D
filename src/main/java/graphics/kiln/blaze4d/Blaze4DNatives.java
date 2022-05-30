@@ -12,6 +12,12 @@ public class Blaze4DNatives {
     private static SymbolLookup lookup;
     private static CLinker linker;
 
+    public static GroupLayout meshDataLayout;
+    public static GroupLayout vertexFormatLayout;
+
+    public static MethodHandle b4dPreInitGlfwHandle;
+    public static MethodHandle b4dCreateGlfwSurfaceProviderHandle;
+
     public static MethodHandle b4dInitHandle;
     public static MethodHandle b4dDestroyHandle;
     public static MethodHandle b4dSetVertexFormatsHandle;
@@ -24,9 +30,6 @@ public class Blaze4DNatives {
     public static MethodHandle b4dPassDrawStaticHandle;
     public static MethodHandle b4dPassDrawImmediateHandle;
     public static MethodHandle b4dEndFrameHandle;
-
-    public static GroupLayout meshDataLayout;
-    public static GroupLayout vertexFormatLayout;
 
     static void load() {
         System.loadLibrary("b4d_core");
@@ -48,6 +51,14 @@ public class Blaze4DNatives {
                 JAVA_INT,
                 JAVA_INT,
                 JAVA_INT
+        );
+
+        b4dPreInitGlfwHandle = lookupFunction("b4d_pre_init_glfw",
+                FunctionDescriptor.ofVoid(ADDRESS)
+        );
+
+        b4dCreateGlfwSurfaceProviderHandle = lookupFunction("b4d_create_glfw_surface_provider",
+                FunctionDescriptor.of(ADDRESS, ADDRESS, ADDRESS, ADDRESS)
         );
 
         b4dInitHandle = lookupFunction("b4d_init",
@@ -95,10 +106,26 @@ public class Blaze4DNatives {
         );
     }
 
+    public static void b4dPreInitGlfw(MemoryAddress pfnGlfwInitVulkanLoader) {
+        try {
+            b4dPreInitGlfwHandle.invoke(pfnGlfwInitVulkanLoader);
+        } catch (Throwable e) {
+            throw new RuntimeException(e);
+        }
+    }
+
+    public static MemoryAddress b4dCreateGlfwSurfaceProvider(long window, MemoryAddress pfnGlfwGetRequiredInstanceExtensions, MemoryAddress pfnGlfwCreateWindowSurface) {
+        try {
+            return (MemoryAddress) b4dCreateGlfwSurfaceProviderHandle.invoke(window, pfnGlfwGetRequiredInstanceExtensions, pfnGlfwCreateWindowSurface);
+        } catch (Throwable e) {
+            throw new RuntimeException(e);
+        }
+    }
+
     public static MemoryAddress b4dInit(MemoryAddress surface, boolean enableValidation) {
         int validation = enableValidation ? 1 : 0;
         try {
-            return (MemoryAddress) b4dInitHandle.invokeExact(surface, validation);
+            return (MemoryAddress) b4dInitHandle.invoke(surface, validation);
         } catch (Throwable e) {
             throw new RuntimeException(e);
         }

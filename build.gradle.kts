@@ -9,7 +9,7 @@ plugins {
 group = "graphics.kiln"
 version = "1.0.0-SNAPSHOT"
 
-val lwjglVersion = "3.3.1-SNAPSHOT"
+val lwjglVersion = "3.3.1"
 val lwjglNatives = when (OperatingSystem.current()) {
 	OperatingSystem.LINUX -> System.getProperty("os.arch").let {
 		if (it.startsWith("arm") || it.startsWith("aarch64"))
@@ -50,9 +50,10 @@ dependencies {
 	modImplementation("net.fabricmc", "fabric-loader", properties["loader_version"].toString())
 	//modImplementation("net.fabricmc", "fabric-language-kotlin", "1.6.4+kotlin.1.5.30")
 
-	include(implementation("com.oroarmor", "aftermath", "1.0.0-beta"))
-	
-	/*include(implementation("org.joml", "joml", "1.10.1"))
+	// include(implementation("com.oroarmor", "aftermath", "1.0.0-beta"))
+
+
+	include(implementation("org.joml", "joml", "1.10.1"))
 	include(implementation("org.lwjgl", "lwjgl", lwjglVersion))
 	include(implementation("org.lwjgl", "lwjgl-shaderc", lwjglVersion))
 	include(implementation("org.lwjgl", "lwjgl-vma", lwjglVersion))
@@ -77,14 +78,14 @@ dependencies {
 	include(implementation("org.lwjgl", "lwjgl-stb", lwjglVersion, classifier = lwjglNatives))
 	include(implementation("org.lwjgl", "lwjgl-tinyfd", lwjglVersion, classifier = lwjglNatives))
 
-	if (lwjglNatives == "natives-macos" || lwjglNatives == "natives-macos-arm64") {
-		include("org.lwjgl", "lwjgl-vulkan", lwjglVersion, classifier = lwjglNatives)
-	}*/
+//	if (lwjglNatives == "natives-macos" || lwjglNatives == "natives-macos-arm64") {
+//		include("org.lwjgl", "lwjgl-vulkan", lwjglVersion, classifier = lwjglNatives)
+//	}
 
 	testImplementation("org.junit.jupiter", "junit-jupiter", "5.7.0")
 }
 
-/*configurations.all {
+configurations.all {
 	resolutionStrategy.cacheChangingModulesFor(0, "seconds")
     resolutionStrategy {
         dependencySubstitution {
@@ -95,7 +96,7 @@ dependencies {
         force("org.lwjgl:lwjgl:$lwjglVersion")
         force("org.lwjgl:lwjgl-glfw:$lwjglVersion")
     }
-}*/
+}
 
 base {
 	archivesBaseName = "blaze4d"

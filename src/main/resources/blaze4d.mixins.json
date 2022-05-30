@@ -2,7 +2,7 @@
   "required": true,
   "minVersion": "0.8",
   "package": "graphics.kiln.blaze4d.mixin",
-  "compatibilityLevel": "JAVA_16",
+  "compatibilityLevel": "JAVA_18",
   "plugin": "graphics.kiln.blaze4d.Blaze4DMixinPlugin",
   "mixins": [
   ],
