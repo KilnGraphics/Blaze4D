@@ -318,6 +318,7 @@ pub struct SwapchainConfig {
     pub clipped: bool,
 }
 
+#[derive(Debug)]
 pub enum SwapchainCreateError {
     NoExtent,
     Unsupported,

@@ -201,7 +201,10 @@ impl RenderConfig {
 
         let config = SwapchainConfig {
             allow_tearing: true, // We set this to true to unlock fps for testing
-            formats: Box::new([vk::SurfaceFormatKHR{ format: vk::Format::R8G8B8A8_SRGB, color_space: vk::ColorSpaceKHR::SRGB_NONLINEAR }]),
+            formats: Box::new([
+                vk::SurfaceFormatKHR{ format: vk::Format::R8G8B8A8_SRGB, color_space: vk::ColorSpaceKHR::SRGB_NONLINEAR },
+                vk::SurfaceFormatKHR{ format: vk::Format::B8G8R8A8_SRGB, color_space: vk::ColorSpaceKHR::SRGB_NONLINEAR },
+            ]),
             required_usage: vk::ImageUsageFlags::COLOR_ATTACHMENT,
             optional_usage: vk::ImageUsageFlags::empty(),
             clipped: true
@@ -212,8 +215,8 @@ impl RenderConfig {
                 self.current_swapchain = Some(swapchain);
                 true
             }
-            Err(_) => {
-                log::info!("Failed to create swapchain of size {:?}", size);
+            Err(err) => {
+                log::info!("Failed to create swapchain of size {:?}: {:?}", size, err);
                 self.current_swapchain = None;
                 false
             }
