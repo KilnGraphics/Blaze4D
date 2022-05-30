@@ -51,7 +51,7 @@ impl GlobalObjects {
     }
 
     pub(super) fn create_static_mesh(&self, data: &MeshData) -> StaticMeshId {
-        let index_offset = Self::next_aligned(data.index_data.len(), data.get_index_size() as usize);
+        let index_offset = Self::next_aligned(data.vertex_data.len(), data.get_index_size() as usize);
         let required_size = index_offset + data.index_data.len();
 
         let (buffer, allocation) = StaticMesh::create_buffer(&self.device, required_size);
@@ -469,7 +469,7 @@ impl StaticMeshId {
     }
 }
 
-#[derive(Copy, Clone)]
+#[derive(Copy, Clone, Debug)]
 pub struct StaticMeshDrawInfo {
     pub buffer: Buffer,
     pub first_index: u32,
