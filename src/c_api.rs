@@ -13,6 +13,7 @@ use crate::vk::objects::surface::SurfaceProvider;
 use crate::window::WinitWindow;
 
 #[repr(C)]
+#[derive(Debug)]
 struct CMeshData {
     vertex_data_ptr: *const u8,
     vertex_data_len: u64,
@@ -38,12 +39,13 @@ impl CMeshData {
             index_data: std::slice::from_raw_parts(self.index_data_ptr, self.index_data_len as usize),
             vertex_stride: self.vertex_stride,
             index_count: self.index_count,
-            index_type: vk::IndexType::UINT32,
+            index_type: vk::IndexType::UINT16,
         }
     }
 }
 
 #[repr(C)]
+#[derive(Debug)]
 struct CB4DVertexFormat {
     topology: i32,
     stride: u32,
@@ -113,6 +115,8 @@ unsafe extern "C" fn b4d_set_vertex_formats(b4d: *const Blaze4D, formats_ptr: *c
             exit(1);
         }
         let formats = std::slice::from_raw_parts(formats_ptr, formats_len as usize);
+
+        log::error!("Formats: {:?}", formats);
 
         let formats = formats.iter().map(|format| format.to_b4d_vertex_format()).collect();
 
