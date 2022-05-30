@@ -2,31 +2,62 @@ package graphics.kiln.blaze4d.mixin.render;
 
 import com.mojang.blaze3d.systems.RenderSystem;
 import com.mojang.blaze3d.vertex.BufferBuilder;
+import com.mojang.blaze3d.vertex.BufferUploader;
 import com.mojang.blaze3d.vertex.VertexBuffer;
+import com.mojang.datafixers.util.Pair;
+import graphics.kiln.blaze4d.Blaze4D;
 import net.minecraft.client.renderer.ShaderInstance;
 import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.Overwrite;
 import org.spongepowered.asm.mixin.Unique;
 import org.spongepowered.asm.mixin.injection.At;
 import org.spongepowered.asm.mixin.injection.Inject;
+import org.spongepowered.asm.mixin.injection.ModifyVariable;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
+import org.spongepowered.asm.mixin.injection.callback.CallbackInfoReturnable;
+
+import java.nio.ByteBuffer;
 
 /**
  * Turns out, Minecraft uses this class for world rendering. when a part of the world is to be rendered, the buffer will be cleared and replaced with just the sky. this will then be uploaded to a {@link VertexBuffer} and then cleared again for the rest of the game to render.
  */
 @Mixin(VertexBuffer.class)
 public class VertexBufferMixin {
-//
-//    private final BasicVertexBufferWrapper wrapper = new BasicVertexBufferWrapper(Blaze4D.rosella);
-//
-//    /**
-//     * @author Blaze4D
-//     * @reason Allow for uploading Vertex Buffers
-//     */
-//    @Overwrite
-//    private void upload_(BufferBuilder bufferBuilder) {
-//        wrapper.create(bufferBuilder);
-//    }
+
+    private long staticMeshId = 0L;
+
+    /**
+     * @author Blaze4D
+     * @reason Allow for uploading Vertex Buffers
+     */
+    @ModifyVariable(method="upload_", at = @At("STORE"))
+    private Pair<BufferBuilder.DrawState, ByteBuffer> uploadBuffer(Pair<BufferBuilder.DrawState, ByteBuffer> pair) {
+        if (this.staticMeshId != 0L) {
+            Blaze4D.core.destroyStaticMesh(this.staticMeshId);
+            this.staticMeshId = 0;
+        }
+
+        BufferBuilder.DrawState drawState = pair.getFirst();
+        ByteBuffer buffer = pair.getSecond();
+
+        if (!drawState.indexOnly()) {
+            buffer.limit(drawState.bufferSize());
+
+            if (!drawState.sequentialIndex()) {
+                buffer.position(0);
+                this.staticMeshId = Blaze4D.core.createStaticMesh(
+                        buffer,
+                        drawState.vertexBufferSize(),
+                        drawState.format().getVertexSize(),
+                        drawState.indexCount()
+                );
+            } else {
+                // TODO
+            }
+        }
+
+        return pair;
+    }
 //
 //    /**
 //     * @author Blaze4D
@@ -54,9 +85,10 @@ public class VertexBufferMixin {
 //        wrapper.render(rosellaShaderProgram, GlobalRenderSystem.getShaderUbo(mcShader));
 //    }
 //
-//    @Inject(method = "close", at = @At("HEAD"), cancellable = true)
-//    private void close(CallbackInfo ci) {
-//        wrapper.clean();
-//        ci.cancel();
-//    }
+    @Inject(method = "close", at = @At("HEAD"), cancellable = true)
+    private void close(CallbackInfo ci) {
+        if (this.staticMeshId != 0L) {
+            Blaze4D.core.destroyStaticMesh(this.staticMeshId);
+        }
+    }
 }

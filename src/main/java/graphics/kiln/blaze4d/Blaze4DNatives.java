@@ -47,6 +47,8 @@ public class Blaze4DNatives {
                 JAVA_INT
         );
 
+        Blaze4D.LOGGER.error("THE DATA LAAAAYOUT " + meshDataLayout.memberLayouts());
+
         vertexFormatLayout = MemoryLayout.structLayout(
                 JAVA_INT,
                 JAVA_INT,

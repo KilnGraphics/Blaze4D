@@ -8,11 +8,18 @@ import jdk.incubator.foreign.ResourceScope;
 import jdk.incubator.foreign.ValueLayout;
 import org.lwjgl.glfw.GLFW;
 import org.lwjgl.system.APIUtil;
+import org.lwjgl.system.MemoryUtil;
+
+import java.nio.ByteBuffer;
 
 public class Blaze4DCore {
 
     private final MemoryAddress instance;
     private final long b4dWindow;
+
+    private MemoryAddress currentPass;
+
+    private MemorySegment meshData;
 
     public Blaze4DCore() {
         GLFW.glfwDefaultWindowHints();
@@ -33,6 +40,8 @@ public class Blaze4DCore {
         format.setAtIndex(ValueLayout.JAVA_INT, 3, 106);
 
         Blaze4DNatives.b4dSetVertexFormats(this.instance, format.address(), 1);
+
+        this.meshData = MemorySegment.allocateNative(Blaze4DNatives.meshDataLayout, ResourceScope.globalScope());
     }
 
     public void destroy() {
@@ -40,16 +49,54 @@ public class Blaze4DCore {
         GLFW.glfwDestroyWindow(this.b4dWindow);
     }
 
-    public void start_frame() {
+    public long createStaticMesh(ByteBuffer data, int indexOffset, int vertexSize, int indexCount) {
+        assert (indexOffset >= 0);
+
+        MemoryAddress vertexPtr = MemoryAddress.ofLong(MemoryUtil.memAddress(data));
+        long vertexLen = indexOffset;
+
+        MemoryAddress indexPtr = vertexPtr.addOffset(indexOffset);
+        long indexLen = data.remaining() - indexOffset;
+
+        Blaze4D.LOGGER.error("HUH??. " + vertexPtr + " " + vertexLen + " " + indexPtr + " " + indexLen);
+
+        this.meshData.set(ValueLayout.ADDRESS, 0, vertexPtr);
+        this.meshData.set(ValueLayout.JAVA_LONG, 8, vertexLen);
+        this.meshData.set(ValueLayout.ADDRESS, 16, indexPtr);
+        this.meshData.set(ValueLayout.JAVA_LONG, 24, indexLen);
+        this.meshData.set(ValueLayout.JAVA_INT, 32, vertexSize);
+        this.meshData.set(ValueLayout.JAVA_INT, 36, indexCount);
+
+        return Blaze4DNatives.b4dCreateStaticMesh(this.instance, this.meshData.address());
+    }
+
+    public void destroyStaticMesh(long meshId) {
+        Blaze4DNatives.b4dDestroyStaticMesh(this.instance, meshId);
+    }
+
+    public void startFrame() {
+        if (this.currentPass != null) {
+            Blaze4D.LOGGER.warn("Old pass has not been completed yet");
+            Blaze4DNatives.b4dEndFrame(this.currentPass);
+            this.currentPass = null;
+        }
+
         int[] width = new int[1];
         int[] height = new int[1];
         GLFW.glfwGetWindowSize(b4dWindow, width, height);
 
         MemoryAddress pass = Blaze4DNatives.b4dStartFrame(this.instance, width[0], height[0]);
-        if (pass.equals(MemoryAddress.NULL)) {
-            Blaze4D.LOGGER.error("Recieved NULL pass");
-        } else{
-            Blaze4DNatives.b4dEndFrame(pass);
+        if (!pass.equals(MemoryAddress.NULL)) {
+            this.currentPass = pass;
+        }
+    }
+
+    public void endFrame() {
+        if (this.currentPass == null) {
+            Blaze4D.LOGGER.error("Called endFrame when no current pass exists");
+        } else {
+            Blaze4DNatives.b4dEndFrame(this.currentPass);
+            this.currentPass = null;
         }
     }
 }
