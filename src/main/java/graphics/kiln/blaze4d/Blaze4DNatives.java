@@ -32,7 +32,7 @@ public class Blaze4DNatives {
     public static MethodHandle b4dEndFrameHandle;
 
     static void load() {
-        System.loadLibrary("b4d_core");
+        System.load(System.getProperty("b4d.native"));
 
         lookup = SymbolLookup.loaderLookup();
         linker = CLinker.systemCLinker();
@@ -116,7 +116,7 @@ public class Blaze4DNatives {
 
     public static MemoryAddress b4dCreateGlfwSurfaceProvider(long window, MemoryAddress pfnGlfwGetRequiredInstanceExtensions, MemoryAddress pfnGlfwCreateWindowSurface) {
         try {
-            return (MemoryAddress) b4dCreateGlfwSurfaceProviderHandle.invoke(window, pfnGlfwGetRequiredInstanceExtensions, pfnGlfwCreateWindowSurface);
+            return (MemoryAddress) b4dCreateGlfwSurfaceProviderHandle.invoke(MemoryAddress.ofLong(window), pfnGlfwGetRequiredInstanceExtensions, pfnGlfwCreateWindowSurface);
         } catch (Throwable e) {
             throw new RuntimeException(e);
         }
@@ -133,7 +133,7 @@ public class Blaze4DNatives {
 
     public static void b4dDestroy(MemoryAddress b4d) {
         try {
-            b4dDestroyHandle.invokeExact(b4d);
+            b4dDestroyHandle.invoke(b4d);
         } catch (Throwable e) {
             throw new RuntimeException(e);
         }

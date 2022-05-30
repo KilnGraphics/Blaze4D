@@ -30,14 +30,7 @@ public class Blaze4D implements ClientModInitializer {
     @Override
     public void onInitializeClient() {
         Blaze4DNatives.load();
-        int[] major = new int[]{ 0 };
-        int[] minor = new int[]{ 0 };
-        int[] patch = new int[]{ 0 };
-        GLFW.glfwGetVersion(major, minor, patch);
-
-        LOGGER.error("GLFW VERSION: " + major[0] + "." + minor[0] + "." + patch[0]);
-
-        // Blaze4DNatives.b4dPreInitGlfw(MemoryAddress.ofLong(APIUtil.apiGetFunctionAddress(GLFW.getLibrary(), "glfwInitVulkanLoader")));
+        Blaze4DNatives.b4dPreInitGlfw(MemoryAddress.ofLong(APIUtil.apiGetFunctionAddress(GLFW.getLibrary(), "glfwInitVulkanLoader")));
 
 //        if (RENDERDOC_ENABLED) {
 //            System.loadLibrary("renderdoc");

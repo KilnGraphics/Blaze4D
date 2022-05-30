@@ -60,9 +60,9 @@ public abstract class WindowMixin {
 //
     @Inject(method = "<init>", at = @At(value = "TAIL"))
     private void initializeRosellaWindow(WindowEventHandler eventHandler, ScreenManager monitorTracker, DisplayData settings, String videoMode, String title, CallbackInfo ci) {
+        Blaze4DCore core = new Blaze4DCore();
+        core.destroy();
 
-        //Blaze4DCore core = new Blaze4DCore();
-        //core.destroy();
 //        Blaze4D.window = new GlfwWindow.SuppliedGlfwWindow(window);
 //        Blaze4D.rosella = new Rosella(Blaze4D.window, "Blaze4D", Blaze4D.VALIDATION_ENABLED);
 //        Blaze4D.finishSetup();

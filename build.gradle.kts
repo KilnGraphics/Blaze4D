@@ -130,9 +130,11 @@ loom {
 
 		create("clientWithValidationRenderdoc") {
 			inherit(client)
+
 			configName = "Minecraft Client with Validation Layers and Renderdoc"
-			vmArgs.add("-Drosella:validation=true")
-			vmArgs.add("-Drosella:renderdoc=true")
+
+			vmArgs.add("--add-modules=jdk.incubator.foreign")
+			vmArgs.add("--enable-native-access=ALL-UNNAMED")
 		}
 	}
 }
