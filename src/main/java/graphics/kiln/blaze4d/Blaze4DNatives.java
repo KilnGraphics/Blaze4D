@@ -9,12 +9,13 @@ import static jdk.incubator.foreign.ValueLayout.*;
 
 public class Blaze4DNatives {
 
-    private static SymbolLookup lookup;
-    private static CLinker linker;
+    public static SymbolLookup lookup;
+    public static CLinker linker;
 
     public static GroupLayout meshDataLayout;
     public static GroupLayout vertexFormatLayout;
 
+    public static MethodHandle b4dInitExternalLoggerHandle;
     public static MethodHandle b4dPreInitGlfwHandle;
     public static MethodHandle b4dCreateGlfwSurfaceProviderHandle;
 
@@ -51,6 +52,10 @@ public class Blaze4DNatives {
                 JAVA_INT,
                 JAVA_INT,
                 JAVA_INT
+        );
+
+        b4dInitExternalLoggerHandle = lookupFunction("b4d_init_external_logger",
+                FunctionDescriptor.ofVoid(ADDRESS)
         );
 
         b4dPreInitGlfwHandle = lookupFunction("b4d_pre_init_glfw",
@@ -106,6 +111,14 @@ public class Blaze4DNatives {
         );
     }
 
+    public static void b4dInitExternalLogger(NativeSymbol logFn) {
+        try {
+            b4dInitExternalLoggerHandle.invoke(logFn);
+        } catch (Throwable e) {
+            throw new RuntimeException(e);
+        }
+    }
+
     public static void b4dPreInitGlfw(MemoryAddress pfnGlfwInitVulkanLoader) {
         try {
             b4dPreInitGlfwHandle.invoke(pfnGlfwInitVulkanLoader);
@@ -141,7 +154,7 @@ public class Blaze4DNatives {
 
     public static void b4dSetVertexFormats(MemoryAddress b4d, MemoryAddress vertexFormats, int formatCount) {
         try {
-            b4dSetVertexFormatsHandle.invokeExact(b4d, vertexFormats, formatCount);
+            b4dSetVertexFormatsHandle.invoke(b4d, vertexFormats, formatCount);
         } catch (Throwable e) {
             throw new RuntimeException(e);
         }
@@ -149,7 +162,7 @@ public class Blaze4DNatives {
 
     public static long b4dCreateStaticMesh(MemoryAddress b4d, MemoryAddress meshData) {
         try {
-            return (long) b4dCreateStaticMeshHandle.invokeExact(b4d, meshData);
+            return (long) b4dCreateStaticMeshHandle.invoke(b4d, meshData);
         } catch (Throwable e) {
             throw new RuntimeException(e);
         }
@@ -157,7 +170,7 @@ public class Blaze4DNatives {
 
     public static void b4dDestroyStaticMesh(MemoryAddress b4d, long meshId) {
         try {
-            b4dDestroyStaticMeshHandle.invokeExact(b4d, meshId);
+            b4dDestroyStaticMeshHandle.invoke(b4d, meshId);
         } catch (Throwable e) {
             throw new RuntimeException(e);
         }
@@ -165,7 +178,7 @@ public class Blaze4DNatives {
 
     public static MemoryAddress b4dStartFrame(MemoryAddress b4d, int windowWidth, int windowHeight) {
         try {
-            return (MemoryAddress) b4dStartFrameHandle.invokeExact(b4d, windowWidth, windowHeight);
+            return (MemoryAddress) b4dStartFrameHandle.invoke(b4d, windowWidth, windowHeight);
         } catch (Throwable e) {
             throw new RuntimeException(e);
         }
@@ -173,7 +186,7 @@ public class Blaze4DNatives {
 
     public static void b4dPassSetModelViewMatrix(MemoryAddress pass, MemoryAddress matrix) {
         try {
-            b4dPassSetModelViewMatrixHandle.invokeExact(pass, matrix);
+            b4dPassSetModelViewMatrixHandle.invoke(pass, matrix);
         } catch (Throwable e) {
             throw new RuntimeException(e);
         }
@@ -181,7 +194,7 @@ public class Blaze4DNatives {
 
     public static void b4dPassSetProjectionMatrix(MemoryAddress pass, MemoryAddress matrix) {
         try {
-            b4dPassSetProjectionMatrixHandle.invokeExact(pass, matrix);
+            b4dPassSetProjectionMatrixHandle.invoke(pass, matrix);
         } catch (Throwable e) {
             throw new RuntimeException(e);
         }
@@ -189,7 +202,7 @@ public class Blaze4DNatives {
 
     public static void b4dPassDrawStatic(MemoryAddress pass, long meshId, int typeId) {
         try {
-            b4dPassDrawStaticHandle.invokeExact(pass, meshId, typeId);
+            b4dPassDrawStaticHandle.invoke(pass, meshId, typeId);
         } catch (Throwable e) {
             throw new RuntimeException(e);
         }
@@ -197,7 +210,7 @@ public class Blaze4DNatives {
 
     public static void b4dPassDrawImmediate(MemoryAddress pass, MemoryAddress meshData, int typeId) {
         try {
-            b4dPassDrawImmediateHandle.invokeExact(pass, meshData, typeId);
+            b4dPassDrawImmediateHandle.invoke(pass, meshData, typeId);
         } catch (Throwable e) {
             throw new RuntimeException(e);
         }
@@ -205,7 +218,7 @@ public class Blaze4DNatives {
 
     public static void b4dEndFrame(MemoryAddress pass) {
         try {
-            b4dEndFrameHandle.invokeExact(pass);
+            b4dEndFrameHandle.invoke(pass);
         } catch (Throwable e) {
             throw new RuntimeException(e);
         }
