@@ -10,8 +10,8 @@ import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 
 @Mixin(Minecraft.class)
 public class MinecraftClientMixin {
-    @Inject(method = "runTick", at = @At(value = "INVOKE", target = "Lcom/mojang/blaze3d/pipeline/RenderTarget;unbindWrite()V"))
-    private void renderFrame(boolean tick, CallbackInfo ci) {
+    @Inject(method = "runTick", at = @At(value = "HEAD"))
+    private void startFrame(CallbackInfo ci) {
         Blaze4D.core.startFrame();
     }
 

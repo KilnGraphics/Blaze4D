@@ -3,6 +3,7 @@ package graphics.kiln.blaze4d.mixin.render;
 import com.mojang.blaze3d.systems.RenderSystem;
 import com.mojang.blaze3d.vertex.BufferBuilder;
 import com.mojang.blaze3d.vertex.BufferUploader;
+import com.mojang.blaze3d.vertex.DefaultVertexFormat;
 import com.mojang.blaze3d.vertex.VertexBuffer;
 import com.mojang.datafixers.util.Pair;
 import graphics.kiln.blaze4d.Blaze4D;
@@ -25,6 +26,7 @@ import java.nio.ByteBuffer;
 public class VertexBufferMixin {
 
     private long staticMeshId = 0L;
+    private boolean blockFormat = false;
 
     /**
      * @author Blaze4D
@@ -42,6 +44,11 @@ public class VertexBufferMixin {
 
         if (!drawState.indexOnly()) {
             buffer.limit(drawState.bufferSize());
+
+            if (drawState.format().equals(DefaultVertexFormat.BLOCK) && drawState.indexType().bytes == 2) {
+                Blaze4D.LOGGER.error("Block format found");
+                this.blockFormat = true;
+            }
 
             if (!drawState.sequentialIndex()) {
                 buffer.position(0);
@@ -69,14 +76,18 @@ public class VertexBufferMixin {
 //        callWrapperRender(shader);
 //    }
 //
-//    /**
-//     * @author Blaze4D
-//     * @reason Allows rendering things such as Chunks within a World.
-//     */
-//    @Overwrite
-//    public void drawChunkLayer() {
-//        wrapper.render(GlobalRenderSystem.activeShader, GlobalRenderSystem.getShaderUbo(RenderSystem.getShader()));
-//    }
+    /**
+     * @author Blaze4D
+     * @reason Allows rendering things such as Chunks within a World.
+     */
+    @Inject(method = "drawChunkLayer", at = @At("HEAD"))
+    public void drawChunkLayer(CallbackInfo ci) {
+        if (this.staticMeshId != 0L && this.blockFormat) {
+            Blaze4D.core.passSetModelView(RenderSystem.getModelViewMatrix());
+            Blaze4D.core.passSetProjectionMatrix(RenderSystem.getProjectionMatrix());
+            Blaze4D.core.passDrawStatic(this.staticMeshId, 0);
+        }
+    }
 //
 //    @Unique
 //    private void callWrapperRender(ShaderInstance mcShader) {
