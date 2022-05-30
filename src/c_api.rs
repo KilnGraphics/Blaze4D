@@ -9,6 +9,7 @@ use crate::glfw_surface::GLFWSurfaceProvider;
 use crate::prelude::{Mat4f32, UUID, Vec2u32};
 
 use crate::renderer::emulator::{MeshData, PassRecorder, StaticMeshId};
+use crate::vk::objects::surface::SurfaceProvider;
 use crate::window::WinitWindow;
 
 #[repr(C)]
@@ -67,18 +68,18 @@ impl CB4DVertexFormat {
 /// This function will take ownership of the provided surface and vertex format set builder. The
 /// pointers must not be used again afterwards.
 #[no_mangle]
-unsafe extern "C" fn b4d_init(surface: *mut GLFWSurfaceProvider, enable_validation: u32) -> *mut B4DDebugWrapper {
+unsafe extern "C" fn b4d_init(surface: *mut GLFWSurfaceProvider, enable_validation: u32) -> *mut Blaze4D {
     catch_unwind(|| {
-        /*if surface.is_null() {
+        if surface.is_null() {
             log::error!("Passed null surface to b4d_init");
             exit(1);
-        }*/
+        }
 
-        // let surface_provider: Box<dyn SurfaceProvider> = Box::from_raw(surface);
+        let surface_provider: Box<dyn SurfaceProvider> = Box::from_raw(surface);
 
         let enable_validation = enable_validation != 0;
 
-        Box::leak(Box::new(B4DDebugWrapper::new(enable_validation)))
+        Box::leak(Box::new(Blaze4D::new(surface_provider, enable_validation)))
     }).unwrap_or_else(|_| {
         log::error!("panic in b4d_init");
         exit(1);
@@ -87,7 +88,7 @@ unsafe extern "C" fn b4d_init(surface: *mut GLFWSurfaceProvider, enable_validati
 
 /// Destroys a [`Blaze4D`] instance.
 #[no_mangle]
-unsafe extern "C" fn b4d_destroy(b4d: *mut B4DDebugWrapper) {
+unsafe extern "C" fn b4d_destroy(b4d: *mut Blaze4D) {
     catch_unwind(|| {
         if b4d.is_null() {
             log::error!("Passed null to b4d_destroy");
@@ -100,7 +101,8 @@ unsafe extern "C" fn b4d_destroy(b4d: *mut B4DDebugWrapper) {
     })
 }
 
-unsafe extern "C" fn b4d_set_vertex_formats(b4d: *const B4DDebugWrapper, formats_ptr: *const CB4DVertexFormat, formats_len: u32) {
+#[no_mangle]
+unsafe extern "C" fn b4d_set_vertex_formats(b4d: *const Blaze4D, formats_ptr: *const CB4DVertexFormat, formats_len: u32) {
     catch_unwind(|| {
         let b4d = b4d.as_ref().unwrap_or_else(|| {
             log::error!("Passed null b4d to b4d_create_static_mesh");
@@ -114,7 +116,7 @@ unsafe extern "C" fn b4d_set_vertex_formats(b4d: *const B4DDebugWrapper, formats
 
         let formats = formats.iter().map(|format| format.to_b4d_vertex_format()).collect();
 
-        b4d.b4d.set_emulator_vertex_formats(formats);
+        b4d.set_emulator_vertex_formats(formats);
     }).unwrap_or_else(|_| {
         log::error!("panic in b4d_set_vertex_formats");
         exit(1);
@@ -122,7 +124,7 @@ unsafe extern "C" fn b4d_set_vertex_formats(b4d: *const B4DDebugWrapper, formats
 }
 
 #[no_mangle]
-unsafe extern "C" fn b4d_create_static_mesh(b4d: *const B4DDebugWrapper, data: *const CMeshData) -> u64 {
+unsafe extern "C" fn b4d_create_static_mesh(b4d: *const Blaze4D, data: *const CMeshData) -> u64 {
     catch_unwind(|| {
         let b4d = b4d.as_ref().unwrap_or_else(|| {
             log::error!("Passed null b4d to b4d_create_static_mesh");
@@ -135,7 +137,7 @@ unsafe extern "C" fn b4d_create_static_mesh(b4d: *const B4DDebugWrapper, data: *
 
         let mesh_data = data.to_mesh_data();
 
-        b4d.b4d.create_static_mesh(&mesh_data).as_uuid().get_raw()
+        b4d.create_static_mesh(&mesh_data).as_uuid().get_raw()
     }).unwrap_or_else(|_| {
         log::error!("panic in b4d_create_static_mesh");
         exit(1);
@@ -143,14 +145,14 @@ unsafe extern "C" fn b4d_create_static_mesh(b4d: *const B4DDebugWrapper, data: *
 }
 
 #[no_mangle]
-unsafe extern "C" fn b4d_destroy_static_mesh(b4d: *const B4DDebugWrapper, mesh_id: u64) {
+unsafe extern "C" fn b4d_destroy_static_mesh(b4d: *const Blaze4D, mesh_id: u64) {
     catch_unwind(|| {
         let b4d = b4d.as_ref().unwrap_or_else(|| {
             log::error!("Passed null b4d to b4d_destroy_static_mesh");
             exit(1);
         });
 
-        b4d.b4d.drop_static_mesh(StaticMeshId::from_uuid(UUID::from_raw(mesh_id)));
+        b4d.drop_static_mesh(StaticMeshId::from_uuid(UUID::from_raw(mesh_id)));
     }).unwrap_or_else(|_| {
         log::error!("panic in b4d_destroy_static_mesh");
         exit(1);
@@ -161,14 +163,14 @@ unsafe extern "C" fn b4d_destroy_static_mesh(b4d: *const B4DDebugWrapper, mesh_i
 ///
 /// If [`Blaze4D::try_start_frame`] returns [`None`] this function returns null.
 #[no_mangle]
-unsafe extern "C" fn b4d_start_frame(b4d: *mut B4DDebugWrapper, window_width: u32, window_height: u32) -> *mut PassRecorder {
+unsafe extern "C" fn b4d_start_frame(b4d: *mut Blaze4D, window_width: u32, window_height: u32) -> *mut PassRecorder {
     catch_unwind(|| {
         let b4d = b4d.as_mut().unwrap_or_else(|| {
             log::error!("Passed null b4d to b4d_start_frame");
             exit(1);
         });
 
-        let frame = b4d.start_frame(Vec2u32::new(window_width, window_height));
+        let frame = b4d.try_start_frame(Vec2u32::new(window_width, window_height));
         frame.map_or(std::ptr::null_mut(), |recorder| {
             Box::leak(Box::new(recorder))
         })
@@ -264,56 +266,4 @@ unsafe extern "C" fn b4d_end_frame(recorder: *mut PassRecorder) {
         log::error!("panic in b4d_end_frame");
         exit(1);
     })
-}
-
-/// For now we want to draw to a separate window from the main minecraft window. This way we can
-/// easily compare results. This struct wraps a [`Blaze4D`] instance and uses a winit window.
-struct B4DDebugWrapper {
-    b4d: Blaze4D,
-    event_loop: EventLoop<()>,
-    winit_window_size: Vec2u32,
-}
-
-impl B4DDebugWrapper {
-    fn new(enable_validation: bool) -> Self {
-        env_logger::init();
-
-        let event_loop = EventLoop::new();
-        let window = Box::new(WinitWindow::new("Blaze4D", 800.0, 600.0, &event_loop));
-
-        let b4d = Blaze4D::new(window, enable_validation);
-
-        Self {
-            b4d,
-            event_loop,
-            winit_window_size: Vec2u32::new(800, 600),
-        }
-    }
-
-    fn start_frame(&mut self, _: Vec2u32) -> Option<PassRecorder> {
-        self.event_loop.run_return(|event, _, control_flow| {
-            *control_flow = ControlFlow::Poll;
-
-            match event {
-                Event::WindowEvent {
-                    event: WindowEvent::Resized(new_size),
-                    ..
-                } => {
-                    self.winit_window_size = Vec2u32::new(new_size.width, new_size.height);
-                },
-                Event::MainEventsCleared => {
-                    *control_flow = ControlFlow::Exit;
-                }
-                _ => {
-                }
-            }
-        });
-
-        self.b4d.try_start_frame(self.winit_window_size)
-    }
-}
-
-impl UnwindSafe for B4DDebugWrapper {
-}
-impl RefUnwindSafe for B4DDebugWrapper {
 }

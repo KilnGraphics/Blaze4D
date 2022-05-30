@@ -1,5 +1,7 @@
 use std::ffi::{c_void, CStr, CString};
 use std::os::raw::c_char;
+use std::panic::catch_unwind;
+use std::process::exit;
 use ash::vk;
 use crate::vk::objects::surface::{SurfaceInitError, SurfaceProvider};
 
@@ -28,7 +30,8 @@ impl GLFWSurfaceProvider {
         let mut count = 0u32;
         let extensions = unsafe { glfw_get_required_instance_extensions(&mut count) };
         if extensions.is_null() {
-            panic!("Extensions returned by glfwGetRequiredInstanceExtensions is null");
+            log::error!("Extensions returned by glfwGetRequiredInstanceExtensions is null");
+            panic!();
         }
 
         let extensions = unsafe { std::slice::from_raw_parts(extensions, count as usize) };
@@ -80,20 +83,30 @@ impl Drop for GLFWSurfaceProvider {
 }
 
 #[no_mangle]
-pub unsafe extern "C" fn b4d_pre_init_glfw(func: PFN_glfwInitVulkanLoader) {
-    let entry = ash::Entry::linked();
-    func(entry.static_fn().get_instance_proc_addr);
+unsafe extern "C" fn b4d_pre_init_glfw(func: PFN_glfwInitVulkanLoader) {
+    catch_unwind(|| {
+        let entry = ash::Entry::linked();
+        func(entry.static_fn().get_instance_proc_addr);
+    }).unwrap_or_else(|_| {
+        log::error!("panic in b4d_pre_init_glfw");
+        exit(1);
+    })
 }
 
 #[no_mangle]
-pub unsafe extern "C" fn b4d_create_glfw_surface_provider(
+unsafe extern "C" fn b4d_create_glfw_surface_provider(
     window: *const c_void,
     glfw_get_required_instance_extensions: PFN_glfwGetRequiredInstanceExtensions,
     glfw_create_window_surface: PFN_glfwCreateWindowSurface,
 ) -> *mut GLFWSurfaceProvider {
-    Box::leak(Box::new(GLFWSurfaceProvider::new(
-        window,
-        glfw_get_required_instance_extensions,
-        glfw_create_window_surface
-    )))
+    catch_unwind(|| {
+        Box::leak(Box::new(GLFWSurfaceProvider::new(
+            window,
+            glfw_get_required_instance_extensions,
+            glfw_create_window_surface
+        )))
+    }).unwrap_or_else(|_| {
+        log::error!("panic in b4d_create_glfw_surface_provider");
+        exit(1);
+    })
 }
