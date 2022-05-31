@@ -27,6 +27,9 @@ pub mod prelude {
     pub use crate::device::device::DeviceContext;
     pub use crate::device::device::DeviceEnvironment;
 
+    pub use crate::util::bytes::ToBytes;
+    pub use crate::util::bytes::FromBytes;
+
     pub type Vec2f32 = nalgebra::Vector2<f32>;
     pub type Vec3f32 = nalgebra::Vector3<f32>;
     pub type Vec4f32 = nalgebra::Vector4<f32>;
@@ -39,5 +42,7 @@ pub mod prelude {
     pub type Vec3i32 = nalgebra::Vector3<i32>;
     pub type Vec4i32 = nalgebra::Vector4<i32>;
 
+    pub type Mat2f32 = nalgebra::Matrix2<f32>;
+    pub type Mat3f32 = nalgebra::Matrix3<f32>;
     pub type Mat4f32 = nalgebra::Matrix4<f32>;
 }

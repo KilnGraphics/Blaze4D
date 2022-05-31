@@ -616,8 +616,8 @@ impl StagingMemory {
     /// # Safety
     /// This function is fully safe from out of bounds memory accesses. However it is the
     /// responsibility of the caller to ensure that no concurrent writes take place on the same
-    /// subregion.
-    pub unsafe fn write<T: Copy>(&self, data: &[T]) -> Option<usize> {
+    /// region.
+    pub unsafe fn write<T: ToBytes + ?Sized>(&self, data: &T) -> Option<usize> {
         self.write_offset(data, 0)
     }
 
@@ -628,39 +628,37 @@ impl StagingMemory {
     /// # Safety
     /// This function is fully safe from out of bounds memory accesses. However it is the
     /// responsibility of the caller to ensure that no concurrent writes take place on the same
-    /// subregion.
-    pub unsafe fn write_offset<T: Copy>(&self, data: &[T], offset: usize) -> Option<usize> {
+    /// region.
+    pub unsafe fn write_offset<T: ToBytes + ?Sized>(&self, data: &T, offset: usize) -> Option<usize> {
         assert!(offset <= (isize::MAX as usize));
 
-        let byte_count = data.len() * std::mem::size_of::<T>();
-        if (offset + byte_count) > self.memory_size {
+        let src = data.as_bytes();
+        if offset + src.len() > self.memory_size {
             return None;
         }
 
-        let src = std::slice::from_raw_parts(data.as_ptr() as *const u8, byte_count);
-        let dst = std::slice::from_raw_parts_mut(self.memory.offset(offset as isize), byte_count);
+        let dst = std::slice::from_raw_parts_mut(self.memory.offset(offset as isize), src.len());
         dst.copy_from_slice(src);
 
-        Some(byte_count)
+        Some(src.len())
     }
 
-    pub unsafe fn read<T: Copy>(&self, data: &mut [T]) -> Result<(), ()> {
+    pub unsafe fn read<T: FromBytes + ?Sized>(&self, data: &mut T) -> Option<usize> {
         self.read_offset(data, 0)
     }
 
-    pub unsafe fn read_offset<T: Copy>(&self, data: &mut [T], offset: usize) -> Result<(), ()> {
+    pub unsafe fn read_offset<T: FromBytes + ?Sized>(&self, data: &mut T, offset: usize) -> Option<usize> {
         assert!(offset <= (isize::MAX as usize));
 
-        let byte_count = data.len() * std::mem::size_of::<T>();
-        if (offset + byte_count) > self.memory_size {
-            return Err(());
+        let dst = data.as_bytes_mut();
+        if offset + dst.len() > self.memory_size {
+            return None;
         }
 
-        let src = std::slice::from_raw_parts(self.memory.offset(offset as isize), byte_count);
-        let dst = std::slice::from_raw_parts_mut(data.as_ptr() as *mut u8, byte_count);
+        let src = std::slice::from_raw_parts(self.memory.offset(offset as isize), dst.len());
         dst.copy_from_slice(src);
 
-        Ok(())
+        Some(dst.len())
     }
 
     pub unsafe fn copy_to_buffer<T: Into<BufferId>>(&self, dst_buffer: T, mut ranges: BufferTransferRanges) {
