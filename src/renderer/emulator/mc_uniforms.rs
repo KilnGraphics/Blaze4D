@@ -4,6 +4,7 @@ use ash::prelude::VkResult;
 use ash::vk;
 
 use crate::prelude::*;
+use crate::vk::objects::buffer::Buffer;
 
 #[repr(u32)]
 pub enum McUniform {
@@ -90,7 +91,7 @@ pub struct Set1Binding0 {
     _padding2: [u8; 12],
 }
 // Sanity checks
-const_assert_eq!(std::mem::size_of::<Set1Binding0>(), 196);
+const_assert_eq!(std::mem::size_of::<Set1Binding0>(), 192);
 const_assert_eq!(std::mem::size_of::<Set1Binding0>() % 16, 0); // std140 size must be multiple of vec4
 
 #[repr(C)]
@@ -214,6 +215,15 @@ fn generate_set_layout(device: &DeviceContext, binding_info: &[DescriptorBinding
     }
 }
 
+pub trait WritableSubAllocator {
+    fn allocate(data: &[u8], alignment: u32) -> Allocation;
+}
+
+pub struct Allocation {
+    buffer: Buffer,
+    offset: usize,
+}
+
 /// Tracks the state of minecraft uniforms for rendering
 pub(super) struct McUniformState {
     set_0_cache: vk::DescriptorSet,
@@ -285,5 +295,9 @@ impl McUniformState {
                 self.push_constants_invalid = true;
             }
         }
+    }
+
+    pub fn flush<A: WritableSubAllocator>(&mut self, allocator: &A) {
+        todo!()
     }
 }
