@@ -69,6 +69,9 @@ pub struct Set1Binding0 {
     inverse_view_rotation_matrix: Mat4f32,
 
     #[allow(unused)]
+    texture_matrix: Mat4f32,
+
+    #[allow(unused)]
     light_0_direction: Vec3f32,
 
     _padding0: [u8; 4],
@@ -80,9 +83,14 @@ pub struct Set1Binding0 {
 
     #[allow(unused)]
     color_modulator: Vec4f32,
+
+    #[allow(unused)]
+    line_width: f32,
+
+    _padding2: [u8; 12],
 }
 // Sanity checks
-const_assert_eq!(std::mem::size_of::<Set1Binding0>(), 112);
+const_assert_eq!(std::mem::size_of::<Set1Binding0>(), 196);
 const_assert_eq!(std::mem::size_of::<Set1Binding0>() % 16, 0); // std140 size must be multiple of vec4
 
 #[repr(C)]
@@ -210,13 +218,72 @@ fn generate_set_layout(device: &DeviceContext, binding_info: &[DescriptorBinding
 pub(super) struct McUniformState {
     set_0_cache: vk::DescriptorSet,
     set_1_cache: vk::DescriptorSet,
+
     push_constants: PushConstants,
     set_0_binding_0: Set0Binding0,
     set_1_binding_0: Set1Binding0,
+
+    any_invalid: bool,
+    push_constants_invalid: bool,
+    set_0_binding_0_invalid: bool,
+    set_1_binding_0_invalid: bool,
 }
 
 impl McUniformState {
     pub fn write(&mut self, uniform: &McUniform) {
-        todo!()
+        self.any_invalid = true;
+        match uniform {
+            McUniform::ModelViewMatrix(mat) => {
+                self.push_constants.model_view_matrix = *mat;
+                self.push_constants_invalid = true;
+            }
+            McUniform::ProjectionMatrix(mat) => {
+                self.set_0_binding_0.projection_matrix = *mat;
+                self.set_0_binding_0_invalid = true;
+            }
+            McUniform::InverseViewRotationMatrix(mat) => {
+                self.set_1_binding_0.inverse_view_rotation_matrix = *mat;
+                self.set_1_binding_0_invalid = true;
+            }
+            McUniform::TextureMatrix(mat) => {
+                self.set_1_binding_0.texture_matrix = *mat;
+                self.set_1_binding_0_invalid = true;
+            }
+            McUniform::ScreenSize(size) => {
+                self.set_0_binding_0.screen_size = *size;
+                self.set_0_binding_0_invalid = true;
+            }
+            McUniform::ColorModulator(modulator) => {
+                self.set_1_binding_0.color_modulator = *modulator;
+                self.set_1_binding_0_invalid = true;
+            }
+            McUniform::Light0Direction(dir) => {
+                self.set_1_binding_0.light_0_direction = *dir;
+                self.set_1_binding_0_invalid = true;
+            }
+            McUniform::Light1Direction(dir) => {
+                self.set_1_binding_0.light_1_direction = *dir;
+                self.set_1_binding_0_invalid = true;
+            }
+            McUniform::Fog { color, start, end, shape } => {
+                self.set_0_binding_0.fog_color = *color;
+                self.set_0_binding_0.fog_start = *start;
+                self.set_0_binding_0.fog_end = *end;
+                self.set_0_binding_0.fog_shape = *shape;
+                self.set_0_binding_0_invalid = true;
+            }
+            McUniform::LineWidth(width) => {
+                self.set_1_binding_0.line_width = *width;
+                self.set_1_binding_0_invalid = true;
+            }
+            McUniform::GameTime(time) => {
+                self.set_0_binding_0.game_time = *time;
+                self.set_0_binding_0_invalid = true;
+            }
+            McUniform::ChunkOffset(offset) => {
+                self.push_constants.chunk_offset = *offset;
+                self.push_constants_invalid = true;
+            }
+        }
     }
 }
