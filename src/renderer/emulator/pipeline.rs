@@ -45,6 +45,9 @@ pub trait EmulatorPipeline: Send + Sync + UnwindSafe + RefUnwindSafe {
     /// if the user submits tasks faster than the gpu can process them.
     fn start_pass(&self) -> Box<dyn EmulatorPipelinePass + Send>;
 
+    /// Returns the number of uniform states necessary for the pipeline.
+    fn get_uniform_states_count(&self) -> usize;
+
     /// Returns information about a type.
     ///
     /// A invalid type id is a serious error and should result in a panic.
@@ -58,6 +61,7 @@ pub trait EmulatorPipeline: Send + Sync + UnwindSafe + RefUnwindSafe {
 }
 
 pub struct PipelineTypeInfo {
+    pub(crate) uniform_state_index: usize,
 }
 
 /// Represents one execution of a [`EmulatorPipeline`].

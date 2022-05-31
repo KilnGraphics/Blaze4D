@@ -19,6 +19,7 @@ mod pass;
 
 pub mod pipeline;
 pub mod debug_pipeline;
+pub mod mc_uniforms;
 
 use std::sync::{Arc, Mutex, Weak};
 use std::sync::atomic::{AtomicU64, Ordering};

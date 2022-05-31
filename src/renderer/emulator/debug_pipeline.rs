@@ -35,7 +35,7 @@ pub struct DepthPipelineCore {
 
 impl DepthPipelineCore {
     pub fn new(device: DeviceEnvironment, types: &[DepthTypeInfo]) -> Self {
-        let type_infos: Box<_> = types.iter().map(|_| PipelineTypeInfo{}).collect();
+        let type_infos: Box<_> = types.iter().map(|_| PipelineTypeInfo{ uniform_state_index: 0 }).collect();
 
         let depth_format = vk::Format::D16_UNORM;
 
@@ -116,7 +116,7 @@ impl DepthPipelineCore {
 
         let rasterization_state = vk::PipelineRasterizationStateCreateInfo::builder()
             .polygon_mode(vk::PolygonMode::FILL)
-            .cull_mode(vk::CullModeFlags::BACK)
+            .cull_mode(vk::CullModeFlags::NONE)
             .front_face(vk::FrontFace::CLOCKWISE)
             .line_width(1f32);
 
@@ -263,6 +263,10 @@ impl EmulatorPipeline for DepthPipelineConfig {
         self.objects[index].wait_and_take();
 
         Box::new(DepthPipelinePass::new(self.weak.upgrade().unwrap(), index))
+    }
+
+    fn get_uniform_states_count(&self) -> usize {
+        todo!()
     }
 
     fn get_type_info(&self, type_id: TypeId) -> &PipelineTypeInfo {
