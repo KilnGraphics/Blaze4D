@@ -19,6 +19,7 @@ pub struct DeviceContext {
     id: NamedUUID,
     device: ash::Device,
     swapchain_khr: Option<ash::extensions::khr::Swapchain>,
+    push_descriptor_khr: ash::extensions::khr::PushDescriptor,
     physical_device: vk::PhysicalDevice,
     main_queue: VkQueueTemplate,
     transfer_queue: VkQueueTemplate,
@@ -33,12 +34,15 @@ impl DeviceContext {
         main_queue: VkQueueTemplate,
         transfer_queue: VkQueueTemplate,
     ) -> Arc<Self> {
+        let push_descriptor_khr = ash::extensions::khr::PushDescriptor::new(instance.vk(), &device);
+
         Arc::new_cyclic(|weak| Self {
             weak: weak.clone(),
             instance,
             id: NamedUUID::with_str("Device"),
             device,
             swapchain_khr,
+            push_descriptor_khr,
             physical_device,
             main_queue,
             transfer_queue,
@@ -63,6 +67,10 @@ impl DeviceContext {
 
     pub fn swapchain_khr(&self) -> Option<&ash::extensions::khr::Swapchain> {
         self.swapchain_khr.as_ref()
+    }
+
+    pub fn push_descriptor_khr(&self) -> &ash::extensions::khr::PushDescriptor {
+        &self.push_descriptor_khr
     }
 
     pub fn get_physical_device(&self) -> &vk::PhysicalDevice {

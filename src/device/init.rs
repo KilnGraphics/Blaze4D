@@ -90,6 +90,7 @@ pub fn create_device(config: DeviceCreateConfig, instance: Arc<InstanceContext>)
     } else {
         has_swapchain = false;
     }
+    required_extensions.insert(CString::from(CStr::from_bytes_with_nul(b"VK_KHR_push_descriptor\0").unwrap()));
 
     let selected_device = filter_devices(
         unsafe { instance.vk().enumerate_physical_devices()? },
