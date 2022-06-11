@@ -3,6 +3,7 @@ package graphics.kiln.blaze4d.api;
 import com.mojang.blaze3d.systems.RenderSystem;
 import com.mojang.blaze3d.vertex.DefaultVertexFormat;
 import com.mojang.math.Matrix4f;
+import com.mojang.math.Vector3f;
 import graphics.kiln.blaze4d.Blaze4D;
 import graphics.kiln.blaze4d.Blaze4DNatives;
 import jdk.incubator.foreign.MemoryAddress;
@@ -14,6 +15,7 @@ import org.lwjgl.system.APIUtil;
 import org.lwjgl.system.MemoryUtil;
 
 import java.nio.ByteBuffer;
+import java.util.Arrays;
 
 public class Blaze4DCore {
 
@@ -23,7 +25,6 @@ public class Blaze4DCore {
     private MemoryAddress currentPass;
 
     private final MemorySegment meshData;
-    private final MemorySegment matrixData;
 
     public Blaze4DCore() {
         GLFW.glfwDefaultWindowHints();
@@ -37,17 +38,7 @@ public class Blaze4DCore {
 
         this.instance = Blaze4DNatives.b4dInit(surfaceProvider, true);
 
-
-        MemorySegment format = MemorySegment.allocateNative(Blaze4DNatives.vertexFormatLayout, ResourceScope.globalScope());
-        format.setAtIndex(ValueLayout.JAVA_INT, 0, 3);
-        format.setAtIndex(ValueLayout.JAVA_INT, 1, DefaultVertexFormat.BLOCK.getVertexSize());
-        format.setAtIndex(ValueLayout.JAVA_INT, 2, 0);
-        format.setAtIndex(ValueLayout.JAVA_INT, 3, 106);
-
-        Blaze4DNatives.b4dSetVertexFormats(this.instance, format.address(), 1);
-
         this.meshData = MemorySegment.allocateNative(Blaze4DNatives.meshDataLayout, ResourceScope.globalScope());
-        this.matrixData = MemorySegment.allocateNative(4 * 16, ResourceScope.globalScope());
     }
 
     public void destroy() {
@@ -95,29 +86,19 @@ public class Blaze4DCore {
         }
     }
 
-    public void passSetModelView(Matrix4f matrix) {
+    public void passUpdateDevUniform(Matrix4f proj, Matrix4f modelView, Vector3f chunk_offset) {
         if (this.currentPass == null) {
             Blaze4D.LOGGER.error("Called passSetModelView when no current pass exists");
         } else {
-            this.updateMatrix(matrix);
-            Blaze4DNatives.b4dPassSetModelViewMatrix(this.currentPass, this.matrixData.address());
+            // TODO
+            // Blaze4DNatives.b4dPassUpdateDevUniform(this.currentPass, );
         }
     }
-
-    public void passSetProjectionMatrix(Matrix4f matrix) {
-        if (this.currentPass == null) {
-            Blaze4D.LOGGER.error("Called passSetProjectionMatrix when no current pass exists");
-        } else {
-            this.updateMatrix(matrix);
-            Blaze4DNatives.b4dPassSetProjectionMatrix(this.currentPass, this.matrixData.address());
-        }
-    }
-
-    public void passDrawStatic(long meshId, int typeId) {
+    public void passDrawStatic(long meshId, long shaderId) {
         if (this.currentPass == null) {
             Blaze4D.LOGGER.error("Called passDrawStatic when no current pass exists");
         } else {
-            Blaze4DNatives.b4dPassDrawStatic(this.currentPass, meshId, typeId);
+            Blaze4DNatives.b4dPassDrawStatic(this.currentPass, meshId, shaderId);
         }
     }
 
@@ -128,24 +109,5 @@ public class Blaze4DCore {
             Blaze4DNatives.b4dEndFrame(this.currentPass);
             this.currentPass = null;
         }
-    }
-
-    private void updateMatrix(Matrix4f matrix) {
-        this.matrixData.set(ValueLayout.JAVA_FLOAT, 0, matrix.m00);
-        this.matrixData.set(ValueLayout.JAVA_FLOAT, 1, matrix.m01);
-        this.matrixData.set(ValueLayout.JAVA_FLOAT, 2, matrix.m02);
-        this.matrixData.set(ValueLayout.JAVA_FLOAT, 3, matrix.m03);
-        this.matrixData.set(ValueLayout.JAVA_FLOAT, 4, matrix.m10);
-        this.matrixData.set(ValueLayout.JAVA_FLOAT, 5, matrix.m11);
-        this.matrixData.set(ValueLayout.JAVA_FLOAT, 6, matrix.m12);
-        this.matrixData.set(ValueLayout.JAVA_FLOAT, 7, matrix.m13);
-        this.matrixData.set(ValueLayout.JAVA_FLOAT, 8, matrix.m20);
-        this.matrixData.set(ValueLayout.JAVA_FLOAT, 9, matrix.m21);
-        this.matrixData.set(ValueLayout.JAVA_FLOAT, 10, matrix.m22);
-        this.matrixData.set(ValueLayout.JAVA_FLOAT, 11, matrix.m23);
-        this.matrixData.set(ValueLayout.JAVA_FLOAT, 12, matrix.m30);
-        this.matrixData.set(ValueLayout.JAVA_FLOAT, 13, matrix.m31);
-        this.matrixData.set(ValueLayout.JAVA_FLOAT, 14, matrix.m32);
-        this.matrixData.set(ValueLayout.JAVA_FLOAT, 15, matrix.m33);
     }
 }

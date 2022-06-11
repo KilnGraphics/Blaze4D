@@ -1,7 +1,7 @@
 import org.gradle.internal.os.OperatingSystem
 
 plugins {
-	id("fabric-loom") version "0.11-SNAPSHOT"
+	id("fabric-loom") version "0.12-SNAPSHOT"
 	//id("io.github.juuxel.loom-quiltflower-mini") version "1.2.1"
 	`maven-publish`
 }
@@ -9,6 +9,7 @@ plugins {
 group = "graphics.kiln"
 version = "1.0.0-SNAPSHOT"
 
+/*
 val lwjglVersion = "3.3.1"
 val lwjglNatives = when (OperatingSystem.current()) {
 	OperatingSystem.LINUX -> System.getProperty("os.arch").let {
@@ -25,7 +26,7 @@ val lwjglNatives = when (OperatingSystem.current()) {
 			"natives-windows-x86"
 	}
 	else -> throw Error("Unrecognized or unsupported Operating system. Please set \"lwjglNatives\" manually")
-}
+}*/
 
 repositories {
 	mavenCentral()
@@ -45,14 +46,13 @@ dependencies {
 	minecraft("net.minecraft", "minecraft", properties["minecraft_version"].toString())
 	mappings(loom.layered {
 		officialMojangMappings()
-		//parchment("org.parchmentmc.data:parchment-1.17.1:2021.10.31@zip")
 	})
 	modImplementation("net.fabricmc", "fabric-loader", properties["loader_version"].toString())
 	//modImplementation("net.fabricmc", "fabric-language-kotlin", "1.6.4+kotlin.1.5.30")
 
 	// include(implementation("com.oroarmor", "aftermath", "1.0.0-beta"))
 
-
+/*
 	include(implementation("org.joml", "joml", "1.10.1"))
 	include(implementation("org.lwjgl", "lwjgl", lwjglVersion))
 	include(implementation("org.lwjgl", "lwjgl-shaderc", lwjglVersion))
@@ -76,7 +76,7 @@ dependencies {
 	include(implementation("org.lwjgl", "lwjgl-openal", lwjglVersion, classifier = lwjglNatives))
 	include(implementation("org.lwjgl", "lwjgl-opengl", lwjglVersion, classifier = lwjglNatives))
 	include(implementation("org.lwjgl", "lwjgl-stb", lwjglVersion, classifier = lwjglNatives))
-	include(implementation("org.lwjgl", "lwjgl-tinyfd", lwjglVersion, classifier = lwjglNatives))
+	include(implementation("org.lwjgl", "lwjgl-tinyfd", lwjglVersion, classifier = lwjglNatives))*/
 
 //	if (lwjglNatives == "natives-macos" || lwjglNatives == "natives-macos-arm64") {
 //		include("org.lwjgl", "lwjgl-vulkan", lwjglVersion, classifier = lwjglNatives)
@@ -85,6 +85,7 @@ dependencies {
 	testImplementation("org.junit.jupiter", "junit-jupiter", "5.7.0")
 }
 
+/*
 configurations.all {
 	resolutionStrategy.cacheChangingModulesFor(0, "seconds")
     resolutionStrategy {
@@ -96,7 +97,7 @@ configurations.all {
         force("org.lwjgl:lwjgl:$lwjglVersion")
         force("org.lwjgl:lwjgl-glfw:$lwjglVersion")
     }
-}
+}*/
 
 base {
 	archivesBaseName = "blaze4d"
@@ -135,6 +136,7 @@ loom {
 
 			vmArgs.add("--add-modules=jdk.incubator.foreign")
 			vmArgs.add("--enable-native-access=ALL-UNNAMED")
+			vmArgs.add("-Db4d.native=C:\\Users\\Lorenzo Rai\\Documents\\Dev\\b4dcore\\target\\release\\b4d_core.dll")
 		}
 	}
 }

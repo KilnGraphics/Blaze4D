@@ -21,13 +21,13 @@ public class Blaze4DNatives {
 
     public static MethodHandle b4dInitHandle;
     public static MethodHandle b4dDestroyHandle;
-    public static MethodHandle b4dSetVertexFormatsHandle;
     public static MethodHandle b4dCreateStaticMeshHandle;
     public static MethodHandle b4dDestroyStaticMeshHandle;
+    public static MethodHandle b4dCreateShaderHandle;
+    public static MethodHandle b4dDestroyShaderHandle;
     public static MethodHandle b4dStartFrameHandle;
 
-    public static MethodHandle b4dPassSetModelViewMatrixHandle;
-    public static MethodHandle b4dPassSetProjectionMatrixHandle;
+    public static MethodHandle b4dPassUpdateDevUniformHandle;
     public static MethodHandle b4dPassDrawStaticHandle;
     public static MethodHandle b4dPassDrawImmediateHandle;
     public static MethodHandle b4dEndFrameHandle;
@@ -76,10 +76,6 @@ public class Blaze4DNatives {
                 FunctionDescriptor.ofVoid(ADDRESS)
         );
 
-        b4dSetVertexFormatsHandle = lookupFunction("b4d_set_vertex_formats",
-                FunctionDescriptor.ofVoid(ADDRESS, ADDRESS, JAVA_INT)
-        );
-
         b4dCreateStaticMeshHandle = lookupFunction("b4d_create_static_mesh",
                 FunctionDescriptor.of(JAVA_LONG, ADDRESS, ADDRESS)
         );
@@ -88,24 +84,28 @@ public class Blaze4DNatives {
                 FunctionDescriptor.ofVoid(ADDRESS, JAVA_LONG)
         );
 
+        b4dCreateShaderHandle = lookupFunction("b4d_create_shader",
+                FunctionDescriptor.of(JAVA_LONG, ADDRESS, JAVA_INT, JAVA_INT, JAVA_INT)
+        );
+
+        b4dDestroyShaderHandle = lookupFunction("b4d_destroy_shader",
+                FunctionDescriptor.ofVoid(ADDRESS, JAVA_LONG)
+        );
+
         b4dStartFrameHandle = lookupFunction("b4d_start_frame",
                 FunctionDescriptor.of(ADDRESS, ADDRESS, JAVA_INT, JAVA_INT)
         );
 
-        b4dPassSetModelViewMatrixHandle = lookupFunction("b4d_pass_set_model_view_matrix",
-                FunctionDescriptor.ofVoid(ADDRESS, ADDRESS)
-        );
-
-        b4dPassSetProjectionMatrixHandle = lookupFunction("b4d_pass_set_projection_matrix",
-                FunctionDescriptor.ofVoid(ADDRESS, ADDRESS)
+        b4dPassUpdateDevUniformHandle = lookupFunction("b4d_pass_update_dev_uniform",
+                FunctionDescriptor.ofVoid(ADDRESS, ADDRESS, JAVA_LONG)
         );
 
         b4dPassDrawStaticHandle = lookupFunction("b4d_pass_draw_static",
-                FunctionDescriptor.ofVoid(ADDRESS, JAVA_LONG, JAVA_INT)
+                FunctionDescriptor.ofVoid(ADDRESS, JAVA_LONG, JAVA_LONG)
         );
 
         b4dPassDrawImmediateHandle = lookupFunction("b4d_pass_draw_immediate",
-                FunctionDescriptor.ofVoid(ADDRESS, ADDRESS, JAVA_INT)
+                FunctionDescriptor.ofVoid(ADDRESS, ADDRESS, JAVA_LONG)
         );
 
         b4dEndFrameHandle = lookupFunction("b4d_end_frame",
@@ -154,14 +154,6 @@ public class Blaze4DNatives {
         }
     }
 
-    public static void b4dSetVertexFormats(MemoryAddress b4d, MemoryAddress vertexFormats, int formatCount) {
-        try {
-            b4dSetVertexFormatsHandle.invoke(b4d, vertexFormats, formatCount);
-        } catch (Throwable e) {
-            throw new RuntimeException(e);
-        }
-    }
-
     public static long b4dCreateStaticMesh(MemoryAddress b4d, MemoryAddress meshData) {
         try {
             return (long) b4dCreateStaticMeshHandle.invoke(b4d, meshData);
@@ -178,6 +170,22 @@ public class Blaze4DNatives {
         }
     }
 
+    public static long b4dCreateShader(MemoryAddress b4d, int stride, int offset, int format) {
+        try {
+            return (long) b4dCreateStaticMeshHandle.invoke(b4d, stride, offset, format);
+        } catch (Throwable e) {
+            throw new RuntimeException(e);
+        }
+    }
+
+    public static void b4dDestroyShader(MemoryAddress b4d, long shaderId) {
+        try {
+            b4dDestroyStaticMeshHandle.invoke(b4d, shaderId);
+        } catch (Throwable e) {
+            throw new RuntimeException(e);
+        }
+    }
+
     public static MemoryAddress b4dStartFrame(MemoryAddress b4d, int windowWidth, int windowHeight) {
         try {
             return (MemoryAddress) b4dStartFrameHandle.invoke(b4d, windowWidth, windowHeight);
@@ -186,33 +194,25 @@ public class Blaze4DNatives {
         }
     }
 
-    public static void b4dPassSetModelViewMatrix(MemoryAddress pass, MemoryAddress matrix) {
+    public static void b4dPassUpdateDevUniform(MemoryAddress pass, MemoryAddress data) {
         try {
-            b4dPassSetModelViewMatrixHandle.invoke(pass, matrix);
+            b4dPassUpdateDevUniformHandle.invoke(pass, data);
         } catch (Throwable e) {
             throw new RuntimeException(e);
         }
     }
 
-    public static void b4dPassSetProjectionMatrix(MemoryAddress pass, MemoryAddress matrix) {
+    public static void b4dPassDrawStatic(MemoryAddress pass, long meshId, long shaderId) {
         try {
-            b4dPassSetProjectionMatrixHandle.invoke(pass, matrix);
+            b4dPassDrawStaticHandle.invoke(pass, meshId, shaderId);
         } catch (Throwable e) {
             throw new RuntimeException(e);
         }
     }
 
-    public static void b4dPassDrawStatic(MemoryAddress pass, long meshId, int typeId) {
+    public static void b4dPassDrawImmediate(MemoryAddress pass, MemoryAddress meshData, long shaderId) {
         try {
-            b4dPassDrawStaticHandle.invoke(pass, meshId, typeId);
-        } catch (Throwable e) {
-            throw new RuntimeException(e);
-        }
-    }
-
-    public static void b4dPassDrawImmediate(MemoryAddress pass, MemoryAddress meshData, int typeId) {
-        try {
-            b4dPassDrawImmediateHandle.invoke(pass, meshData, typeId);
+            b4dPassDrawImmediateHandle.invoke(pass, meshData, shaderId);
         } catch (Throwable e) {
             throw new RuntimeException(e);
         }

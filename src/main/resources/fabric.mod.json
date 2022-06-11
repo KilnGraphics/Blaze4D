@@ -32,7 +32,7 @@
   "accessWidener": "blaze4d.aw",
   "depends": {
     "fabricloader": ">=0.13.3",
-    "minecraft": "1.18.x"
+    "minecraft": "1.19.x"
   },
   "breaks": {
     "canvas": "*",

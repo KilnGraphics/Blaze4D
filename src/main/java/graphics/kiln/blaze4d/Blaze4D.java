@@ -57,7 +57,7 @@ public class Blaze4D implements ClientModInitializer {
         Blaze4DNatives.b4dPreInitGlfw(MemoryAddress.ofLong(APIUtil.apiGetFunctionAddress(GLFW.getLibrary(), "glfwInitVulkanLoader")));
 
 //        if (RENDERDOC_ENABLED) {
-//            System.loadLibrary("renderdoc");
+            System.load("C:\\Program Files\\RenderDoc\\renderdoc.dll");
 //        }
     }
 
