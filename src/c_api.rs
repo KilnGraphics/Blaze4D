@@ -10,7 +10,7 @@ use crate::glfw_surface::GLFWSurfaceProvider;
 use crate::prelude::{Mat4f32, UUID, Vec2u32};
 
 use crate::renderer::emulator::{MeshData, PassRecorder, StaticMeshId};
-use crate::renderer::emulator::mc_shaders::{DevUniform, ShaderId};
+use crate::renderer::emulator::mc_shaders::{DevUniform, ShaderId, VertexFormat, VertexFormatEntry};
 use crate::vk::objects::surface::SurfaceProvider;
 use crate::window::WinitWindow;
 
@@ -119,6 +119,44 @@ unsafe extern "C" fn b4d_destroy_static_mesh(b4d: *const Blaze4D, mesh_id: u64) 
         b4d.drop_static_mesh(StaticMeshId::from_uuid(UUID::from_raw(mesh_id)));
     }).unwrap_or_else(|_| {
         log::error!("panic in b4d_destroy_static_mesh");
+        exit(1);
+    })
+}
+
+#[no_mangle]
+unsafe extern "C" fn b4d_create_shader(b4d: *const Blaze4D, stride: u32, offset: u32, format: i32) -> u64 {
+    catch_unwind(|| {
+        let b4d = b4d.as_ref().unwrap_or_else(|| {
+            log::error!("Passed null b4d to b4d_create_shader");
+            exit(1);
+        });
+
+        let vertex_format = VertexFormat {
+            stride,
+            position: VertexFormatEntry {
+                offset,
+                format: vk::Format::from_raw(format)
+            }
+        };
+
+        b4d.create_shader(&vertex_format).as_uuid().get_raw()
+    }).unwrap_or_else(|_| {
+        log::error!("panic in b4d_create_shader");
+        exit(1);
+    })
+}
+
+#[no_mangle]
+unsafe extern "C" fn b4d_destroy_shader(b4d: *const Blaze4D, shader_id: u64) {
+    catch_unwind(|| {
+        let b4d = b4d.as_ref().unwrap_or_else(|| {
+            log::error!("Passed null b4d to b4d_destroy_shader");
+            exit(1);
+        });
+
+        b4d.drop_shader(ShaderId::from_uuid(UUID::from_raw(shader_id)));
+    }).unwrap_or_else(|_| {
+        log::error!("panic in b4d_destroy_shader");
         exit(1);
     })
 }
