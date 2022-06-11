@@ -22,7 +22,7 @@ fn main() {
         stride: std::mem::size_of::<Vertex>() as u32,
         position: VertexFormatEntry { offset: 0, format: vk::Format::R32G32B32_SFLOAT }
     };
-    let shader = b4d.create_shader(&vertex_format);
+    let mut shader = b4d.create_shader(&vertex_format);
 
     let mut draw_times = Vec::with_capacity(1000);
     let mut last_update = std::time::Instant::now();
@@ -84,6 +84,10 @@ fn main() {
                     }
 
                     drop(recorder);
+
+                    // Stress test the shader stuff
+                    b4d.drop_shader(shader);
+                    shader = b4d.create_shader(&vertex_format);
                 }
                 draw_times.push(now.elapsed());
 

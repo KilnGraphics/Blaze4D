@@ -13,7 +13,7 @@ use crate::objects::id::BufferId;
 
 use crate::prelude::*;
 use crate::renderer::emulator::EmulatorRenderer;
-use crate::renderer::emulator::mc_shaders::{DevUniform, ShaderDropListener, ShaderId, ShaderListener};
+use crate::renderer::emulator::mc_shaders::{DevUniform, ShaderDropListener, ShaderId, ShaderListener, VertexFormat};
 use crate::renderer::emulator::pipeline::{DrawTask, EmulatorPipeline, EmulatorPipelinePass, PipelineTask, PooledObjectProvider, SubmitRecorder};
 use crate::vk::objects::allocator::{Allocation, AllocationStrategy};
 
@@ -90,16 +90,10 @@ impl DebugPipeline {
             panic!()
         });
 
-        pipelines.get_or_create_pipeline(config, || self.create_pipeline(config, shader))
+        pipelines.get_or_create_pipeline(config, |format| self.create_pipeline(config, format))
     }
 
-    fn create_pipeline(&self, config: &PipelineConfig, shader: ShaderId) -> vk::Pipeline {
-        let shader = self.emulator.get_shader(shader).unwrap_or_else(|| {
-            log::error!("Unable to find shader {:?} in DebugPipeline::create_pipeline", shader);
-            panic!();
-        });
-        let vertex_format = shader.get_vertex_format();
-
+    fn create_pipeline(&self, config: &PipelineConfig, vertex_format: &VertexFormat) -> vk::Pipeline {
         let shader_stages = [
             vk::PipelineShaderStageCreateInfo::builder()
                 .stage(vk::ShaderStageFlags::VERTEX)
@@ -164,7 +158,7 @@ impl DebugPipeline {
 
         let input_assembly_state = vk::PipelineInputAssemblyStateCreateInfo::builder()
             .topology(config.primitive_topology)
-            .primitive_restart_enable(true);
+            .primitive_restart_enable(false);
 
         let depth_stencil_state = vk::PipelineDepthStencilStateCreateInfo::builder()
             .depth_test_enable(true)
@@ -283,7 +277,10 @@ impl EmulatorPipeline for DebugPipeline {
                 log::error!("Called inc_shader_used for nonexistent shader {:?}", shader);
                 panic!()
             }).register_drop_listener(&(self.weak.upgrade().unwrap() as Arc<dyn ShaderDropListener + Send + Sync>));
-            let mut  pipelines = ShaderPipelines::new(&self.device, shader, listener);
+
+            let vertex_format = self.emulator.get_shader(shader).unwrap().get_vertex_format().clone();
+
+            let mut  pipelines = ShaderPipelines::new(&self.device, shader, vertex_format, listener);
             pipelines.inc_used();
 
             guard.insert(shader, pipelines);
@@ -344,6 +341,7 @@ struct PipelineConfig {
 struct ShaderPipelines {
     device: Arc<DeviceContext>,
     shader: ShaderId,
+    vertex_format: VertexFormat,
     pipelines: HashMap<PipelineConfig, vk::Pipeline>,
     #[allow(unused)]
     listener: ShaderListener,
@@ -352,10 +350,11 @@ struct ShaderPipelines {
 }
 
 impl ShaderPipelines {
-    fn new(device: &DeviceEnvironment, shader: ShaderId, listener: ShaderListener) -> Self {
+    fn new(device: &DeviceEnvironment, shader: ShaderId, vertex_format: VertexFormat, listener: ShaderListener) -> Self {
         Self {
             device: device.get_device().clone(),
             shader,
+            vertex_format,
             pipelines: HashMap::new(),
             listener,
             used_counter: 0,
@@ -363,11 +362,11 @@ impl ShaderPipelines {
         }
     }
 
-    fn get_or_create_pipeline<T: FnOnce() -> vk::Pipeline>(&mut self, config: &PipelineConfig, create_fn: T) -> vk::Pipeline {
+    fn get_or_create_pipeline<T: FnOnce(&VertexFormat) -> vk::Pipeline>(&mut self, config: &PipelineConfig, create_fn: T) -> vk::Pipeline {
         if let Some(pipeline) = self.pipelines.get(config) {
             *pipeline
         } else {
-            let pipeline = create_fn();
+            let pipeline = create_fn(&self.vertex_format);
             self.pipelines.insert(*config, pipeline);
             pipeline
         }
