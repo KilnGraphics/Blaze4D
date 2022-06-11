@@ -208,3 +208,34 @@ impl Debug for NamedUUID {
         f.write_fmt(format_args!("NamedUUID{{\"{}\", {:?}}}", name, &self.id))
     }
 }
+
+/// Utility macro to define new id types using a [`UUID`] internally.
+#[macro_export]
+macro_rules! define_uuid_type {
+    ($vis:vis, $name:ident) => {
+        #[derive(Copy, Clone, PartialEq, Eq, PartialOrd, Ord, Debug, Hash)]
+        $vis struct $name(UUID);
+
+        impl $name {
+            $vis fn new() -> Self {
+                Self(UUID::new())
+            }
+
+            $vis fn from_uuid(raw: UUID) -> Self {
+                Self(raw)
+            }
+
+            $vis fn as_uuid(&self) -> UUID {
+                self.0
+            }
+        }
+
+        impl From<$name> for UUID {
+            fn from(id: $name) -> Self {
+                id.as_uuid
+            }
+        }
+    }
+}
+
+pub use define_uuid_type;
