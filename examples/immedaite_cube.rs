@@ -6,18 +6,23 @@ use winit::event_loop::{ControlFlow, EventLoop};
 use b4d_core::b4d::B4DVertexFormat;
 
 use b4d_core::prelude::*;
+use b4d_core::renderer::emulator::mc_shaders::{DevUniform, VertexFormat, VertexFormatEntry};
 use b4d_core::renderer::emulator::MeshData;
 
 use b4d_core::window::WinitWindow;
 
 fn main() {
-    env_logger::init();
+    env_logger::Builder::from_env(env_logger::Env::default().default_filter_or("info")).init();
 
     let event_loop = EventLoop::new();
     let window = Box::new(WinitWindow::new("ImmediateCube", 800.0, 600.0, &event_loop));
 
-    let b4d = b4d_core::b4d::Blaze4D::new(window, false);
-    b4d.set_emulator_vertex_formats(Box::new([Vertex::make_b4d_vertex_format()]));
+    let b4d = b4d_core::b4d::Blaze4D::new(window, true);
+    let vertex_format = VertexFormat {
+        stride: std::mem::size_of::<Vertex>() as u32,
+        position: VertexFormatEntry { offset: 0, format: vk::Format::R32G32B32_SFLOAT }
+    };
+    let shader = b4d.create_shader(&vertex_format);
 
     let mut draw_times = Vec::with_capacity(1000);
     let mut last_update = std::time::Instant::now();
@@ -47,12 +52,12 @@ fn main() {
                 let now = std::time::Instant::now();
                 if let Some(mut recorder) = b4d.try_start_frame(current_size) {
 
-                    recorder.set_projection_matrix(&make_projection_matrix(current_size, 90f32));
+                    let mut uniform_data: DevUniform = Default::default();
+                    uniform_data.chunk_offset = Vec3f32::new(0f32, 0f32, 0f32);
+                    uniform_data.projection_matrix = make_projection_matrix(current_size, 90f32);
 
                     let elapsed = start.elapsed().as_secs_f32();
                     let rotation = Mat4f32::new_rotation(Vec3f32::new(elapsed / 2.34f32, elapsed / 2.783f32, elapsed / 2.593f32));
-                    let translation = Mat4f32::new_translation(&Vec3f32::new(0f32, 0f32, 5f32));
-                    recorder.set_model_view_matrix(&(translation * rotation));
 
                     let data = MeshData {
                         vertex_data: b4d_core::util::slice::to_byte_slice(&CUBE_VERTICES),
@@ -60,15 +65,8 @@ fn main() {
                         vertex_stride: std::mem::size_of::<Vertex>() as u32,
                         index_count: CUBE_INDICES.len() as u32,
                         index_type: vk::IndexType::UINT32,
+                        primitive_topology: vk::PrimitiveTopology::TRIANGLE_LIST,
                     };
-
-                    let translation = Mat4f32::new_translation(&Vec3f32::new(
-                        0f32,
-                        0f32,
-                        5f32
-                    ));
-                    recorder.set_model_view_matrix(&(translation * rotation));
-
 
                     for x in -5i32..=5i32 {
                         for y in -5i32..=5i32 {
@@ -78,8 +76,9 @@ fn main() {
                                     0f32 + ((y as f32) / 2f32),
                                     5f32 + ((z as f32) / 2f32)
                                 ));
-                                recorder.set_model_view_matrix(&(translation * rotation));
-                                recorder.draw_immediate(&data, 0);
+                                uniform_data.model_view_matrix = translation * rotation;
+                                recorder.update_dev_uniform(&uniform_data, shader);
+                                recorder.draw_immediate(&data, shader);
                             }
                         }
                     }

@@ -71,6 +71,8 @@ impl From<vk::Result> for DeviceCreateError {
 }
 
 pub fn create_device(config: DeviceCreateConfig, instance: Arc<InstanceContext>) -> Result<(DeviceEnvironment, Vec<(SurfaceId, Arc<DeviceSurface>)>), DeviceCreateError> {
+    log::info!("Creating device");
+
     let vk_vp = vk_profiles_rs::VulkanProfiles::linked();
 
     let mut surfaces = Vec::with_capacity(config.surfaces.len());
@@ -99,7 +101,6 @@ pub fn create_device(config: DeviceCreateConfig, instance: Arc<InstanceContext>)
         &surfaces,
         config.rating_fn.as_ref()
     )?;
-
 
     let mut features1_2 = vk::PhysicalDeviceVulkan12Features::builder().build();
     unsafe { vk_vp.get_profile_features(instance.get_profile(), &mut features1_2) };
@@ -208,7 +209,14 @@ fn process_device(
         CString::from(unsafe { CStr::from_ptr(ext.extension_name.as_ptr()) })
     }).collect();
 
+    let properties = unsafe {
+        instance.vk().get_physical_device_properties(device)
+    };
     if !required_extensions.is_subset(&available_extensions) {
+        log::info!("Device {:?} is missing extensions {:?}",
+            unsafe { CStr::from_ptr(properties.device_name.as_ptr()) },
+            required_extensions.difference(&available_extensions)
+        );
         return Ok(None);
     }
 

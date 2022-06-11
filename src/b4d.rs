@@ -16,6 +16,7 @@ use crate::vk::objects::surface::SurfaceProvider;
 use crate::prelude::*;
 use crate::renderer::emulator::{EmulatorRenderer, MeshData, StaticMeshId};
 use crate::renderer::emulator::debug_pipeline::DebugPipeline;
+use crate::renderer::emulator::mc_shaders::{ShaderId, VertexFormat};
 use crate::renderer::emulator::PassRecorder;
 use crate::renderer::emulator::pipeline::{EmulatorPipeline, SwapchainOutput};
 
@@ -52,7 +53,10 @@ impl Blaze4D {
         device_config.add_surface(main_surface);
         device_config.disable_robustness();
 
-        let (device, surfaces) = create_device(device_config, instance.clone()).unwrap();
+        let (device, surfaces) = create_device(device_config, instance.clone()).unwrap_or_else(|err| {
+            log::error!("Failed to create device in Blaze4D::new(): {:?}", err);
+            panic!()
+        });
         let main_surface = surfaces.into_iter().fold(None, |res, (id, surface)| {
             if id == main_surface {
                 Some(surface)
@@ -80,6 +84,14 @@ impl Blaze4D {
 
     pub fn drop_static_mesh(&self, id: StaticMeshId) {
         self.emulator.drop_static_mesh(id);
+    }
+
+    pub fn create_shader(&self, vertex_format: &VertexFormat) -> ShaderId {
+        self.emulator.create_shader(vertex_format)
+    }
+
+    pub fn drop_shader(&self, id: ShaderId) {
+        self.emulator.drop_shader(id);
     }
 
     pub fn try_start_frame(&self, window_size: Vec2u32) -> Option<PassRecorder> {

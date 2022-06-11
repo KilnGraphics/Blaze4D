@@ -81,13 +81,13 @@ impl Drop for ShaderListener {
 #[derive(Copy, Clone, Debug, Default)]
 pub struct DevUniform {
     #[allow(unused)]
-    projection_matrix: Mat4f32,
+    pub projection_matrix: Mat4f32,
 
     #[allow(unused)]
-    model_view_matrix: Mat4f32,
+    pub model_view_matrix: Mat4f32,
 
     #[allow(unused)]
-    chunk_offset: Vec3f32,
+    pub chunk_offset: Vec3f32,
 
     _padding0: [u8; 4],
 }

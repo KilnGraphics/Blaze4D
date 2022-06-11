@@ -204,6 +204,7 @@ impl DebugPipeline {
         ];
 
         let info = vk::DescriptorSetLayoutCreateInfo::builder()
+            .flags(vk::DescriptorSetLayoutCreateFlags::PUSH_DESCRIPTOR_KHR)
             .bindings(&bindings);
 
         let set_layout = unsafe {
