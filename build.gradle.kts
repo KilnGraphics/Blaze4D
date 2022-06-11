@@ -136,7 +136,6 @@ loom {
 
 			vmArgs.add("--add-modules=jdk.incubator.foreign")
 			vmArgs.add("--enable-native-access=ALL-UNNAMED")
-			vmArgs.add("-Db4d.native=C:\\Users\\Lorenzo Rai\\Documents\\Dev\\b4dcore\\target\\release\\b4d_core.dll")
 		}
 	}
 }

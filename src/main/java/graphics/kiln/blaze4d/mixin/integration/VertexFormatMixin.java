@@ -7,7 +7,7 @@ import org.spongepowered.asm.mixin.Overwrite;
 @Mixin(VertexFormat.IndexType.class)
 public class VertexFormatMixin {
     @Overwrite
-    private static VertexFormat.IndexType least(int i) {
+    public static VertexFormat.IndexType least(int i) {
         // We don't support byte indices
         // if ((i & 0xFFFF0000) != 0) {
         //     return VertexFormat.IndexType.INT;

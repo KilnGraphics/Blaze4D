@@ -26,44 +26,19 @@ import java.util.Objects;
 public class VertexBufferMixin {
 
     private long staticMeshId = 0L;
-    private boolean blockFormat = false;
 
     /**
      * @author Blaze4D
      * @reason Allow for uploading Vertex Buffers
      */
-    @ModifyVariable(method="upload", at = @At("STORE"))
-    private Pair<BufferBuilder.DrawState, ByteBuffer> uploadBuffer(Pair<BufferBuilder.DrawState, ByteBuffer> pair) {
+    @Inject(method="upload", at = @At("HEAD"))
+    private void uploadBuffer(BufferBuilder.RenderedBuffer renderedBuffer) {
         if (this.staticMeshId != 0L) {
             Blaze4D.core.destroyStaticMesh(this.staticMeshId);
             this.staticMeshId = 0;
         }
 
-        BufferBuilder.DrawState drawState = pair.getFirst();
-        ByteBuffer buffer = pair.getSecond();
-
-        if (!drawState.indexOnly()) {
-            buffer.limit(drawState.bufferSize());
-
-            if (drawState.format().equals(DefaultVertexFormat.BLOCK) && drawState.indexType().equals(VertexFormat.IndexType.SHORT)) {
-                Blaze4D.LOGGER.error("Block format found");
-                this.blockFormat = true;
-            }
-
-            if (!drawState.sequentialIndex()) {
-                buffer.position(0);
-                this.staticMeshId = Blaze4D.core.createStaticMesh(
-                        buffer,
-                        drawState.vertexBufferSize(),
-                        drawState.format().getVertexSize(),
-                        drawState.indexCount()
-                );
-            } else {
-                // TODO
-            }
-        }
-
-        return pair;
+        BufferBuilder.DrawState drawState = renderedBuffer.drawState();
     }
 //
 //    /**
