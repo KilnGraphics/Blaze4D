@@ -13,22 +13,10 @@ use crate::vk::DeviceEnvironment;
 use crate::vk::objects::buffer::Buffer;
 
 use crate::prelude::*;
+use crate::renderer::emulator::mc_shaders::ShaderId;
 
 pub use super::worker::SubmitRecorder;
 pub use super::worker::PooledObjectProvider;
-
-#[derive(Copy, Clone, PartialEq, Eq, PartialOrd, Ord, Debug, Hash)]
-pub struct TypeId(u32);
-
-impl TypeId {
-    pub fn from_raw(raw: u32) -> Self {
-        Self(raw)
-    }
-
-    pub fn get_raw(&self) -> u32 {
-        self.0
-    }
-}
 
 /// A [`EmulatorPipeline`] performs the actual rendering inside a pass.
 ///
@@ -45,23 +33,27 @@ pub trait EmulatorPipeline: Send + Sync + UnwindSafe + RefUnwindSafe {
     /// if the user submits tasks faster than the gpu can process them.
     fn start_pass(&self) -> Box<dyn EmulatorPipelinePass + Send>;
 
-    /// Returns the number of uniform states necessary for the pipeline.
-    fn get_uniform_states_count(&self) -> usize;
-
-    /// Returns information about a type.
-    ///
-    /// A invalid type id is a serious error and should result in a panic.
-    fn get_type_info(&self, type_id: TypeId) -> &PipelineTypeInfo;
-
     /// Returns the size and a list of image views which can be used as source images for samplers
     /// for the output of the pipeline.
     ///
     /// **This is a temporary api and needs a rework to improve flexibility and elegance**
     fn get_output(&self) -> (Vec2u32, &[vk::ImageView]);
-}
 
-pub struct PipelineTypeInfo {
-    pub(crate) uniform_state_index: usize,
+    /// Called internally by the emulator renderer when pass uses a shader for the first time.
+    /// A corresponding call to [`dec_shader_used`] will be performed after the corresponding pass
+    /// has been dropped.
+    ///
+    /// It is guaranteed that this function will be called before the corresponding pass receives
+    /// any task using this shader.
+    ///
+    /// This can be used to keep track of used shaders globally to manage vulkan pipelines.
+    fn inc_shader_used(&self, shader: ShaderId);
+
+    /// Called internally by the emulator renderer after a pass is dropped for each shader the pass
+    /// used. Every call to this function must have had a earlier call to [`inc_shader_used`].
+    ///
+    /// This can be used to keep track of used shaders globally to manage vulkan pipelines.
+    fn dec_shader_used(&self, shader: ShaderId);
 }
 
 /// Represents one execution of a [`EmulatorPipeline`].
@@ -116,8 +108,7 @@ pub trait EmulatorPipelinePass {
 
 #[derive(Copy, Clone, PartialEq, Debug)]
 pub enum PipelineTask {
-    SetModelViewMatrix(Mat4f32),
-    SetProjectionMatrix(Mat4f32),
+    UpdateDevUniform(ShaderId, vk::Buffer, vk::DeviceSize),
     Draw(DrawTask),
 }
 
@@ -129,7 +120,8 @@ pub struct DrawTask {
     pub first_index: u32,
     pub index_type: vk::IndexType,
     pub index_count: u32,
-    pub type_id: u32,
+    pub shader: ShaderId,
+    pub primitive_topology: vk::PrimitiveTopology,
 }
 
 /// Used to process the output of a [`EmulatorPipelinePass`].

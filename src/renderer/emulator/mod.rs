@@ -19,8 +19,10 @@ mod pass;
 
 pub mod pipeline;
 pub mod debug_pipeline;
-pub mod mc_uniforms;
+pub mod mc_shaders;
+mod descriptors;
 
+use std::collections::HashMap;
 use std::sync::{Arc, Mutex, Weak};
 use std::sync::atomic::{AtomicU64, Ordering};
 use ash::vk;
@@ -35,14 +37,16 @@ pub use global_objects::StaticMeshId;
 
 pub use pass::PassId;
 pub use pass::PassRecorder;
+use crate::renderer::emulator::mc_shaders::{Shader, ShaderId, VertexFormat};
 
-pub(crate) struct EmulatorRenderer {
+pub struct EmulatorRenderer {
     id: UUID,
     weak: Weak<EmulatorRenderer>,
     device: DeviceEnvironment,
     worker: Arc<Share>,
     next_frame_id: AtomicU64,
     buffer_pool: Arc<Mutex<BufferPool>>,
+    shader_database: Mutex<HashMap<ShaderId, Arc<Shader>>>,
 }
 
 impl EmulatorRenderer {
@@ -57,6 +61,7 @@ impl EmulatorRenderer {
                 worker: Arc::new(Share::new(device.clone(), pool.clone())),
                 next_frame_id: AtomicU64::new(1),
                 buffer_pool: pool,
+                shader_database: Mutex::new(HashMap::new())
             }
         });
 
@@ -82,6 +87,26 @@ impl EmulatorRenderer {
         self.worker.global_objects.mark_static_mesh(id)
     }
 
+    pub fn create_shader(&self, vertex_format: &VertexFormat) -> ShaderId {
+        let shader = Shader::new(*vertex_format);
+        let id = shader.get_id();
+
+        let mut guard = self.shader_database.lock().unwrap();
+        guard.insert(id, shader);
+
+        id
+    }
+
+    pub fn drop_shader(&self, id: ShaderId) {
+        let mut guard = self.shader_database.lock().unwrap();
+        guard.remove(&id);
+    }
+
+    pub fn get_shader(&self, id: ShaderId) -> Option<Arc<Shader>> {
+        let guard = self.shader_database.lock().unwrap();
+        guard.get(&id).cloned()
+    }
+
     pub fn start_pass(&self, pipeline: Arc<dyn EmulatorPipeline>) -> PassRecorder {
         let id = PassId::from_raw(self.next_frame_id.fetch_add(1, Ordering::SeqCst));
         PassRecorder::new(id, self.weak.upgrade().unwrap(), pipeline)
@@ -103,6 +128,7 @@ pub struct MeshData<'a> {
     pub vertex_stride: u32,
     pub index_count: u32,
     pub index_type: vk::IndexType,
+    pub primitive_topology: vk::PrimitiveTopology,
 }
 
 impl<'a> MeshData<'a> {

@@ -16,18 +16,22 @@ use crate::device::transfer::{SyncId, Transfer};
 
 use crate::renderer::emulator::pass::PassId;
 use crate::renderer::emulator::buffer::BufferPool;
-use crate::renderer::emulator::pipeline::{EmulatorOutput, EmulatorPipelinePass, PipelineTask};
+use crate::renderer::emulator::pipeline::{EmulatorOutput, EmulatorPipeline, EmulatorPipelinePass, PipelineTask};
 use crate::vk::DeviceEnvironment;
 use crate::vk::objects::buffer::Buffer;
 
 use crate::prelude::*;
+use crate::renderer::emulator::descriptors::DescriptorPool;
 use crate::renderer::emulator::StaticMeshId;
 use crate::renderer::emulator::global_objects::GlobalObjects;
+use crate::renderer::emulator::mc_shaders::ShaderId;
+use crate::vk::objects::allocator::AllocationStrategy;
 
 pub struct Share {
-    device: DeviceEnvironment,
+    pub(super) device: DeviceEnvironment,
     pub(super) global_objects: GlobalObjects,
-    pool: Arc<Mutex<BufferPool>>,
+    pub(super) descriptors: Mutex<DescriptorPool>,
+    pub(super) pool: Arc<Mutex<BufferPool>>,
     channel: Mutex<Channel>,
     signal: Condvar,
     family: u32,
@@ -39,10 +43,12 @@ impl Share {
         let queue_family = queue.get_queue_family_index();
 
         let global_objects = GlobalObjects::new(device.clone(), queue);
+        let descriptors = Mutex::new(DescriptorPool::new(device.clone()));
 
         Self {
             device,
             global_objects,
+            descriptors,
             pool,
             channel: Mutex::new(Channel::new()),
             signal: Condvar::new(),
@@ -114,10 +120,11 @@ impl Channel {
 }
 
 pub(super) enum WorkerTask {
-    StartPass(Box<dyn EmulatorPipelinePass + Send>),
+    StartPass(Arc<dyn EmulatorPipeline>, Box<dyn EmulatorPipelinePass + Send>),
     EndPass,
     UseDynamicBuffer(Buffer),
     UseStaticMesh(StaticMeshId),
+    UseShader(ShaderId),
     UseOutput(Box<dyn EmulatorOutput + Send>),
     WaitTransferSync(SyncId),
     PipelineTask(PipelineTask),
@@ -145,6 +152,9 @@ pub(super) fn run_worker(device: DeviceEnvironment, share: Arc<Share>) {
                 for static_mesh in &old.static_meshes {
                     share.global_objects.dec_static_mesh(*static_mesh);
                 }
+                for shader in &old.shaders {
+                    old.pipeline.dec_shader_used(*shader);
+                }
                 false
             } else {
                 true
@@ -157,8 +167,8 @@ pub(super) fn run_worker(device: DeviceEnvironment, share: Arc<Share>) {
         };
 
         match task {
-            WorkerTask::StartPass(pass) => {
-                let state = PassState::new(pass, &device, &queue, pool.clone());
+            WorkerTask::StartPass(pipeline, pass) => {
+                let state = PassState::new(pipeline, pass, &device, &queue, pool.clone());
                 frames.add_pass(id, state);
             }
 
@@ -180,6 +190,10 @@ pub(super) fn run_worker(device: DeviceEnvironment, share: Arc<Share>) {
 
             WorkerTask::UseStaticMesh(mesh_id) => {
                 frames.get_pass(id).unwrap().static_meshes.push(mesh_id);
+            }
+
+            WorkerTask::UseShader(shader) => {
+                frames.get_pass(id).unwrap().shaders.push(shader);
             }
 
             WorkerTask::UseOutput(output) => {
@@ -342,11 +356,13 @@ struct PassState {
     transfer: Arc<Transfer>,
     object_pool: PooledObjectProvider,
 
+    pipeline: Arc<dyn EmulatorPipeline>,
     pass: Box<dyn EmulatorPipelinePass>,
     outputs: Vec<Box<dyn EmulatorOutput>>,
 
     dynamic_buffers: Vec<Buffer>,
     static_meshes: Vec<StaticMeshId>,
+    shaders: Vec<ShaderId>,
     transfer_sync_wait: Option<SyncId>,
 
     pre_cmd: vk::CommandBuffer,
@@ -356,7 +372,7 @@ struct PassState {
 }
 
 impl PassState {
-    fn new(mut pass: Box<dyn EmulatorPipelinePass>, device: &DeviceEnvironment, queue: &Queue, pool: Rc<RefCell<WorkerObjectPool>>) -> Self {
+    fn new(pipeline: Arc<dyn EmulatorPipeline>, mut pass: Box<dyn EmulatorPipelinePass>, device: &DeviceEnvironment, queue: &Queue, pool: Rc<RefCell<WorkerObjectPool>>) -> Self {
         let mut object_pool = PooledObjectProvider::new(pool);
 
         let pre_cmd = object_pool.get_begin_command_buffer().unwrap();
@@ -369,11 +385,13 @@ impl PassState {
             transfer: device.get_transfer().clone(),
             object_pool,
 
+            pipeline,
             pass,
             outputs: Vec::with_capacity(8),
 
             dynamic_buffers: Vec::with_capacity(8),
             static_meshes: Vec::new(),
+            shaders: Vec::new(),
             transfer_sync_wait: None,
 
             pre_cmd,

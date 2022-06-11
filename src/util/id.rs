@@ -232,7 +232,7 @@ macro_rules! define_uuid_type {
 
         impl From<$name> for UUID {
             fn from(id: $name) -> Self {
-                id.as_uuid
+                id.as_uuid()
             }
         }
     }

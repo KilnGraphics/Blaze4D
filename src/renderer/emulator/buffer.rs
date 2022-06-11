@@ -1,3 +1,7 @@
+//! Buffer pools for immediate objects and uniform buffers
+//!
+//! **TODO THIS ENTIRE MODULE IS TEMPORARY AND IS IN DIRE NEED OF A REWRITE**
+
 use ash::vk;
 
 use crate::objects::id::BufferId;
@@ -10,6 +14,7 @@ use crate::prelude::*;
 /// Manges the lifetime and allocation of buffers for the emulator renderer.
 pub struct BufferPool {
     buffers: Vec<PoolBuffer>,
+
     device: DeviceEnvironment,
 }
 

@@ -14,8 +14,8 @@ use crate::instance::instance::VulkanVersion;
 use crate::vk::objects::surface::SurfaceProvider;
 
 use crate::prelude::*;
-use crate::renderer::emulator::debug_pipeline::{DepthPipelineConfig, DepthPipelineCore, DepthTypeInfo};
 use crate::renderer::emulator::{EmulatorRenderer, MeshData, StaticMeshId};
+use crate::renderer::emulator::debug_pipeline::DebugPipeline;
 use crate::renderer::emulator::PassRecorder;
 use crate::renderer::emulator::pipeline::{EmulatorPipeline, SwapchainOutput};
 
@@ -61,9 +61,9 @@ impl Blaze4D {
             }
         }).unwrap();
 
-        let render_config = Mutex::new(RenderConfig::new(device.clone(), main_surface));
-
         let emulator = EmulatorRenderer::new(device.clone());
+
+        let render_config = Mutex::new(RenderConfig::new(device.clone(), emulator.clone(), main_surface));
 
         Self {
             instance,
@@ -82,16 +82,8 @@ impl Blaze4D {
         self.emulator.drop_static_mesh(id);
     }
 
-    pub fn set_emulator_vertex_formats(&self, formats: Box<[B4DVertexFormat]>) {
-        self.render_config.lock().unwrap().set_vertex_formats(formats);
-    }
-
     pub fn try_start_frame(&self, window_size: Vec2u32) -> Option<PassRecorder> {
-        if let Some(mut recorder) = self.render_config.lock().unwrap().try_start_frame(&self.emulator, window_size) {
-
-            recorder.set_model_view_matrix(&Mat4f32::identity());
-            recorder.set_projection_matrix(&Mat4f32::identity());
-
+        if let Some(recorder) = self.render_config.lock().unwrap().try_start_frame(&self.emulator, window_size) {
             Some(recorder)
         } else {
             None
@@ -101,9 +93,8 @@ impl Blaze4D {
 
 struct RenderConfig {
     device: DeviceEnvironment,
+    emulator: Arc<EmulatorRenderer>,
     main_surface: Arc<DeviceSurface>,
-
-    vertex_formats: Box<[B4DVertexFormat]>,
 
     last_rebuild: Instant,
     current_swapchain: Option<Arc<SurfaceSwapchain>>,
@@ -111,22 +102,16 @@ struct RenderConfig {
 }
 
 impl RenderConfig {
-    fn new(device: DeviceEnvironment, main_surface: Arc<DeviceSurface>) -> Self {
+    fn new(device: DeviceEnvironment, emulator: Arc<EmulatorRenderer>, main_surface: Arc<DeviceSurface>) -> Self {
         Self {
             device,
+            emulator,
             main_surface,
-
-            vertex_formats: Box::new([]),
 
             last_rebuild: Instant::now() - Duration::from_secs(100),
             current_swapchain: None,
             current_pipeline: None,
         }
-    }
-
-    fn set_vertex_formats(&mut self, formats: Box<[B4DVertexFormat]>) {
-        self.vertex_formats = formats;
-        self.current_pipeline = None;
     }
 
     fn try_start_frame(&mut self, renderer: &EmulatorRenderer, size: Vec2u32) -> Option<PassRecorder> {
@@ -149,19 +134,7 @@ impl RenderConfig {
         if self.current_pipeline.is_none() {
             log::info!("No pipeline present. Rebuilding for size {:?}", size);
 
-            let depth_infos: Box<_> = self.vertex_formats.iter().map(|format| {
-                DepthTypeInfo {
-                    vertex_stride: format.stride,
-                    vertex_position_offset: format.position.0,
-                    vertex_position_format: format.position.1,
-                    topology: format.topology,
-                    primitive_restart: false,
-                    discard: false
-                }
-            }).collect();
-
-            let pipeline = Arc::new(DepthPipelineCore::new(self.device.clone(), depth_infos.as_ref()));
-            let pipeline = DepthPipelineConfig::new(pipeline, size) as Arc<dyn EmulatorPipeline>;
+            let pipeline = DebugPipeline::new(self.device.clone(), self.emulator.clone(), size);
             let swapchain_output = SwapchainOutput::new(&self.device, pipeline.clone(), self.current_swapchain.as_ref().unwrap().clone());
 
             self.current_pipeline = Some((pipeline, swapchain_output));

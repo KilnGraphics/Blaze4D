@@ -2,6 +2,7 @@
  * Defines all inputs to support minecrafts uniforms.
  */
 
+/*
 layout(set=0, binding=0, std140)
 uniform McSet0Binding0 {
     mat4 projection_matrix;
@@ -94,4 +95,23 @@ float mc_game_time() {
 
 vec3 mc_chunk_offset() {
     return mc_push_constant.chunk_offset;
+}*/
+
+layout(set=0, binding=0, std140)
+uniform McSet0Binding0 {
+    mat4 projection_matrix;
+    mat4 model_view_matrix;
+    vec3 chunk_offset;
+} mc_set_0_binding_0;
+
+mat4 mc_model_view_matrix() {
+    return mc_set_0_binding_0.model_view_matrix;
+}
+
+mat4 mc_projection_matrix() {
+    return mc_set_0_binding_0.projection_matrix;
+}
+
+vec3 mc_chunk_offset() {
+    return mc_set_0_binding_0.chunk_offset;
 }

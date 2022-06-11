@@ -37,7 +37,7 @@ impl CLogger {
 }
 
 impl Log for CLogger {
-    fn enabled(&self, metadata: &Metadata) -> bool {
+    fn enabled(&self, _: &Metadata) -> bool {
         true
     }
 

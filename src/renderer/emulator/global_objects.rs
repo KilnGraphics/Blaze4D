@@ -2,6 +2,7 @@ use std::collections::{HashMap, VecDeque};
 use std::sync::Mutex;
 
 use ash::vk;
+use crate::define_uuid_type;
 
 use crate::device::device::Queue;
 use crate::device::transfer::{BufferReleaseOp, BufferTransferRanges, SyncId};
@@ -89,7 +90,8 @@ impl GlobalObjects {
             buffer,
             first_index: (index_offset / (data.get_index_size() as usize)) as u32,
             index_type: data.index_type,
-            index_count: data.index_count
+            index_count: data.index_count,
+            primitive_topology: data.primitive_topology
         };
 
         let static_mesh = StaticMesh {
@@ -452,22 +454,7 @@ impl Data {
     }
 }
 
-#[derive(Copy, Clone, PartialEq, Eq, PartialOrd, Ord, Debug, Hash)]
-pub struct StaticMeshId(UUID);
-
-impl StaticMeshId {
-    pub fn new() -> Self {
-        Self(UUID::new())
-    }
-
-    pub fn from_uuid(raw: UUID) -> Self {
-        Self(raw)
-    }
-
-    pub fn as_uuid(&self) -> UUID {
-        self.0
-    }
-}
+define_uuid_type!(pub, StaticMeshId);
 
 #[derive(Copy, Clone, Debug)]
 pub struct StaticMeshDrawInfo {
@@ -475,6 +462,7 @@ pub struct StaticMeshDrawInfo {
     pub first_index: u32,
     pub index_type: vk::IndexType,
     pub index_count: u32,
+    pub primitive_topology: vk::PrimitiveTopology,
 }
 
 pub struct StaticMesh {

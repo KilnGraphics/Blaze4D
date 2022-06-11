@@ -1,3 +1,4 @@
+use std::num::NonZeroU32;
 use std::panic::{catch_unwind, RefUnwindSafe, UnwindSafe};
 use std::process::exit;
 use ash::vk;
@@ -9,6 +10,7 @@ use crate::glfw_surface::GLFWSurfaceProvider;
 use crate::prelude::{Mat4f32, UUID, Vec2u32};
 
 use crate::renderer::emulator::{MeshData, PassRecorder, StaticMeshId};
+use crate::renderer::emulator::mc_shaders::{DevUniform, ShaderId};
 use crate::vk::objects::surface::SurfaceProvider;
 use crate::window::WinitWindow;
 
@@ -21,6 +23,8 @@ struct CMeshData {
     index_data_len: u64,
     vertex_stride: u32,
     index_count: u32,
+    index_type: i32,
+    primitive_topology: i32,
 }
 
 impl CMeshData {
@@ -39,28 +43,8 @@ impl CMeshData {
             index_data: std::slice::from_raw_parts(self.index_data_ptr, self.index_data_len as usize),
             vertex_stride: self.vertex_stride,
             index_count: self.index_count,
-            index_type: vk::IndexType::UINT16,
-        }
-    }
-}
-
-#[repr(C)]
-#[derive(Debug)]
-struct CB4DVertexFormat {
-    topology: i32,
-    stride: u32,
-    position_offset: u32,
-    position_format: i32,
-}
-
-impl CB4DVertexFormat {
-    fn to_b4d_vertex_format(&self) -> B4DVertexFormat {
-        B4DVertexFormat {
-            topology: vk::PrimitiveTopology::from_raw(self.topology),
-            stride: self.stride,
-            position: (self.position_offset, vk::Format::from_raw(self.position_format)),
-            color: None,
-            uv: None
+            index_type: vk::IndexType::from_raw(self.index_type),
+            primitive_topology: vk::PrimitiveTopology::from_raw(self.primitive_topology),
         }
     }
 }
@@ -99,30 +83,6 @@ unsafe extern "C" fn b4d_destroy(b4d: *mut Blaze4D) {
         Box::from_raw(b4d);
     }).unwrap_or_else(|_| {
         log::error!("panic in b4d_destroy");
-        exit(1);
-    })
-}
-
-#[no_mangle]
-unsafe extern "C" fn b4d_set_vertex_formats(b4d: *const Blaze4D, formats_ptr: *const CB4DVertexFormat, formats_len: u32) {
-    catch_unwind(|| {
-        let b4d = b4d.as_ref().unwrap_or_else(|| {
-            log::error!("Passed null b4d to b4d_create_static_mesh");
-            exit(1);
-        });
-        if formats_ptr.is_null() {
-            log::error!("Passed null formats_ptr to b4d_set_vertex_formats");
-            exit(1);
-        }
-        let formats = std::slice::from_raw_parts(formats_ptr, formats_len as usize);
-
-        log::error!("Formats: {:?}", formats);
-
-        let formats = formats.iter().map(|format| format.to_b4d_vertex_format()).collect();
-
-        b4d.set_emulator_vertex_formats(formats);
-    }).unwrap_or_else(|_| {
-        log::error!("panic in b4d_set_vertex_formats");
         exit(1);
     })
 }
@@ -185,52 +145,35 @@ unsafe extern "C" fn b4d_start_frame(b4d: *mut Blaze4D, window_width: u32, windo
 }
 
 #[no_mangle]
-unsafe extern "C" fn b4d_pass_set_model_view_matrix(pass: *mut PassRecorder, matrix: *const Mat4f32) {
+unsafe extern "C" fn b4d_pass_update_dev_uniform(pass: *mut PassRecorder, data: *const DevUniform, shader_id: u64) {
     catch_unwind(|| {
         let pass = pass.as_mut().unwrap_or_else(|| {
-            log::error!("Passed null pass to b4d_pass_set_model_view_matrix");
+            log::error!("Passed null pass to b4d_pass_update_dev_uniform");
             exit(1);
         });
-        let matrix = matrix.as_ref().unwrap_or_else(|| {
-            log::error!("Passed null matrix to b4d_pass_set_model_view_matrix");
+        let data = data.as_ref().unwrap_or_else(|| {
+            log::error!("Passed null data to b4d_pass_update_dev_uniform");
             exit(1);
         });
+        let shader_id = ShaderId::from_uuid(UUID::from_raw(shader_id));
 
-        pass.set_model_view_matrix(matrix);
+        pass.update_dev_uniform(data, shader_id)
     }).unwrap_or_else(|_| {
-        log::error!("panic in b4d_pass_set_model_view_matrix");
+        log::error!("panic in b4d_pass_update_dev_uniform");
         exit(1);
     })
 }
 
 #[no_mangle]
-unsafe extern "C" fn b4d_pass_set_projection_matrix(pass: *mut PassRecorder, matrix: *const Mat4f32) {
-    catch_unwind(|| {
-        let pass = pass.as_mut().unwrap_or_else(|| {
-            log::error!("Passed null pass to b4d_pass_set_projection_matrix");
-            exit(1);
-        });
-        let matrix = matrix.as_ref().unwrap_or_else(|| {
-            log::error!("Passed null matrix to b4d_pass_set_projection_matrix");
-            exit(1);
-        });
-
-        pass.set_projection_matrix(matrix);
-    }).unwrap_or_else(|_| {
-        log::error!("panic in b4d_pass_set_model_view_matrix");
-        exit(1);
-    })
-}
-
-#[no_mangle]
-unsafe extern "C" fn b4d_pass_draw_static(pass: *mut PassRecorder, mesh_id: u64, type_id: u32) {
+unsafe extern "C" fn b4d_pass_draw_static(pass: *mut PassRecorder, mesh_id: u64, shader_id: u64) {
     catch_unwind(|| {
         let pass = pass.as_mut().unwrap_or_else(|| {
             log::error!("Passed null pass to b4d_pass_draw_static");
             exit(1);
         });
+        let shader_id = ShaderId::from_uuid(UUID::from_raw(shader_id));
 
-        pass.draw_static(StaticMeshId::from_uuid(UUID::from_raw(mesh_id)), type_id);
+        pass.draw_static(StaticMeshId::from_uuid(UUID::from_raw(mesh_id)), shader_id);
     }).unwrap_or_else(|_| {
         log::error!("panic in b4d_pass_draw_static");
         exit(1);
@@ -238,7 +181,7 @@ unsafe extern "C" fn b4d_pass_draw_static(pass: *mut PassRecorder, mesh_id: u64,
 }
 
 #[no_mangle]
-unsafe extern "C" fn b4d_pass_draw_immediate(pass: *mut PassRecorder, data: *const CMeshData, type_id: u32) {
+unsafe extern "C" fn b4d_pass_draw_immediate(pass: *mut PassRecorder, data: *const CMeshData, shader_id: u64) {
     catch_unwind(|| {
         let pass = pass.as_mut().unwrap_or_else(|| {
             log::error!("Passed null pass to b4d_pass_draw_immediate");
@@ -248,10 +191,11 @@ unsafe extern "C" fn b4d_pass_draw_immediate(pass: *mut PassRecorder, data: *con
             log::error!("Passed null mesh data to b4d_pass_draw_immediate");
             exit(1);
         });
+        let shader_id = ShaderId::from_uuid(UUID::from_raw(shader_id));
 
         let mesh_data = data.to_mesh_data();
 
-        pass.draw_immediate(&mesh_data, type_id);
+        pass.draw_immediate(&mesh_data, shader_id);
     }).unwrap_or_else(|_| {
         log::error!("panic in b4d_pass_draw_immediate");
         exit(1);

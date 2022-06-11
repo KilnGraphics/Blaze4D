@@ -1,4 +1,4 @@
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 use std::sync::Arc;
 
 use ash::vk;
@@ -9,8 +9,8 @@ use crate::renderer::emulator::worker::WorkerTask;
 use crate::device::transfer::{BufferTransferRanges, StagingMemory};
 use crate::objects::sync::SemaphoreOps;
 
-use crate::prelude::*;
 use crate::renderer::emulator::global_objects::StaticMeshDrawInfo;
+use crate::renderer::emulator::mc_shaders::{DevUniform, ShaderId};
 use crate::renderer::emulator::pipeline::{DrawTask, EmulatorOutput, EmulatorPipeline, PipelineTask};
 
 #[derive(Copy, Clone, PartialEq, Eq, PartialOrd, Ord, Debug, Hash)]
@@ -32,6 +32,7 @@ pub struct PassRecorder {
     #[allow(unused)] // We just need to keep the pipeline alive
     pipeline: Arc<dyn EmulatorPipeline>,
 
+    used_shaders: HashSet<ShaderId>,
     used_static_meshes: HashMap<StaticMeshId, StaticMeshDrawInfo>,
 
     current_buffer: Option<(BufferSubAllocator, StagingMemory)>,
@@ -40,13 +41,14 @@ pub struct PassRecorder {
 
 impl PassRecorder {
     pub(super) fn new(id: PassId, renderer: Arc<EmulatorRenderer>, pipeline: Arc<dyn EmulatorPipeline>) -> Self {
-        renderer.worker.push_task(id, WorkerTask::StartPass(pipeline.start_pass()));
+        renderer.worker.push_task(id, WorkerTask::StartPass(pipeline.clone(), pipeline.start_pass()));
 
         Self {
             id,
             renderer,
             pipeline,
 
+            used_shaders: HashSet::new(),
             used_static_meshes: HashMap::new(),
 
             current_buffer: None,
@@ -58,15 +60,14 @@ impl PassRecorder {
         self.renderer.worker.push_task(self.id, WorkerTask::UseOutput(output));
     }
 
-    pub fn set_model_view_matrix(&mut self, matrix: &Mat4f32) {
-        self.renderer.worker.push_task(self.id, WorkerTask::PipelineTask(PipelineTask::SetModelViewMatrix(*matrix)));
+    pub fn update_dev_uniform(&mut self, data: &DevUniform, shader: ShaderId) {
+        let (buffer, offset) = self.renderer.worker.descriptors.lock().unwrap().allocate_uniform(data);
+        self.renderer.worker.push_task(self.id, WorkerTask::PipelineTask(PipelineTask::UpdateDevUniform(shader, buffer, offset)));
     }
 
-    pub fn set_projection_matrix(&mut self, matrix: &Mat4f32) {
-        self.renderer.worker.push_task(self.id, WorkerTask::PipelineTask(PipelineTask::SetProjectionMatrix(*matrix)));
-    }
+    pub fn draw_immediate(&mut self, data: &MeshData, shader: ShaderId) {
+        self.use_shader(shader);
 
-    pub fn draw_immediate(&mut self, data: &MeshData, type_id: u32) {
         let index_size = data.get_index_size();
 
         let vertex_buffer = self.push_data(data.vertex_data, data.vertex_stride);
@@ -79,12 +80,15 @@ impl PassRecorder {
             first_index: (index_buffer.offset / (index_size as usize)) as u32,
             index_type: data.index_type,
             index_count: data.index_count,
-            type_id,
+            shader,
+            primitive_topology: data.primitive_topology
         };
         self.renderer.worker.push_task(self.id, WorkerTask::PipelineTask(PipelineTask::Draw(draw_task)));
     }
 
-    pub fn draw_static(&mut self, mesh_id: StaticMeshId, type_id: u32) {
+    pub fn draw_static(&mut self, mesh_id: StaticMeshId, shader: ShaderId) {
+        self.use_shader(shader);
+
         if !self.used_static_meshes.contains_key(&mesh_id) {
             let draw_info = self.renderer.worker.global_objects.inc_static_mesh(mesh_id);
             self.used_static_meshes.insert(mesh_id, draw_info);
@@ -101,10 +105,18 @@ impl PassRecorder {
             first_index: draw_info.first_index,
             index_type: draw_info.index_type,
             index_count: draw_info.index_count,
-            type_id
+            shader,
+            primitive_topology: draw_info.primitive_topology
         };
 
         self.renderer.worker.push_task(self.id, WorkerTask::PipelineTask(PipelineTask::Draw(draw_task)));
+    }
+
+    fn use_shader(&mut self, shader: ShaderId) {
+        if self.used_shaders.insert(shader) {
+            self.pipeline.inc_shader_used(shader);
+            self.renderer.worker.push_task(self.id, WorkerTask::UseShader(shader));
+        }
     }
 
     fn push_data(&mut self, data: &[u8], alignment: u32) -> BufferAllocation {

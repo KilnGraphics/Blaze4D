@@ -1,6 +1,6 @@
 //! Utilities to convert structs to and from byte arrays.
 
-use std::ptr::{addr_of, NonNull};
+use std::ptr::NonNull;
 
 /// Designates a type that can be safely viewed as a byte array.
 ///
