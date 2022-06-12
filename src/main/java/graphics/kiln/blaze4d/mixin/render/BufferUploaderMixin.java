@@ -1,20 +1,36 @@
 package graphics.kiln.blaze4d.mixin.render;
 
+import com.mojang.blaze3d.systems.RenderSystem;
 import com.mojang.blaze3d.vertex.BufferBuilder;
 import com.mojang.blaze3d.vertex.BufferUploader;
+import graphics.kiln.blaze4d.Blaze4D;
+import graphics.kiln.blaze4d.api.B4DShader;
 import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.Overwrite;
+import org.spongepowered.asm.mixin.injection.At;
+import org.spongepowered.asm.mixin.injection.Inject;
+import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
+
+import java.util.Objects;
 
 @Mixin(BufferUploader.class)
 public class BufferUploaderMixin {
-//
-//    /**
-//     * @author Blaze4D
-//     * @reason To draw Immediate Buffers
-//     */
-//    @Overwrite
-//    public static void end(BufferBuilder builder) {
-//        // Since this is immediate, there is no point storing the object. In the future, I might store 1 global BufferWrapper and have the methods take the VertexBuffer for context. That will be for a later date though.
-//        new BasicImmediateBufferWrapper().render(builder);
-//    }
+
+    @Inject(method = "drawWithShader", at = @At("HEAD"))
+    private static void drawImmediate(BufferBuilder.RenderedBuffer renderedBuffer, CallbackInfo ci) {
+        if (renderedBuffer.indexBuffer().remaining() != 0) {
+
+            BufferBuilder.DrawState drawState = renderedBuffer.drawState();
+
+            Blaze4D.core.passDrawImmediate(
+                    renderedBuffer.vertexBuffer(),
+                    renderedBuffer.indexBuffer(),
+                    drawState.format().getVertexSize(),
+                    drawState.indexCount(),
+                    1,
+                    3,
+                    ((B4DShader) Objects.requireNonNull(RenderSystem.getShader())).b4dGetShaderId()
+            );
+        }
+    }
 }

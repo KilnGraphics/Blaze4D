@@ -1,8 +1,11 @@
 package graphics.kiln.blaze4d.mixin.ubo;
 
 import com.mojang.blaze3d.shaders.AbstractUniform;
+import com.mojang.blaze3d.shaders.Shader;
 import com.mojang.blaze3d.shaders.Uniform;
 import com.mojang.math.Matrix4f;
+import com.mojang.math.Vector3f;
+import graphics.kiln.blaze4d.api.B4DShader;
 import net.minecraft.util.Mth;
 import org.lwjgl.system.MemoryUtil;
 import org.spongepowered.asm.mixin.Final;
@@ -20,7 +23,32 @@ import java.nio.IntBuffer;
  * Used to implement {@link VulkanUniform}, Do some conversion things, Uploading data, and fixing the Projection Matrix.
  */
 @Mixin(Uniform.class)
-public abstract class GlUniformMixin extends AbstractUniform /*implements VulkanUniform*/ {
+public abstract class GlUniformMixin extends AbstractUniform {
+
+    @Final
+    @Shadow
+    private String name;
+
+    @Final
+    @Shadow
+    private Shader parent;
+
+    @Inject(method = "set(FFF)V", at = @At("HEAD"))
+    private void setVec3f(float x, float y, float z, CallbackInfo ci) {
+        if (this.name.equals("ChunkOffset")) {
+            B4DShader shader = (B4DShader) this.parent;
+            shader.setChunkOffset(new Vector3f(x, y, z));
+        }
+    }
+
+    @Inject(method = "set(Lcom/mojang/math/Vector3f;)V", at = @At("HEAD"))
+    private void setVec3f(Vector3f vec, CallbackInfo ci) {
+        if (this.name.equals("ChunkOffset")) {
+            B4DShader shader = (B4DShader) this.parent;
+            shader.setChunkOffset(vec);
+        }
+    }
+
 //    @Unique
 //    private long writeLocation;
 //

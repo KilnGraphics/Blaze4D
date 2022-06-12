@@ -44,6 +44,8 @@ public class Blaze4DNatives {
                 ADDRESS,
                 JAVA_LONG,
                 JAVA_INT,
+                JAVA_INT,
+                JAVA_INT,
                 JAVA_INT
         );
 
@@ -172,7 +174,7 @@ public class Blaze4DNatives {
 
     public static long b4dCreateShader(MemoryAddress b4d, int stride, int offset, int format) {
         try {
-            return (long) b4dCreateStaticMeshHandle.invoke(b4d, stride, offset, format);
+            return (long) b4dCreateShaderHandle.invoke(b4d, stride, offset, format);
         } catch (Throwable e) {
             throw new RuntimeException(e);
         }
@@ -180,7 +182,7 @@ public class Blaze4DNatives {
 
     public static void b4dDestroyShader(MemoryAddress b4d, long shaderId) {
         try {
-            b4dDestroyStaticMeshHandle.invoke(b4d, shaderId);
+            b4dDestroyShaderHandle.invoke(b4d, shaderId);
         } catch (Throwable e) {
             throw new RuntimeException(e);
         }
@@ -194,9 +196,9 @@ public class Blaze4DNatives {
         }
     }
 
-    public static void b4dPassUpdateDevUniform(MemoryAddress pass, MemoryAddress data) {
+    public static void b4dPassUpdateDevUniform(MemoryAddress pass, MemoryAddress data, long shaderId) {
         try {
-            b4dPassUpdateDevUniformHandle.invoke(pass, data);
+            b4dPassUpdateDevUniformHandle.invoke(pass, data, shaderId);
         } catch (Throwable e) {
             throw new RuntimeException(e);
         }

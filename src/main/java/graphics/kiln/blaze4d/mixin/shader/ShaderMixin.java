@@ -3,12 +3,18 @@ package graphics.kiln.blaze4d.mixin.shader;
 import com.mojang.blaze3d.preprocessor.GlslPreprocessor;
 import com.mojang.blaze3d.shaders.Program;
 import com.mojang.blaze3d.shaders.Uniform;
+import com.mojang.blaze3d.systems.RenderSystem;
 import com.mojang.blaze3d.vertex.VertexFormat;
+import com.mojang.math.Matrix4f;
+import com.mojang.math.Vector3f;
+import graphics.kiln.blaze4d.Blaze4D;
 import graphics.kiln.blaze4d.api.B4DShader;
+import graphics.kiln.blaze4d.api.Blaze4DCore;
 import net.minecraft.client.renderer.ShaderInstance;
 import net.minecraft.server.packs.resources.ResourceProvider;
 import org.spongepowered.asm.mixin.Final;
 import org.spongepowered.asm.mixin.Mixin;
+import org.spongepowered.asm.mixin.Shadow;
 import org.spongepowered.asm.mixin.injection.At;
 import org.spongepowered.asm.mixin.injection.Inject;
 import org.spongepowered.asm.mixin.injection.ModifyArg;
@@ -27,14 +33,36 @@ public class ShaderMixin implements B4DShader {
     @Final
     private long b4dShaderId = 0L;
 
-    @Inject(method = "<init>", at = @At(value = "TAIL"))
-    private void initShader() {
+    private Vector3f b4dChunkOffset = new Vector3f();
 
+
+    @Inject(method = "<init>", at = @At(value = "TAIL"))
+    private void initShader(ResourceProvider resourceProvider, String string, VertexFormat vertexFormat, CallbackInfo ci) {
+        Blaze4D.LOGGER.error("Vertex format: " + vertexFormat);
+        this.b4dShaderId = Blaze4D.core.createShader(vertexFormat.getVertexSize(), 0, 106); // Temporary stuff (we assume R32G32B32_SFLOAT)
+    }
+
+    @Inject(method = "apply", at = @At(value = "TAIL"))
+    private void applyShader(CallbackInfo ci) {
+        Matrix4f proj = RenderSystem.getProjectionMatrix();
+        Matrix4f modelView = RenderSystem.getModelViewMatrix();
+
+        Blaze4D.core.passUpdateDevUniform(this.b4dShaderId, proj, modelView, this.b4dChunkOffset);
+    }
+
+    @Inject(method = "close", at = @At(value = "TAIL"))
+    private void destroyShader(CallbackInfo ci) {
+        Blaze4D.core.destroyShader(this.b4dShaderId);
     }
 
     @Override
     public long b4dGetShaderId() {
         return this.b4dShaderId;
+    }
+
+    @Override
+    public void setChunkOffset(Vector3f offset) {
+        this.b4dChunkOffset = offset.copy();
     }
 
 //

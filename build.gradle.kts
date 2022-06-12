@@ -1,3 +1,4 @@
+import org.gradle.internal.impldep.org.junit.experimental.categories.Categories.CategoryFilter.include
 import org.gradle.internal.os.OperatingSystem
 
 plugins {
@@ -8,25 +9,6 @@ plugins {
 
 group = "graphics.kiln"
 version = "1.0.0-SNAPSHOT"
-
-/*
-val lwjglVersion = "3.3.1"
-val lwjglNatives = when (OperatingSystem.current()) {
-	OperatingSystem.LINUX -> System.getProperty("os.arch").let {
-		if (it.startsWith("arm") || it.startsWith("aarch64"))
-			"natives-linux-${if (it.contains("64") || it.startsWith("armv8")) "arm64" else "arm32"}"
-		else
-			"natives-linux"
-	}
-	OperatingSystem.MAC_OS -> "natives-macos"
-	OperatingSystem.WINDOWS -> System.getProperty("os.arch").let {
-		if (it.contains("64"))
-			"natives-windows${if (it.startsWith("aarch64")) "-arm64" else ""}"
-		else
-			"natives-windows-x86"
-	}
-	else -> throw Error("Unrecognized or unsupported Operating system. Please set \"lwjglNatives\" manually")
-}*/
 
 repositories {
 	mavenCentral()
@@ -48,56 +30,11 @@ dependencies {
 		officialMojangMappings()
 	})
 	modImplementation("net.fabricmc", "fabric-loader", properties["loader_version"].toString())
-	//modImplementation("net.fabricmc", "fabric-language-kotlin", "1.6.4+kotlin.1.5.30")
 
-	// include(implementation("com.oroarmor", "aftermath", "1.0.0-beta"))
-
-/*
-	include(implementation("org.joml", "joml", "1.10.1"))
-	include(implementation("org.lwjgl", "lwjgl", lwjglVersion))
-	include(implementation("org.lwjgl", "lwjgl-shaderc", lwjglVersion))
-	include(implementation("org.lwjgl", "lwjgl-vma", lwjglVersion))
-	include(implementation("org.lwjgl", "lwjgl-vulkan", lwjglVersion))
-	include(implementation("org.lwjgl", "lwjgl-xxhash", lwjglVersion))
-	include(implementation("org.lwjgl", "lwjgl-shaderc", lwjglVersion, classifier = lwjglNatives))
-	include(implementation("org.lwjgl", "lwjgl-vma", lwjglVersion, classifier = lwjglNatives))
-	include(implementation("org.lwjgl", "lwjgl-xxhash", lwjglVersion, classifier = lwjglNatives))
-
-	// Upgrade Minecraft's LWJGL
-	include(implementation("org.lwjgl", "lwjgl-glfw", lwjglVersion))
-	include(implementation("org.lwjgl", "lwjgl-jemalloc", lwjglVersion))
-	include(implementation("org.lwjgl", "lwjgl-openal", lwjglVersion))
-	include(implementation("org.lwjgl", "lwjgl-opengl", lwjglVersion))
-	include(implementation("org.lwjgl", "lwjgl-stb", lwjglVersion))
-	include(implementation("org.lwjgl", "lwjgl-tinyfd", lwjglVersion))
-	include(implementation("org.lwjgl", "lwjgl", lwjglVersion, classifier = lwjglNatives))
-	include(implementation("org.lwjgl", "lwjgl-glfw", lwjglVersion, classifier = lwjglNatives))
-	include(implementation("org.lwjgl", "lwjgl-jemalloc", lwjglVersion, classifier = lwjglNatives))
-	include(implementation("org.lwjgl", "lwjgl-openal", lwjglVersion, classifier = lwjglNatives))
-	include(implementation("org.lwjgl", "lwjgl-opengl", lwjglVersion, classifier = lwjglNatives))
-	include(implementation("org.lwjgl", "lwjgl-stb", lwjglVersion, classifier = lwjglNatives))
-	include(implementation("org.lwjgl", "lwjgl-tinyfd", lwjglVersion, classifier = lwjglNatives))*/
-
-//	if (lwjglNatives == "natives-macos" || lwjglNatives == "natives-macos-arm64") {
-//		include("org.lwjgl", "lwjgl-vulkan", lwjglVersion, classifier = lwjglNatives)
-//	}
+	implementation(project(":core"))
 
 	testImplementation("org.junit.jupiter", "junit-jupiter", "5.7.0")
 }
-
-/*
-configurations.all {
-	resolutionStrategy.cacheChangingModulesFor(0, "seconds")
-    resolutionStrategy {
-        dependencySubstitution {
-            substitute(module("org.lwjgl:lwjgl:3.2.2")).with(module("org.lwjgl:lwjgl:$lwjglVersion"))
-            substitute(module("org.lwjgl:lwjg-glfw:3.2.2")).with(module("org.lwjgl:lwjgl-glfw:$lwjglVersion"))
-        }
-
-        force("org.lwjgl:lwjgl:$lwjglVersion")
-        force("org.lwjgl:lwjgl-glfw:$lwjglVersion")
-    }
-}*/
 
 base {
 	archivesBaseName = "blaze4d"
@@ -139,10 +76,6 @@ loom {
 		}
 	}
 }
-/*
-quiltflower {
-	addToRuntimeClasspath.set(true)
-}*/
 
 tasks {
 	test {

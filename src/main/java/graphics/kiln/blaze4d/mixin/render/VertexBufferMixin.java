@@ -32,13 +32,24 @@ public class VertexBufferMixin {
      * @reason Allow for uploading Vertex Buffers
      */
     @Inject(method="upload", at = @At("HEAD"))
-    private void uploadBuffer(BufferBuilder.RenderedBuffer renderedBuffer) {
+    private void uploadBuffer(BufferBuilder.RenderedBuffer renderedBuffer, CallbackInfo ci) {
         if (this.staticMeshId != 0L) {
             Blaze4D.core.destroyStaticMesh(this.staticMeshId);
             this.staticMeshId = 0;
         }
 
         BufferBuilder.DrawState drawState = renderedBuffer.drawState();
+
+        /*if (renderedBuffer.indexBuffer().remaining() != 0) {
+            this.staticMeshId = Blaze4D.core.createStaticMesh(
+                    renderedBuffer.vertexBuffer(),
+                    renderedBuffer.indexBuffer(),
+                    drawState.format().getVertexSize(),
+                    drawState.indexCount(),
+                    1,
+                    3
+            );
+        }*/
     }
 //
 //    /**
