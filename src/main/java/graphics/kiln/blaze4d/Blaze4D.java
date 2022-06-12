@@ -20,6 +20,8 @@ public class Blaze4D implements ClientModInitializer {
     @Override
     public void onInitializeClient() {
         Natives.verifyInit();
-        System.load("C:\\Program Files\\RenderDoc\\renderdoc.dll");
+        if(System.getProperty("b4d.enable_renderdoc") != null) {
+            System.loadLibrary("renderdoc");
+        }
     }
 }

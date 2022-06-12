@@ -54,26 +54,27 @@ loom {
 
 	runs {
 		val client by this
+		client.vmArgs.add("--add-modules=jdk.incubator.foreign")
+		client.vmArgs.add("--enable-native-access=ALL-UNNAMED") // should be graphics.kiln.blaze4d.core but modules are screwed
+		client.vmArgs.add("-Db4d.native=" + property("b4d_native_path"))
 
 		create("clientWithValidation") {
 			inherit(client)
 			configName = "Minecraft Client with Validation Layers"
-			vmArgs.add("-Drosella:validation=true")
+			vmArgs.add("-Db4d.enable_validation")
 		}
 
 		create("clientWithRenderdoc") {
 			inherit(client)
 			configName = "Minecraft Client with Renderdoc"
-			vmArgs.add("-Drosella:renderdoc=true")
+			vmArgs.add("-Db4d.enable_renderdoc")
 		}
 
 		create("clientWithValidationRenderdoc") {
 			inherit(client)
-
 			configName = "Minecraft Client with Validation Layers and Renderdoc"
-
-			vmArgs.add("--add-modules=jdk.incubator.foreign")
-			vmArgs.add("--enable-native-access=ALL-UNNAMED")
+			vmArgs.add("-Db4d.enable_validation")
+			vmArgs.add("-Db4d.enable_renderdoc")
 		}
 	}
 }
@@ -86,7 +87,6 @@ tasks {
 	withType<JavaCompile> {
 		options.encoding = "UTF-8"
 		options.release.set(18)
-		options.compilerArgs.add("--add-modules=jdk.incubator.foreign")
 	}
 
 	withType<AbstractArchiveTask> {

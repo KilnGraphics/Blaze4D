@@ -3,6 +3,7 @@ package graphics.kiln.blaze4d.core.natives;
 import jdk.incubator.foreign.*;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.apache.logging.log4j.message.StringFormatterMessageFactory;
 import org.lwjgl.glfw.GLFW;
 import org.lwjgl.system.APIUtil;
 
@@ -15,7 +16,7 @@ import java.util.Optional;
 import static jdk.incubator.foreign.ValueLayout.*;
 
 public class Natives {
-    private static final Logger NATIVE_LOGGER = LogManager.getLogger("Blaze4DNative");
+    private static final Logger NATIVE_LOGGER = LogManager.getLogger("Blaze4DNative", new StringFormatterMessageFactory());
 
     public static final SymbolLookup lookup;
     public static final CLinker linker;

@@ -8,8 +8,10 @@ public class Blaze4DCore implements AutoCloseable {
     private final MemoryAddress handle;
 
     public Blaze4DCore(long glfwWindow) {
+        boolean enableValidation = System.getProperty("b4d.enable_validation") != null;
+
         MemoryAddress surfaceProvider = Natives.b4dCreateGlfwSurfaceProvider(glfwWindow);
-        this.handle = Natives.b4dInit(surfaceProvider, true);
+        this.handle = Natives.b4dInit(surfaceProvider, enableValidation);
     }
 
     public Frame startFrame(int windowWidth, int windowHeight) {

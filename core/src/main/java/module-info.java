@@ -1,5 +1,8 @@
-module Blaze4D.Blaze4DCore.main {
+module graphics.kiln.blaze4d.core {
     requires jdk.incubator.foreign;
     requires org.apache.logging.log4j;
     requires org.lwjgl.glfw;
+
+    exports graphics.kiln.blaze4d.core;
+    exports graphics.kiln.blaze4d.core.natives;
 }
