@@ -23,6 +23,7 @@ pub mod mc_shaders;
 mod descriptors;
 
 use std::collections::HashMap;
+use std::fmt::{Debug, Formatter};
 use std::sync::{Arc, Mutex, Weak};
 use std::sync::atomic::{AtomicU64, Ordering};
 use ash::vk;
@@ -142,5 +143,18 @@ impl<'a> MeshData<'a> {
                 panic!()
             }
         }
+    }
+}
+
+impl<'a> Debug for MeshData<'a> {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("MeshData")
+            .field("vertex_data.len()", &self.vertex_data.len())
+            .field("index_data.len()", &self.index_data.len())
+            .field("vertex_stride", &self.vertex_stride)
+            .field("index_count", &self.index_count)
+            .field("index_type", &self.index_type)
+            .field("primitive_topology", &self.primitive_topology)
+            .finish()
     }
 }

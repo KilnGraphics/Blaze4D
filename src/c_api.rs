@@ -15,12 +15,22 @@ use crate::vk::objects::surface::SurfaceProvider;
 use crate::window::WinitWindow;
 
 #[repr(C)]
+struct NativeMetadata {
+    /// The number of bytes of the size type
+    size_bytes: u32,
+}
+
+const NATIVE_METADATA: NativeMetadata = NativeMetadata {
+    size_bytes: std::mem::size_of::<usize>() as u32,
+};
+
+#[repr(C)]
 #[derive(Debug)]
 struct CMeshData {
     vertex_data_ptr: *const u8,
-    vertex_data_len: u64,
+    vertex_data_len: usize,
     index_data_ptr: *const u8,
-    index_data_len: u64,
+    index_data_len: usize,
     vertex_stride: u32,
     index_count: u32,
     index_type: i32,
@@ -47,6 +57,12 @@ impl CMeshData {
             primitive_topology: vk::PrimitiveTopology::from_raw(self.primitive_topology),
         }
     }
+}
+
+/// Returns static information about the natives.
+#[no_mangle]
+unsafe extern "C" fn b4d_get_native_metadata() -> *const NativeMetadata {
+    &NATIVE_METADATA
 }
 
 /// Creates a new [`Blaze4D`] instance.
