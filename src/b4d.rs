@@ -16,7 +16,7 @@ use crate::vk::objects::surface::SurfaceProvider;
 use crate::prelude::*;
 use crate::renderer::emulator::{EmulatorRenderer, MeshData, StaticMeshId};
 use crate::renderer::emulator::debug_pipeline::DebugPipeline;
-use crate::renderer::emulator::mc_shaders::{ShaderId, VertexFormat};
+use crate::renderer::emulator::mc_shaders::{McUniform, ShaderId, VertexFormat};
 use crate::renderer::emulator::PassRecorder;
 use crate::renderer::emulator::pipeline::{EmulatorPipeline, SwapchainOutput};
 
@@ -86,8 +86,8 @@ impl Blaze4D {
         self.emulator.drop_static_mesh(id);
     }
 
-    pub fn create_shader(&self, vertex_format: &VertexFormat) -> ShaderId {
-        self.emulator.create_shader(vertex_format)
+    pub fn create_shader(&self, vertex_format: &VertexFormat, used_uniforms: McUniform) -> ShaderId {
+        self.emulator.create_shader(vertex_format, used_uniforms)
     }
 
     pub fn drop_shader(&self, id: ShaderId) {

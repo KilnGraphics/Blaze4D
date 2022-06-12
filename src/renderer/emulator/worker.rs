@@ -168,7 +168,7 @@ pub(super) fn run_worker(device: DeviceEnvironment, share: Arc<Share>) {
 
         match task {
             WorkerTask::StartPass(pipeline, pass) => {
-                let state = PassState::new(pipeline, pass, &device, &queue, pool.clone());
+                let state = PassState::new(pipeline, pass, &device, &queue, share.clone(), pool.clone());
                 frames.add_pass(id, state);
             }
 
@@ -281,14 +281,16 @@ impl WorkerObjectPool {
 }
 
 pub struct PooledObjectProvider {
+    share: Arc<Share>,
     pool: Rc<RefCell<WorkerObjectPool>>,
     used_buffers: Vec<vk::CommandBuffer>,
     used_fences: Vec<vk::Fence>,
 }
 
 impl PooledObjectProvider {
-    fn new(pool: Rc<RefCell<WorkerObjectPool>>) -> Self {
+    fn new(share: Arc<Share>, pool: Rc<RefCell<WorkerObjectPool>>) -> Self {
         Self {
+            share,
             pool,
             used_buffers: Vec::with_capacity(8),
             used_fences: Vec::with_capacity(4),
@@ -320,6 +322,10 @@ impl PooledObjectProvider {
         self.used_fences.push(fence);
 
         fence
+    }
+
+    pub fn allocate_uniform<T: ToBytes>(&mut self, data: &T) -> (vk::Buffer, vk::DeviceSize) {
+        self.share.descriptors.lock().unwrap().allocate_uniform(data)
     }
 }
 
@@ -372,8 +378,8 @@ struct PassState {
 }
 
 impl PassState {
-    fn new(pipeline: Arc<dyn EmulatorPipeline>, mut pass: Box<dyn EmulatorPipelinePass>, device: &DeviceEnvironment, queue: &Queue, pool: Rc<RefCell<WorkerObjectPool>>) -> Self {
-        let mut object_pool = PooledObjectProvider::new(pool);
+    fn new(pipeline: Arc<dyn EmulatorPipeline>, mut pass: Box<dyn EmulatorPipelinePass>, device: &DeviceEnvironment, queue: &Queue, share: Arc<Share>, pool: Rc<RefCell<WorkerObjectPool>>) -> Self {
+        let mut object_pool = PooledObjectProvider::new(share, pool);
 
         let pre_cmd = object_pool.get_begin_command_buffer().unwrap();
         let post_cmd = object_pool.get_begin_command_buffer().unwrap();

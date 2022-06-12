@@ -10,7 +10,7 @@ use crate::device::transfer::{BufferTransferRanges, StagingMemory};
 use crate::objects::sync::SemaphoreOps;
 
 use crate::renderer::emulator::global_objects::StaticMeshDrawInfo;
-use crate::renderer::emulator::mc_shaders::{DevUniform, ShaderId};
+use crate::renderer::emulator::mc_shaders::{DevUniform, McUniform, McUniformData, ShaderId};
 use crate::renderer::emulator::pipeline::{DrawTask, EmulatorOutput, EmulatorPipeline, PipelineTask};
 
 #[derive(Copy, Clone, PartialEq, Eq, PartialOrd, Ord, Debug, Hash)]
@@ -60,9 +60,9 @@ impl PassRecorder {
         self.renderer.worker.push_task(self.id, WorkerTask::UseOutput(output));
     }
 
-    pub fn update_dev_uniform(&mut self, data: &DevUniform, shader: ShaderId) {
-        let (buffer, offset) = self.renderer.worker.descriptors.lock().unwrap().allocate_uniform(data);
-        self.renderer.worker.push_task(self.id, WorkerTask::PipelineTask(PipelineTask::UpdateDevUniform(shader, buffer, offset)));
+    pub fn update_uniform(&mut self, data: &McUniformData, shader: ShaderId) {
+        self.use_shader(shader);
+        self.renderer.worker.push_task(self.id, WorkerTask::PipelineTask(PipelineTask::UpdateUniform(shader, *data)))
     }
 
     pub fn draw_immediate(&mut self, data: &MeshData, shader: ShaderId) {

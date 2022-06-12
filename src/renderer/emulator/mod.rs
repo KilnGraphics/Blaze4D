@@ -38,7 +38,7 @@ pub use global_objects::StaticMeshId;
 
 pub use pass::PassId;
 pub use pass::PassRecorder;
-use crate::renderer::emulator::mc_shaders::{Shader, ShaderId, VertexFormat};
+use crate::renderer::emulator::mc_shaders::{McUniform, Shader, ShaderId, VertexFormat};
 
 pub struct EmulatorRenderer {
     id: UUID,
@@ -88,8 +88,8 @@ impl EmulatorRenderer {
         self.worker.global_objects.mark_static_mesh(id)
     }
 
-    pub fn create_shader(&self, vertex_format: &VertexFormat) -> ShaderId {
-        let shader = Shader::new(*vertex_format);
+    pub fn create_shader(&self, vertex_format: &VertexFormat, used_uniforms: McUniform) -> ShaderId {
+        let shader = Shader::new(*vertex_format, used_uniforms);
         let id = shader.get_id();
 
         let mut guard = self.shader_database.lock().unwrap();

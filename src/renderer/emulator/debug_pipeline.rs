@@ -13,8 +13,9 @@ use crate::objects::id::BufferId;
 
 use crate::prelude::*;
 use crate::renderer::emulator::EmulatorRenderer;
-use crate::renderer::emulator::mc_shaders::{DevUniform, ShaderDropListener, ShaderId, ShaderListener, VertexFormat};
+use crate::renderer::emulator::mc_shaders::{DevUniform, McUniformData, ShaderDropListener, ShaderId, ShaderListener, VertexFormat};
 use crate::renderer::emulator::pipeline::{DrawTask, EmulatorPipeline, EmulatorPipelinePass, PipelineTask, PooledObjectProvider, SubmitRecorder};
+use crate::to_bytes_body;
 use crate::vk::objects::allocator::{Allocation, AllocationStrategy};
 
 pub struct DepthTypeInfo {
@@ -541,7 +542,7 @@ struct DebugPipelinePass {
     parent: Arc<DebugPipeline>,
     index: usize,
 
-    shader_uniforms: HashMap<ShaderId, (vk::Buffer, vk::DeviceSize)>,
+    shader_uniforms: HashMap<ShaderId, UniformStateTracker>,
 
     command_buffer: Option<vk::CommandBuffer>,
     current_pipeline: Option<(ShaderId, PipelineConfig)>,
@@ -564,16 +565,15 @@ impl DebugPipelinePass {
         }
     }
 
-    fn update_dev_uniform(&mut self, shader: ShaderId, buffer: vk::Buffer, offset: vk::DeviceSize) {
-        self.shader_uniforms.insert(shader, (buffer, offset));
-        if let Some(current) = &self.current_pipeline {
-            if current.0 == shader {
-                self.push_dev_uniforms(buffer, offset);
-            }
+    fn update_uniform(&mut self, shader: ShaderId, data: &McUniformData) {
+        if !self.shader_uniforms.contains_key(&shader) {
+            self.shader_uniforms.insert(shader, UniformStateTracker::new());
         }
+        let tracker = self.shader_uniforms.get_mut(&shader).unwrap();
+        tracker.update_uniform(data);
     }
 
-    fn draw(&mut self, task: &DrawTask) {
+    fn draw(&mut self, task: &DrawTask, obj: &mut PooledObjectProvider) {
         let device = self.parent.device.get_device();
         let cmd = *self.command_buffer.as_ref().unwrap();
 
@@ -588,12 +588,47 @@ impl DebugPipelinePass {
             unsafe {
                 device.vk().cmd_bind_pipeline(cmd, vk::PipelineBindPoint::GRAPHICS, new_pipeline);
             }
+        }
 
-            if let Some((buffer, offset)) = self.shader_uniforms.get(&task.shader) {
-                self.push_dev_uniforms(*buffer, *offset);
-            } else {
-                log::warn!("Called draw with no uniform data. skipping!");
-                return;
+        if !self.shader_uniforms.contains_key(&task.shader) {
+            log::warn!("Called draw without any shader uniforms. Using default values!");
+            self.shader_uniforms.insert(task.shader, UniformStateTracker::new());
+        }
+        if let Some(tracker) = self.shader_uniforms.get_mut(&task.shader) {
+            if let Some(push_constants) = tracker.validate_push_constants() {
+                unsafe {
+                    self.parent.device.vk().cmd_push_constants(
+                        self.command_buffer.unwrap(),
+                        self.parent.pipeline_layout,
+                        vk::ShaderStageFlags::ALL_GRAPHICS,
+                        0,
+                        push_constants.as_bytes()
+                    );
+                }
+            }
+
+            if let Some(static_uniforms) = tracker.validate_static_uniforms() {
+                let (buffer, offset) = obj.allocate_uniform(static_uniforms);
+                let buffer_info = vk::DescriptorBufferInfo {
+                    buffer,
+                    offset,
+                    range: std::mem::size_of::<StaticUniforms>() as vk::DeviceSize
+                };
+                let write = vk::WriteDescriptorSet::builder()
+                    .dst_binding(0)
+                    .dst_array_element(0)
+                    .descriptor_type(vk::DescriptorType::UNIFORM_BUFFER)
+                    .buffer_info(std::slice::from_ref(&buffer_info));
+
+                unsafe {
+                    self.parent.device.get_device().push_descriptor_khr().cmd_push_descriptor_set(
+                        self.command_buffer.unwrap(),
+                        vk::PipelineBindPoint::GRAPHICS,
+                        self.parent.pipeline_layout,
+                        0,
+                        std::slice::from_ref(&write)
+                    );
+                }
             }
         }
 
@@ -618,29 +653,6 @@ impl DebugPipelinePass {
 
         unsafe {
             device.vk().cmd_draw_indexed(cmd, task.index_count, 1, task.first_index, task.vertex_offset, 0);
-        }
-    }
-
-    fn push_dev_uniforms(&self, buffer: vk::Buffer, offset: vk::DeviceSize) {
-        let buffer_info = vk::DescriptorBufferInfo {
-            buffer,
-            offset,
-            range: std::mem::size_of::<DevUniform>() as vk::DeviceSize,
-        };
-        let write = vk::WriteDescriptorSet::builder()
-            .dst_binding(0)
-            .dst_array_element(0)
-            .descriptor_type(vk::DescriptorType::UNIFORM_BUFFER)
-            .buffer_info(std::slice::from_ref(&buffer_info));
-
-        unsafe {
-            self.parent.device.get_device().push_descriptor_khr().cmd_push_descriptor_set(
-                self.command_buffer.unwrap(),
-                vk::PipelineBindPoint::GRAPHICS,
-                self.parent.pipeline_layout,
-                0,
-                std::slice::from_ref(&write)
-            );
         }
     }
 }
@@ -674,13 +686,13 @@ impl EmulatorPipelinePass for DebugPipelinePass {
         }
     }
 
-    fn process_task(&mut self, task: &PipelineTask, _: &mut PooledObjectProvider) {
+    fn process_task(&mut self, task: &PipelineTask, obj: &mut PooledObjectProvider) {
         match task {
-            PipelineTask::UpdateDevUniform(shader, buffer, offset) => {
-                self.update_dev_uniform(*shader, *buffer, *offset);
+            PipelineTask::UpdateUniform(shader, data) => {
+                self.update_uniform(*shader, data);
             }
             PipelineTask::Draw(task) => {
-                self.draw(task);
+                self.draw(task, obj);
             }
         }
     }
@@ -741,6 +753,147 @@ impl Drop for DebugPipelinePass {
         self.parent.pass_objects[self.index].ready.store(true, Ordering::SeqCst);
     }
 }
+
+struct UniformStateTracker {
+    push_constants_dirty: bool,
+    static_uniforms_dirty: bool,
+    push_constant_cache: PushConstants,
+    static_uniform_cache: StaticUniforms,
+}
+
+impl UniformStateTracker {
+    fn new() -> Self {
+        Self {
+            push_constants_dirty: true,
+            static_uniforms_dirty: true,
+            push_constant_cache: PushConstants {
+                model_view_matrix: Mat4f32::identity(),
+                chunk_offset: Vec3f32::zeros(),
+                _padding0: Default::default(),
+            },
+            static_uniform_cache: StaticUniforms {
+                projection_matrix: Mat4f32::identity(),
+                screen_size: Vec2f32::zeros(),
+                _padding0: Default::default(),
+                fog_color: Vec4f32::zeros(),
+                fog_range_and_game_time: Vec3f32::zeros(),
+                _padding1: Default::default(),
+                fog_shape: 0,
+                _padding2: Default::default(),
+            }
+        }
+    }
+
+    fn update_uniform(&mut self, data: &McUniformData) {
+        match data {
+            McUniformData::ModelViewMatrix(mat) => {
+                self.push_constant_cache.model_view_matrix = *mat;
+                self.push_constants_dirty = true;
+            }
+            McUniformData::ProjectionMatrix(mat) => {
+                self.static_uniform_cache.projection_matrix = *mat;
+                self.static_uniforms_dirty = true;
+            }
+            McUniformData::InverseViewRotationMatrix(_) => {}
+            McUniformData::TextureMatrix(_) => {}
+            McUniformData::ScreenSize(size) => {
+                self.static_uniform_cache.screen_size = *size;
+                self.static_uniforms_dirty = true;
+            }
+            McUniformData::ColorModulator(_) => {}
+            McUniformData::Light0Direction(_) => {}
+            McUniformData::Light1Direction(_) => {}
+            McUniformData::FogStart(start) => {
+                self.static_uniform_cache.fog_range_and_game_time[0] = *start;
+                self.static_uniforms_dirty = true;
+            }
+            McUniformData::FogEnd(end) => {
+                self.static_uniform_cache.fog_range_and_game_time[1] = *end;
+                self.static_uniforms_dirty = true;
+            }
+            McUniformData::FogColor(color) => {
+                self.static_uniform_cache.fog_color = *color;
+                self.static_uniforms_dirty = true;
+            }
+            McUniformData::FogShape(shape) => {
+                self.static_uniform_cache.fog_shape = *shape;
+                self.static_uniforms_dirty = true;
+            }
+            McUniformData::LineWidth(_) => {}
+            McUniformData::GameTime(time) => {
+                self.static_uniform_cache.fog_range_and_game_time[2] = *time;
+                self.static_uniforms_dirty = true;
+            }
+            McUniformData::ChunkOffset(offset) => {
+                self.push_constant_cache.chunk_offset = *offset;
+                self.push_constants_dirty = true;
+            }
+        }
+    }
+
+    fn validate_push_constants(&mut self) -> Option<&PushConstants> {
+        if self.push_constants_dirty {
+            self.push_constants_dirty = false;
+            Some(&self.push_constant_cache)
+        } else {
+            None
+        }
+    }
+
+    fn validate_static_uniforms(&mut self) -> Option<&StaticUniforms> {
+        if self.static_uniforms_dirty {
+            self.static_uniforms_dirty = false;
+            Some(&self.static_uniform_cache)
+        } else {
+            None
+        }
+    }
+}
+
+#[repr(C)]
+#[derive(Copy, Clone, Default)]
+struct PushConstants {
+    #[allow(unused)]
+    model_view_matrix: Mat4f32,
+
+    #[allow(unused)]
+    chunk_offset: Vec3f32,
+
+    _padding0: [u8; 4],
+}
+const_assert_eq!(std::mem::size_of::<PushConstants>(), 80);
+const_assert_eq!(std::mem::size_of::<PushConstants>() % 16, 0);
+
+unsafe impl ToBytes for PushConstants { to_bytes_body!(); }
+
+#[repr(C)]
+#[derive(Copy, Clone, Default)]
+struct StaticUniforms {
+    #[allow(unused)]
+    projection_matrix: Mat4f32,
+
+    #[allow(unused)]
+    screen_size: Vec2f32,
+
+    _padding0: [u8; 8],
+
+    #[allow(unused)]
+    fog_color: Vec4f32,
+
+    #[allow(unused)]
+    fog_range_and_game_time: Vec3f32,
+
+    _padding1: [u8; 4],
+
+    #[allow(unused)]
+    fog_shape: u32,
+
+    _padding2: [u8; 12],
+}
+const_assert_eq!(std::mem::size_of::<StaticUniforms>(), 128);
+const_assert_eq!(std::mem::size_of::<StaticUniforms>() % 16, 0);
+
+unsafe impl ToBytes for StaticUniforms { to_bytes_body!(); }
 
 const DEBUG_POSITION_VERTEX_ENTRY: &'static CStr = unsafe { CStr::from_bytes_with_nul_unchecked(b"main\0") }; // GOD I LOVE RUSTS FFI API IT IS SO NICE AND DEFINITELY NOT STUPID WITH WHICH FUNCTIONS ARE CONST AND WHICH AREN'T
 const DEBUG_POSITION_VERTEX_BIN: &'static [u8] = include_bytes!(concat!(env!("B4D_RESOURCE_DIR"), "emulator/debug_position_vert.spv"));

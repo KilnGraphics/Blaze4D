@@ -7,10 +7,10 @@ use winit::event_loop::{ControlFlow, EventLoop};
 use winit::platform::run_return::EventLoopExtRunReturn;
 use crate::b4d::{B4DVertexFormat, Blaze4D};
 use crate::glfw_surface::GLFWSurfaceProvider;
-use crate::prelude::{Mat4f32, UUID, Vec2u32};
+use crate::prelude::{Mat4f32, UUID, Vec2f32, Vec2u32, Vec3f32, Vec4f32};
 
 use crate::renderer::emulator::{MeshData, PassRecorder, StaticMeshId};
-use crate::renderer::emulator::mc_shaders::{DevUniform, ShaderId, VertexFormat, VertexFormatEntry};
+use crate::renderer::emulator::mc_shaders::{DevUniform, McUniform, McUniformData, ShaderId, VertexFormat, VertexFormatEntry};
 use crate::vk::objects::surface::SurfaceProvider;
 use crate::window::WinitWindow;
 
@@ -55,6 +55,162 @@ impl CMeshData {
             index_count: self.index_count,
             index_type: vk::IndexType::from_raw(self.index_type),
             primitive_topology: vk::PrimitiveTopology::from_raw(self.primitive_topology),
+        }
+    }
+}
+
+#[repr(C)]
+struct CVertexFormat {
+    stride: u32,
+    position_offset: u32,
+    position_format: i32,
+    normal_offset: u32,
+    normal_format: i32,
+    color_offset: u32,
+    color_format: i32,
+    uv0_offset: u32,
+    uv0_format: i32,
+    uv1_offset: u32,
+    uv1_format: i32,
+    uv2_offset: u32,
+    uv2_format: i32,
+    has_normal: bool,
+    has_color: bool,
+    has_uv0: bool,
+    has_uv1: bool,
+    has_uv2: bool,
+}
+
+impl CVertexFormat {
+    fn to_vertex_format(&self) -> VertexFormat {
+        let normal = if self.has_normal {
+            Some(VertexFormatEntry {
+                offset: self.normal_offset,
+                format: vk::Format::from_raw(self.normal_format)
+            })
+        } else {
+            None
+        };
+
+        let color = if self.has_color {
+            Some(VertexFormatEntry {
+                offset: self.color_offset,
+                format: vk::Format::from_raw(self.color_format)
+            })
+        } else {
+            None
+        };
+
+        let uv0 = if self.has_color {
+            Some( VertexFormatEntry {
+                offset: self.uv0_offset,
+                format: vk::Format::from_raw(self.uv0_format)
+            })
+        } else {
+            None
+        };
+
+        let uv1 = if self.has_color {
+            Some(VertexFormatEntry {
+                offset: self.uv1_offset,
+                format: vk::Format::from_raw(self.uv1_format)
+            })
+        } else {
+            None
+        };
+
+        let uv2 = if self.has_color {
+            Some(VertexFormatEntry {
+                offset: self.uv2_offset,
+                format: vk::Format::from_raw(self.uv2_format)
+            })
+        } else {
+            None
+        };
+
+        VertexFormat {
+            stride: self.stride,
+            position: VertexFormatEntry {
+                offset: self.position_offset,
+                format: vk::Format::from_raw(self.position_format)
+            },
+            normal,
+            color,
+            uv0,
+            uv1,
+            uv2
+        }
+    }
+}
+
+#[repr(C)]
+union CMcUniformDataPayload {
+    u32: u32,
+    f32: f32,
+    vec2f32: Vec2f32,
+    vec3f32: Vec3f32,
+    vec4f32: Vec4f32,
+    mat4f32: Mat4f32,
+}
+
+#[repr(C)]
+struct CMcUniformData {
+    uniform: u64,
+    payload: CMcUniformDataPayload,
+}
+
+impl CMcUniformData {
+    unsafe fn to_mc_uniform_data(&self) -> McUniformData {
+        match McUniform::from_raw(self.uniform) {
+            McUniform::MODEL_VIEW_MATRIX => {
+                McUniformData::ModelViewMatrix(self.payload.mat4f32)
+            },
+            McUniform::PROJECTION_MATRIX => {
+                McUniformData::ProjectionMatrix(self.payload.mat4f32)
+            },
+            McUniform::INVERSE_VIEW_ROTATION_MATRIX => {
+                McUniformData::InverseViewRotationMatrix(self.payload.mat4f32)
+            },
+            McUniform::TEXTURE_MATRIX => {
+                McUniformData::TextureMatrix(self.payload.mat4f32)
+            },
+            McUniform::SCREEN_SIZE => {
+                McUniformData::ScreenSize(self.payload.vec2f32)
+            },
+            McUniform::COLOR_MODULATOR => {
+                McUniformData::ColorModulator(self.payload.vec4f32)
+            },
+            McUniform::LIGHT0_DIRECTION => {
+                McUniformData::Light0Direction(self.payload.vec3f32)
+            },
+            McUniform::LIGHT1_DIRECTION => {
+                McUniformData::Light1Direction(self.payload.vec3f32)
+            },
+            McUniform::FOG_START => {
+                McUniformData::FogStart(self.payload.f32)
+            },
+            McUniform::FOG_END => {
+                McUniformData::FogEnd(self.payload.f32)
+            },
+            McUniform::FOG_COLOR => {
+                McUniformData::FogColor(self.payload.vec4f32)
+            },
+            McUniform::FOG_SHAPE => {
+                McUniformData::FogShape(self.payload.u32)
+            },
+            McUniform::LINE_WIDTH => {
+                McUniformData::LineWidth(self.payload.f32)
+            },
+            McUniform::GAME_TIME => {
+                McUniformData::GameTime(self.payload.f32)
+            },
+            McUniform::CHUNK_OFFSET => {
+                McUniformData::ChunkOffset(self.payload.vec3f32)
+            },
+            _ => {
+                log::error!("Invalid uniform type {:?}", self.uniform);
+                panic!()
+            }
         }
     }
 }
@@ -140,22 +296,20 @@ unsafe extern "C" fn b4d_destroy_static_mesh(b4d: *const Blaze4D, mesh_id: u64) 
 }
 
 #[no_mangle]
-unsafe extern "C" fn b4d_create_shader(b4d: *const Blaze4D, stride: u32, offset: u32, format: i32) -> u64 {
+unsafe extern "C" fn b4d_create_shader(b4d: *const Blaze4D, vertex_format: *const CVertexFormat, used_uniforms: u64) -> u64 {
     catch_unwind(|| {
         let b4d = b4d.as_ref().unwrap_or_else(|| {
             log::error!("Passed null b4d to b4d_create_shader");
             exit(1);
         });
+        let vertex_format = vertex_format.as_ref().unwrap_or_else(|| {
+            log::error!("Passed null vertex_format to b4d_create_shader");
+            exit(1);
+        });
 
-        let vertex_format = VertexFormat {
-            stride,
-            position: VertexFormatEntry {
-                offset,
-                format: vk::Format::from_raw(format)
-            }
-        };
+        let vertex_format = vertex_format.to_vertex_format();
 
-        b4d.create_shader(&vertex_format).as_uuid().get_raw()
+        b4d.create_shader(&vertex_format, McUniform::from_raw(used_uniforms)).as_uuid().get_raw()
     }).unwrap_or_else(|_| {
         log::error!("panic in b4d_create_shader");
         exit(1);
@@ -199,7 +353,7 @@ unsafe extern "C" fn b4d_start_frame(b4d: *mut Blaze4D, window_width: u32, windo
 }
 
 #[no_mangle]
-unsafe extern "C" fn b4d_pass_update_dev_uniform(pass: *mut PassRecorder, data: *const DevUniform, shader_id: u64) {
+unsafe extern "C" fn b4d_pass_update_uniform(pass: *mut PassRecorder, data: *const CMcUniformData, shader_id: u64) {
     catch_unwind(|| {
         let pass = pass.as_mut().unwrap_or_else(|| {
             log::error!("Passed null pass to b4d_pass_update_dev_uniform");
@@ -209,9 +363,11 @@ unsafe extern "C" fn b4d_pass_update_dev_uniform(pass: *mut PassRecorder, data: 
             log::error!("Passed null data to b4d_pass_update_dev_uniform");
             exit(1);
         });
+
+        let data = data.to_mc_uniform_data();
         let shader_id = ShaderId::from_uuid(UUID::from_raw(shader_id));
 
-        pass.update_dev_uniform(data, shader_id)
+        pass.update_uniform(&data, shader_id);
     }).unwrap_or_else(|_| {
         log::error!("panic in b4d_pass_update_dev_uniform");
         exit(1);

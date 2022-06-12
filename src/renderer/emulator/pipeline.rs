@@ -13,7 +13,7 @@ use crate::vk::DeviceEnvironment;
 use crate::vk::objects::buffer::Buffer;
 
 use crate::prelude::*;
-use crate::renderer::emulator::mc_shaders::ShaderId;
+use crate::renderer::emulator::mc_shaders::{McUniformData, ShaderId};
 
 pub use super::worker::SubmitRecorder;
 pub use super::worker::PooledObjectProvider;
@@ -106,9 +106,9 @@ pub trait EmulatorPipelinePass {
     fn get_internal_fences(&self, fences: &mut Vec<vk::Fence>);
 }
 
-#[derive(Copy, Clone, PartialEq, Debug)]
+#[derive(Copy, Clone, Debug)]
 pub enum PipelineTask {
-    UpdateDevUniform(ShaderId, vk::Buffer, vk::DeviceSize),
+    UpdateUniform(ShaderId, McUniformData),
     Draw(DrawTask),
 }
 
