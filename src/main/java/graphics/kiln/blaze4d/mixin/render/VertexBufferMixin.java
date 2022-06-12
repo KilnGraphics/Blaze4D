@@ -34,7 +34,7 @@ public class VertexBufferMixin {
     @Inject(method="upload", at = @At("HEAD"))
     private void uploadBuffer(BufferBuilder.RenderedBuffer renderedBuffer, CallbackInfo ci) {
         if (this.staticMeshId != 0L) {
-            Blaze4D.core.destroyStaticMesh(this.staticMeshId);
+            // Blaze4D.core.destroyStaticMesh(this.staticMeshId);
             this.staticMeshId = 0;
         }
 
@@ -73,7 +73,7 @@ public class VertexBufferMixin {
     @Inject(method = "close", at = @At("HEAD"), cancellable = true)
     private void close(CallbackInfo ci) {
         if (this.staticMeshId != 0L) {
-            Blaze4D.core.destroyStaticMesh(this.staticMeshId);
+            // Blaze4D.core.destroyStaticMesh(this.staticMeshId);
         }
     }
 }

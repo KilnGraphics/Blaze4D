@@ -21,16 +21,6 @@ public class BufferUploaderMixin {
         if (renderedBuffer.indexBuffer().remaining() != 0) {
 
             BufferBuilder.DrawState drawState = renderedBuffer.drawState();
-
-            Blaze4D.core.passDrawImmediate(
-                    renderedBuffer.vertexBuffer(),
-                    renderedBuffer.indexBuffer(),
-                    drawState.format().getVertexSize(),
-                    drawState.indexCount(),
-                    1,
-                    3,
-                    ((B4DShader) Objects.requireNonNull(RenderSystem.getShader())).b4dGetShaderId()
-            );
         }
     }
 }

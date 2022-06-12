@@ -9,7 +9,6 @@ import com.mojang.math.Matrix4f;
 import com.mojang.math.Vector3f;
 import graphics.kiln.blaze4d.Blaze4D;
 import graphics.kiln.blaze4d.api.B4DShader;
-import graphics.kiln.blaze4d.api.Blaze4DCore;
 import net.minecraft.client.renderer.ShaderInstance;
 import net.minecraft.server.packs.resources.ResourceProvider;
 import org.spongepowered.asm.mixin.Final;
@@ -39,7 +38,7 @@ public class ShaderMixin implements B4DShader {
     @Inject(method = "<init>", at = @At(value = "TAIL"))
     private void initShader(ResourceProvider resourceProvider, String string, VertexFormat vertexFormat, CallbackInfo ci) {
         Blaze4D.LOGGER.error("Vertex format: " + vertexFormat);
-        this.b4dShaderId = Blaze4D.core.createShader(vertexFormat.getVertexSize(), 0, 106); // Temporary stuff (we assume R32G32B32_SFLOAT)
+        // this.b4dShaderId = Blaze4D.core.createShader(vertexFormat.getVertexSize(), 0, 106); // Temporary stuff (we assume R32G32B32_SFLOAT)
     }
 
     @Inject(method = "apply", at = @At(value = "TAIL"))
@@ -47,12 +46,12 @@ public class ShaderMixin implements B4DShader {
         Matrix4f proj = RenderSystem.getProjectionMatrix();
         Matrix4f modelView = RenderSystem.getModelViewMatrix();
 
-        Blaze4D.core.passUpdateDevUniform(this.b4dShaderId, proj, modelView, this.b4dChunkOffset);
+        // Blaze4D.core.passUpdateDevUniform(this.b4dShaderId, proj, modelView, this.b4dChunkOffset);
     }
 
     @Inject(method = "close", at = @At(value = "TAIL"))
     private void destroyShader(CallbackInfo ci) {
-        Blaze4D.core.destroyShader(this.b4dShaderId);
+        // Blaze4D.core.destroyShader(this.b4dShaderId);
     }
 
     @Override

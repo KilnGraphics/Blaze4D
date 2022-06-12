@@ -4,30 +4,12 @@ import com.mojang.blaze3d.platform.DisplayData;
 import com.mojang.blaze3d.platform.ScreenManager;
 import com.mojang.blaze3d.platform.WindowEventHandler;
 import graphics.kiln.blaze4d.Blaze4D;
-import graphics.kiln.blaze4d.Blaze4DNatives;
-import graphics.kiln.blaze4d.api.Blaze4DCore;
-import net.fabricmc.loader.api.FabricLoader;
-import org.apache.logging.log4j.Logger;
-import org.lwjgl.glfw.Callbacks;
+import graphics.kiln.blaze4d.core.Blaze4DCore;
 import org.lwjgl.glfw.GLFW;
-import org.lwjgl.glfw.GLFWImage;
-import org.lwjgl.opengl.GLCapabilities;
-import org.lwjgl.system.MemoryStack;
-import org.lwjgl.system.MemoryUtil;
-import org.spongepowered.asm.mixin.Final;
 import org.spongepowered.asm.mixin.Mixin;
-import org.spongepowered.asm.mixin.Mutable;
-import org.spongepowered.asm.mixin.Shadow;
 import org.spongepowered.asm.mixin.injection.At;
 import org.spongepowered.asm.mixin.injection.Inject;
-import org.spongepowered.asm.mixin.injection.ModifyArg;
-import org.spongepowered.asm.mixin.injection.Redirect;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
-import org.spongepowered.asm.mixin.injection.callback.LocalCapture;
-
-import java.io.InputStream;
-import java.nio.ByteBuffer;
-import java.nio.IntBuffer;
 
 @Mixin(com.mojang.blaze3d.platform.Window.class)
 public abstract class WindowMixin {
@@ -60,7 +42,11 @@ public abstract class WindowMixin {
 //
     @Inject(method = "<init>", at = @At(value = "TAIL"))
     private void initializeRosellaWindow(WindowEventHandler eventHandler, ScreenManager monitorTracker, DisplayData settings, String videoMode, String title, CallbackInfo ci) {
-        Blaze4D.core = new Blaze4DCore();
+        GLFW.glfwDefaultWindowHints();
+        GLFW.glfwWindowHint(GLFW.GLFW_CLIENT_API, GLFW.GLFW_NO_API);
+        Blaze4D.glfwWindow = GLFW.glfwCreateWindow(800, 600, "BLAAAAAZEEEE 4DDDDD", 0, 0);
+
+        Blaze4D.core = new Blaze4DCore(Blaze4D.glfwWindow);
 
 //        Blaze4D.window = new GlfwWindow.SuppliedGlfwWindow(window);
 //        Blaze4D.rosella = new Rosella(Blaze4D.window, "Blaze4D", Blaze4D.VALIDATION_ENABLED);
