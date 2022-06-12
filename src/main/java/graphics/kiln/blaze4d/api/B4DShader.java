@@ -4,6 +4,4 @@ import com.mojang.math.Vector3f;
 
 public interface B4DShader {
     long b4dGetShaderId();
-
-    void setChunkOffset(Vector3f offset);
 }

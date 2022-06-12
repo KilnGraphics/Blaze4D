@@ -1,5 +1,6 @@
 package graphics.kiln.blaze4d.mixin.shader;
 
+import com.google.common.collect.Lists;
 import com.mojang.blaze3d.preprocessor.GlslPreprocessor;
 import com.mojang.blaze3d.shaders.Program;
 import com.mojang.blaze3d.shaders.Uniform;
@@ -9,6 +10,10 @@ import com.mojang.math.Matrix4f;
 import com.mojang.math.Vector3f;
 import graphics.kiln.blaze4d.Blaze4D;
 import graphics.kiln.blaze4d.api.B4DShader;
+import graphics.kiln.blaze4d.api.B4DUniform;
+import graphics.kiln.blaze4d.api.Utils;
+import graphics.kiln.blaze4d.core.McUniform;
+import graphics.kiln.blaze4d.core.natives.VertexFormatNative;
 import net.minecraft.client.renderer.ShaderInstance;
 import net.minecraft.server.packs.resources.ResourceProvider;
 import org.spongepowered.asm.mixin.Final;
@@ -30,38 +35,47 @@ import java.util.Map;
 public class ShaderMixin implements B4DShader {
 
     @Final
+    @Shadow
+    private List<Uniform> uniforms;
+
+    @Final
     private long b4dShaderId = 0L;
-
-    private Vector3f b4dChunkOffset = new Vector3f();
-
 
     @Inject(method = "<init>", at = @At(value = "TAIL"))
     private void initShader(ResourceProvider resourceProvider, String string, VertexFormat vertexFormat, CallbackInfo ci) {
-        Blaze4D.LOGGER.error("Vertex format: " + vertexFormat);
-        // this.b4dShaderId = Blaze4D.core.createShader(vertexFormat.getVertexSize(), 0, 106); // Temporary stuff (we assume R32G32B32_SFLOAT)
+        try (VertexFormatNative nativeFormat = new VertexFormatNative()) {
+            long usedUniforms = 0L;
+            for (Uniform uniform : this.uniforms) {
+                McUniform mcUniform = ((B4DUniform) uniform).getMcUniform();
+                if (mcUniform != null) {
+                    usedUniforms |= mcUniform.getValue();
+                }
+            }
+
+            if (Utils.convertVertexFormat(vertexFormat, nativeFormat)) {
+                this.b4dShaderId = Blaze4D.core.createShader(nativeFormat, usedUniforms);
+            } else {
+                Blaze4D.LOGGER.warn("Shader vertex format did not contain position. Skipping!");
+            }
+        } catch (Exception e) {
+            throw new RuntimeException("Failed to create shader", e);
+        }
     }
 
     @Inject(method = "apply", at = @At(value = "TAIL"))
     private void applyShader(CallbackInfo ci) {
         Matrix4f proj = RenderSystem.getProjectionMatrix();
         Matrix4f modelView = RenderSystem.getModelViewMatrix();
-
-        // Blaze4D.core.passUpdateDevUniform(this.b4dShaderId, proj, modelView, this.b4dChunkOffset);
     }
 
     @Inject(method = "close", at = @At(value = "TAIL"))
     private void destroyShader(CallbackInfo ci) {
-        // Blaze4D.core.destroyShader(this.b4dShaderId);
+        Blaze4D.core.destroyShader(this.b4dShaderId);
     }
 
     @Override
     public long b4dGetShaderId() {
         return this.b4dShaderId;
-    }
-
-    @Override
-    public void setChunkOffset(Vector3f offset) {
-        this.b4dChunkOffset = offset.copy();
     }
 
 //

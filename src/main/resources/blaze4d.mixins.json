@@ -15,7 +15,7 @@
     "shader.RenderSystemMixin",
     "shader.ShaderAccessor",
     "shader.ShaderMixin",
-    "ubo.GlUniformMixin",
+    "shader.GlUniformMixin",
     "texture.LightmapTextureManagerMixin",
     "texture.NativeImageMixin",
     "texture.RenderSystemMixin",

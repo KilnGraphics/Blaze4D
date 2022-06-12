@@ -26,8 +26,10 @@ public class Natives {
     public static final MethodHandle B4D_CREATE_GLFW_SURFACE_PROVIDER_HANDLE;
     public static final MethodHandle B4D_INIT_HANDLE;
     public static final MethodHandle B4D_DESTROY_HANDLE;
-    public static final MethodHandle B4D_START_FRAME;
-    public static final MethodHandle B4D_END_FRAME;
+    public static final MethodHandle B4D_CREATE_SHADER_HANDLE;
+    public static final MethodHandle B4D_DESTROY_SHADER_HANDLE;
+    public static final MethodHandle B4D_START_FRAME_HANDLE;
+    public static final MethodHandle B4D_END_FRAME_HANDLE;
 
     static {
         System.load(System.getProperty("b4d.native"));
@@ -50,11 +52,19 @@ public class Natives {
                 FunctionDescriptor.ofVoid(ADDRESS)
         );
 
-        B4D_START_FRAME = lookupFunction("b4d_start_frame",
+        B4D_CREATE_SHADER_HANDLE = lookupFunction("b4d_create_shader",
+                FunctionDescriptor.of(JAVA_LONG, ADDRESS, ADDRESS, JAVA_LONG)
+        );
+
+        B4D_DESTROY_SHADER_HANDLE = lookupFunction("b4d_destroy_shader",
+                FunctionDescriptor.ofVoid(ADDRESS, JAVA_LONG)
+        );
+
+        B4D_START_FRAME_HANDLE = lookupFunction("b4d_start_frame",
                 FunctionDescriptor.of(ADDRESS, ADDRESS, JAVA_INT, JAVA_INT)
         );
 
-        B4D_END_FRAME = lookupFunction("b4d_end_frame",
+        B4D_END_FRAME_HANDLE = lookupFunction("b4d_end_frame",
                 FunctionDescriptor.ofVoid(ADDRESS)
         );
     }
@@ -86,9 +96,25 @@ public class Natives {
         }
     }
 
+    public static long b4dCreateShader(MemoryAddress b4d, MemoryAddress vertexFormat, long usedUniforms) {
+        try {
+            return (long) B4D_CREATE_SHADER_HANDLE.invoke(b4d, vertexFormat, usedUniforms);
+        } catch (Throwable e) {
+            throw new RuntimeException("Failed to invoke b4d_create_shader", e);
+        }
+    }
+
+    public static void b4dDestroyShader(MemoryAddress b4d, long shaderId) {
+        try {
+            B4D_DESTROY_SHADER_HANDLE.invoke(b4d, shaderId);
+        } catch (Throwable e) {
+            throw new RuntimeException("Failed to invoke b4d_destroy_shader", e);
+        }
+    }
+
     public static MemoryAddress b4dStartFrame(MemoryAddress b4d, int windowWidth, int windowHeight) {
         try {
-            return (MemoryAddress) B4D_START_FRAME.invoke(b4d, windowWidth, windowHeight);
+            return (MemoryAddress) B4D_START_FRAME_HANDLE.invoke(b4d, windowWidth, windowHeight);
         } catch (Throwable e) {
             throw new RuntimeException("Failed to invoke b4d_start_frame", e);
         }
@@ -96,7 +122,7 @@ public class Natives {
 
     public static void b4dEndFrame(MemoryAddress frame) {
         try {
-            B4D_END_FRAME.invoke(frame);
+            B4D_END_FRAME_HANDLE.invoke(frame);
         } catch (Throwable e) {
             throw new RuntimeException("Failed to invoke b4d_end_frame", e);
         }

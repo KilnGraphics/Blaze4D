@@ -1,6 +1,7 @@
 package graphics.kiln.blaze4d.core;
 
 import graphics.kiln.blaze4d.core.natives.Natives;
+import graphics.kiln.blaze4d.core.natives.VertexFormatNative;
 import jdk.incubator.foreign.MemoryAddress;
 
 public class Blaze4DCore implements AutoCloseable {
@@ -12,6 +13,14 @@ public class Blaze4DCore implements AutoCloseable {
 
         MemoryAddress surfaceProvider = Natives.b4dCreateGlfwSurfaceProvider(glfwWindow);
         this.handle = Natives.b4dInit(surfaceProvider, enableValidation);
+    }
+
+    public long createShader(VertexFormatNative vertexFormat, long usedUniforms) {
+        return Natives.b4dCreateShader(this.handle, vertexFormat.getAddress(), usedUniforms);
+    }
+
+    public void destroyShader(long shaderId) {
+        Natives.b4dDestroyShader(this.handle, shaderId);
     }
 
     public Frame startFrame(int windowWidth, int windowHeight) {
