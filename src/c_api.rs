@@ -59,6 +59,7 @@ impl CMeshData {
     }
 }
 
+#[derive(Debug)]
 #[repr(C)]
 struct CVertexFormat {
     stride: u32,
@@ -101,7 +102,7 @@ impl CVertexFormat {
             None
         };
 
-        let uv0 = if self.has_color {
+        let uv0 = if self.has_uv0 {
             Some( VertexFormatEntry {
                 offset: self.uv0_offset,
                 format: vk::Format::from_raw(self.uv0_format)
@@ -110,7 +111,7 @@ impl CVertexFormat {
             None
         };
 
-        let uv1 = if self.has_color {
+        let uv1 = if self.has_uv1 {
             Some(VertexFormatEntry {
                 offset: self.uv1_offset,
                 format: vk::Format::from_raw(self.uv1_format)
@@ -119,7 +120,7 @@ impl CVertexFormat {
             None
         };
 
-        let uv2 = if self.has_color {
+        let uv2 = if self.has_uv2 {
             Some(VertexFormatEntry {
                 offset: self.uv2_offset,
                 format: vk::Format::from_raw(self.uv2_format)
@@ -308,8 +309,9 @@ unsafe extern "C" fn b4d_create_shader(b4d: *const Blaze4D, vertex_format: *cons
         });
 
         let vertex_format = vertex_format.to_vertex_format();
+        let mc_uniform = McUniform::from_raw(used_uniforms);
 
-        b4d.create_shader(&vertex_format, McUniform::from_raw(used_uniforms)).as_uuid().get_raw()
+        b4d.create_shader(&vertex_format, mc_uniform).as_uuid().get_raw()
     }).unwrap_or_else(|_| {
         log::error!("panic in b4d_create_shader");
         exit(1);

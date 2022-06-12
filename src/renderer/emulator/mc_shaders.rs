@@ -231,13 +231,13 @@ const_assert_eq!(std::mem::size_of::<DevUniform>() % 16, 0); // std140 size must
 
 unsafe impl ToBytes for DevUniform { to_bytes_body!(); }
 
-#[derive(Copy, Clone)]
+#[derive(Copy, Clone, Debug)]
 pub struct VertexFormatEntry {
     pub offset: u32,
     pub format: vk::Format,
 }
 
-#[derive(Copy, Clone)]
+#[derive(Copy, Clone, Debug)]
 pub struct VertexFormat {
     pub stride: u32,
     pub position: VertexFormatEntry,
