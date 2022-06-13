@@ -10,7 +10,7 @@ use crate::b4d::{B4DVertexFormat, Blaze4D};
 use crate::glfw_surface::GLFWSurfaceProvider;
 use crate::prelude::{Mat4f32, UUID, Vec2f32, Vec2u32, Vec3f32, Vec4f32};
 
-use crate::renderer::emulator::{MeshData, PassRecorder, StaticMeshId};
+use crate::renderer::emulator::{MeshData, PassRecorder, StaticMeshId, ImmediateMeshId};
 use crate::renderer::emulator::mc_shaders::{DevUniform, McUniform, McUniformData, ShaderId, VertexFormat, VertexFormatEntry};
 use crate::vk::objects::surface::SurfaceProvider;
 use crate::window::WinitWindow;
@@ -394,21 +394,38 @@ unsafe extern "C" fn b4d_pass_draw_static(pass: *mut PassRecorder, mesh_id: u64,
 }
 
 #[no_mangle]
-unsafe extern "C" fn b4d_pass_draw_immediate(pass: *mut PassRecorder, data: *const CMeshData, shader_id: u64) {
+unsafe extern "C" fn b4d_pass_upload_immediate(pass: *mut PassRecorder, data: *const CMeshData) -> u32 {
+    catch_unwind(|| {
+        let pass = pass.as_mut().unwrap_or_else(|| {
+            log::error!("Passed null pass to b4d_pass_upload_immediate");
+            exit(1);
+        });
+        let data = data.as_ref().unwrap_or_else(|| {
+            log::error!("Passed null mesh data to b4d_pass_upload_immediate");
+            exit(1);
+        });
+
+        let mesh_data = data.to_mesh_data();
+
+        pass.upload_immediate(&mesh_data).get_raw()
+    }).unwrap_or_else(|_| {
+        log::error!("panic in b4d_pass_upload_immediate");
+        exit(1);
+    })
+}
+
+#[no_mangle]
+unsafe extern "C" fn b4d_pass_draw_immediate(pass: *mut PassRecorder, id: u32, shader_id: u64, depth_write_enable: u32) {
     catch_unwind(|| {
         let pass = pass.as_mut().unwrap_or_else(|| {
             log::error!("Passed null pass to b4d_pass_draw_immediate");
             exit(1);
         });
-        let data = data.as_ref().unwrap_or_else(|| {
-            log::error!("Passed null mesh data to b4d_pass_draw_immediate");
-            exit(1);
-        });
         let shader_id = ShaderId::from_uuid(UUID::from_raw(shader_id));
 
-        let mesh_data = data.to_mesh_data();
+        let depth_write_enable = if depth_write_enable == 1 { true } else { false };
 
-        pass.draw_immediate(&mesh_data, shader_id);
+        pass.draw_immediate(ImmediateMeshId::form_raw(id), shader_id, depth_write_enable);
     }).unwrap_or_else(|_| {
         log::error!("panic in b4d_pass_draw_immediate");
         exit(1);

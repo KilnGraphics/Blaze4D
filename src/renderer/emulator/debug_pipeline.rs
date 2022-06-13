@@ -218,8 +218,8 @@ impl DebugPipeline {
             .primitive_restart_enable(false);
 
         let depth_stencil_state = vk::PipelineDepthStencilStateCreateInfo::builder()
-            .depth_test_enable(true)
-            .depth_write_enable(true)
+            .depth_test_enable(config.depth_test_enable)
+            .depth_write_enable(config.depth_write_enable)
             .depth_compare_op(vk::CompareOp::LESS);
 
         let info = vk::GraphicsPipelineCreateInfo::builder()
@@ -442,6 +442,8 @@ impl Drop for DebugPipeline {
 #[derive(Copy, Clone, PartialEq, Eq, Hash, Debug)]
 struct PipelineConfig {
     primitive_topology: vk::PrimitiveTopology,
+    depth_test_enable: bool,
+    depth_write_enable: bool,
 }
 
 struct ShaderPipelines {
@@ -782,7 +784,9 @@ impl DebugPipelinePass {
         let cmd = *self.command_buffer.as_ref().unwrap();
 
         let pipeline_config = PipelineConfig {
-            primitive_topology: task.primitive_topology
+            primitive_topology: task.primitive_topology,
+            depth_test_enable: true,
+            depth_write_enable: task.depth_write_enable
         };
 
         if self.current_pipeline != Some((task.shader, pipeline_config)) {

@@ -80,7 +80,8 @@ fn main() {
                                     5f32 + ((z as f32) / 2f32)
                                 ));
                                 recorder.update_uniform(&McUniformData::ModelViewMatrix(translation * rotation), shader);
-                                recorder.draw_immediate(&data, shader);
+                                let id = recorder.upload_immediate(&data);
+                                recorder.draw_immediate(id, shader, true);
                             }
                         }
                     }

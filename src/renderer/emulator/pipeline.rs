@@ -122,6 +122,7 @@ pub struct DrawTask {
     pub index_count: u32,
     pub shader: ShaderId,
     pub primitive_topology: vk::PrimitiveTopology,
+    pub depth_write_enable: bool,
 }
 
 /// Used to process the output of a [`EmulatorPipelinePass`].

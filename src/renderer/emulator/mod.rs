@@ -38,6 +38,7 @@ pub use global_objects::StaticMeshId;
 
 pub use pass::PassId;
 pub use pass::PassRecorder;
+pub use pass::ImmediateMeshId;
 use crate::renderer::emulator::mc_shaders::{McUniform, Shader, ShaderId, VertexFormat};
 
 pub struct EmulatorRenderer {

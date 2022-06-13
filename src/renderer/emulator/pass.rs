@@ -12,6 +12,7 @@ use crate::objects::sync::SemaphoreOps;
 use crate::renderer::emulator::global_objects::StaticMeshDrawInfo;
 use crate::renderer::emulator::mc_shaders::{DevUniform, McUniform, McUniformData, ShaderId};
 use crate::renderer::emulator::pipeline::{DrawTask, EmulatorOutput, EmulatorPipeline, PipelineTask};
+use crate::vk::objects::buffer::Buffer;
 
 #[derive(Copy, Clone, PartialEq, Eq, PartialOrd, Ord, Debug, Hash)]
 pub struct PassId(u64);
@@ -26,6 +27,19 @@ impl PassId {
     }
 }
 
+#[derive(Copy, Clone, PartialEq, Eq, PartialOrd, Ord, Debug, Hash)]
+pub struct ImmediateMeshId(u32);
+
+impl ImmediateMeshId {
+    pub fn form_raw(id: u32) -> Self {
+        Self(id)
+    }
+
+    pub fn get_raw(&self) -> u32 {
+        self.0
+    }
+}
+
 pub struct PassRecorder {
     id: PassId,
     renderer: Arc<EmulatorRenderer>,
@@ -34,6 +48,7 @@ pub struct PassRecorder {
 
     used_shaders: HashSet<ShaderId>,
     used_static_meshes: HashMap<StaticMeshId, StaticMeshDrawInfo>,
+    immediate_meshes: Vec<ImmediateMeshInfo>,
 
     current_buffer: Option<(BufferSubAllocator, StagingMemory)>,
     written_size: usize,
@@ -50,6 +65,7 @@ impl PassRecorder {
 
             used_shaders: HashSet::new(),
             used_static_meshes: HashMap::new(),
+            immediate_meshes: Vec::with_capacity(128),
 
             current_buffer: None,
             written_size: 0,
@@ -65,23 +81,41 @@ impl PassRecorder {
         self.renderer.worker.push_task(self.id, WorkerTask::PipelineTask(PipelineTask::UpdateUniform(shader, *data)))
     }
 
-    pub fn draw_immediate(&mut self, data: &MeshData, shader: ShaderId) {
-        self.use_shader(shader);
-
+    pub fn upload_immediate(&mut self, data: &MeshData) -> ImmediateMeshId {
         let index_size = data.get_index_size();
 
         let vertex_buffer = self.push_data(data.vertex_data, data.vertex_stride);
         let index_buffer = self.push_data(data.index_data, index_size);
 
-        let draw_task = DrawTask {
+        let id = self.immediate_meshes.len() as u32;
+        self.immediate_meshes.push(ImmediateMeshInfo {
             vertex_buffer: vertex_buffer.buffer,
             index_buffer: index_buffer.buffer,
             vertex_offset: (vertex_buffer.offset / (data.vertex_stride as usize)) as i32,
             first_index: (index_buffer.offset / (index_size as usize)) as u32,
             index_type: data.index_type,
             index_count: data.index_count,
-            shader,
             primitive_topology: data.primitive_topology
+        });
+
+        ImmediateMeshId::form_raw(id)
+    }
+
+    pub fn draw_immediate(&mut self, id: ImmediateMeshId, shader: ShaderId, depth_write_enable: bool) {
+        self.use_shader(shader);
+
+        let mesh_data = self.immediate_meshes.get(id.get_raw() as usize).unwrap();
+
+        let draw_task = DrawTask {
+            vertex_buffer: mesh_data.vertex_buffer,
+            index_buffer: mesh_data.index_buffer,
+            vertex_offset: mesh_data.vertex_offset,
+            first_index: mesh_data.first_index,
+            index_type: mesh_data.index_type,
+            index_count: mesh_data.index_count,
+            shader,
+            primitive_topology: mesh_data.primitive_topology,
+            depth_write_enable,
         };
         self.renderer.worker.push_task(self.id, WorkerTask::PipelineTask(PipelineTask::Draw(draw_task)));
     }
@@ -106,7 +140,8 @@ impl PassRecorder {
             index_type: draw_info.index_type,
             index_count: draw_info.index_count,
             shader,
-            primitive_topology: draw_info.primitive_topology
+            primitive_topology: draw_info.primitive_topology,
+            depth_write_enable: false,
         };
 
         self.renderer.worker.push_task(self.id, WorkerTask::PipelineTask(PipelineTask::Draw(draw_task)));
@@ -194,4 +229,14 @@ impl Drop for PassRecorder {
         self.end_sub_allocator();
         self.renderer.worker.push_task(self.id, WorkerTask::EndPass);
     }
+}
+
+struct ImmediateMeshInfo {
+    vertex_buffer: Buffer,
+    index_buffer: Buffer,
+    vertex_offset: i32,
+    first_index: u32,
+    index_type: vk::IndexType,
+    index_count: u32,
+    primitive_topology: vk::PrimitiveTopology,
 }
