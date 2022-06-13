@@ -4,6 +4,7 @@ import graphics.kiln.blaze4d.core.Blaze4DCore;
 
 import graphics.kiln.blaze4d.core.Frame;
 import graphics.kiln.blaze4d.core.natives.Natives;
+import graphics.kiln.blaze4d.core.types.B4DUniformData;
 import net.fabricmc.api.ClientModInitializer;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -16,6 +17,14 @@ public class Blaze4D implements ClientModInitializer {
     public static Blaze4DCore core;
     public static Frame currentFrame;
     public static long glfwWindow;
+
+    public static void pushUniform(long shaderId, B4DUniformData data) {
+        if(currentFrame != null) {
+            currentFrame.updateUniform(shaderId, data);
+        } else {
+            LOGGER.warn("Updated uniform outside of frame");
+        }
+    }
 
     @Override
     public void onInitializeClient() {

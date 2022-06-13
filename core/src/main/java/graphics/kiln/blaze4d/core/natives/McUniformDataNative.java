@@ -4,7 +4,7 @@ import jdk.incubator.foreign.*;
 
 import java.lang.invoke.VarHandle;
 
-public class McUniformDataNative implements AutoCloseable {
+public class McUniformDataNative {
     public static final MemoryLayout LAYOUT;
 
     public static final MemoryLayout.PathElement UNIFORM_PATH;
@@ -53,18 +53,5 @@ public class McUniformDataNative implements AutoCloseable {
         PAYLOAD_VEC3F32_HANDLE = LAYOUT.varHandle(PAYLOAD_PATH, PAYLOAD_VEC3F32_PATH, MemoryLayout.PathElement.sequenceElement());
         PAYLOAD_VEC4F32_HANDLE = LAYOUT.varHandle(PAYLOAD_PATH, PAYLOAD_VEC4F32_PATH, MemoryLayout.PathElement.sequenceElement());
         PAYLOAD_MAT4F32_HANDLE = LAYOUT.varHandle(PAYLOAD_PATH, PAYLOAD_MAT4F32_PATH, MemoryLayout.PathElement.sequenceElement());
-    }
-
-    private final ResourceScope resourceScope;
-    private final MemorySegment memory;
-
-    public McUniformDataNative() {
-        this.resourceScope = ResourceScope.newSharedScope();
-        this.memory = MemorySegment.allocateNative(LAYOUT, this.resourceScope);
-    }
-
-    @Override
-    public void close() throws Exception {
-        this.resourceScope.close();
     }
 }

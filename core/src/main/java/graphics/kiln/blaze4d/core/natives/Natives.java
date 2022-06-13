@@ -29,6 +29,7 @@ public class Natives {
     public static final MethodHandle B4D_CREATE_SHADER_HANDLE;
     public static final MethodHandle B4D_DESTROY_SHADER_HANDLE;
     public static final MethodHandle B4D_START_FRAME_HANDLE;
+    public static final MethodHandle B4D_PASS_UPDATE_UNIFORM_HANDLE;
     public static final MethodHandle B4D_END_FRAME_HANDLE;
 
     static {
@@ -62,6 +63,10 @@ public class Natives {
 
         B4D_START_FRAME_HANDLE = lookupFunction("b4d_start_frame",
                 FunctionDescriptor.of(ADDRESS, ADDRESS, JAVA_INT, JAVA_INT)
+        );
+
+        B4D_PASS_UPDATE_UNIFORM_HANDLE = lookupFunction("b4d_pass_update_uniform",
+                FunctionDescriptor.ofVoid(ADDRESS, ADDRESS, JAVA_LONG)
         );
 
         B4D_END_FRAME_HANDLE = lookupFunction("b4d_end_frame",
@@ -115,6 +120,14 @@ public class Natives {
     public static MemoryAddress b4dStartFrame(MemoryAddress b4d, int windowWidth, int windowHeight) {
         try {
             return (MemoryAddress) B4D_START_FRAME_HANDLE.invoke(b4d, windowWidth, windowHeight);
+        } catch (Throwable e) {
+            throw new RuntimeException("Failed to invoke b4d_start_frame", e);
+        }
+    }
+
+    public static void b4dPassUpdateUniform(MemoryAddress frame, MemoryAddress data, long shaderId) {
+        try {
+            B4D_PASS_UPDATE_UNIFORM_HANDLE.invoke(frame, data, shaderId);
         } catch (Throwable e) {
             throw new RuntimeException("Failed to invoke b4d_start_frame", e);
         }

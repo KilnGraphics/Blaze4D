@@ -5,7 +5,10 @@ import com.mojang.blaze3d.shaders.Shader;
 import com.mojang.blaze3d.shaders.Uniform;
 import com.mojang.math.Vector3f;
 import graphics.kiln.blaze4d.Blaze4D;
+import graphics.kiln.blaze4d.api.B4DShader;
+import graphics.kiln.blaze4d.core.Blaze4DCore;
 import graphics.kiln.blaze4d.core.types.B4DUniform;
+import graphics.kiln.blaze4d.core.types.B4DUniformData;
 import org.spongepowered.asm.mixin.Final;
 import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.Shadow;
@@ -33,6 +36,10 @@ public abstract class GlUniformMixin extends AbstractUniform implements graphics
     @Final
     @Nullable
     private B4DUniform b4dUniform;
+
+    @Final
+    @Nullable
+    private B4DUniformData b4DUniformData;
 
     @Inject(method = "<init>", at = @At("TAIL"))
     private void init(String string, int i, int j, Shader shader, CallbackInfo ci) {
@@ -145,6 +152,11 @@ public abstract class GlUniformMixin extends AbstractUniform implements graphics
             }
         }
         this.b4dUniform = b4dUniform;
+        if (this.b4dUniform != null) {
+            this.b4DUniformData = new B4DUniformData();
+        } else {
+            this.b4DUniformData = null;
+        }
     }
 
     public B4DUniform getB4DUniform() {
@@ -157,10 +169,28 @@ public abstract class GlUniformMixin extends AbstractUniform implements graphics
 
     @Inject(method = "set(FFF)V", at = @At("HEAD"))
     private void setVec3f(float x, float y, float z, CallbackInfo ci) {
+        if(this.b4dUniform != null) {
+            assert this.b4DUniformData != null;
+            long shaderId = ((B4DShader) this.parent).b4dGetShaderId();
+
+            if (this.b4dUniform == B4DUniform.CHUNK_OFFSET) {
+                this.b4DUniformData.setChunkOffset(x, y, z);
+                Blaze4D.pushUniform(shaderId, this.b4DUniformData);
+            }
+        }
     }
 
     @Inject(method = "set(Lcom/mojang/math/Vector3f;)V", at = @At("HEAD"))
     private void setVec3f(Vector3f vec, CallbackInfo ci) {
+        if(this.b4dUniform != null) {
+            assert this.b4DUniformData != null;
+            long shaderId = ((B4DShader) this.parent).b4dGetShaderId();
+
+            if (this.b4dUniform == B4DUniform.CHUNK_OFFSET) {
+                this.b4DUniformData.setChunkOffset(vec.x(), vec.y(), vec.z());
+                Blaze4D.pushUniform(shaderId, this.b4DUniformData);
+            }
+        }
     }
 
 //    @Unique
