@@ -4,7 +4,7 @@ import jdk.incubator.foreign.*;
 
 import java.lang.invoke.VarHandle;
 
-public class MeshDataNative implements AutoCloseable {
+public class MeshDataNative {
     public static final MemoryLayout LAYOUT;
 
     public static final MemoryLayout.PathElement VERTEX_DATA_PTR_PATH;
@@ -54,48 +54,5 @@ public class MeshDataNative implements AutoCloseable {
         INDEX_COUNT_HANDLE = LAYOUT.varHandle(INDEX_COUNT_PATH);
         INDEX_TYPE_HANDLE = LAYOUT.varHandle(INDEX_TYPE_PATH);
         PRIMITIVE_TOPOLOGY_HANDLE = LAYOUT.varHandle(PRIMITIVE_TOPOLOGY_PATH);
-    }
-
-    private final ResourceScope resourceScope;
-    private final MemorySegment memory;
-
-    public MeshDataNative() {
-        this.resourceScope = ResourceScope.newSharedScope();
-        this.memory = MemorySegment.allocateNative(LAYOUT, this.resourceScope);
-    }
-
-    public void setVertexData(MemoryAddress data, long dataLen) {
-        VERTEX_DATA_PTR_HANDLE.set(this.memory, data);
-        VERTEX_DATA_LEN_HANDLE.set(this.memory, dataLen);
-    }
-
-    public void setIndexData(MemoryAddress data, long dataLen) {
-        INDEX_DATA_PTR_HANDLE.set(this.memory, data);
-        INDEX_DATA_LEN_HANDLE.set(this.memory, dataLen);
-    }
-
-    public void setVertexStride(int vertexStride) {
-        VERTEX_STRIDE_HANDLE.set(this.memory, vertexStride);
-    }
-
-    public void setIndexCount(int indexCount) {
-        INDEX_COUNT_HANDLE.set(this.memory, indexCount);
-    }
-
-    public void setIndexType(int indexType) {
-        INDEX_TYPE_HANDLE.set(this.memory, indexType);
-    }
-
-    public void setPrimitiveTopology(int primitiveTopology) {
-        PRIMITIVE_TOPOLOGY_HANDLE.set(this.memory, primitiveTopology);
-    }
-
-    public MemoryAddress getAddress() {
-        return this.memory.address();
-    }
-
-    @Override
-    public void close() throws Exception {
-        this.resourceScope.close();
     }
 }

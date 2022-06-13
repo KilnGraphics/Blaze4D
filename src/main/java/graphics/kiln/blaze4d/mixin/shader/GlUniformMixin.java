@@ -5,8 +5,7 @@ import com.mojang.blaze3d.shaders.Shader;
 import com.mojang.blaze3d.shaders.Uniform;
 import com.mojang.math.Vector3f;
 import graphics.kiln.blaze4d.Blaze4D;
-import graphics.kiln.blaze4d.api.B4DUniform;
-import graphics.kiln.blaze4d.core.McUniform;
+import graphics.kiln.blaze4d.core.types.B4DUniform;
 import org.spongepowered.asm.mixin.Final;
 import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.Shadow;
@@ -17,7 +16,7 @@ import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 import javax.annotation.Nullable;
 
 @Mixin(Uniform.class)
-public abstract class GlUniformMixin extends AbstractUniform implements B4DUniform {
+public abstract class GlUniformMixin extends AbstractUniform implements graphics.kiln.blaze4d.api.B4DUniform {
 
     @Final
     @Shadow
@@ -33,113 +32,113 @@ public abstract class GlUniformMixin extends AbstractUniform implements B4DUnifo
 
     @Final
     @Nullable
-    private McUniform b4dUniform;
+    private B4DUniform b4dUniform;
 
     @Inject(method = "<init>", at = @At("TAIL"))
     private void init(String string, int i, int j, Shader shader, CallbackInfo ci) {
-        McUniform b4dUniform = null;
+        B4DUniform b4dUniform = null;
         switch (this.name) {
             case "ModelViewMat" -> {
                 if (this.type == Uniform.UT_MAT4) {
-                    b4dUniform = McUniform.MODEL_VIEW_MATRIX;
+                    b4dUniform = B4DUniform.MODEL_VIEW_MATRIX;
                 } else {
                     Blaze4D.LOGGER.warn("Uniform ModelViewMat had type not equal to UT_MAT4. ignoring!");
                 }
             }
             case "ProjMat" -> {
                 if (this.type == Uniform.UT_MAT4) {
-                    b4dUniform = McUniform.PROJECTION_MATRIX;
+                    b4dUniform = B4DUniform.PROJECTION_MATRIX;
                 } else {
                     Blaze4D.LOGGER.warn("Uniform ProjMat had type not equal to UT_MAT4. ignoring!");
                 }
             }
             case "IViewRotMat" -> {
                 if (this.type == Uniform.UT_MAT4) {
-                    b4dUniform = McUniform.INVERSE_VIEW_ROTATION_MATRIX;
+                    b4dUniform = B4DUniform.INVERSE_VIEW_ROTATION_MATRIX;
                 } else {
                     Blaze4D.LOGGER.warn("Uniform IViewRotMat had type not equal to UT_MAT4. ignoring!");
                 }
             }
             case "TextureMat" -> {
                 if (this.type == Uniform.UT_MAT4) {
-                    b4dUniform = McUniform.TEXTURE_MATRIX;
+                    b4dUniform = B4DUniform.TEXTURE_MATRIX;
                 } else {
                     Blaze4D.LOGGER.warn("Uniform TextureMat had type not equal to UT_MAT4. ignoring!");
                 }
             }
             case "ScreenSize" -> {
                 if (this.type == Uniform.UT_FLOAT2) {
-                    b4dUniform = McUniform.SCREEN_SIZE;
+                    b4dUniform = B4DUniform.SCREEN_SIZE;
                 } else {
                     Blaze4D.LOGGER.warn("Uniform ScreenSize had type not equal to UT_FLOAT2. ignoring!");
                 }
             }
             case "ColorModulator" -> {
                 if (this.type == Uniform.UT_FLOAT4) {
-                    b4dUniform = McUniform.COLOR_MODULATOR;
+                    b4dUniform = B4DUniform.COLOR_MODULATOR;
                 } else {
                     Blaze4D.LOGGER.warn("Uniform ColorModulator had type not equal to UT_FLOAT4. ignoring!");
                 }
             }
             case "Light0_Direction" -> {
                 if (this.type == Uniform.UT_FLOAT3) {
-                    b4dUniform = McUniform.LIGHT0_DIRECTION;
+                    b4dUniform = B4DUniform.LIGHT0_DIRECTION;
                 } else {
                     Blaze4D.LOGGER.warn("Uniform Light0_Direction had type not equal to UT_FLOAT3. ignoring!");
                 }
             }
             case "Light1_Direction" -> {
                 if (this.type == Uniform.UT_FLOAT3) {
-                    b4dUniform = McUniform.LIGHT1_DIRECTION;
+                    b4dUniform = B4DUniform.LIGHT1_DIRECTION;
                 } else {
                     Blaze4D.LOGGER.warn("Uniform Light1_Direction had type not equal to UT_FLOAT3. ignoring!");
                 }
             }
             case "FogStart" -> {
                 if (this.type == Uniform.UT_FLOAT1) {
-                    b4dUniform = McUniform.FOG_START;
+                    b4dUniform = B4DUniform.FOG_START;
                 } else {
                     Blaze4D.LOGGER.warn("Uniform FogStart had type not equal to UT_FLOAT1. ignoring!");
                 }
             }
             case "FogEnd" -> {
                 if (this.type == Uniform.UT_FLOAT1) {
-                    b4dUniform = McUniform.FOG_END;
+                    b4dUniform = B4DUniform.FOG_END;
                 } else {
                     Blaze4D.LOGGER.warn("Uniform FogEnd had type not equal to UT_FLOAT1. ignoring!");
                 }
             }
             case "FogColor" -> {
                 if (this.type == Uniform.UT_FLOAT4) {
-                    b4dUniform = McUniform.FOG_COLOR;
+                    b4dUniform = B4DUniform.FOG_COLOR;
                 } else {
                     Blaze4D.LOGGER.warn("Uniform FogColor had type not equal to UT_FLOAT4. ignoring!");
                 }
             }
             case "FogShape" -> {
                 if (this.type == Uniform.UT_INT1) {
-                    b4dUniform = McUniform.FOG_SHAPE;
+                    b4dUniform = B4DUniform.FOG_SHAPE;
                 } else {
                     Blaze4D.LOGGER.warn("Uniform FogShape had type not equal to UT_INT1. ignoring!");
                 }
             }
             case "LineWidth" -> {
                 if (this.type == Uniform.UT_FLOAT1) {
-                    b4dUniform = McUniform.LINE_WIDTH;
+                    b4dUniform = B4DUniform.LINE_WIDTH;
                 } else {
                     Blaze4D.LOGGER.warn("Uniform LineWidth had type not equal to UT_FLOAT1. ignoring!");
                 }
             }
             case "GameTime" -> {
                 if (this.type == Uniform.UT_FLOAT1) {
-                    b4dUniform = McUniform.GAME_TIME;
+                    b4dUniform = B4DUniform.GAME_TIME;
                 } else {
                     Blaze4D.LOGGER.warn("Uniform GameTime had type not equal to UT_FLOAT1. ignoring!");
                 }
             }
             case "ChunkOffset" -> {
                 if (this.type == Uniform.UT_FLOAT3) {
-                    b4dUniform = McUniform.CHUNK_OFFSET;
+                    b4dUniform = B4DUniform.CHUNK_OFFSET;
                 } else {
                     Blaze4D.LOGGER.warn("Uniform ChunkOffset had type not equal to UT_FLOAT3. ignoring!");
                 }
@@ -148,7 +147,7 @@ public abstract class GlUniformMixin extends AbstractUniform implements B4DUnifo
         this.b4dUniform = b4dUniform;
     }
 
-    public McUniform getMcUniform() {
+    public B4DUniform getB4DUniform() {
         return this.b4dUniform;
     }
 

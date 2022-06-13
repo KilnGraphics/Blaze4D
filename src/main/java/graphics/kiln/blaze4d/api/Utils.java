@@ -4,12 +4,12 @@ import com.google.common.collect.ImmutableList;
 import com.mojang.blaze3d.vertex.VertexFormat;
 import com.mojang.blaze3d.vertex.VertexFormatElement;
 import graphics.kiln.blaze4d.Blaze4D;
-import graphics.kiln.blaze4d.core.natives.VertexFormatNative;
+import graphics.kiln.blaze4d.core.types.B4DVertexFormat;
 
 public class Utils {
-    public static boolean convertVertexFormat(VertexFormat src, VertexFormatNative dst) {
+    public static boolean convertVertexFormat(VertexFormat src, B4DVertexFormat dst) {
         boolean hasPosition = false;
-        dst.reset();
+        dst.initialize();
         dst.setStride(src.getVertexSize());
 
         ImmutableList<String> names = src.getElementAttributeNames();
@@ -29,21 +29,16 @@ public class Utils {
                         Blaze4D.LOGGER.warn("Vertex format position type is not float. Skipping!");
                     }
                 }
-                case "Normal" -> {
+                case "Normal" ->
                     dst.setNormal(currentOffset, vulkanNormFormat(element.getType(), element.getCount()));
-                }
-                case "Color" -> {
+                case "Color" ->
                     dst.setColor(currentOffset, vulkanNormFormat(element.getType(), element.getCount()));
-                }
-                case "UV0" -> {
+                case "UV0" ->
                     dst.setUV0(currentOffset, vulkanNormFormat(element.getType(), element.getCount()));
-                }
-                case "UV1" -> {
+                case "UV1" ->
                     dst.setUV1(currentOffset, vulkanNormFormat(element.getType(), element.getCount()));
-                }
-                case "UV2" -> {
+                case "UV2" ->
                     dst.setUV2(currentOffset, vulkanNormFormat(element.getType(), element.getCount()));
-                }
             }
 
             currentOffset += element.getByteSize();
@@ -69,9 +64,8 @@ public class Utils {
             case SHORT -> {
                 return vulkanI16NormFormat(componentCount);
             }
-            default -> {
+            default ->
                 throw new RuntimeException("32 bit values cannot be normalized");
-            }
         }
     }
 
@@ -89,9 +83,8 @@ public class Utils {
             case 4 -> {
                 return 109;
             }
-            default -> {
+            default ->
                 throw new RuntimeException("Invalid component count " + componentCount);
-            }
         }
     }
 
@@ -109,9 +102,8 @@ public class Utils {
             case 4 -> {
                 return 37;
             }
-            default -> {
+            default ->
                 throw new RuntimeException("Invalid component count " + componentCount);
-            }
         }
     }
 
@@ -129,9 +121,8 @@ public class Utils {
             case 4 -> {
                 return 38;
             }
-            default -> {
+            default ->
                 throw new RuntimeException("Invalid component count " + componentCount);
-            }
         }
     }
 
@@ -149,9 +140,8 @@ public class Utils {
             case 4 -> {
                 return 91;
             }
-            default -> {
+            default ->
                 throw new RuntimeException("Invalid component count " + componentCount);
-            }
         }
     }
 
@@ -169,9 +159,8 @@ public class Utils {
             case 4 -> {
                 return 92;
             }
-            default -> {
+            default ->
                 throw new RuntimeException("Invalid component count " + componentCount);
-            }
         }
     }
 }

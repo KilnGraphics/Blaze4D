@@ -1,19 +1,14 @@
 package graphics.kiln.blaze4d.mixin.shader;
 
-import com.google.common.collect.Lists;
-import com.mojang.blaze3d.preprocessor.GlslPreprocessor;
-import com.mojang.blaze3d.shaders.Program;
 import com.mojang.blaze3d.shaders.Uniform;
 import com.mojang.blaze3d.systems.RenderSystem;
 import com.mojang.blaze3d.vertex.VertexFormat;
 import com.mojang.math.Matrix4f;
-import com.mojang.math.Vector3f;
 import graphics.kiln.blaze4d.Blaze4D;
 import graphics.kiln.blaze4d.api.B4DShader;
-import graphics.kiln.blaze4d.api.B4DUniform;
 import graphics.kiln.blaze4d.api.Utils;
-import graphics.kiln.blaze4d.core.McUniform;
-import graphics.kiln.blaze4d.core.natives.VertexFormatNative;
+import graphics.kiln.blaze4d.core.types.B4DUniform;
+import graphics.kiln.blaze4d.core.types.B4DVertexFormat;
 import net.minecraft.client.renderer.ShaderInstance;
 import net.minecraft.server.packs.resources.ResourceProvider;
 import org.spongepowered.asm.mixin.Final;
@@ -21,15 +16,9 @@ import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.Shadow;
 import org.spongepowered.asm.mixin.injection.At;
 import org.spongepowered.asm.mixin.injection.Inject;
-import org.spongepowered.asm.mixin.injection.ModifyArg;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 
-import java.io.ByteArrayInputStream;
-import java.io.IOException;
-import java.io.InputStream;
-import java.util.LinkedHashMap;
 import java.util.List;
-import java.util.Map;
 
 @Mixin(ShaderInstance.class)
 public class ShaderMixin implements B4DShader {
@@ -43,12 +32,12 @@ public class ShaderMixin implements B4DShader {
 
     @Inject(method = "<init>", at = @At(value = "TAIL"))
     private void initShader(ResourceProvider resourceProvider, String string, VertexFormat vertexFormat, CallbackInfo ci) {
-        try (VertexFormatNative nativeFormat = new VertexFormatNative()) {
+        try (B4DVertexFormat nativeFormat = new B4DVertexFormat()) {
             long usedUniforms = 0L;
             for (Uniform uniform : this.uniforms) {
-                McUniform mcUniform = ((B4DUniform) uniform).getMcUniform();
-                if (mcUniform != null) {
-                    usedUniforms |= mcUniform.getValue();
+                B4DUniform b4DUniform = ((graphics.kiln.blaze4d.api.B4DUniform) uniform).getB4DUniform();
+                if (b4DUniform != null) {
+                    usedUniforms |= b4DUniform.getValue();
                 }
             }
 

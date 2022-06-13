@@ -1,6 +1,6 @@
-package graphics.kiln.blaze4d.core;
+package graphics.kiln.blaze4d.core.types;
 
-public enum McUniform {
+public enum B4DUniform {
     MODEL_VIEW_MATRIX(1L),
     PROJECTION_MATRIX(1L << 1),
     INVERSE_VIEW_ROTATION_MATRIX(1L << 2),
@@ -19,7 +19,7 @@ public enum McUniform {
 
     private final long value;
 
-    McUniform(long value) {
+    B4DUniform(long value) {
         this.value = value;
     }
 

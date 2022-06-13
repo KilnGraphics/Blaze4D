@@ -4,5 +4,6 @@ module graphics.kiln.blaze4d.core {
     requires org.lwjgl.glfw;
 
     exports graphics.kiln.blaze4d.core;
+    exports graphics.kiln.blaze4d.core.types;
     exports graphics.kiln.blaze4d.core.natives;
 }

@@ -5,7 +5,7 @@ import jdk.incubator.foreign.*;
 
 import java.lang.invoke.VarHandle;
 
-public class VertexFormatNative implements AutoCloseable {
+public class VertexFormatNative {
     public static final MemoryLayout LAYOUT;
 
     public static final MemoryLayout.PathElement STRIDE_PATH;
@@ -105,91 +105,5 @@ public class VertexFormatNative implements AutoCloseable {
         HAS_UV0_HANDLE = LAYOUT.varHandle(HAS_UV0_PATH);
         HAS_UV1_HANDLE = LAYOUT.varHandle(HAS_UV1_PATH);
         HAS_UV2_HANDLE = LAYOUT.varHandle(HAS_UV2_PATH);
-    }
-
-    private final ResourceScope resourceScope;
-    private final MemorySegment memory;
-
-    public VertexFormatNative() {
-        this.resourceScope = ResourceScope.newSharedScope();
-        this.memory = MemorySegment.allocateNative(LAYOUT, this.resourceScope);
-        this.reset();
-    }
-
-    public void reset() {
-        STRIDE_HANDLE.set(this.memory, 0);
-        HAS_NORMAL_HANDLE.set(this.memory, false);
-        HAS_COLOR_HANDLE.set(this.memory, false);
-        HAS_UV0_HANDLE.set(this.memory, false);
-        HAS_UV1_HANDLE.set(this.memory, false);
-        HAS_UV2_HANDLE.set(this.memory, false);
-    }
-
-    public void setStride(int stride) {
-        STRIDE_HANDLE.set(this.memory, stride);
-    }
-
-    public void setPosition(int offset, int format) {
-        POSITION_OFFSET_HANDLE.set(this.memory, offset);
-        POSITION_FORMAT_HANDLE.set(this.memory, format);
-    }
-
-    public void setNormal(int offset, int format) {
-        NORMAL_OFFSET_HANDLE.set(this.memory, offset);
-        NORMAL_FORMAT_HANDLE.set(this.memory, format);
-        HAS_NORMAL_HANDLE.set(this.memory, true);
-    }
-
-    public void clearNormal() {
-        HAS_NORMAL_HANDLE.set(this.memory, false);
-    }
-
-    public void setColor(int offset, int format) {
-        COLOR_OFFSET_HANDLE.set(this.memory, offset);
-        COLOR_FORMAT_HANDLE.set(this.memory, format);
-        HAS_COLOR_HANDLE.set(this.memory, true);
-    }
-
-    public void clearColor() {
-        HAS_COLOR_HANDLE.set(this.memory, false);
-    }
-
-    public void setUV0(int offset, int format) {
-        UV0_OFFSET_HANDLE.set(this.memory, offset);
-        UV0_FORMAT_HANDLE.set(this.memory, format);
-        HAS_UV0_HANDLE.set(this.memory, true);
-    }
-
-    public void clearUV0() {
-        HAS_UV0_HANDLE.set(this.memory, false);
-    }
-
-    public void setUV1(int offset, int format) {
-        UV1_OFFSET_HANDLE.set(this.memory, offset);
-        UV1_FORMAT_HANDLE.set(this.memory, format);
-        HAS_UV1_HANDLE.set(this.memory, true);
-    }
-
-    public void clearUV1() {
-        HAS_UV1_HANDLE.set(this.memory, false);
-    }
-
-    public void setUV2(int offset, int format) {
-        UV2_OFFSET_HANDLE.set(this.memory, offset);
-        UV2_FORMAT_HANDLE.set(this.memory, format);
-        HAS_UV2_HANDLE.set(this.memory, true);
-    }
-
-    public void clearUV2() {
-        HAS_UV2_HANDLE.set(this.memory, false);
-    }
-
-    public MemoryAddress getAddress() {
-        return this.memory.address();
-    }
-
-    @Override
-    public void close() throws Exception {
-        this.resourceScope.close();
     }
 }
