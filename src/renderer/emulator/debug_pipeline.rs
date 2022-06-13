@@ -182,7 +182,10 @@ impl DebugPipeline {
 
         let pipeline = *unsafe {
             self.device.vk().create_graphics_pipelines(vk::PipelineCache::null(), std::slice::from_ref(&info), None)
-        }.unwrap().get(0).unwrap();
+        }.unwrap_or_else(|(_, err)| {
+            log::error!("Failed to create graphics pipeline {:?}", err);
+            panic!();
+        }).get(0).unwrap();
 
         pipeline
     }
@@ -206,7 +209,14 @@ impl DebugPipeline {
             device.vk().create_descriptor_set_layout(&info, None)
         }.unwrap();
 
+        let push_constant_range = vk::PushConstantRange {
+            stage_flags: vk::ShaderStageFlags::ALL_GRAPHICS,
+            offset: 0,
+            size: std::mem::size_of::<PushConstants>() as u32,
+        };
+
         let info = vk::PipelineLayoutCreateInfo::builder()
+            .push_constant_ranges(std::slice::from_ref(&push_constant_range))
             .set_layouts(std::slice::from_ref(&set_layout));
 
         let pipeline_layout = unsafe {
@@ -334,7 +344,7 @@ impl Drop for DebugPipeline {
     }
 }
 
-#[derive(Copy, Clone, PartialEq, Eq, Hash)]
+#[derive(Copy, Clone, PartialEq, Eq, Hash, Debug)]
 struct PipelineConfig {
     primitive_topology: vk::PrimitiveTopology,
 }

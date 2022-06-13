@@ -1,4 +1,5 @@
 use std::num::NonZeroU32;
+use std::ops::Index;
 use std::panic::{catch_unwind, RefUnwindSafe, UnwindSafe};
 use std::process::exit;
 use ash::vk;

@@ -6,7 +6,7 @@ use winit::event_loop::{ControlFlow, EventLoop};
 use b4d_core::b4d::B4DVertexFormat;
 
 use b4d_core::prelude::*;
-use b4d_core::renderer::emulator::mc_shaders::{DevUniform, VertexFormat, VertexFormatEntry};
+use b4d_core::renderer::emulator::mc_shaders::{DevUniform, McUniform, McUniformData, VertexFormat, VertexFormatEntry};
 use b4d_core::renderer::emulator::MeshData;
 
 use b4d_core::window::WinitWindow;
@@ -20,9 +20,14 @@ fn main() {
     let b4d = b4d_core::b4d::Blaze4D::new(window, true);
     let vertex_format = VertexFormat {
         stride: std::mem::size_of::<Vertex>() as u32,
-        position: VertexFormatEntry { offset: 0, format: vk::Format::R32G32B32_SFLOAT }
+        position: VertexFormatEntry { offset: 0, format: vk::Format::R32G32B32_SFLOAT },
+        normal: None,
+        color: None,
+        uv0: None,
+        uv1: None,
+        uv2: None
     };
-    let mut shader = b4d.create_shader(&vertex_format);
+    let mut shader = b4d.create_shader(&vertex_format, McUniform::empty());
 
     let mut draw_times = Vec::with_capacity(1000);
     let mut last_update = std::time::Instant::now();
@@ -52,9 +57,7 @@ fn main() {
                 let now = std::time::Instant::now();
                 if let Some(mut recorder) = b4d.try_start_frame(current_size) {
 
-                    let mut uniform_data: DevUniform = Default::default();
-                    uniform_data.chunk_offset = Vec3f32::new(0f32, 0f32, 0f32);
-                    uniform_data.projection_matrix = make_projection_matrix(current_size, 90f32);
+                    recorder.update_uniform(&McUniformData::ProjectionMatrix(make_projection_matrix(current_size, 90f32)), shader);
 
                     let elapsed = start.elapsed().as_secs_f32();
                     let rotation = Mat4f32::new_rotation(Vec3f32::new(elapsed / 2.34f32, elapsed / 2.783f32, elapsed / 2.593f32));
@@ -76,8 +79,7 @@ fn main() {
                                     0f32 + ((y as f32) / 2f32),
                                     5f32 + ((z as f32) / 2f32)
                                 ));
-                                uniform_data.model_view_matrix = translation * rotation;
-                                recorder.update_dev_uniform(&uniform_data, shader);
+                                recorder.update_uniform(&McUniformData::ModelViewMatrix(translation * rotation), shader);
                                 recorder.draw_immediate(&data, shader);
                             }
                         }
@@ -87,7 +89,7 @@ fn main() {
 
                     // Stress test the shader stuff
                     b4d.drop_shader(shader);
-                    shader = b4d.create_shader(&vertex_format);
+                    shader = b4d.create_shader(&vertex_format, McUniform::empty());
                 }
                 draw_times.push(now.elapsed());
 
