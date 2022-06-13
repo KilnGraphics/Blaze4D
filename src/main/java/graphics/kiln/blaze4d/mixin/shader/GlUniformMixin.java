@@ -3,12 +3,14 @@ package graphics.kiln.blaze4d.mixin.shader;
 import com.mojang.blaze3d.shaders.AbstractUniform;
 import com.mojang.blaze3d.shaders.Shader;
 import com.mojang.blaze3d.shaders.Uniform;
+import com.mojang.math.Matrix4f;
 import com.mojang.math.Vector3f;
 import graphics.kiln.blaze4d.Blaze4D;
 import graphics.kiln.blaze4d.api.B4DShader;
 import graphics.kiln.blaze4d.core.Blaze4DCore;
 import graphics.kiln.blaze4d.core.types.B4DUniform;
 import graphics.kiln.blaze4d.core.types.B4DUniformData;
+import org.checkerframework.checker.units.qual.A;
 import org.spongepowered.asm.mixin.Final;
 import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.Shadow;
@@ -188,6 +190,22 @@ public abstract class GlUniformMixin extends AbstractUniform implements graphics
 
             if (this.b4dUniform == B4DUniform.CHUNK_OFFSET) {
                 this.b4DUniformData.setChunkOffset(vec.x(), vec.y(), vec.z());
+                Blaze4D.pushUniform(shaderId, this.b4DUniformData);
+            }
+        }
+    }
+
+    @Inject(method = "set(Lcom/mojang/math/Matrix4f;)V", at = @At("HEAD"))
+    private void setMat4f32(Matrix4f mat, CallbackInfo ci) {
+        if(this.b4dUniform != null) {
+            assert this.b4DUniformData != null;
+            long shaderId = ((B4DShader) this.parent).b4dGetShaderId();
+
+            if (this.b4dUniform == B4DUniform.MODEL_VIEW_MATRIX) {
+                this.b4DUniformData.setModelViewMatrix(mat.m00, mat.m01, mat.m02, mat.m03, mat.m10, mat.m11, mat.m12, mat.m13, mat.m20, mat.m21, mat.m22, mat.m23, mat.m30, mat.m31, mat.m32, mat.m33);
+                Blaze4D.pushUniform(shaderId, this.b4DUniformData);
+            } else if (this.b4dUniform == B4DUniform.PROJECTION_MATRIX) {
+                this.b4DUniformData.setProjectionMatrix(mat.m00, mat.m01, mat.m02, mat.m03, mat.m10, mat.m11, mat.m12, mat.m13, mat.m20, mat.m21, mat.m22, mat.m23, mat.m30, mat.m31, mat.m32, mat.m33);
                 Blaze4D.pushUniform(shaderId, this.b4DUniformData);
             }
         }
