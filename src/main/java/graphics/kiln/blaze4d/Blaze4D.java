@@ -1,5 +1,6 @@
 package graphics.kiln.blaze4d;
 
+import com.mojang.blaze3d.systems.RenderSystem;
 import graphics.kiln.blaze4d.core.Blaze4DCore;
 
 import graphics.kiln.blaze4d.core.Frame;
@@ -17,6 +18,7 @@ public class Blaze4D implements ClientModInitializer {
 
     public static Blaze4DCore core;
     public static Frame currentFrame;
+    public static boolean depthWriteEnable = true;
     public static long glfwWindow;
 
     public static void pushUniform(long shaderId, B4DUniformData data) {
@@ -27,9 +29,18 @@ public class Blaze4D implements ClientModInitializer {
         }
     }
 
-    public static void drawImmediate(long shaderId, B4DMeshData data) {
+    public static Integer uploadImmediate(B4DMeshData data) {
         if(currentFrame != null) {
-            currentFrame.drawImmediate(shaderId, data);
+            return currentFrame.uploadImmediate(data);
+        } else {
+            LOGGER.warn("Attempted to draw outside of frame");
+            return null;
+        }
+    }
+
+    public static void drawImmediate(long shaderId, int meshId) {
+        if(currentFrame != null) {
+            currentFrame.drawImmediate(shaderId, meshId, depthWriteEnable);
         } else {
             LOGGER.warn("Attempted to draw outside of frame");
         }

@@ -30,6 +30,7 @@ public class Natives {
     public static final MethodHandle B4D_DESTROY_SHADER_HANDLE;
     public static final MethodHandle B4D_START_FRAME_HANDLE;
     public static final MethodHandle B4D_PASS_UPDATE_UNIFORM_HANDLE;
+    public static final MethodHandle B4D_PASS_UPLOAD_IMMEDIATE_HANDLE;
     public static final MethodHandle B4D_PASS_DRAW_IMMEDIATE_HANDLE;
     public static final MethodHandle B4D_END_FRAME_HANDLE;
 
@@ -70,8 +71,12 @@ public class Natives {
                 FunctionDescriptor.ofVoid(ADDRESS, ADDRESS, JAVA_LONG)
         );
 
+        B4D_PASS_UPLOAD_IMMEDIATE_HANDLE = lookupFunction("b4d_pass_upload_immediate",
+                FunctionDescriptor.of(JAVA_INT, ADDRESS, ADDRESS)
+        );
+
         B4D_PASS_DRAW_IMMEDIATE_HANDLE = lookupFunction("b4d_pass_draw_immediate",
-                FunctionDescriptor.ofVoid(ADDRESS, ADDRESS, JAVA_LONG)
+                FunctionDescriptor.ofVoid(ADDRESS, JAVA_INT, JAVA_LONG, JAVA_INT)
         );
 
         B4D_END_FRAME_HANDLE = lookupFunction("b4d_end_frame",
@@ -138,9 +143,23 @@ public class Natives {
         }
     }
 
-    public static void b4dPassDrawImmediate(MemoryAddress frame, MemoryAddress data, long shaderId) {
+    public static int b4dPassUploadImmediate(MemoryAddress frame, MemoryAddress data) {
         try {
-            B4D_PASS_DRAW_IMMEDIATE_HANDLE.invoke(frame, data, shaderId);
+            return (int) B4D_PASS_UPLOAD_IMMEDIATE_HANDLE.invoke(frame, data);
+        } catch (Throwable e) {
+            throw new RuntimeException("Failed to invoke b4d_pass_upload_immediate", e);
+        }
+    }
+
+    public static void b4dPassDrawImmediate(MemoryAddress frame, int meshId, long shaderId, boolean depthWrite) {
+        int depthWriteInt;
+        if (depthWrite) {
+            depthWriteInt = 1;
+        } else {
+            depthWriteInt = 0;
+        }
+        try {
+            B4D_PASS_DRAW_IMMEDIATE_HANDLE.invoke(frame, meshId, shaderId, depthWriteInt);
         } catch (Throwable e) {
             throw new RuntimeException("Failed to invoke b4d_pass_draw_immediate", e);
         }
