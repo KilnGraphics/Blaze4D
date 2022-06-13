@@ -22,7 +22,7 @@ fn main() {
         stride: std::mem::size_of::<Vertex>() as u32,
         position: VertexFormatEntry { offset: 0, format: vk::Format::R32G32B32_SFLOAT },
         normal: None,
-        color: None,
+        color: Some(VertexFormatEntry { offset: std::mem::size_of::<Vec3f32>() as u32, format: vk::Format::R32G32B32A32_SFLOAT }),
         uv0: None,
         uv1: None,
         uv2: None
@@ -113,27 +113,35 @@ fn main() {
 const CUBE_VERTICES: [Vertex; 8] = [
     Vertex {
         position: Vec3f32::new(-1f32, -1f32, -1f32),
+        color: Vec4f32::new(0f32, 0f32, 0f32, 1f32),
     },
     Vertex {
         position: Vec3f32::new(1f32, -1f32, -1f32),
+        color: Vec4f32::new(1f32, 0f32, 0f32, 1f32),
     },
     Vertex {
         position: Vec3f32::new(-1f32, 1f32, -1f32),
+        color: Vec4f32::new(0f32, 1f32, 0f32, 1f32),
     },
     Vertex {
         position: Vec3f32::new(1f32, 1f32, -1f32),
+        color: Vec4f32::new(1f32, 1f32, 0f32, 1f32),
     },
     Vertex {
         position: Vec3f32::new(-1f32, -1f32, 1f32),
+        color: Vec4f32::new(0f32, 0f32, 1f32, 1f32),
     },
     Vertex {
         position: Vec3f32::new(1f32, -1f32, 1f32),
+        color: Vec4f32::new(1f32, 0f32, 1f32, 1f32),
     },
     Vertex {
         position: Vec3f32::new(-1f32, 1f32, 1f32),
+        color: Vec4f32::new(0f32, 1f32, 1f32, 1f32),
     },
     Vertex {
         position: Vec3f32::new(1f32, 1f32, 1f32),
+        color: Vec4f32::new(1f32, 1f32, 1f32, 1f32),
     },
 ];
 
@@ -150,6 +158,8 @@ const CUBE_INDICES: [u32; 36] = [
 struct Vertex {
     #[allow(unused)]
     position: Vec3f32,
+    #[allow(unused)]
+    color: Vec4f32,
 }
 
 impl Vertex {

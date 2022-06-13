@@ -150,4 +150,8 @@ tasks.register<CompileShaders>("compileEmulatorShaders") {
         source("debug/position.vert")
         output("debug_position_vert.spv")
     });
+    addModule("DebugFragment", {
+        source("debug/debug.frag")
+        output("debug_frag.spv")
+    });
 }

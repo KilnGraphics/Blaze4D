@@ -7,6 +7,7 @@ use std::sync::{Arc, Mutex, Weak};
 use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering};
 use std::time::Instant;
 use ash::vk;
+use ash::vk::ColorComponentFlags;
 use bumpalo::Bump;
 use crate::device::device::Queue;
 use crate::objects::id::BufferId;
@@ -33,6 +34,7 @@ pub struct DebugPipeline {
     weak: Weak<Self>,
     framebuffer_size: Vec2u32,
     vertex_module: vk::ShaderModule,
+    fragment_module: vk::ShaderModule,
     render_pass: vk::RenderPass,
     set0_layout: vk::DescriptorSetLayout,
     pipeline_layout: vk::PipelineLayout,
@@ -46,7 +48,7 @@ assert_impl_all!(DebugPipeline: Send, Sync);
 
 impl DebugPipeline {
     pub fn new(device: DeviceEnvironment, emulator: Arc<EmulatorRenderer>, framebuffer_size: Vec2u32) -> Arc<Self> {
-        let vertex_module = Self::load_shaders(&device);
+        let (vertex_module, fragment_module) = Self::load_shaders(&device);
         let render_pass = Self::create_render_pass(&device, vk::Format::D16_UNORM);
         let (set0_layout, pipeline_layout) = Self::create_pipeline_layout(&device);
 
@@ -54,7 +56,7 @@ impl DebugPipeline {
             PassObjects::new(&device, framebuffer_size, vk::Format::D16_UNORM, render_pass)
         ).take(2).collect();
 
-        let output_views: Box<_> = pass_objects.iter().map(|obj| obj.depth_sampler_view).collect();
+        let output_views: Box<_> = pass_objects.iter().map(|obj| obj.color_sampler_view).collect();
 
         Arc::new_cyclic(|weak| {
             Self {
@@ -63,6 +65,7 @@ impl DebugPipeline {
                 weak: weak.clone(),
                 framebuffer_size,
                 vertex_module,
+                fragment_module,
                 render_pass,
                 set0_layout,
                 pipeline_layout,
@@ -95,12 +98,34 @@ impl DebugPipeline {
     }
 
     fn create_pipeline(&self, config: &PipelineConfig, vertex_format: &VertexFormat) -> vk::Pipeline {
+        let vertex_entries = [
+            vk::SpecializationMapEntry {
+                constant_id: 0,
+                offset: 0,
+                size: 4
+            },
+        ];
+
+        let vertex_specialization_data = VertexSpecializationEntries {
+            has_color: if vertex_format.color.is_some() { 1 } else { 0 },
+        };
+
+        let vertex_specialization_info = vk::SpecializationInfo::builder()
+            .map_entries(&vertex_entries)
+            .data(vertex_specialization_data.as_bytes());
+
         let shader_stages = [
             vk::PipelineShaderStageCreateInfo::builder()
                 .stage(vk::ShaderStageFlags::VERTEX)
                 .module(self.vertex_module)
                 .name(DEBUG_POSITION_VERTEX_ENTRY)
-                .build()
+                .specialization_info(&vertex_specialization_info)
+                .build(),
+            vk::PipelineShaderStageCreateInfo::builder()
+                .stage(vk::ShaderStageFlags::FRAGMENT)
+                .module(self.fragment_module)
+                .name(DEBUG_FRAGMENT_ENTRY)
+                .build(),
         ];
 
         let input_bindings = [
@@ -111,18 +136,25 @@ impl DebugPipeline {
             }
         ];
 
-        let input_attributes = [
-            vk::VertexInputAttributeDescription {
-                location: 0,
+        let mut input_attributes = Vec::new();
+        input_attributes.push(vk::VertexInputAttributeDescription {
+            location: 0,
+            binding: 0,
+            format: vertex_format.position.format,
+            offset: vertex_format.position.offset,
+        });
+        if let Some(entry) = &vertex_format.color {
+            input_attributes.push(vk::VertexInputAttributeDescription {
+                location: 1,
                 binding: 0,
-                format: vertex_format.position.format,
-                offset: vertex_format.position.offset,
-            }
-        ];
+                format: entry.format,
+                offset: entry.offset
+            })
+        }
 
         let input_state = vk::PipelineVertexInputStateCreateInfo::builder()
             .vertex_binding_descriptions(&input_bindings)
-            .vertex_attribute_descriptions(&input_attributes);
+            .vertex_attribute_descriptions(input_attributes.as_slice());
 
         let viewport = vk::Viewport {
             x: 0.0,
@@ -152,8 +184,32 @@ impl DebugPipeline {
             .rasterization_samples(vk::SampleCountFlags::TYPE_1)
             .sample_shading_enable(false);
 
+        let attachment_blend_state = [
+            vk::PipelineColorBlendAttachmentState {
+                blend_enable: 0,
+                src_color_blend_factor: Default::default(),
+                dst_color_blend_factor: Default::default(),
+                color_blend_op: Default::default(),
+                src_alpha_blend_factor: Default::default(),
+                dst_alpha_blend_factor: Default::default(),
+                alpha_blend_op: Default::default(),
+                color_write_mask: ColorComponentFlags::RGBA
+            },
+            vk::PipelineColorBlendAttachmentState {
+                blend_enable: 0,
+                src_color_blend_factor: Default::default(),
+                dst_color_blend_factor: Default::default(),
+                color_blend_op: Default::default(),
+                src_alpha_blend_factor: Default::default(),
+                dst_alpha_blend_factor: Default::default(),
+                alpha_blend_op: Default::default(),
+                color_write_mask: ColorComponentFlags::RGBA
+            }
+        ];
 
-        let color_blend_state = vk::PipelineColorBlendStateCreateInfo::builder();
+        let color_blend_state = vk::PipelineColorBlendStateCreateInfo::builder()
+            .logic_op_enable(false)
+            .attachments(&attachment_blend_state);
 
         let dynamic_state = vk::PipelineDynamicStateCreateInfo::builder();
 
@@ -186,6 +242,9 @@ impl DebugPipeline {
             log::error!("Failed to create graphics pipeline {:?}", err);
             panic!();
         }).get(0).unwrap();
+
+        // Need to keep alive due to build
+        drop(vertex_specialization_info);
 
         pipeline
     }
@@ -235,6 +294,22 @@ impl DebugPipeline {
                 .store_op(vk::AttachmentStoreOp::STORE)
                 .initial_layout(vk::ImageLayout::UNDEFINED)
                 .final_layout(vk::ImageLayout::SHADER_READ_ONLY_OPTIMAL)
+                .build(),
+            vk::AttachmentDescription::builder()
+                .format(vk::Format::R8G8B8A8_SRGB)
+                .samples(vk::SampleCountFlags::TYPE_1)
+                .load_op(vk::AttachmentLoadOp::DONT_CARE)
+                .store_op(vk::AttachmentStoreOp::STORE)
+                .initial_layout(vk::ImageLayout::UNDEFINED)
+                .final_layout(vk::ImageLayout::SHADER_READ_ONLY_OPTIMAL)
+                .build(),
+            vk::AttachmentDescription::builder()
+                .format(vk::Format::R8G8B8A8_SRGB)
+                .samples(vk::SampleCountFlags::TYPE_1)
+                .load_op(vk::AttachmentLoadOp::DONT_CARE)
+                .store_op(vk::AttachmentStoreOp::STORE)
+                .initial_layout(vk::ImageLayout::UNDEFINED)
+                .final_layout(vk::ImageLayout::SHADER_READ_ONLY_OPTIMAL)
                 .build()
         ];
 
@@ -242,8 +317,20 @@ impl DebugPipeline {
             .attachment(0)
             .layout(vk::ImageLayout::DEPTH_STENCIL_ATTACHMENT_OPTIMAL);
 
+        let color_refs = [
+            vk::AttachmentReference {
+                attachment: 1,
+                layout: vk::ImageLayout::COLOR_ATTACHMENT_OPTIMAL
+            },
+            vk::AttachmentReference {
+                attachment: 2,
+                layout: vk::ImageLayout::COLOR_ATTACHMENT_OPTIMAL
+            }
+        ];
+
         let subpass = vk::SubpassDescription::builder()
             .pipeline_bind_point(vk::PipelineBindPoint::GRAPHICS)
+            .color_attachments(&color_refs)
             .depth_stencil_attachment(&depth_ref);
 
         let info = vk::RenderPassCreateInfo::builder()
@@ -255,7 +342,7 @@ impl DebugPipeline {
         }.unwrap()
     }
 
-    fn load_shaders(device: &DeviceEnvironment) -> vk::ShaderModule {
+    fn load_shaders(device: &DeviceEnvironment) -> (vk::ShaderModule, vk::ShaderModule) {
         let info = vk::ShaderModuleCreateInfo::builder()
             .code(crate::util::slice::from_byte_slice(DEBUG_POSITION_VERTEX_BIN));
 
@@ -263,7 +350,14 @@ impl DebugPipeline {
             device.vk().create_shader_module(&info, None)
         }.unwrap();
 
-        vertex
+        let info = vk::ShaderModuleCreateInfo::builder()
+            .code(crate::util::slice::from_byte_slice(DEBUG_FRAGMENT_BIN));
+
+        let fragment = unsafe {
+            device.vk().create_shader_module(&info, None)
+        }.unwrap();
+
+        (vertex, fragment)
     }
 }
 
@@ -339,6 +433,7 @@ impl Drop for DebugPipeline {
             self.device.vk().destroy_pipeline_layout(self.pipeline_layout, None);
             self.device.vk().destroy_descriptor_set_layout(self.set0_layout, None);
             self.device.vk().destroy_render_pass(self.render_pass, None);
+            self.device.vk().destroy_shader_module(self.fragment_module, None);
             self.device.vk().destroy_shader_module(self.vertex_module, None);
         }
     }
@@ -418,13 +513,26 @@ struct PassObjects {
     depth_framebuffer_view: vk::ImageView,
     depth_sampler_view: vk::ImageView,
 
+    color_image: vk::Image,
+    color_allocation: Option<Allocation>,
+    color_framebuffer_view: vk::ImageView,
+    color_sampler_view: vk::ImageView,
+
+    uv0_image: vk::Image,
+    uv0_allocation: Option<Allocation>,
+    uv0_framebuffer_view: vk::ImageView,
+    uv0_sampler_view: vk::ImageView,
+
     framebuffer: vk::Framebuffer,
 }
 
 impl PassObjects {
     fn new(device: &DeviceEnvironment, framebuffer_size: Vec2u32, depth_format: vk::Format, render_pass: vk::RenderPass) -> Self {
         let (depth_image, depth_allocation, depth_framebuffer_view, depth_sampler_view) = Self::create_depth_image(device, framebuffer_size, depth_format);
-        let framebuffer = Self::create_framebuffer(device, framebuffer_size, depth_framebuffer_view, render_pass);
+        let (color_image, color_allocation, color_framebuffer_view, color_sampler_view) = Self::create_color_image(device, framebuffer_size);
+        let (uv0_image, uv0_allocation, uv0_framebuffer_view, uv0_sampler_view) = Self::create_color_image(device, framebuffer_size);
+
+        let framebuffer = Self::create_framebuffer(device, framebuffer_size, depth_framebuffer_view, color_framebuffer_view, uv0_framebuffer_view, render_pass);
 
         Self {
             ready: AtomicBool::new(true),
@@ -432,6 +540,14 @@ impl PassObjects {
             depth_allocation: Some(depth_allocation),
             depth_framebuffer_view,
             depth_sampler_view,
+            color_image,
+            color_allocation: Some(color_allocation),
+            color_framebuffer_view,
+            color_sampler_view,
+            uv0_image,
+            uv0_allocation: Some(uv0_allocation),
+            uv0_framebuffer_view,
+            uv0_sampler_view,
             framebuffer
         }
     }
@@ -534,10 +650,88 @@ impl PassObjects {
         (image, alloc, framebuffer_view, sampler_view)
     }
 
-    fn create_framebuffer(device: &DeviceEnvironment, size: Vec2u32, depth_view: vk::ImageView, redner_pass: vk::RenderPass) -> vk::Framebuffer {
+    fn create_color_image(device: &DeviceEnvironment, size: Vec2u32) -> (vk::Image, Allocation, vk::ImageView, vk::ImageView) {
+        let info = vk::ImageCreateInfo::builder()
+            .image_type(vk::ImageType::TYPE_2D)
+            .format(vk::Format::R8G8B8A8_SRGB)
+            .extent(vk::Extent3D {
+                width: size[0],
+                height: size[1],
+                depth: 1
+            })
+            .mip_levels(1)
+            .array_layers(1)
+            .samples(vk::SampleCountFlags::TYPE_1)
+            .tiling(vk::ImageTiling::OPTIMAL)
+            .usage(vk::ImageUsageFlags::COLOR_ATTACHMENT | vk::ImageUsageFlags::SAMPLED)
+            .sharing_mode(vk::SharingMode::EXCLUSIVE)
+            .initial_layout(vk::ImageLayout::UNDEFINED);
+
+        let image = unsafe {
+            device.vk().create_image(&info, None)
+        }.unwrap();
+
+        let alloc = device.get_allocator().allocate_image_memory(image, &AllocationStrategy::AutoGpuOnly).unwrap();
+
+        unsafe {
+            device.vk().bind_image_memory(image, alloc.memory(), alloc.offset())
+        }.unwrap();
+
+        let info = vk::ImageViewCreateInfo::builder()
+            .image(image)
+            .view_type(vk::ImageViewType::TYPE_2D)
+            .format(vk::Format::R8G8B8A8_SRGB)
+            .components(vk::ComponentMapping {
+                r: vk::ComponentSwizzle::IDENTITY,
+                g: vk::ComponentSwizzle::IDENTITY,
+                b: vk::ComponentSwizzle::IDENTITY,
+                a: vk::ComponentSwizzle::IDENTITY,
+            })
+            .subresource_range(vk::ImageSubresourceRange {
+                aspect_mask: vk::ImageAspectFlags::COLOR,
+                base_mip_level: 0,
+                level_count: 1,
+                base_array_layer: 0,
+                layer_count: 1
+            });
+
+        let framebuffer_view = unsafe {
+            device.vk().create_image_view(&info, None)
+        }.unwrap();
+
+        let info = vk::ImageViewCreateInfo::builder()
+            .image(image)
+            .view_type(vk::ImageViewType::TYPE_2D)
+            .format(vk::Format::R8G8B8A8_SRGB)
+            .components(vk::ComponentMapping {
+                r: vk::ComponentSwizzle::IDENTITY,
+                g: vk::ComponentSwizzle::IDENTITY,
+                b: vk::ComponentSwizzle::IDENTITY,
+                a: vk::ComponentSwizzle::IDENTITY,
+            })
+            .subresource_range(vk::ImageSubresourceRange {
+                aspect_mask: vk::ImageAspectFlags::COLOR,
+                base_mip_level: 0,
+                level_count: 1,
+                base_array_layer: 0,
+                layer_count: 1
+            });
+
+        let sampler_view = unsafe {
+            device.vk().create_image_view(&info, None)
+        }.unwrap();
+
+        (image, alloc, framebuffer_view, sampler_view)
+    }
+
+    fn create_framebuffer(device: &DeviceEnvironment, size: Vec2u32, depth_view: vk::ImageView, color_view: vk::ImageView, uv0_view: vk::ImageView, render_pass: vk::RenderPass) -> vk::Framebuffer {
+        let attachments = [
+            depth_view, color_view, uv0_view
+        ];
+
         let info = vk::FramebufferCreateInfo::builder()
-            .render_pass(redner_pass)
-            .attachments(std::slice::from_ref(&depth_view))
+            .render_pass(render_pass)
+            .attachments(&attachments)
             .width(size[0])
             .height(size[1])
             .layers(1);
@@ -711,26 +905,65 @@ impl EmulatorPipelinePass for DebugPipelinePass {
         let device = self.parent.device.get_device();
         let cmd = self.command_buffer.take().unwrap();
 
-        let image_barrier = vk::ImageMemoryBarrier2::builder()
-            .src_stage_mask(vk::PipelineStageFlags2::COLOR_ATTACHMENT_OUTPUT)
-            .src_access_mask(vk::AccessFlags2::COLOR_ATTACHMENT_WRITE)
-            .dst_stage_mask(vk::PipelineStageFlags2::ALL_COMMANDS)
-            .dst_access_mask(vk::AccessFlags2::MEMORY_READ)
-            .old_layout(vk::ImageLayout::SHADER_READ_ONLY_OPTIMAL)
-            .new_layout(vk::ImageLayout::SHADER_READ_ONLY_OPTIMAL)
-            .src_queue_family_index(0)
-            .dst_queue_family_index(0)
-            .image(self.parent.pass_objects[self.index].depth_image)
-            .subresource_range(vk::ImageSubresourceRange {
-                aspect_mask: vk::ImageAspectFlags::DEPTH,
-                base_mip_level: 0,
-                level_count: 1,
-                base_array_layer: 0,
-                layer_count: 1
-            });
+        let image_barrier = [
+            vk::ImageMemoryBarrier2::builder()
+                .src_stage_mask(vk::PipelineStageFlags2::COLOR_ATTACHMENT_OUTPUT)
+                .src_access_mask(vk::AccessFlags2::COLOR_ATTACHMENT_WRITE)
+                .dst_stage_mask(vk::PipelineStageFlags2::ALL_COMMANDS)
+                .dst_access_mask(vk::AccessFlags2::MEMORY_READ)
+                .old_layout(vk::ImageLayout::SHADER_READ_ONLY_OPTIMAL)
+                .new_layout(vk::ImageLayout::SHADER_READ_ONLY_OPTIMAL)
+                .src_queue_family_index(0)
+                .dst_queue_family_index(0)
+                .image(self.parent.pass_objects[self.index].depth_image)
+                .subresource_range(vk::ImageSubresourceRange {
+                    aspect_mask: vk::ImageAspectFlags::DEPTH,
+                    base_mip_level: 0,
+                    level_count: 1,
+                    base_array_layer: 0,
+                    layer_count: 1
+                })
+                .build(),
+            vk::ImageMemoryBarrier2::builder()
+                .src_stage_mask(vk::PipelineStageFlags2::COLOR_ATTACHMENT_OUTPUT)
+                .src_access_mask(vk::AccessFlags2::COLOR_ATTACHMENT_WRITE)
+                .dst_stage_mask(vk::PipelineStageFlags2::ALL_COMMANDS)
+                .dst_access_mask(vk::AccessFlags2::MEMORY_READ)
+                .old_layout(vk::ImageLayout::SHADER_READ_ONLY_OPTIMAL)
+                .new_layout(vk::ImageLayout::SHADER_READ_ONLY_OPTIMAL)
+                .src_queue_family_index(0)
+                .dst_queue_family_index(0)
+                .image(self.parent.pass_objects[self.index].color_image)
+                .subresource_range(vk::ImageSubresourceRange {
+                    aspect_mask: vk::ImageAspectFlags::COLOR,
+                    base_mip_level: 0,
+                    level_count: 1,
+                    base_array_layer: 0,
+                    layer_count: 1
+                })
+                .build(),
+            vk::ImageMemoryBarrier2::builder()
+                .src_stage_mask(vk::PipelineStageFlags2::COLOR_ATTACHMENT_OUTPUT)
+                .src_access_mask(vk::AccessFlags2::COLOR_ATTACHMENT_WRITE)
+                .dst_stage_mask(vk::PipelineStageFlags2::ALL_COMMANDS)
+                .dst_access_mask(vk::AccessFlags2::MEMORY_READ)
+                .old_layout(vk::ImageLayout::SHADER_READ_ONLY_OPTIMAL)
+                .new_layout(vk::ImageLayout::SHADER_READ_ONLY_OPTIMAL)
+                .src_queue_family_index(0)
+                .dst_queue_family_index(0)
+                .image(self.parent.pass_objects[self.index].uv0_image)
+                .subresource_range(vk::ImageSubresourceRange {
+                    aspect_mask: vk::ImageAspectFlags::COLOR,
+                    base_mip_level: 0,
+                    level_count: 1,
+                    base_array_layer: 0,
+                    layer_count: 1
+                })
+                .build(),
+        ];
 
         let info = vk::DependencyInfo::builder()
-            .image_memory_barriers(std::slice::from_ref(&image_barrier));
+            .image_memory_barriers(&image_barrier);
 
         unsafe {
             device.vk().cmd_end_render_pass(cmd);
@@ -905,5 +1138,16 @@ const_assert_eq!(std::mem::size_of::<StaticUniforms>() % 16, 0);
 
 unsafe impl ToBytes for StaticUniforms { to_bytes_body!(); }
 
+#[repr(C)]
+#[derive(Copy, Clone, Default)]
+struct VertexSpecializationEntries {
+    #[allow(unused)]
+    has_color: u32,
+}
+
+unsafe impl ToBytes for VertexSpecializationEntries { to_bytes_body!(); }
+
 const DEBUG_POSITION_VERTEX_ENTRY: &'static CStr = unsafe { CStr::from_bytes_with_nul_unchecked(b"main\0") }; // GOD I LOVE RUSTS FFI API IT IS SO NICE AND DEFINITELY NOT STUPID WITH WHICH FUNCTIONS ARE CONST AND WHICH AREN'T
 const DEBUG_POSITION_VERTEX_BIN: &'static [u8] = include_bytes!(concat!(env!("B4D_RESOURCE_DIR"), "emulator/debug_position_vert.spv"));
+const DEBUG_FRAGMENT_ENTRY: &'static CStr = unsafe { CStr::from_bytes_with_nul_unchecked(b"main\0") }; // GOD I LOVE RUSTS FFI API IT IS SO NICE AND DEFINITELY NOT STUPID WITH WHICH FUNCTIONS ARE CONST AND WHICH AREN'T
+const DEBUG_FRAGMENT_BIN: &'static [u8] = include_bytes!(concat!(env!("B4D_RESOURCE_DIR"), "emulator/debug_frag.spv"));
