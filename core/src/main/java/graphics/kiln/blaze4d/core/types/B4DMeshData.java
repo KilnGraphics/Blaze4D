@@ -22,13 +22,13 @@ public class B4DMeshData implements AutoCloseable {
         this.memory = MemorySegment.allocateNative(MeshDataNative.LAYOUT, this.resourceScope);
     }
 
-    public void setVertexData(MemoryAddress data, long dataLen) {
+    private void setVertexDataMem(MemoryAddress data, long dataLen) {
         MeshDataNative.VERTEX_DATA_PTR_HANDLE.set(this.memory, data);
         MeshDataNative.VERTEX_DATA_LEN_HANDLE.set(this.memory, dataLen);
     }
 
     public void setVertexData(long dataPtr, long dataLen) {
-        this.setVertexData(MemoryAddress.ofLong(dataPtr), dataLen);
+        this.setVertexDataMem(MemoryAddress.ofLong(dataPtr), dataLen);
     }
 
     public MemoryAddress getVertexDataPtr() {
@@ -39,13 +39,17 @@ public class B4DMeshData implements AutoCloseable {
         return (long) MeshDataNative.VERTEX_DATA_LEN_HANDLE.get(this.memory);
     }
 
-    public void setIndexData(MemoryAddress data, long dataLen) {
+    public void setIndexData() {
+        MeshDataNative.INDEX_DATA_PTR_HANDLE.set(this.memory, MemoryAddress.ofLong(0L));
+    }
+
+    private void setIndexDataMem(MemoryAddress data, long dataLen) {
         MeshDataNative.INDEX_DATA_PTR_HANDLE.set(this.memory, data);
         MeshDataNative.INDEX_DATA_LEN_HANDLE.set(this.memory, dataLen);
     }
 
     public void setIndexData(long dataPtr, long dataLen) {
-        this.setIndexData(MemoryAddress.ofLong(dataPtr), dataLen);
+        this.setIndexDataMem(MemoryAddress.ofLong(dataPtr), dataLen);
     }
 
     public MemoryAddress getIndexDataPtr() {

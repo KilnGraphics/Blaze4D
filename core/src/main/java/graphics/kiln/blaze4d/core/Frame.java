@@ -1,6 +1,7 @@
 package graphics.kiln.blaze4d.core;
 
 import graphics.kiln.blaze4d.core.natives.Natives;
+import graphics.kiln.blaze4d.core.types.B4DMeshData;
 import graphics.kiln.blaze4d.core.types.B4DUniformData;
 import jdk.incubator.foreign.MemoryAddress;
 
@@ -14,6 +15,10 @@ public class Frame implements AutoCloseable {
 
     public void updateUniform(long shaderId, B4DUniformData data) {
         Natives.b4dPassUpdateUniform(this.handle, data.getAddress(), shaderId);
+    }
+
+    public void drawImmediate(long shaderId, B4DMeshData data) {
+        Natives.b4dPassDrawImmediate(this.handle, data.getAddress(), shaderId);
     }
 
     @Override

@@ -30,6 +30,7 @@ public class Natives {
     public static final MethodHandle B4D_DESTROY_SHADER_HANDLE;
     public static final MethodHandle B4D_START_FRAME_HANDLE;
     public static final MethodHandle B4D_PASS_UPDATE_UNIFORM_HANDLE;
+    public static final MethodHandle B4D_PASS_DRAW_IMMEDIATE_HANDLE;
     public static final MethodHandle B4D_END_FRAME_HANDLE;
 
     static {
@@ -66,6 +67,10 @@ public class Natives {
         );
 
         B4D_PASS_UPDATE_UNIFORM_HANDLE = lookupFunction("b4d_pass_update_uniform",
+                FunctionDescriptor.ofVoid(ADDRESS, ADDRESS, JAVA_LONG)
+        );
+
+        B4D_PASS_DRAW_IMMEDIATE_HANDLE = lookupFunction("b4d_pass_draw_immediate",
                 FunctionDescriptor.ofVoid(ADDRESS, ADDRESS, JAVA_LONG)
         );
 
@@ -129,7 +134,15 @@ public class Natives {
         try {
             B4D_PASS_UPDATE_UNIFORM_HANDLE.invoke(frame, data, shaderId);
         } catch (Throwable e) {
-            throw new RuntimeException("Failed to invoke b4d_start_frame", e);
+            throw new RuntimeException("Failed to invoke b4d_pass_update_uniform", e);
+        }
+    }
+
+    public static void b4dPassDrawImmediate(MemoryAddress frame, MemoryAddress data, long shaderId) {
+        try {
+            B4D_PASS_DRAW_IMMEDIATE_HANDLE.invoke(frame, data, shaderId);
+        } catch (Throwable e) {
+            throw new RuntimeException("Failed to invoke b4d_pass_draw_immediate", e);
         }
     }
 
