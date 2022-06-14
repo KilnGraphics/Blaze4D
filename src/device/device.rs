@@ -38,6 +38,7 @@ pub struct DeviceContext {
     main_queue: Arc<Queue>,
     async_compute_queue: Option<Arc<Queue>>,
     async_transfer_queue: Option<Arc<Queue>>,
+    allocator: Allocator,
 }
 
 impl DeviceContext {
@@ -47,12 +48,15 @@ impl DeviceContext {
         async_compute_queue: Option<Arc<Queue>>,
         async_transfer_queue: Option<Arc<Queue>>,
     ) -> Arc<Self> {
+        let allocator = Allocator::new(functions.instance.vk().clone(), functions.device.clone(), functions.physical_device);
+
         Arc::new(Self {
             id: NamedUUID::with_str("Device"),
             functions,
             main_queue,
             async_compute_queue,
-            async_transfer_queue
+            async_transfer_queue,
+            allocator
         })
     }
 
@@ -82,6 +86,10 @@ impl DeviceContext {
 
     pub fn get_async_transfer_queue(&self) -> Option<&Arc<Queue>> {
         self.async_transfer_queue.as_ref()
+    }
+
+    pub fn get_allocator(&self) -> &Allocator {
+        &self.allocator
     }
 }
 
