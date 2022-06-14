@@ -14,12 +14,11 @@ use crate::prelude::*;
 use crate::vk::objects::image::Image;
 
 pub struct DeviceSurface {
-    device: Arc<DeviceContext>,
+    device: Arc<DeviceFunctions>,
     weak: Weak<DeviceSurface>,
     #[allow(unused)] // Just here to keep the provider alive
     surface_provider: Box<dyn SurfaceProvider>,
     surface: vk::SurfaceKHR,
-    present_queue_families: Box<[bool]>,
 
     /// The current swapchain info.
     ///
@@ -29,46 +28,32 @@ pub struct DeviceSurface {
 }
 
 impl DeviceSurface {
-    pub(super) fn new(device: Arc<DeviceContext>, surface: Box<dyn SurfaceProvider>, weak: Weak<DeviceSurface>, present_families: Box<[bool]>) -> Self {
-        Self {
-            device: device.clone(),
-            weak,
+    pub(super) fn new(device: Arc<DeviceFunctions>, surface: Box<dyn SurfaceProvider>) -> Arc<Self> {
+        Arc::new_cyclic(|weak| Self {
+            device,
+            weak: weak.clone(),
             surface: surface.get_handle().unwrap(),
             surface_provider: surface,
-            present_queue_families: present_families,
             current_swapchain: Mutex::new(SurfaceSwapchainInfo::new())
-        }
+        })
     }
 
     pub fn get_surface_present_modes(&self) -> VkResult<Vec<vk::PresentModeKHR>> {
         unsafe {
-            self.device.get_instance().surface_khr().unwrap().get_physical_device_surface_present_modes(*self.device.get_physical_device(), self.surface)
+            self.device.instance.surface_khr().unwrap().get_physical_device_surface_present_modes(*self.device.get_physical_device(), self.surface)
         }
     }
 
     pub fn get_surface_capabilities(&self) -> VkResult<vk::SurfaceCapabilitiesKHR> {
         unsafe {
-            self.device.get_instance().surface_khr().unwrap().get_physical_device_surface_capabilities(*self.device.get_physical_device(), self.surface)
+            self.device.instance.surface_khr().unwrap().get_physical_device_surface_capabilities(*self.device.get_physical_device(), self.surface)
         }
     }
 
     pub fn get_surface_formats(&self) -> VkResult<Vec<vk::SurfaceFormatKHR>> {
         unsafe {
-            self.device.get_instance().surface_khr().unwrap().get_physical_device_surface_formats(*self.device.get_physical_device(), self.surface)
+            self.device.instance.surface_khr().unwrap().get_physical_device_surface_formats(*self.device.get_physical_device(), self.surface)
         }
-    }
-
-    /// Returns the queue family present support for this surface.
-    ///
-    /// If the n-th entry of the slice is true then queue family n supports presentation to this
-    /// surface.
-    pub fn get_present_support(&self) -> &[bool] {
-        self.present_queue_families.as_ref()
-    }
-
-    /// Returns true if the specified queue family supports presentation to this surface.
-    pub fn is_present_supported(&self, family: u32) -> bool {
-        *self.present_queue_families.get(family as usize).unwrap()
     }
 
     /// Creates a swapchain from a [`SwapchainConfig`].
@@ -432,7 +417,7 @@ impl SurfaceSwapchain {
         }, suboptimal))
     }
 
-    pub fn get_device(&self) -> &Arc<DeviceContext> {
+    pub fn get_device(&self) -> &Arc<DeviceFunctions> {
         &self.surface.device
     }
 
@@ -486,7 +471,7 @@ struct AcquireObjects {
 }
 
 impl AcquireObjects {
-    fn new(device: &DeviceContext) -> Self {
+    fn new(device: &DeviceFunctions) -> Self {
         let mut timeline = vk::SemaphoreTypeCreateInfo::builder()
             .semaphore_type(vk::SemaphoreType::TIMELINE)
             .initial_value(0);
@@ -495,13 +480,13 @@ impl AcquireObjects {
             .push_next(&mut timeline);
 
         let ready_semaphore = Semaphore::new(unsafe {
-            device.vk().create_semaphore(&info, None)
+            device.vk.create_semaphore(&info, None)
         }.unwrap());
 
         let info = vk::SemaphoreCreateInfo::builder();
 
         let acquire_semaphore = Semaphore::new(unsafe {
-            device.vk().create_semaphore(&info, None)
+            device.vk.create_semaphore(&info, None)
         }.unwrap());
 
         Self {
@@ -511,7 +496,7 @@ impl AcquireObjects {
         }
     }
 
-    fn wait_and_get(&self, device: &DeviceContext, timeout: u64) -> Option<(SemaphoreOp, Semaphore)> {
+    fn wait_and_get(&self, device: &DeviceFunctions, timeout: u64) -> Option<(SemaphoreOp, Semaphore)> {
         let semaphore = self.ready_semaphore.get_handle();
         loop {
             let value = self.ready_wait_value.load(Ordering::SeqCst);
@@ -520,7 +505,7 @@ impl AcquireObjects {
                 .values(std::slice::from_ref(&value));
 
             match unsafe {
-                device.vk().wait_semaphores(&wait, timeout)
+                device.timeline_semaphore_khr.wait_semaphores(&wait, timeout)
             } {
                 Ok(_) => {
                     let next = value + 1;
@@ -538,10 +523,10 @@ impl AcquireObjects {
         }
     }
 
-    fn destroy(&mut self, device: &DeviceContext) {
+    fn destroy(&mut self, device: &DeviceFunctions) {
         unsafe {
-            device.vk().destroy_semaphore(self.acquire_semaphore.get_handle(), None);
-            device.vk().destroy_semaphore(self.ready_semaphore.get_handle(), None);
+            device.vk.destroy_semaphore(self.acquire_semaphore.get_handle(), None);
+            device.vk.destroy_semaphore(self.ready_semaphore.get_handle(), None);
         }
     }
 }
@@ -553,7 +538,7 @@ pub struct ImageObjects {
 }
 
 impl ImageObjects {
-    fn new(device: &DeviceContext, image: Image, format: vk::Format) -> Self {
+    fn new(device: &DeviceFunctions, image: Image, format: vk::Format) -> Self {
         let info = vk::ImageViewCreateInfo::builder()
             .image(image.get_handle())
             .view_type(vk::ImageViewType::TYPE_2D)
@@ -573,13 +558,13 @@ impl ImageObjects {
             });
 
         let framebuffer_view = unsafe {
-            device.vk().create_image_view(&info, None)
+            device.vk.create_image_view(&info, None)
         }.unwrap();
 
         let info = vk::SemaphoreCreateInfo::builder();
 
         let present_semaphore = Semaphore::new(unsafe {
-            device.vk().create_semaphore(&info, None)
+            device.vk.create_semaphore(&info, None)
         }.unwrap());
 
         Self {
@@ -601,10 +586,10 @@ impl ImageObjects {
         self.present_semaphore
     }
 
-    fn destroy(&mut self, device: &DeviceContext) {
+    fn destroy(&mut self, device: &DeviceFunctions) {
         unsafe {
-            device.vk().destroy_semaphore(self.present_semaphore.get_handle(), None);
-            device.vk().destroy_image_view(self.framebuffer_view, None);
+            device.vk.destroy_semaphore(self.present_semaphore.get_handle(), None);
+            device.vk.destroy_image_view(self.framebuffer_view, None);
         }
     }
 }
