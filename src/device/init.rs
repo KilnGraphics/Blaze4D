@@ -1,59 +1,51 @@
 use std::collections::{HashMap, HashSet};
 use std::ffi::{CStr, CString};
+use std::os::raw::c_char;
 use std::sync::Arc;
+use ash::prelude::VkResult;
 
 use ash::vk;
-use ash::vk::PhysicalDeviceType;
+use bumpalo::Bump;
+use vk_profiles_rs::{vp, VulkanProfiles};
 
-use vk_profiles_rs::vp;
-
-use crate::device::device::{DeviceEnvironment, VkQueueTemplate};
+use crate::device::device::{DeviceFunctions, Queue};
 use crate::device::surface::DeviceSurface;
-use crate::instance::instance::InstanceContext;
+use crate::instance::instance::{InstanceContext, VulkanVersion};
 use crate::objects::id::SurfaceId;
 use crate::vk::objects::surface::SurfaceProvider;
 
 use crate::prelude::*;
 
-pub type DeviceRatingFn = dyn Fn(&InstanceContext, vk::PhysicalDevice) -> Option<f32>;
-
+#[derive(Debug)]
 pub struct DeviceCreateConfig {
-    surfaces: HashSet<SurfaceId>,
-    require_swapchain: bool,
+    used_surfaces: Vec<vk::SurfaceKHR>,
     disable_robustness: bool,
-    rating_fn: Box<DeviceRatingFn>,
+    required_extensions: HashSet<CString>,
 }
 
 impl DeviceCreateConfig {
     pub fn new() -> Self {
         Self {
-            surfaces: HashSet::new(),
-            require_swapchain: false,
+            used_surfaces: Vec::new(),
+            required_extensions: HashSet::new(),
             disable_robustness: false,
-            rating_fn: Box::new(Self::default_rating)
         }
     }
 
-    pub fn add_surface(&mut self, surface: SurfaceId) {
-        self.surfaces.insert(surface);
-        self.require_swapchain = true;
-    }
-
-    pub fn require_swapchain(&mut self) {
-        self.require_swapchain = true;
+    pub fn add_surface(&mut self, surface: vk::SurfaceKHR) {
+        self.used_surfaces.push(surface);
     }
 
     pub fn disable_robustness(&mut self) {
         self.disable_robustness = true;
     }
 
-    fn default_rating(instance: &InstanceContext, device: vk::PhysicalDevice) -> Option<f32> {
-        let properties = unsafe { instance.vk().get_physical_device_properties(device) };
-        Some(match properties.device_type {
-            PhysicalDeviceType::DISCRETE_GPU => 10.0f32,
-            PhysicalDeviceType::INTEGRATED_GPU => 5.0f32,
-            _ => 0.0f32,
-        })
+    pub fn add_required_extension(&mut self, extension: &CStr) {
+        self.required_extensions.insert(CString::from(extension));
+    }
+
+    pub fn require_swapchain(&mut self) {
+        self.required_extensions.insert(CString::new("VK_KHR_swapchain").unwrap());
     }
 }
 
@@ -70,69 +62,62 @@ impl From<vk::Result> for DeviceCreateError {
     }
 }
 
-pub fn create_device(config: DeviceCreateConfig, instance: Arc<InstanceContext>) -> Result<(DeviceEnvironment, Vec<(SurfaceId, Arc<DeviceSurface>)>), DeviceCreateError> {
-    log::info!("Creating device");
+pub fn create_device(mut config: DeviceCreateConfig, instance: Arc<InstanceContext>) -> Result<Arc<DeviceContext>, DeviceCreateError> {
+    log::info!("Creating vulkan device with config: {:?}", config);
 
-    let vk_vp = vk_profiles_rs::VulkanProfiles::linked();
+    let vk_vp = VulkanProfiles::linked();
 
-    let mut surfaces = Vec::with_capacity(config.surfaces.len());
-    for id in &config.surfaces {
-        if let Some(surface) = instance.take_surface(*id) {
-            surfaces.push((*id, surface));
-        } else {
-            return Err(DeviceCreateError::SurfaceNotFound);
-        }
-    }
+    let has_swapchain = config.required_extensions.contains(&CString::new("VK_KHR_swapchain").unwrap());
 
-    let has_swapchain;
-    let mut required_extensions = HashSet::new();
-    if config.require_swapchain || !config.surfaces.is_empty() {
-        required_extensions.insert(CString::from(CStr::from_bytes_with_nul(b"VK_KHR_swapchain\0").unwrap()));
-        has_swapchain = true;
-    } else {
-        has_swapchain = false;
-    }
-    required_extensions.insert(CString::from(CStr::from_bytes_with_nul(b"VK_KHR_push_descriptor\0").unwrap()));
+    let allocator = Bump::new();
 
-    let selected_device = filter_devices(
+    let (device_config, device_create_info, physical_device) = filter_devices(
         unsafe { instance.vk().enumerate_physical_devices()? },
-        &*instance,
-        &required_extensions,
-        &surfaces,
-        config.rating_fn.as_ref()
+        &instance,
+        &vk_vp,
+        &config,
+        &allocator
     )?;
 
-    let mut features1_2 = vk::PhysicalDeviceVulkan12Features::builder().build();
-    unsafe { vk_vp.get_profile_features(instance.get_profile(), &mut features1_2) };
-    features1_2.vulkan_memory_model_availability_visibility_chains = vk::FALSE;
+    let priority = 1f32;
+    let mut queue_create_infos = Vec::with_capacity(3);
+    queue_create_infos.push(vk::DeviceQueueCreateInfo::builder()
+        .queue_family_index(device_config.main_queue_family)
+        .queue_priorities(std::slice::from_ref(&priority))
+        .build()
+    );
+    if let Some(family) = &device_config.async_compute_family {
+        queue_create_infos.push(vk::DeviceQueueCreateInfo::builder()
+            .queue_family_index(*family)
+            .queue_priorities(std::slice::from_ref(&priority))
+            .build()
+        );
+    }
+    if let Some(family) = &device_config.async_transfer_family {
+        queue_create_infos.push(vk::DeviceQueueCreateInfo::builder()
+            .queue_family_index(*family)
+            .queue_priorities(std::slice::from_ref(&priority))
+            .build()
+        );
+    }
 
-    let required_extensions_str: Vec<_> = required_extensions.iter().map(|ext| ext.as_c_str().as_ptr()).collect();
+    let device_create_info = device_create_info.queue_create_infos(queue_create_infos.as_slice());
 
-    let device_queue_create_infos: Vec<_> = selected_device.queues.queue_create_infos.iter().map(|queue_info|
-        queue_info.build().build()
-    ).collect();
-    let vk_device_create_info = vk::DeviceCreateInfo::builder()
-        .enabled_extension_names(required_extensions_str.as_slice())
-        .queue_create_infos(device_queue_create_infos.as_slice())
-        .push_next(&mut features1_2);
+    let mut flags = vp::DeviceCreateFlagBits::MERGE_EXTENSIONS | vp::DeviceCreateFlagBits::OVERRIDE_FEATURES;
+    if config.disable_robustness {
+        flags |= vp::DeviceCreateFlagBits::DISABLE_ROBUST_ACCESS;
+    }
 
-    let flags = if config.disable_robustness {
-        // TODO god this is such a mess
-        vp::DeviceCreateFlagBits::OVERRIDE_EXTENSIONS | vp::DeviceCreateFlagBits::DISABLE_ROBUST_ACCESS | vp::DeviceCreateFlagBits::OVERRIDE_FEATURES
-    } else {
-        vp::DeviceCreateFlagBits::OVERRIDE_EXTENSIONS | vp::DeviceCreateFlagBits::OVERRIDE_FEATURES
-    };
     let vp_device_create_info = vp::DeviceCreateInfo::builder()
         .profile(instance.get_profile())
-        .create_info(&vk_device_create_info)
+        .create_info(&device_create_info)
         .flags(flags);
 
-    let device = unsafe { vk_vp.create_device(instance.vk(), selected_device.device, &vp_device_create_info, None)? };
+    let device = unsafe { vk_vp.create_device(instance.vk(), physical_device, &vp_device_create_info, None)? };
 
-    let queue_map = QueueMap::new(&device, selected_device.queues.queue_create_infos.as_ref());
-
-    let main_queue = queue_map.get_queue(selected_device.queues.main_queue);
-    let transfer_queue = queue_map.get_queue(selected_device.queues.transfer_queue);
+    let synchronization_2_khr = ash::extensions::khr::Synchronization2::new(instance.vk(), &device);
+    let timeline_semaphore_khr = ash::extensions::khr::TimelineSemaphore::new(instance.vk(), &device);
+    let push_descriptor_khr = ash::extensions::khr::PushDescriptor::new(instance.vk(), &device);
 
     let swapchain_khr = if has_swapchain {
         Some(ash::extensions::khr::Swapchain::new(instance.vk(), &device))
@@ -140,49 +125,68 @@ pub fn create_device(config: DeviceCreateConfig, instance: Arc<InstanceContext>)
         None
     };
 
-    let context = DeviceContext::new(
+    let maintenance_4_khr = if device_config.has_maintenance4 {
+        Some(ash::extensions::khr::Maintenance4::new(instance.vk(), &device))
+    } else {
+        None
+    };
+
+    let functions = Arc::new(DeviceFunctions {
         instance,
+        physical_device,
         device,
-        selected_device.device,
+        synchronization_2_khr,
+        timeline_semaphore_khr,
+        push_descriptor_khr,
         swapchain_khr,
+        maintenance_4_khr
+    });
+
+    let main_queue = Arc::new(Queue::new(functions.clone(), device_config.main_queue_family, 0));
+    let async_compute_queue = device_config.async_compute_family.map(|family| {
+        Arc::new(Queue::new(functions.clone(), family, 0))
+    });
+    let async_transfer_queue = device_config.async_transfer_family.map(|family| {
+        Arc::new(Queue::new(functions.clone(), family, 0))
+    });
+
+    Ok(DeviceContext::new(
+        functions,
         main_queue,
-        transfer_queue
-    );
-
-    let mut surface_map: HashMap<_, _> = surfaces.into_iter().collect();
-    let surfaces = selected_device.surfaces.into_iter().map(|config| {
-        let provider = surface_map.remove(&config.id).unwrap();
-        (config.id, Arc::new_cyclic(|weak| DeviceSurface::new(
-            context.clone(),
-            provider,
-            weak.clone(),
-                config.present_supported,
-        )))
-    }).collect();
-
-    Ok((DeviceEnvironment::new(context), surfaces))
+        async_compute_queue,
+        async_transfer_queue
+    ))
 }
 
-fn filter_devices(
+fn filter_devices<'a>(
     devices: Vec<vk::PhysicalDevice>,
     instance: &InstanceContext,
-    required_extensions: &HashSet<CString>,
-    surfaces: &Vec<(SurfaceId, Box<dyn SurfaceProvider>)>,
-    rating_fn: &DeviceRatingFn
-) -> Result<PhysicalDeviceConfig, DeviceCreateError> {
-    let vk_vp = vk_profiles_rs::VulkanProfiles::linked();
+    vk_vp: &VulkanProfiles,
+    config: &DeviceCreateConfig,
+    allocator: &'a Bump
+) -> Result<(DeviceConfigInfo, vk::DeviceCreateInfoBuilder<'a>, vk::PhysicalDevice), DeviceCreateError> {
+    let profile = instance.get_profile();
 
-    let mut best_device: Option<PhysicalDeviceConfig> = None;
+    let mut best_device = None;
     for device in devices {
-        if let Some(config) = process_device(&vk_vp, instance, device, required_extensions, surfaces, rating_fn)? {
-            best_device = if let Some(old) = best_device {
-                if config.rating > old.rating {
-                    Some(config)
+        if let Some(mut configurator) = DeviceConfigurator::new(
+            instance,
+            vk_vp,
+            config,
+            profile,
+            device,
+            allocator
+        )? {
+            if let Some(device_config) = configure_device(&mut configurator)? {
+                best_device = if let Some(old) = best_device {
+                    if device_config.rating > old.0.rating {
+                        Some((device_config, configurator.build(), device))
+                    } else {
+                        Some(old)
+                    }
                 } else {
-                    Some(old)
+                    Some((device_config, configurator.build(), device))
                 }
-            } else {
-                Some(config)
             }
         }
     }
@@ -190,223 +194,245 @@ fn filter_devices(
     best_device.ok_or(DeviceCreateError::NoSupportedDevice)
 }
 
-fn process_device(
-    vk_vp: &vk_profiles_rs::VulkanProfiles,
-    instance: &InstanceContext,
-    device: vk::PhysicalDevice,
-    required_extensions: &HashSet<CString>,
-    surfaces: &Vec<(SurfaceId, Box<dyn SurfaceProvider>)>,
-    rating_fn: &DeviceRatingFn,
-) -> Result<Option<PhysicalDeviceConfig>, DeviceCreateError> {
-    if !unsafe { vk_vp.get_physical_device_profile_support(instance.vk(), device, instance.get_profile())? } {
-        // TODO re-add this. Temporary workaround for AMD missing support
-        //return Ok(None);
+struct DeviceConfigurator<'a, 'b> {
+    instance: &'a InstanceContext,
+    config: &'a DeviceCreateConfig,
+    physical_device: vk::PhysicalDevice,
+    device_name: CString,
+    available_extensions: HashSet<CString>,
+    used_extensions: HashSet<CString>,
+    queue_family_surface_support: Box<[bool]>,
+    alloc: &'b Bump,
+    create_info: vk::DeviceCreateInfoBuilder<'b>,
+}
+
+impl<'a, 'b> DeviceConfigurator<'a, 'b> {
+    fn new(instance: &InstanceContext, vk_vp: &VulkanProfiles, config: &DeviceCreateConfig, profile: &vp::ProfileProperties, physical_device: vk::PhysicalDevice, alloc: &Bump) -> Result<Option<Self>, DeviceCreateError> {
+        let properties = unsafe {
+            instance.vk().get_physical_device_properties(physical_device)
+        };
+        let device_name = CString::from(unsafe { CStr::from_ptr(properties.device_name.as_ptr()) });
+        log::info!("Checking physical device {:?} {:?}", device_name, VulkanVersion::from_raw(properties.api_version));
+
+        let used_extensions = config.required_extensions.clone();
+
+        let available_extensions: HashSet<_> = unsafe { instance.vk().enumerate_device_extension_properties(physical_device)? }
+            .into_iter().map(|ext| {
+            CString::from(unsafe { CStr::from_ptr(ext.extension_name.as_ptr()) })
+        }).collect();
+
+        if !used_extensions.is_subset(&available_extensions) {
+            log::info!("Physical device {:?} is missing required extensions {:?}",
+                device_name,
+                used_extensions.difference(&available_extensions)
+            );
+            return Ok(None);
+        }
+
+        if !unsafe { vk_vp.get_physical_device_profile_support(instance.vk(), physical_device, profile) }? {
+            log::info!("Physical device {:?} does not support used profile", device_name);
+            return Ok(None);
+        }
+
+        let queue_family_count = unsafe {
+            instance.vk().get_physical_device_queue_family_properties(physical_device)
+        }.len();
+
+        let mut queue_family_surface_support = std::iter::repeat(true).take(queue_family_count).collect();
+        for surface in &config.used_surfaces {
+            let surface_khr = instance.surface_khr().unwrap();
+            for (index, support) in queue_family_surface_support.iter_mut().enumerate() {
+                if !unsafe { surface_khr.get_physical_device_surface_support(physical_device, index as u32, *surface) }? {
+                    *support = false;
+                }
+            }
+        }
+
+        if !queue_family_surface_support.iter().any(|b| b) {
+            log::info!("Physical device {:?} does not contain queue family which supports all surfaces", device_name);
+            return Ok(None);
+        }
+
+        Ok(Some(DeviceConfigurator {
+            instance,
+            config,
+            physical_device,
+            device_name,
+            available_extensions,
+            used_extensions,
+            queue_family_surface_support,
+            alloc,
+            create_info: vk::DeviceCreateInfo::builder()
+        }))
     }
 
-    // Verify extensions
-    let available_extensions: HashSet<_> = unsafe { instance.vk().enumerate_device_extension_properties(device)? }
-        .into_iter().map(|ext| {
-        CString::from(unsafe { CStr::from_ptr(ext.extension_name.as_ptr()) })
-    }).collect();
+    fn get_name(&self) -> &CStr {
+        self.device_name.as_c_str()
+    }
 
-    let properties = unsafe {
-        instance.vk().get_physical_device_properties(device)
-    };
-    if !required_extensions.is_subset(&available_extensions) {
-        log::info!("Device {:?} is missing extensions {:?}",
-            unsafe { CStr::from_ptr(properties.device_name.as_ptr()) },
-            required_extensions.difference(&available_extensions)
-        );
+    fn get_properties(&self, mut properties: vk::PhysicalDeviceProperties2Builder) -> vk::PhysicalDeviceProperties {
+        unsafe {
+            self.instance.vk().get_physical_device_properties2(self.physical_device, &mut properties)
+        };
+        properties.properties
+    }
+
+    fn get_features(&self, mut features: vk::PhysicalDeviceFeatures2Builder) -> vk::PhysicalDeviceFeatures {
+        unsafe {
+            self.instance.vk().get_physical_device_features2(self.physical_device, &mut features)
+        };
+        features.features
+    }
+
+    fn filter_sort_queues<F: Fn(u32, &vk::QueueFamilyProperties, bool) -> Option<u32>>(&self, func: F) -> Vec<u32> {
+        let properties = unsafe {
+            self.instance.vk().get_physical_device_queue_family_properties(self.physical_device)
+        };
+
+        let mut families = Vec::with_capacity(properties.len());
+        for (family, properties) in properties.iter().enumerate() {
+            let surface_supported = self.queue_family_surface_support[family];
+
+            if let Some(value) = func(family as u32, properties, surface_supported) {
+                families.push((family as u32, value));
+            }
+        }
+
+        families.sort_by(|(a, _), (b, _)| a.cmp(b));
+        families.into_iter().map(|(_, family)| *family).collect()
+    }
+
+    /// Checks if the extension is supported and if so adds it to the list of used extensions.
+    ///
+    /// Returns true if the extension is supported.
+    fn add_extension(&mut self, name: &CStr) -> bool {
+        if self.available_extensions.contains(name) {
+            self.used_extensions.insert(CString::from(name));
+            true
+        } else {
+            false
+        }
+    }
+
+    fn allocate<T: 'b>(&self, data: T) -> &'b mut T {
+        self.alloc.alloc(data)
+    }
+
+    fn push_next<T: vk::ExtendsDeviceCreateInfo + 'b>(&mut self, data: T) {
+        let data = self.alloc.alloc(data);
+        self.create_info = self.create_info.push_next(data);
+    }
+
+    fn build(mut self) -> vk::DeviceCreateInfoBuilder<'b> {
+        let c_extensions = self.alloc.alloc_slice_fill_copy(self.used_extensions.len(), std::ptr::null());
+
+        for (index, extension) in self.used_extensions.iter().enumerate() {
+            let c_str = self.alloc.alloc_slice_copy(extension.as_bytes()).as_ptr() as *const c_char;
+            c_extensions[index] = c_str;
+        }
+
+        self.create_info.enabled_extension_names(c_extensions)
+    }
+}
+
+struct DeviceConfigInfo {
+    rating: f32,
+    has_maintenance4: bool,
+
+    /// The main queue family. It is guaranteed to support presentation to all surfaces as well as
+    /// graphics, compute and transfer operations.
+    main_queue_family: u32,
+
+    /// The queue family used for async compute operations. It is guaranteed to support compute and
+    /// transfer operations and must be a different queue family than the main queue family.
+    async_compute_family: Option<u32>,
+
+    /// The queue family used for async transfer operations. It is guaranteed to support transfer
+    /// operations and must be a different queue family than both the main and compute queue family.
+    async_transfer_family: Option<u32>,
+}
+
+fn configure_device(device: &mut DeviceConfigurator) -> Result<Option<DeviceConfigInfo>, DeviceCreateError> {
+    // Any device features/properties we need to validate get pushed into this p_next chain
+    let mut features = vk::PhysicalDeviceFeatures2::builder();
+    let mut properties = vk::PhysicalDeviceProperties2::builder();
+
+    if !device.add_extension(&CString::new("VK_KHR_synchronization2").unwrap()) {
+        log::info!("Physical device {:?} does not support VK_KHR_synchronization2", device.get_name());
+        return Ok(None);
+    }
+    if !device.add_extension(&CString::new("VK_KHR_push_descriptor").unwrap()) {
+        log::info!("Physical device {:?} does not support VK_KHR_push_descriptor", device.get_name());
         return Ok(None);
     }
 
-    // Initialize queue family data
-    let mut queue_family_properties: Vec<_> = std::iter::repeat(
-        vk::QueueFamilyProperties2::default()).take(
-        unsafe { instance.vk().get_physical_device_queue_family_properties2_len(device) }
-    ).collect();
-    unsafe { instance.vk().get_physical_device_queue_family_properties2(device, queue_family_properties.as_mut_slice()) };
-    let queue_family_properties = queue_family_properties;
-
-    // Generate surface data
-    let mut surface_infos: Vec<_> = Vec::with_capacity(surfaces.len());
-    for (id, surface) in surfaces.iter() {
-        let handle = surface.get_handle().unwrap();
-        let surface_khr = instance.surface_khr().unwrap();
-
-        let mut supported_queues = Vec::with_capacity(queue_family_properties.len());
-        for family in 0u32..(queue_family_properties.len() as u32) {
-            supported_queues.push(unsafe {
-                surface_khr.get_physical_device_surface_support(device, family, handle)
-            }?);
-        }
-
-        surface_infos.push(PhysicalDeviceSurfaceConfig {
-            id: *id,
-            present_supported: supported_queues.into_boxed_slice(),
-        });
-    }
-
-    // Generate queue requests
-    let queue_config = match generate_queue_allocation(queue_family_properties.as_slice(), surface_infos.as_slice()) {
-        Some(config) => config,
-        None => return Ok(None)
-    };
-
-    let rating = match rating_fn(instance, device) {
-        Some(rating) => rating,
-        None => return Ok(None)
-    };
-
-    Ok(Some(PhysicalDeviceConfig {
-        device,
-        rating,
-        surfaces: surface_infos,
-        queues: queue_config
-    }))
-}
-
-fn generate_queue_allocation(
-    properties: &[vk::QueueFamilyProperties2],
-    surfaces: &[PhysicalDeviceSurfaceConfig],
-) -> Option<PhysicalDeviceQueueConfig> {
-    let main_family = properties.iter().enumerate().filter_map(|(family, props)| {
-        let props = &props.queue_family_properties;
-        if !props.queue_flags.contains(vk::QueueFlags::GRAPHICS | vk::QueueFlags::COMPUTE) {
-            return None;
-        }
-
-        for surface in surfaces.iter() {
-            if !surface.present_supported.get(family).unwrap() {
-                return None;
-            }
-        }
-
-        let has_sparse_binding = props.queue_flags.contains(vk::QueueFlags::SPARSE_BINDING);
-
-        Some((family as u32, has_sparse_binding as u32))
-    }).max_by(|a, b| {
-        // Prefer queue families with sparse binding support
-        a.1.cmp(&b.1)
-    })?.0;
-
-    let transfer_family = properties.iter().enumerate().filter_map(|(family, props)| {
-        if (family as u32) == main_family {
-            return None;
-        }
-
-        let props = &props.queue_family_properties;
-        if !props.queue_flags.contains(vk::QueueFlags::TRANSFER) {
-            return None;
-        }
-
-        let has_sparse_binding = props.queue_flags.contains(vk::QueueFlags::SPARSE_BINDING);
-
-        Some((family as u32, has_sparse_binding as u32))
-    }).max_by(|a, b| {
-        // Prefer queue families with sparse binding support
-        a.1.cmp(&b.1)
-    })?.0;
-
-    if main_family != transfer_family {
-        Some(PhysicalDeviceQueueConfig {
-            main_queue: QueueAllocation { family: main_family, index: 0 },
-            transfer_queue: QueueAllocation { family: transfer_family, index: 0 },
-            queue_create_infos: vec![QueueCreateInfo::new(main_family, 1), QueueCreateInfo::new(transfer_family, 1)]
-        })
-
+    let mut maintenance_4;
+    if !device.add_extension(&CString::new("VK_KHR_maintenance4").unwrap()) {
+        maintenance_4 = Some((
+            vk::PhysicalDeviceMaintenance4Features::builder(),
+            vk::PhysicalDeviceMaintenance4Properties::builder()
+        ));
+        let (f, p) = maintenance_4.as_mut().unwrap();
+        features.push_next(f);
+        properties.push_next(p);
     } else {
-        let transfer_index;
-        let create_count;
-        if properties.get(main_family as usize).unwrap().queue_family_properties.queue_count == 1 {
-            transfer_index = 0;
-            create_count = 1;
-        } else {
-            transfer_index = 1;
-            create_count = 2;
-        }
-
-        Some(PhysicalDeviceQueueConfig {
-            main_queue: QueueAllocation { family: main_family, index: 0 },
-            transfer_queue: QueueAllocation { family: main_family, index: transfer_index },
-            queue_create_infos: vec![QueueCreateInfo::new(main_family, create_count)]
-        })
-    }
-}
-
-struct QueueMap {
-    queues: HashMap<u32, Box<[VkQueueTemplate]>>,
-}
-
-impl QueueMap {
-    fn new(device: &ash::Device, queues: &[QueueCreateInfo]) -> Self {
-        let mut map = HashMap::new();
-
-        for queue in queues.iter() {
-            let mut vec = Vec::with_capacity(queue.priorities.len());
-            for index in 0..(queue.priorities.len() as u32) {
-                let vk_queue = unsafe { device.get_device_queue(queue.family, index) };
-                vec.push(VkQueueTemplate::new(vk_queue, queue.family));
-            }
-            map.insert(queue.family, vec.into_boxed_slice());
-        }
-
-        Self {
-            queues: map
-        }
+        maintenance_4 = None;
     }
 
-    fn get_queue(&self, allocation: QueueAllocation) -> VkQueueTemplate {
-        self.queues.get(&allocation.family).unwrap().get(allocation.index as usize).unwrap().clone()
-    }
-}
+    let mut timeline_features = vk::PhysicalDeviceTimelineSemaphoreFeatures::builder();
+    features = features.push_next(&mut timeline_features);
 
-#[derive(Debug)]
-struct PhysicalDeviceConfig {
-    device: vk::PhysicalDevice,
-    rating: f32,
-    surfaces: Vec<PhysicalDeviceSurfaceConfig>,
-    queues: PhysicalDeviceQueueConfig,
-}
+    let mut timeline_properties = vk::PhysicalDeviceTimelineSemaphoreProperties::builder();
+    properties = properties.push_next(&mut timeline_properties);
 
-#[derive(Debug)]
-struct PhysicalDeviceSurfaceConfig {
-    id: SurfaceId,
-    present_supported: Box<[bool]>,
-}
+    let mut push_descriptor_properties = vk::PhysicalDevicePushDescriptorPropertiesKHR::builder();
+    properties = properties.push_next(&mut push_descriptor_properties);
 
-#[derive(Debug)]
-struct PhysicalDeviceQueueConfig {
-    main_queue: QueueAllocation,
-    transfer_queue: QueueAllocation,
-    queue_create_infos: Vec<QueueCreateInfo>,
-}
+    // Read supported features and properties
+    device.get_features(features);
+    device.get_properties(properties);
+    let timeline_features = timeline_features.build();
+    let timeline_properties = timeline_properties.build();
+    let push_descriptor_properties = push_descriptor_properties.build();
+    let maintenance_4 = maintenance_4.map(|(f, p)| (f.build(), p.build()));
 
-#[derive(Debug)]
-struct QueueCreateInfo {
-    family: u32,
-    priorities: Box<[f32]>,
-}
-
-impl QueueCreateInfo {
-    fn new(family: u32, count: u32) -> Self {
-        let priorities: Box<[f32]> = std::iter::repeat(1.0f32).take(count as usize).collect();
-
-        Self {
-            family,
-            priorities,
-        }
+    // Process the supported features and properties
+    if timeline_features.timeline_semaphore != vk::TRUE {
+        log::info!("Physical device {:?} does not support the timeline semaphore feature", device.get_name());
+        return Ok(None);
+    } else {
+        device.push_next(vk::PhysicalDeviceTimelineSemaphoreFeatures::builder()
+            .timeline_semaphore(true)
+        );
     }
 
-    fn build(&self) -> vk::DeviceQueueCreateInfoBuilder {
-        vk::DeviceQueueCreateInfo::builder()
-            .queue_family_index(self.family)
-            .queue_priorities(self.priorities.as_ref())
+    if timeline_properties.max_timeline_semaphore_value_difference < u8::MAX as u64 {
+        log::info!("Physical device {:?} max_timeline_semaphore_value_difference is too low {:?}", device.get_name(), timeline_properties.max_timeline_semaphore_value_difference);
+        return Ok(None);
     }
-}
 
-#[derive(Copy, Clone, Debug, Eq, PartialEq)]
-struct QueueAllocation {
-    family: u32,
-    index: u32,
+    if push_descriptor_properties.max_push_descriptors < 8 {
+        log::info!("Physical device {:?} max_push_descriptors is too low {:?}", device.get_name(), push_descriptor_properties.max_push_descriptors);
+        return Ok(None);
+    }
+
+    // Calculate queue family assignments
+    let main_families = device.filter_sort_queues(|(family, properties, surface_support)| {
+        Some(family)
+    });
+    let main_queue_family;
+    if let Some(family) = main_families.get(0) {
+        main_queue_family = *family;
+    } else {
+        log::info!("Physical device {:?} does not have suitable main queue family", device.get_name());
+        return Ok(None);
+    }
+
+    Ok(Some(DeviceConfigInfo {
+        rating: 0.0,
+        has_maintenance4: maintenance_4.is_some(),
+        main_queue_family,
+        async_compute_family: None,
+        async_transfer_family: None
+    }))
 }

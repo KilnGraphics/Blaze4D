@@ -13,39 +13,46 @@ use crate::vk::objects::allocator::Allocator;
 
 use crate::prelude::*;
 
+pub struct DeviceFunctions {
+    pub instance: Arc<InstanceContext>,
+    pub physical_device: vk::PhysicalDevice,
+    pub device: ash::Device,
+    pub synchronization_2_khr: ash::extensions::khr::Synchronization2,
+    pub timeline_semaphore_khr: ash::extensions::khr::TimelineSemaphore,
+    pub push_descriptor_khr: ash::extensions::khr::PushDescriptor,
+    pub swapchain_khr: Option<ash::extensions::khr::Swapchain>,
+    pub maintenance_4_khr: Option<ash::extensions::khr::Maintenance4>,
+}
+
+impl Drop for DeviceFunctions {
+    fn drop(&mut self) {
+        unsafe {
+            self.device.destroy_device(None);
+        }
+    }
+}
+
 pub struct DeviceContext {
-    weak: Weak<DeviceContext>,
-    instance: Arc<InstanceContext>,
     id: NamedUUID,
-    device: ash::Device,
-    swapchain_khr: Option<ash::extensions::khr::Swapchain>,
-    push_descriptor_khr: ash::extensions::khr::PushDescriptor,
-    physical_device: vk::PhysicalDevice,
-    main_queue: VkQueueTemplate,
-    transfer_queue: VkQueueTemplate,
+    functions: Arc<DeviceFunctions>,
+    main_queue: Arc<Queue>,
+    async_compute_queue: Option<Arc<Queue>>,
+    async_transfer_queue: Option<Arc<Queue>>,
 }
 
 impl DeviceContext {
     pub(crate) fn new(
-        instance: Arc<InstanceContext>,
-        device: ash::Device,
-        physical_device: vk::PhysicalDevice,
-        swapchain_khr: Option<ash::extensions::khr::Swapchain>,
-        main_queue: VkQueueTemplate,
-        transfer_queue: VkQueueTemplate,
+        functions: Arc<DeviceFunctions>,
+        main_queue: Arc<Queue>,
+        async_compute_queue: Option<Arc<Queue>>,
+        async_transfer_queue: Option<Arc<Queue>>,
     ) -> Arc<Self> {
-        let push_descriptor_khr = ash::extensions::khr::PushDescriptor::new(instance.vk(), &device);
-
-        Arc::new_cyclic(|weak| Self {
-            weak: weak.clone(),
-            instance,
+        Arc::new(Self {
             id: NamedUUID::with_str("Device"),
-            device,
-            swapchain_khr,
-            push_descriptor_khr,
-            physical_device,
+            functions,
             main_queue,
-            transfer_queue,
+            async_compute_queue,
+            async_transfer_queue
         })
     }
 
@@ -54,35 +61,27 @@ impl DeviceContext {
     }
 
     pub fn get_entry(&self) -> &ash::Entry {
-        self.instance.get_entry()
+        self.functions.instance.get_entry()
     }
 
     pub fn get_instance(&self) -> &Arc<InstanceContext> {
-        &self.instance
+        &self.functions.instance
     }
 
-    pub fn vk(&self) -> &ash::Device {
-        &self.device
+    pub fn get_functions(&self) -> &Arc<DeviceFunctions> {
+        &self.functions
     }
 
-    pub fn swapchain_khr(&self) -> Option<&ash::extensions::khr::Swapchain> {
-        self.swapchain_khr.as_ref()
+    pub fn get_main_queue(&self) -> &Arc<Queue> {
+        &self.main_queue
     }
 
-    pub fn push_descriptor_khr(&self) -> &ash::extensions::khr::PushDescriptor {
-        &self.push_descriptor_khr
+    pub fn get_async_compute_queue(&self) -> Option<&Arc<Queue>> {
+        self.async_compute_queue.as_ref()
     }
 
-    pub fn get_physical_device(&self) -> &vk::PhysicalDevice {
-        &self.physical_device
-    }
-
-    pub fn get_main_queue(&self) -> Queue {
-        self.main_queue.promote(self.weak.upgrade().unwrap())
-    }
-
-    pub fn get_transfer_queue(&self) -> Queue {
-        self.transfer_queue.promote(self.weak.upgrade().unwrap())
+    pub fn get_async_transfer_queue(&self) -> Option<&Arc<Queue>> {
+        self.async_transfer_queue.as_ref()
     }
 }
 
@@ -107,74 +106,55 @@ impl Ord for DeviceContext {
     }
 }
 
-impl Drop for DeviceContext {
-    fn drop(&mut self) {
-        unsafe {
-            self.device.destroy_device(None);
-        }
-    }
-}
-
 assert_impl_all!(DeviceContext: Send, Sync, UnwindSafe, RefUnwindSafe);
-
-/// Internal struct used to prevent a cyclic dependency between the DeviceContext and the Queue
-#[derive(Clone)]
-pub(crate) struct VkQueueTemplate {
-    queue: Arc<Mutex<vk::Queue>>,
-    family: u32,
-}
-
-impl VkQueueTemplate {
-    pub fn new(queue: vk::Queue, family: u32) -> Self {
-        Self {
-            queue: Arc::new(Mutex::new(queue)),
-            family,
-        }
-    }
-
-    pub fn promote(&self, device: Arc<DeviceContext>) -> Queue {
-        Queue {
-            device,
-            queue: self.queue.clone(),
-            family: self.family
-        }
-    }
-}
 
 #[derive(Clone)]
 pub struct Queue {
-    device: Arc<DeviceContext>,
+    functions: Arc<DeviceFunctions>,
     queue: Arc<Mutex<vk::Queue>>,
     family: u32,
 }
 
 impl Queue {
+    pub(super) fn new(functions: Arc<DeviceFunctions>, family: u32, index: u32) -> Self {
+        let queue = unsafe {
+            functions.device.get_device_queue(family, index)
+        };
+
+        Self {
+            functions,
+            queue: Arc::new(Mutex::new(queue)),
+            family
+        }
+    }
+
     pub unsafe fn submit(&self, submits: &[vk::SubmitInfo], fence: Option<vk::Fence>) -> VkResult<()> {
         let fence = fence.unwrap_or(vk::Fence::null());
 
         let queue = self.queue.lock().unwrap();
-        self.device.vk().queue_submit(*queue, submits, fence)
+        self.functions.device.queue_submit(*queue, submits, fence)
     }
 
     pub unsafe fn submit_2(&self, submits: &[vk::SubmitInfo2], fence: Option<vk::Fence>) -> VkResult<()> {
         let fence = fence.unwrap_or(vk::Fence::null());
 
         let queue = self.queue.lock().unwrap();
-        self.device.vk().queue_submit2(*queue, submits, fence)
+        self.functions.synchronization_2_khr.queue_submit2(*queue, submits, fence)
     }
 
     pub unsafe fn wait_idle(&self) -> VkResult<()> {
         let queue = self.queue.lock().unwrap();
-        self.device.vk().queue_wait_idle(*queue)
+        self.functions.device.queue_wait_idle(*queue)
     }
 
     pub unsafe fn bind_sparse(&self, bindings: &[vk::BindSparseInfo], fence: Option<vk::Fence>) -> VkResult<()> {
         let fence = fence.unwrap_or(vk::Fence::null());
 
         let queue = self.queue.lock().unwrap();
-        self.device.vk().queue_bind_sparse(*queue, bindings, fence)
+        self.functions.device.queue_bind_sparse(*queue, bindings, fence)
     }
 
+    // TODO this also needs to lock the swapchain. How do we properly deal with this?
     pub unsafe fn present(&self, present_info: &vk::PresentInfoKHR) -> VkResult<bool> {
         let queue = self.queue.lock().unwrap();
         self.device.swapchain_khr().unwrap().queue_present(*queue, present_info)
@@ -190,58 +170,3 @@ impl Queue {
 }
 
 assert_impl_all!(Queue: Send, Sync, UnwindSafe, RefUnwindSafe);
-
-#[derive(Clone)]
-pub struct DeviceEnvironment {
-    instance: Arc<InstanceContext>,
-    device: Arc<DeviceContext>,
-    allocator: Arc<Allocator>,
-    transfer: Arc<Transfer>,
-    utils: Arc<DeviceUtils>,
-}
-
-impl DeviceEnvironment {
-    pub(super) fn new(device: Arc<DeviceContext>) -> Self {
-        let instance = device.get_instance().clone();
-
-        let allocator = Arc::new(Allocator::new(instance.vk().clone(), device.vk().clone(), *device.get_physical_device()));
-        let transfer = Transfer::new(device.clone(), allocator.clone(), device.get_transfer_queue());
-        let utils = DeviceUtils::new(device.clone(), allocator.clone());
-
-        Self {
-            instance,
-            device,
-            allocator,
-            transfer,
-            utils,
-        }
-    }
-
-    pub fn vk(&self) -> &ash::Device {
-        self.device.vk()
-    }
-
-    pub fn get_device(&self) -> &Arc<DeviceContext> {
-        &self.device
-    }
-
-    pub fn get_instance(&self) -> &Arc<InstanceContext> {
-        &self.instance
-    }
-
-    pub fn get_entry(&self) -> &ash::Entry {
-        self.instance.get_entry()
-    }
-
-    pub fn get_allocator(&self) -> &Arc<Allocator> {
-        &self.allocator
-    }
-
-    pub fn get_transfer(&self) -> &Arc<Transfer> {
-        &self.transfer
-    }
-
-    pub fn get_utils(&self) -> &Arc<DeviceUtils> {
-        &self.utils
-    }
-}

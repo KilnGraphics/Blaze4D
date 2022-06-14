@@ -27,8 +27,9 @@ pub mod prelude {
     pub use crate::util::id::NamedUUID;
 
     pub use crate::instance::instance::InstanceContext;
+    pub use crate::device::device::DeviceFunctions;
+    pub use crate::device::device::Queue;
     pub use crate::device::device::DeviceContext;
-    pub use crate::device::device::DeviceEnvironment;
 
     pub use crate::util::bytes::ToBytes;
     pub use crate::util::bytes::FromBytes;

@@ -17,7 +17,6 @@ use crate::device::transfer::{SyncId, Transfer};
 use crate::renderer::emulator::pass::PassId;
 use crate::renderer::emulator::buffer::BufferPool;
 use crate::renderer::emulator::pipeline::{EmulatorOutput, EmulatorPipeline, EmulatorPipelinePass, PipelineTask};
-use crate::vk::DeviceEnvironment;
 use crate::vk::objects::buffer::Buffer;
 
 use crate::prelude::*;

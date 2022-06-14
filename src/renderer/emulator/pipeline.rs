@@ -9,7 +9,6 @@ use crate::device::device::Queue;
 use crate::device::device_utils::BlitPass;
 use crate::device::surface::{AcquiredImageInfo, SurfaceSwapchain};
 
-use crate::vk::DeviceEnvironment;
 use crate::vk::objects::buffer::Buffer;
 
 use crate::prelude::*;
