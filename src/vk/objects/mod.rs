@@ -5,8 +5,6 @@ pub mod types;
 pub mod swapchain;
 pub mod surface;
 pub mod allocator;
-pub mod object_set;
-pub mod resource_object_set;
 
 pub use format::Format;
 
@@ -20,6 +18,3 @@ pub use image::ImageSpec;
 pub use image::ImageSubresourceRange;
 pub use image::ImageDescription;
 pub use image::ImageViewDescription;
-
-pub use object_set::ObjectSet;
-pub use resource_object_set::ResourceObjectSet;
