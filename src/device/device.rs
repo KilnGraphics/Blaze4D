@@ -5,6 +5,8 @@ use std::sync::{Arc, Mutex, MutexGuard};
 use ash::prelude::VkResult;
 
 use ash::vk;
+use crate::device::device_utils::DeviceUtils;
+use crate::device::transfer::Transfer;
 
 use crate::instance::instance::InstanceContext;
 use crate::vk::objects::allocator::Allocator;
@@ -37,6 +39,8 @@ pub struct DeviceContext {
     async_compute_queue: Option<Arc<Queue>>,
     async_transfer_queue: Option<Arc<Queue>>,
     allocator: Arc<Allocator>,
+    transfer: Arc<Transfer>,
+    utils: Arc<DeviceUtils>,
 }
 
 impl DeviceContext {
@@ -47,6 +51,8 @@ impl DeviceContext {
         async_transfer_queue: Option<Arc<Queue>>,
     ) -> Arc<Self> {
         let allocator = Arc::new(Allocator::new(functions.clone()));
+        let transfer = Transfer::new(functions.clone(), allocator.clone(), async_transfer_queue.as_ref().unwrap_or(&main_queue).clone());
+        let utils = DeviceUtils::new(functions.clone(), allocator.clone());
 
         Arc::new(Self {
             id: NamedUUID::with_str("Device"),
@@ -54,7 +60,9 @@ impl DeviceContext {
             main_queue,
             async_compute_queue,
             async_transfer_queue,
-            allocator
+            allocator,
+            transfer,
+            utils
         })
     }
 
@@ -89,6 +97,14 @@ impl DeviceContext {
     pub fn get_allocator(&self) -> &Arc<Allocator> {
         &self.allocator
     }
+
+    pub fn get_transfer(&self) -> &Arc<Transfer> {
+        &self.transfer
+    }
+
+    pub fn get_utils(&self) -> &Arc<DeviceUtils> {
+        &self.utils
+    }
 }
 
 impl PartialEq for DeviceContext {
@@ -114,10 +130,9 @@ impl Ord for DeviceContext {
 
 assert_impl_all!(DeviceContext: Send, Sync, UnwindSafe, RefUnwindSafe);
 
-#[derive(Clone)]
 pub struct Queue {
     functions: Arc<DeviceFunctions>,
-    queue: Arc<Mutex<vk::Queue>>,
+    queue: Mutex<vk::Queue>,
     family: u32,
 }
 
@@ -129,7 +144,7 @@ impl Queue {
 
         Self {
             functions,
-            queue: Arc::new(Mutex::new(queue)),
+            queue: Mutex::new(queue),
             family
         }
     }

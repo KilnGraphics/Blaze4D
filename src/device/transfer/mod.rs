@@ -57,7 +57,7 @@ impl RefUnwindSafe for Transfer {
 }
 
 impl Transfer {
-    pub fn new(device: Arc<DeviceFunctions>, alloc: Arc<Allocator>, queue: Queue) -> Arc<Self> {
+    pub fn new(device: Arc<DeviceFunctions>, alloc: Arc<Allocator>, queue: Arc<Queue>) -> Arc<Self> {
         let queue_family = queue.get_queue_family_index();
         log::debug!("Creating transfer engine on queue family {:?}", queue_family);
 

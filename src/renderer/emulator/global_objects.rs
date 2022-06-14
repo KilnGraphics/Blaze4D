@@ -1,5 +1,5 @@
 use std::collections::{HashMap, VecDeque};
-use std::sync::Mutex;
+use std::sync::{Arc, Mutex};
 
 use ash::vk;
 use crate::define_uuid_type;
@@ -17,7 +17,7 @@ use crate::prelude::*;
 ///
 /// This includes things like static meshes or static textures.
 pub(super) struct GlobalObjects {
-    device: DeviceEnvironment,
+    device: Arc<DeviceContext>,
     queue_family: u32,
     data: Mutex<Data>,
 }
@@ -27,7 +27,7 @@ impl GlobalObjects {
     ///
     /// The passed queue is the queue used for rendering. All created objects will be transferred to
     /// this queue family when accessed for rendering.
-    pub(super) fn new(device: DeviceEnvironment, queue: Queue) -> Self {
+    pub(super) fn new(device: Arc<DeviceContext>, queue: Queue) -> Self {
         let queue_family= queue.get_queue_family_index();
         let data = Data::new(&device, queue);
 
@@ -189,7 +189,7 @@ struct Data {
 }
 
 impl Data {
-    fn new(device: &DeviceEnvironment, queue: Queue) -> Self {
+    fn new(device: &Arc<DeviceContext>, queue: Queue) -> Self {
         let semaphore = Self::create_semaphore(device);
         let command_pool = Self::create_command_pool(device, queue.get_queue_family_index());
 
@@ -210,7 +210,7 @@ impl Data {
         }
     }
 
-    fn add_static_mesh(&mut self, device: &DeviceEnvironment, static_mesh: StaticMesh, sync: SyncId, op: BufferReleaseOp) -> StaticMeshId {
+    fn add_static_mesh(&mut self, device: &DeviceFunctions, static_mesh: StaticMesh, sync: SyncId, op: BufferReleaseOp) -> StaticMeshId {
         self.push_sync(sync);
 
         if let Some(barrier) = op.make_barrier() {
@@ -220,7 +220,7 @@ impl Data {
                 .buffer_memory_barriers(std::slice::from_ref(&barrier));
 
             unsafe {
-                device.vk().cmd_pipeline_barrier2(cmd, &info);
+                device.synchronization_2_khr.cmd_pipeline_barrier2(cmd, &info);
             }
         }
 
@@ -282,7 +282,7 @@ impl Data {
         }
     }
 
-    fn update(&mut self, device: &DeviceEnvironment) {
+    fn update(&mut self, device: &DeviceContext) {
         let current_value = unsafe {
             device.vk().get_semaphore_counter_value(self.semaphore.get_handle())
         }.unwrap_or_else(|err| {
@@ -304,7 +304,7 @@ impl Data {
         }
     }
 
-    fn flush(&mut self, device: &DeviceEnvironment) -> Option<SemaphoreOp> {
+    fn flush(&mut self, device: &DeviceContext) -> Option<SemaphoreOp> {
         let sync_id = self.pending_sync.take();
         if let Some(sync_id) = sync_id {
             device.get_transfer().wait_for_submit(sync_id);
@@ -370,7 +370,7 @@ impl Data {
         self.pending_sync = self.pending_sync.map_or(Some(sync), |old| Some(std::cmp::max(old, sync)));
     }
 
-    fn get_begin_pending_command_buffer(&mut self, device: &DeviceEnvironment) -> vk::CommandBuffer {
+    fn get_begin_pending_command_buffer(&mut self, device: &DeviceFunctions) -> vk::CommandBuffer {
         if let Some(cmd) = self.pending_command_buffer {
             cmd
         } else {
@@ -380,7 +380,7 @@ impl Data {
         }
     }
 
-    fn get_begin_command_buffer(&mut self, device: &DeviceEnvironment) -> vk::CommandBuffer {
+    fn get_begin_command_buffer(&mut self, device: &DeviceFunctions) -> vk::CommandBuffer {
         let cmd = self.get_command_buffer(device);
 
         let info = vk::CommandBufferBeginInfo::builder()
@@ -396,7 +396,7 @@ impl Data {
         cmd
     }
 
-    fn get_command_buffer(&mut self, device: &DeviceEnvironment) -> vk::CommandBuffer {
+    fn get_command_buffer(&mut self, device: &DeviceFunctions) -> vk::CommandBuffer {
         if let Some(cmd) = self.available_command_buffers.pop() {
             return cmd;
         } else {
@@ -406,7 +406,7 @@ impl Data {
                 .command_buffer_count(4);
 
             let new_buffers = unsafe {
-                device.vk().allocate_command_buffers(&info)
+                device.vk.allocate_command_buffers(&info)
             }.unwrap_or_else(|err| {
                 log::error!("vkAllocateCommandBuffers returned {:?} in Data::get_command_buffer", err);
                 panic!();
@@ -418,7 +418,7 @@ impl Data {
         }
     }
 
-    fn create_semaphore(device: &DeviceEnvironment) -> vk::Semaphore {
+    fn create_semaphore(device: &DeviceContext) -> vk::Semaphore {
         let mut type_info = vk::SemaphoreTypeCreateInfo::builder()
             .semaphore_type(vk::SemaphoreType::TIMELINE)
             .initial_value(0);
@@ -434,7 +434,7 @@ impl Data {
         })
     }
 
-    fn create_command_pool(device: &DeviceEnvironment, queue_family: u32) -> vk::CommandPool {
+    fn create_command_pool(device: &DeviceContext, queue_family: u32) -> vk::CommandPool {
         let info = vk::CommandPoolCreateInfo::builder()
             .flags(vk::CommandPoolCreateFlags::RESET_COMMAND_BUFFER | vk::CommandPoolCreateFlags::TRANSIENT)
             .queue_family_index(queue_family);
@@ -447,7 +447,7 @@ impl Data {
         })
     }
 
-    fn destroy(&mut self, device: &DeviceEnvironment) {
+    fn destroy(&mut self, device: &DeviceContext) {
         unsafe {
             device.vk().destroy_semaphore(self.semaphore.get_handle(), None);
         }
@@ -510,7 +510,7 @@ impl StaticMesh {
         self.used_counter == 0
     }
 
-    fn destroy(self, device: &DeviceEnvironment) {
+    fn destroy(self, device: &DeviceContext) {
         if self.used_counter != 0 {
             log::warn!("Destroying static mesh despite used counter being {:?}", self.used_counter);
         }
@@ -522,7 +522,7 @@ impl StaticMesh {
         device.get_allocator().free(self.allocation);
     }
 
-    fn create_buffer(device: &DeviceEnvironment, size: usize) -> (Buffer, Allocation) {
+    fn create_buffer(device: &DeviceContext, size: usize) -> (Buffer, Allocation) {
         let info = vk::BufferCreateInfo::builder()
             .size(size as vk::DeviceSize)
             .usage(vk::BufferUsageFlags::VERTEX_BUFFER | vk::BufferUsageFlags::INDEX_BUFFER | vk::BufferUsageFlags::TRANSFER_DST)

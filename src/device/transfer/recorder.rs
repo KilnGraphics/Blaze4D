@@ -10,7 +10,7 @@ use crate::prelude::*;
 
 pub(super) struct Recorder {
     device: Arc<DeviceFunctions>,
-    queue: Queue,
+    queue: Arc<Queue>,
 
     command_pool: CommandBufferPool,
     submitted: VecDeque<SubmitArtifact>,
@@ -28,7 +28,7 @@ pub(super) struct Recorder {
 }
 
 impl Recorder {
-    pub(super) fn new(device: Arc<DeviceFunctions>, queue: Queue) -> Self {
+    pub(super) fn new(device: Arc<DeviceFunctions>, queue: Arc<Queue>) -> Self {
         let command_pool = CommandBufferPool::new(device.clone(), queue.get_queue_family_index());
 
         Self {
