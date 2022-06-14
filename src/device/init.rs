@@ -109,6 +109,9 @@ pub fn create_device(mut config: DeviceCreateConfig, instance: Arc<InstanceConte
         .create_info(&device_create_info)
         .flags(flags);
 
+    let selected_properties = unsafe { instance.vk().get_physical_device_properties(physical_device) };
+    let selected_device_name = unsafe { CStr::from_ptr(selected_properties.device_name.as_ptr()) };
+    log::info!("Selected device {:?} with config {:?}", selected_device_name, device_config);
     let device = unsafe { vk_vp.create_device(instance.vk(), physical_device, &vp_device_create_info, None)? };
 
     let synchronization_2_khr = ash::extensions::khr::Synchronization2::new(instance.vk(), &device);
@@ -216,6 +219,7 @@ impl<'a, 'b> DeviceConfigurator<'a, 'b> {
             .into_iter().map(|ext| {
             CString::from(unsafe { CStr::from_ptr(ext.extension_name.as_ptr()) })
         }).collect();
+        log::info!("Physical device {:?} has extensions: {:?}", device_name, available_extensions);
 
         if !used_extensions.is_subset(&available_extensions) {
             log::info!("Physical device {:?} is missing required extensions {:?}",
@@ -298,16 +302,15 @@ impl<'a, 'b> DeviceConfigurator<'a, 'b> {
         families.into_iter().map(|(_, family)| family).collect()
     }
 
+    fn is_extension_supported(&self, name: &CStr) -> bool {
+        self.available_extensions.contains(name)
+    }
+
     /// Checks if the extension is supported and if so adds it to the list of used extensions.
     ///
     /// Returns true if the extension is supported.
-    fn add_extension(&mut self, name: &CStr) -> bool {
-        if self.available_extensions.contains(name) {
-            self.used_extensions.insert(CString::from(name));
-            true
-        } else {
-            false
-        }
+    fn add_extension(&mut self, name: &CStr) {
+        self.used_extensions.insert(CString::from(name));
     }
 
     fn allocate<T: 'b>(&self, data: T) -> &'b mut T {
@@ -316,14 +319,17 @@ impl<'a, 'b> DeviceConfigurator<'a, 'b> {
 
     fn push_next<T: vk::ExtendsDeviceCreateInfo + 'b>(&mut self, data: T) {
         let data = self.alloc.alloc(data);
-        self.create_info = self.create_info.push_next(data);
+
+        // TODO This looks horrifying do we have a better way?
+        let info = std::mem::replace(&mut self.create_info, vk::DeviceCreateInfo::builder());
+        self.create_info = info.push_next(data);
     }
 
     fn build(mut self) -> vk::DeviceCreateInfoBuilder<'b> {
         let c_extensions = self.alloc.alloc_slice_fill_copy(self.used_extensions.len(), std::ptr::null());
 
         for (index, extension) in self.used_extensions.iter().enumerate() {
-            let c_str = self.alloc.alloc_slice_copy(extension.as_bytes()).as_ptr() as *const c_char;
+            let c_str = self.alloc.alloc_slice_copy(extension.as_bytes_with_nul()).as_ptr() as *const c_char;
             c_extensions[index] = c_str;
         }
 
@@ -331,6 +337,7 @@ impl<'a, 'b> DeviceConfigurator<'a, 'b> {
     }
 }
 
+#[derive(Debug)]
 struct DeviceConfigInfo {
     rating: f32,
     has_maintenance4: bool,
@@ -353,26 +360,32 @@ fn configure_device(device: &mut DeviceConfigurator) -> Result<Option<DeviceConf
     let mut features = vk::PhysicalDeviceFeatures2::builder();
     let mut properties = vk::PhysicalDeviceProperties2::builder();
 
-    if !device.add_extension(&CString::new("VK_KHR_synchronization2").unwrap()) {
+    let synchronization_2_name = CString::new("VK_KHR_synchronization2").unwrap();
+    if !device.is_extension_supported(&synchronization_2_name) {
         log::info!("Physical device {:?} does not support VK_KHR_synchronization2", device.get_name());
         return Ok(None);
     }
-    if !device.add_extension(&CString::new("VK_KHR_push_descriptor").unwrap()) {
+    device.add_extension(&synchronization_2_name);
+
+    let push_descriptor_name = CString::new("VK_KHR_push_descriptor").unwrap();
+    if !device.is_extension_supported(&push_descriptor_name) {
         log::info!("Physical device {:?} does not support VK_KHR_push_descriptor", device.get_name());
         return Ok(None);
     }
+    device.add_extension(&push_descriptor_name);
 
-    let mut maintenance_4;
-    if !device.add_extension(&CString::new("VK_KHR_maintenance4").unwrap()) {
-        maintenance_4 = Some((
+    let maintenance_4_name = CString::new("VK_KHR_maintenance4").unwrap();
+    let mut maintenance4;
+    if !device.is_extension_supported(&maintenance_4_name) {
+        maintenance4 = Some((
             vk::PhysicalDeviceMaintenance4Features::builder(),
             vk::PhysicalDeviceMaintenance4Properties::builder()
         ));
-        let (f, p) = maintenance_4.as_mut().unwrap();
-        features.push_next(f);
-        properties.push_next(p);
+        let (f, p) = maintenance4.as_mut().unwrap();
+        features = features.push_next(f);
+        properties = properties.push_next(p);
     } else {
-        maintenance_4 = None;
+        maintenance4 = None;
     }
 
     let mut timeline_features = vk::PhysicalDeviceTimelineSemaphoreFeatures::builder();
@@ -380,6 +393,9 @@ fn configure_device(device: &mut DeviceConfigurator) -> Result<Option<DeviceConf
 
     let mut timeline_properties = vk::PhysicalDeviceTimelineSemaphoreProperties::builder();
     properties = properties.push_next(&mut timeline_properties);
+
+    let mut synchronization2_features = vk::PhysicalDeviceSynchronization2Features::builder();
+    features = features.push_next(&mut synchronization2_features);
 
     let mut push_descriptor_properties = vk::PhysicalDevicePushDescriptorPropertiesKHR::builder();
     properties = properties.push_next(&mut push_descriptor_properties);
@@ -389,8 +405,9 @@ fn configure_device(device: &mut DeviceConfigurator) -> Result<Option<DeviceConf
     device.get_properties(properties);
     let timeline_features = timeline_features.build();
     let timeline_properties = timeline_properties.build();
+    let synchronization2_features = synchronization2_features.build();
     let push_descriptor_properties = push_descriptor_properties.build();
-    let maintenance_4 = maintenance_4.map(|(f, p)| (f.build(), p.build()));
+    let maintenance4 = maintenance4.map(|(f, p)| (f.build(), p.build()));
 
     // Process the supported features and properties
     if timeline_features.timeline_semaphore != vk::TRUE {
@@ -407,9 +424,33 @@ fn configure_device(device: &mut DeviceConfigurator) -> Result<Option<DeviceConf
         return Ok(None);
     }
 
+    if synchronization2_features.synchronization2 != vk::TRUE {
+        log::info!("Physical device {:?} does not support the synchronization2 feature", device.get_name());
+        return Ok(None);
+    } else {
+        device.push_next(vk::PhysicalDeviceSynchronization2Features::builder()
+            .synchronization2(true)
+        );
+    }
+
     if push_descriptor_properties.max_push_descriptors < 8 {
         log::info!("Physical device {:?} max_push_descriptors is too low {:?}", device.get_name(), push_descriptor_properties.max_push_descriptors);
         return Ok(None);
+    }
+
+    let has_maintenance4;
+    if let Some((f, p)) = maintenance4.as_ref() {
+        if f.maintenance4 == vk::TRUE {
+            has_maintenance4 = true;
+            device.add_extension(&maintenance_4_name);
+            device.push_next(vk::PhysicalDeviceMaintenance4Features::builder()
+                .maintenance4(true)
+            );
+        } else {
+            has_maintenance4 = false;
+        }
+    } else {
+        has_maintenance4 = false;
     }
 
     // Calculate queue family assignments
@@ -426,7 +467,7 @@ fn configure_device(device: &mut DeviceConfigurator) -> Result<Option<DeviceConf
 
     Ok(Some(DeviceConfigInfo {
         rating: 0.0,
-        has_maintenance4: maintenance_4.is_some(),
+        has_maintenance4,
         main_queue_family,
         async_compute_family: None,
         async_transfer_family: None

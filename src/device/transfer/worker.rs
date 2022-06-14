@@ -333,15 +333,16 @@ pub(super) fn run_worker(share: Arc<Share>, queue: Arc<Queue>) {
             }
 
             Task::BufferTransfer(transfer) => {
-                let mut info = vk::CopyBufferInfo2::builder();
-
+                let mut src_buff;
+                let mut dst_buff;
                 if transfer.src_buffer == transfer.dst_buffer {
                     let (buffer, _) = buffers.get_mut(&transfer.src_buffer.as_uuid()).unwrap_or_else(|| {
                         log::error!("Transfer buffer {:?} is not available!", transfer.src_buffer);
                         panic!()
                     });
                     buffer.update_state(true, true, recorder.get_buffer_barriers());
-                    info = info.src_buffer(buffer.get_handle()).dst_buffer(buffer.get_handle());
+                    src_buff = buffer.get_handle();
+                    dst_buff = buffer.get_handle();
 
                 } else {
                     let (src, _) = buffers.get_mut(&transfer.src_buffer.as_uuid()).unwrap_or_else(|| {
@@ -349,19 +350,19 @@ pub(super) fn run_worker(share: Arc<Share>, queue: Arc<Queue>) {
                         panic!()
                     });
                     src.update_state(true, false, recorder.get_buffer_barriers());
-                    info = info.src_buffer(src.get_handle());
+                    src_buff = src.get_handle();
 
                     let (dst, _) = buffers.get_mut(&transfer.dst_buffer.as_uuid()).unwrap_or_else(|| {
                         log::error!("Transfer dst buffer {:?} is not available!", transfer.src_buffer);
                         panic!()
                     });
                     dst.update_state(false, true, recorder.get_buffer_barriers());
-                    info = info.dst_buffer(dst.get_handle());
+                    dst_buff = dst.get_handle();
                 }
 
                 let mut copy_regions = Vec::with_capacity(transfer.ranges.as_slice().len());
                 for region in transfer.ranges.as_slice() {
-                    copy_regions.push(vk::BufferCopy2::builder()
+                    copy_regions.push(vk::BufferCopy::builder()
                         .src_offset(region.src_offset)
                         .dst_offset(region.dst_offset)
                         .size(region.size)
@@ -369,13 +370,10 @@ pub(super) fn run_worker(share: Arc<Share>, queue: Arc<Queue>) {
                     );
                 }
 
-                info = info.regions(copy_regions.as_slice());
-
                 recorder.flush_barriers();
 
                 unsafe {
-                    // TODO how do we want to deal with copy commands 2?
-                    share.device.vk.cmd_copy_buffer2(recorder.get_command_buffer(), &info)
+                    share.device.vk.cmd_copy_buffer(recorder.get_command_buffer(), src_buff, dst_buff, copy_regions.as_slice())
                 };
             }
 

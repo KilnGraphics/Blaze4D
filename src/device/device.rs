@@ -202,7 +202,7 @@ impl Queue {
     // TODO this also needs to lock the swapchain. How do we properly deal with this?
     pub unsafe fn present(&self, present_info: &vk::PresentInfoKHR) -> VkResult<bool> {
         let queue = self.queue.lock().unwrap();
-        self.functions.swapchain_khr.unwrap().queue_present(*queue, present_info)
+        self.functions.swapchain_khr.as_ref().unwrap().queue_present(*queue, present_info)
     }
 
     pub fn lock_queue(&self) -> MutexGuard<vk::Queue> {

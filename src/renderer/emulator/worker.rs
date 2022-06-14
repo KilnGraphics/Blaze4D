@@ -38,10 +38,10 @@ pub struct Share {
 
 impl Share {
     pub fn new(device: Arc<DeviceContext>, pool: Arc<Mutex<BufferPool>>) -> Self {
-        let queue = device.get_device().get_main_queue();
+        let queue = device.get_main_queue();
         let queue_family = queue.get_queue_family_index();
 
-        let global_objects = GlobalObjects::new(device.clone(), queue);
+        let global_objects = GlobalObjects::new(device.clone(), queue.clone());
         let descriptors = Mutex::new(DescriptorPool::new(device.clone()));
 
         Self {
@@ -130,13 +130,13 @@ pub(super) enum WorkerTask {
 }
 
 pub(super) fn run_worker(device: Arc<DeviceContext>, share: Arc<Share>) {
-    let queue = device.get_device().get_main_queue();
+    let queue = device.get_main_queue();
 
-    let pool = Rc::new(RefCell::new(WorkerObjectPool::new(device.get_device().clone(), queue.get_queue_family_index())));
+    let pool = Rc::new(RefCell::new(WorkerObjectPool::new(device.clone(), queue.get_queue_family_index())));
     let mut frames = PassList::new();
     let mut old_frames = Vec::new();
 
-    let queue = device.get_device().get_main_queue();
+    let queue = device.get_main_queue();
 
     loop {
         share.global_objects.update();
@@ -167,7 +167,7 @@ pub(super) fn run_worker(device: Arc<DeviceContext>, share: Arc<Share>) {
 
         match task {
             WorkerTask::StartPass(pipeline, pass) => {
-                let state = PassState::new(pipeline, pass, &device, &queue, share.clone(), pool.clone());
+                let state = PassState::new(pipeline, pass, device.clone(), &queue, share.clone(), pool.clone());
                 frames.add_pass(id, state);
             }
 
@@ -377,7 +377,7 @@ struct PassState {
 }
 
 impl PassState {
-    fn new(pipeline: Arc<dyn EmulatorPipeline>, mut pass: Box<dyn EmulatorPipelinePass>, device: &DeviceContext, queue: &Queue, share: Arc<Share>, pool: Rc<RefCell<WorkerObjectPool>>) -> Self {
+    fn new(pipeline: Arc<dyn EmulatorPipeline>, mut pass: Box<dyn EmulatorPipelinePass>, device: Arc<DeviceContext>, queue: &Queue, share: Arc<Share>, pool: Rc<RefCell<WorkerObjectPool>>) -> Self {
         let mut object_pool = PooledObjectProvider::new(share, pool);
 
         let pre_cmd = object_pool.get_begin_command_buffer().unwrap();
@@ -385,9 +385,11 @@ impl PassState {
 
         pass.init(queue, &mut object_pool);
 
+        let transfer = device.get_transfer().clone();
+
         Self {
-            device: device.get_device().clone(),
-            transfer: device.get_transfer().clone(),
+            device,
+            transfer,
             object_pool,
 
             pipeline,

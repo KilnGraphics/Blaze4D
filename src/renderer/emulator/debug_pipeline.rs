@@ -29,7 +29,7 @@ pub struct DepthTypeInfo {
 }
 
 pub struct DebugPipeline {
-    device: DeviceEnvironment,
+    device: Arc<DeviceContext>,
     emulator: Arc<EmulatorRenderer>,
     weak: Weak<Self>,
     framebuffer_size: Vec2u32,
@@ -47,7 +47,7 @@ pub struct DebugPipeline {
 assert_impl_all!(DebugPipeline: Send, Sync);
 
 impl DebugPipeline {
-    pub fn new(device: DeviceEnvironment, emulator: Arc<EmulatorRenderer>, framebuffer_size: Vec2u32) -> Arc<Self> {
+    pub fn new(device: Arc<DeviceContext>, emulator: Arc<EmulatorRenderer>, framebuffer_size: Vec2u32) -> Arc<Self> {
         let (vertex_module, fragment_module) = Self::load_shaders(&device);
         let render_pass = Self::create_render_pass(&device, vk::Format::D16_UNORM);
         let (set0_layout, pipeline_layout) = Self::create_pipeline_layout(&device);
@@ -249,7 +249,7 @@ impl DebugPipeline {
         pipeline
     }
 
-    fn create_pipeline_layout(device: &DeviceEnvironment) -> (vk::DescriptorSetLayout, vk::PipelineLayout) {
+    fn create_pipeline_layout(device: &DeviceContext) -> (vk::DescriptorSetLayout, vk::PipelineLayout) {
         let bindings = [
             vk::DescriptorSetLayoutBinding {
                 binding: 0,
@@ -285,7 +285,7 @@ impl DebugPipeline {
         (set_layout, pipeline_layout)
     }
 
-    fn create_render_pass(device: &DeviceEnvironment, depth_format: vk::Format) -> vk::RenderPass {
+    fn create_render_pass(device: &DeviceContext, depth_format: vk::Format) -> vk::RenderPass {
         let attachments = [
             vk::AttachmentDescription::builder()
                 .format(depth_format)
@@ -342,7 +342,7 @@ impl DebugPipeline {
         }.unwrap()
     }
 
-    fn load_shaders(device: &DeviceEnvironment) -> (vk::ShaderModule, vk::ShaderModule) {
+    fn load_shaders(device: &DeviceContext) -> (vk::ShaderModule, vk::ShaderModule) {
         let info = vk::ShaderModuleCreateInfo::builder()
             .code(crate::util::slice::from_byte_slice(DEBUG_POSITION_VERTEX_BIN));
 
@@ -385,7 +385,7 @@ impl EmulatorPipeline for DebugPipeline {
 
             let vertex_format = self.emulator.get_shader(shader).unwrap().get_vertex_format().clone();
 
-            let mut  pipelines = ShaderPipelines::new(&self.device, shader, vertex_format, listener);
+            let mut  pipelines = ShaderPipelines::new(self.device.clone(), shader, vertex_format, listener);
             pipelines.inc_used();
 
             guard.insert(shader, pipelines);
@@ -458,9 +458,9 @@ struct ShaderPipelines {
 }
 
 impl ShaderPipelines {
-    fn new(device: &DeviceEnvironment, shader: ShaderId, vertex_format: VertexFormat, listener: ShaderListener) -> Self {
+    fn new(device: Arc<DeviceContext>, shader: ShaderId, vertex_format: VertexFormat, listener: ShaderListener) -> Self {
         Self {
-            device: device.get_device().clone(),
+            device,
             shader,
             vertex_format,
             pipelines: HashMap::new(),
@@ -529,7 +529,7 @@ struct PassObjects {
 }
 
 impl PassObjects {
-    fn new(device: &DeviceEnvironment, framebuffer_size: Vec2u32, depth_format: vk::Format, render_pass: vk::RenderPass) -> Self {
+    fn new(device: &DeviceContext, framebuffer_size: Vec2u32, depth_format: vk::Format, render_pass: vk::RenderPass) -> Self {
         let (depth_image, depth_allocation, depth_framebuffer_view, depth_sampler_view) = Self::create_depth_image(device, framebuffer_size, depth_format);
         let (color_image, color_allocation, color_framebuffer_view, color_sampler_view) = Self::create_color_image(device, framebuffer_size);
         let (uv0_image, uv0_allocation, uv0_framebuffer_view, uv0_sampler_view) = Self::create_color_image(device, framebuffer_size);
@@ -568,7 +568,7 @@ impl PassObjects {
         }
     }
 
-    fn destroy(&mut self, device: &DeviceEnvironment) {
+    fn destroy(&mut self, device: &DeviceContext) {
         unsafe {
             device.vk().destroy_framebuffer(self.framebuffer, None);
             device.vk().destroy_image_view(self.depth_sampler_view, None);
@@ -578,7 +578,7 @@ impl PassObjects {
         device.get_allocator().free(self.depth_allocation.take().unwrap());
     }
 
-    fn create_depth_image(device: &DeviceEnvironment, size: Vec2u32, format: vk::Format) -> (vk::Image, Allocation, vk::ImageView, vk::ImageView) {
+    fn create_depth_image(device: &DeviceContext, size: Vec2u32, format: vk::Format) -> (vk::Image, Allocation, vk::ImageView, vk::ImageView) {
         let info = vk::ImageCreateInfo::builder()
             .image_type(vk::ImageType::TYPE_2D)
             .format(format)
@@ -652,7 +652,7 @@ impl PassObjects {
         (image, alloc, framebuffer_view, sampler_view)
     }
 
-    fn create_color_image(device: &DeviceEnvironment, size: Vec2u32) -> (vk::Image, Allocation, vk::ImageView, vk::ImageView) {
+    fn create_color_image(device: &DeviceContext, size: Vec2u32) -> (vk::Image, Allocation, vk::ImageView, vk::ImageView) {
         let info = vk::ImageCreateInfo::builder()
             .image_type(vk::ImageType::TYPE_2D)
             .format(vk::Format::R8G8B8A8_SRGB)
@@ -726,7 +726,7 @@ impl PassObjects {
         (image, alloc, framebuffer_view, sampler_view)
     }
 
-    fn create_framebuffer(device: &DeviceEnvironment, size: Vec2u32, depth_view: vk::ImageView, color_view: vk::ImageView, uv0_view: vk::ImageView, render_pass: vk::RenderPass) -> vk::Framebuffer {
+    fn create_framebuffer(device: &DeviceContext, size: Vec2u32, depth_view: vk::ImageView, color_view: vk::ImageView, uv0_view: vk::ImageView, render_pass: vk::RenderPass) -> vk::Framebuffer {
         let attachments = [
             depth_view, color_view, uv0_view
         ];
@@ -780,7 +780,7 @@ impl DebugPipelinePass {
     }
 
     fn draw(&mut self, task: &DrawTask, obj: &mut PooledObjectProvider) {
-        let device = self.parent.device.get_device();
+        let device = &self.parent.device;
         let cmd = *self.command_buffer.as_ref().unwrap();
 
         let pipeline_config = PipelineConfig {
@@ -829,7 +829,7 @@ impl DebugPipelinePass {
                     .buffer_info(std::slice::from_ref(&buffer_info));
 
                 unsafe {
-                    self.parent.device.get_device().push_descriptor_khr().cmd_push_descriptor_set(
+                    self.parent.device.push_descriptor_khr().cmd_push_descriptor_set(
                         self.command_buffer.unwrap(),
                         vk::PipelineBindPoint::GRAPHICS,
                         self.parent.pipeline_layout,
@@ -870,7 +870,7 @@ impl EmulatorPipelinePass for DebugPipelinePass {
         let cmd = obj.get_begin_command_buffer().unwrap();
         self.command_buffer = Some(cmd);
 
-        let device = self.parent.device.get_device();
+        let device = &self.parent.device;
 
         let clear_values = [
             vk::ClearValue {
@@ -906,7 +906,7 @@ impl EmulatorPipelinePass for DebugPipelinePass {
     }
 
     fn record<'a>(&mut self, _: &mut PooledObjectProvider, submits: &mut SubmitRecorder<'a>, alloc: &'a Bump) {
-        let device = self.parent.device.get_device();
+        let device = &self.parent.device;
         let cmd = self.command_buffer.take().unwrap();
 
         let image_barrier = [
@@ -972,7 +972,7 @@ impl EmulatorPipelinePass for DebugPipelinePass {
         unsafe {
             device.vk().cmd_end_render_pass(cmd);
 
-            device.vk().cmd_pipeline_barrier2(cmd, &info);
+            device.synchronization_2_khr().cmd_pipeline_barrier2(cmd, &info);
 
             device.vk().end_command_buffer(cmd).unwrap();
         }

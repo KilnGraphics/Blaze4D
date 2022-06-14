@@ -44,7 +44,7 @@ use crate::renderer::emulator::mc_shaders::{McUniform, Shader, ShaderId, VertexF
 pub struct EmulatorRenderer {
     id: UUID,
     weak: Weak<EmulatorRenderer>,
-    device: DeviceEnvironment,
+    device: Arc<DeviceContext>,
     worker: Arc<Share>,
     next_frame_id: AtomicU64,
     buffer_pool: Arc<Mutex<BufferPool>>,
@@ -52,7 +52,7 @@ pub struct EmulatorRenderer {
 }
 
 impl EmulatorRenderer {
-    pub(crate) fn new(device: DeviceEnvironment) -> Arc<Self> {
+    pub(crate) fn new(device: Arc<DeviceContext>) -> Arc<Self> {
         let renderer = Arc::new_cyclic(|weak| {
             let pool = Arc::new(Mutex::new(BufferPool::new(device.clone())));
 

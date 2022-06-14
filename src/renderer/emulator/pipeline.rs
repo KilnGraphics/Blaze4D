@@ -154,7 +154,7 @@ pub struct OutputUtil {
 }
 
 impl OutputUtil {
-    pub fn new(device: &DeviceEnvironment, pipeline: Arc<dyn EmulatorPipeline>, format: vk::Format, final_layout: vk::ImageLayout) -> Self {
+    pub fn new(device: &DeviceContext, pipeline: Arc<dyn EmulatorPipeline>, format: vk::Format, final_layout: vk::ImageLayout) -> Self {
         let (_, sampler_views) = pipeline.get_output();
 
         let blit_pass = device.get_utils().blit_utils().create_blit_pass(format, vk::AttachmentLoadOp::DONT_CARE, vk::ImageLayout::UNDEFINED, final_layout);
@@ -191,7 +191,7 @@ impl OutputUtil {
         )
     }
 
-    fn create_descriptor_pool(device: &DeviceEnvironment, sampler_count: usize) -> vk::DescriptorPool {
+    fn create_descriptor_pool(device: &DeviceContext, sampler_count: usize) -> vk::DescriptorPool {
         let sizes = [
             vk::DescriptorPoolSize {
                 ty: vk::DescriptorType::COMBINED_IMAGE_SAMPLER,
@@ -212,7 +212,7 @@ impl OutputUtil {
 impl Drop for OutputUtil {
     fn drop(&mut self) {
         unsafe {
-            self.blit_pass.get_device().vk().destroy_descriptor_pool(self.descriptor_pool, None);
+            self.blit_pass.get_device().vk.destroy_descriptor_pool(self.descriptor_pool, None);
         }
     }
 }
@@ -227,7 +227,7 @@ pub struct SwapchainOutput {
 }
 
 impl SwapchainOutput {
-    pub fn new(device: &DeviceEnvironment, pipeline: Arc<dyn EmulatorPipeline>, swapchain: Arc<SurfaceSwapchain>) -> Arc<Self> {
+    pub fn new(device: &DeviceContext, pipeline: Arc<dyn EmulatorPipeline>, swapchain: Arc<SurfaceSwapchain>) -> Arc<Self> {
         let util = OutputUtil::new(device, pipeline, swapchain.get_image_format().format, vk::ImageLayout::PRESENT_SRC_KHR);
 
         let framebuffers = swapchain.get_images().iter().map(|image| {
@@ -270,7 +270,7 @@ impl Drop for SwapchainOutput {
         let device = self.swapchain.get_device();
         unsafe {
             for framebuffer in self.framebuffers.iter() {
-                device.vk().destroy_framebuffer(*framebuffer, None);
+                device.vk.destroy_framebuffer(*framebuffer, None);
             }
         }
     }
@@ -303,7 +303,7 @@ impl EmulatorOutput for SwapchainOutputInstance {
         self.output.util.record(cmd, self.output.framebuffers[self.image_info.image_index as usize], self.output.swapchain.get_image_size(), self.pipeline_index.unwrap());
 
         unsafe {
-            self.output.swapchain.get_device().vk().end_command_buffer(cmd)
+            self.output.swapchain.get_device().vk.end_command_buffer(cmd)
         }.unwrap();
 
         let waits = alloc.alloc([

@@ -32,36 +32,33 @@ impl Blaze4D {
     /// Creates a new Blaze4D instance and starts all engine modules.
     ///
     /// The supported vertex formats for the [`EmulatorRenderer`] must be provided here.
-    pub fn new(main_window: Box<dyn SurfaceProvider>, enable_validation: bool) -> Self {
+    pub fn new(mut main_window: Box<dyn SurfaceProvider>, enable_validation: bool) -> Self {
         let mut instance_config = InstanceCreateConfig::new(
-            vp::KhrRoadmap2022::profile_properties(),
-            VulkanVersion::VK_1_3,
             CString::new("Minecraft").unwrap(),
             vk::make_api_version(0, 0, 1, 0)
         );
         if enable_validation {
             instance_config.enable_validation();
         }
-        let main_surface = instance_config.add_surface_provider(main_window);
         instance_config.add_debug_messenger(Box::new(RustLogDebugMessenger::new()));
+        for ext in main_window.get_required_instance_extensions() {
+            instance_config.add_required_extension(&ext);
+        }
 
         let instance = create_instance(instance_config).unwrap();
 
+        let window_surface = main_window.init(instance.get_entry(), instance.vk()).unwrap();
+
         let mut device_config = DeviceCreateConfig::new();
-        device_config.add_surface(main_surface);
+        device_config.require_swapchain();
+        device_config.add_surface(window_surface);
         device_config.disable_robustness();
 
-        let (device, surfaces) = create_device(device_config, instance.clone()).unwrap_or_else(|err| {
+        let device = create_device(device_config, instance.clone()).unwrap_or_else(|err| {
             log::error!("Failed to create device in Blaze4D::new(): {:?}", err);
             panic!()
         });
-        let main_surface = surfaces.into_iter().fold(None, |res, (id, surface)| {
-            if id == main_surface {
-                Some(surface)
-            } else {
-                res
-            }
-        }).unwrap();
+        let main_surface = DeviceSurface::new(device.get_functions().clone(), main_window);
 
         let emulator = EmulatorRenderer::new(device.clone());
 
@@ -102,7 +99,7 @@ impl Blaze4D {
 }
 
 struct RenderConfig {
-    device: DeviceEnvironment,
+    device: Arc<DeviceContext>,
     emulator: Arc<EmulatorRenderer>,
     main_surface: Arc<DeviceSurface>,
 
@@ -112,7 +109,7 @@ struct RenderConfig {
 }
 
 impl RenderConfig {
-    fn new(device: DeviceEnvironment, emulator: Arc<EmulatorRenderer>, main_surface: Arc<DeviceSurface>) -> Self {
+    fn new(device: Arc<DeviceContext>, emulator: Arc<EmulatorRenderer>, main_surface: Arc<DeviceSurface>) -> Self {
         Self {
             device,
             emulator,

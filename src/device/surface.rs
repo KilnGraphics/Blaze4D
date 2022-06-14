@@ -28,7 +28,7 @@ pub struct DeviceSurface {
 }
 
 impl DeviceSurface {
-    pub(super) fn new(device: Arc<DeviceFunctions>, surface: Box<dyn SurfaceProvider>) -> Arc<Self> {
+    pub fn new(device: Arc<DeviceFunctions>, surface: Box<dyn SurfaceProvider>) -> Arc<Self> {
         Arc::new_cyclic(|weak| Self {
             device,
             weak: weak.clone(),
@@ -93,7 +93,7 @@ impl DeviceSurface {
     /// The surface and old_swapchain fields will be overwritten by this function. Any other fields
     /// or entries in the pNext chain will not be validated.
     pub fn create_swapchain_direct(&self, info: &mut vk::SwapchainCreateInfoKHR) -> VkResult<Arc<SurfaceSwapchain>> {
-        let swapchain_khr = self.device.swapchain_khr.unwrap();
+        let swapchain_khr = self.device.swapchain_khr.as_ref().unwrap();
 
         info.surface = self.surface;
 
@@ -402,7 +402,7 @@ impl SurfaceSwapchain {
             Some(objects) => objects
         };
 
-        let swapchain_khr = self.surface.device.swapchain_khr.unwrap();
+        let swapchain_khr = self.surface.device.swapchain_khr.as_ref().unwrap();
 
         let guard = self.swapchain.lock().unwrap();
         let (image_index, suboptimal) = unsafe {
@@ -451,7 +451,7 @@ impl Drop for SurfaceSwapchain {
         let mut guard = self.surface.current_swapchain.lock().unwrap();
 
         // We do this inside the guard to propagate potential panics
-        let swapchain_khr = self.surface.device.swapchain_khr.unwrap();
+        let swapchain_khr = self.surface.device.swapchain_khr.as_ref().unwrap();
         let swapchain = self.swapchain.get_mut().unwrap();
 
         unsafe {

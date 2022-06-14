@@ -1,4 +1,5 @@
 use std::ptr::NonNull;
+use std::sync::Arc;
 
 use ash::vk;
 
@@ -7,12 +8,12 @@ use crate::vk::objects::allocator::{Allocation, AllocationStrategy};
 use crate::prelude::*;
 
 pub(super) struct DescriptorPool {
-    device: DeviceEnvironment,
+    device: Arc<DeviceContext>,
     uniform_buffer_pool: UniformBufferPool,
 }
 
 impl DescriptorPool {
-    pub(super) fn new(device: DeviceEnvironment) -> Self {
+    pub(super) fn new(device: Arc<DeviceContext>) -> Self {
         let uniform_buffer_pool = UniformBufferPool::new(&device);
         Self {
             device,
@@ -40,7 +41,7 @@ struct UniformBufferPool {
 }
 
 impl UniformBufferPool {
-    fn new(device: &DeviceEnvironment) -> Self {
+    fn new(device: &DeviceContext) -> Self {
         let target_size = 2usize.pow(25); // ~32MB
         let info = vk::BufferCreateInfo::builder()
             .size(target_size as vk::DeviceSize)
@@ -95,7 +96,7 @@ impl UniformBufferPool {
         (self.buffer, base_offset as vk::DeviceSize)
     }
 
-    fn destroy(&mut self, device: &DeviceEnvironment) {
+    fn destroy(&mut self, device: &DeviceContext) {
         unsafe {
             device.vk().destroy_buffer(self.buffer, None)
         };

@@ -27,7 +27,7 @@ impl GlobalObjects {
     ///
     /// The passed queue is the queue used for rendering. All created objects will be transferred to
     /// this queue family when accessed for rendering.
-    pub(super) fn new(device: Arc<DeviceContext>, queue: Queue) -> Self {
+    pub(super) fn new(device: Arc<DeviceContext>, queue: Arc<Queue>) -> Self {
         let queue_family= queue.get_queue_family_index();
         let data = Data::new(&device, queue);
 
@@ -173,7 +173,7 @@ impl Drop for GlobalObjects {
 }
 
 struct Data {
-    queue: Queue,
+    queue: Arc<Queue>,
 
     semaphore: Semaphore,
     semaphore_current_value: u64,
@@ -189,7 +189,7 @@ struct Data {
 }
 
 impl Data {
-    fn new(device: &Arc<DeviceContext>, queue: Queue) -> Self {
+    fn new(device: &Arc<DeviceContext>, queue: Arc<Queue>) -> Self {
         let semaphore = Self::create_semaphore(device.get_functions());
         let command_pool = Self::create_command_pool(device.get_functions(), queue.get_queue_family_index());
 

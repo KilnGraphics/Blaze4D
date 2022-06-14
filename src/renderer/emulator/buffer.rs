@@ -16,11 +16,11 @@ use crate::prelude::*;
 pub struct BufferPool {
     buffers: Vec<PoolBuffer>,
 
-    device: Arc<DeviceFunctions>,
+    device: Arc<DeviceContext>,
 }
 
 impl BufferPool {
-    pub fn new(device: Arc<DeviceFunctions>) -> Self {
+    pub fn new(device: Arc<DeviceContext>) -> Self {
         Self {
             buffers: Vec::with_capacity(16),
             device,
@@ -170,7 +170,7 @@ impl PoolBuffer {
             if let Some(wait_op) = wait_op {
                 if let Some(value) = wait_op.value {
                     let semaphore_value = unsafe {
-                        device.timeline_semaphore_khr.get_semaphore_counter_value(wait_op.semaphore.get_handle())
+                        device.timeline_semaphore_khr().get_semaphore_counter_value(wait_op.semaphore.get_handle())
                     }.unwrap();
                     if semaphore_value < value {
                         return false;
