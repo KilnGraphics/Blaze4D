@@ -119,8 +119,8 @@ impl PoolBuffer {
         }
     }
 
-    fn ensure_init(&mut self, device: &DeviceFunctions) -> Buffer {
-        let vk = &device.vk;
+    fn ensure_init(&mut self, device: &DeviceContext) -> Buffer {
+        let vk = &device.get_functions().vk;
         if let Some((buffer, _)) = &self.buffer {
             *buffer
         } else {
@@ -164,8 +164,8 @@ impl PoolBuffer {
         }
     }
 
-    fn try_destroy(&mut self, device: &DeviceFunctions) -> bool {
-        let vk = &device.vk;
+    fn try_destroy(&mut self, device: &DeviceContext) -> bool {
+        let vk = &device.get_functions().vk;
         if let BufferState::Available(wait_op) = &self.state {
             if let Some(wait_op) = wait_op {
                 if let Some(value) = wait_op.value {

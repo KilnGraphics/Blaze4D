@@ -105,7 +105,7 @@ impl GlobalObjects {
         self.data.lock().unwrap_or_else(|_| {
             log::error!("Poisoned mutex in GlobalObjects::create_static_mesh!");
             panic!();
-        }).add_static_mesh(&self.device, static_mesh, sync, op)
+        }).add_static_mesh(self.device.get_functions(), static_mesh, sync, op)
     }
 
     pub(super) fn mark_static_mesh(&self, id: StaticMeshId) {
@@ -168,7 +168,7 @@ impl Drop for GlobalObjects {
         self.data.get_mut().unwrap_or_else(|_| {
             log::error!("Poisoned data mutex while destroying GlobalObjects!");
             panic!()
-        }).destroy(&self.device);
+        }).destroy(self.device.get_functions());
     }
 }
 
@@ -190,8 +190,8 @@ struct Data {
 
 impl Data {
     fn new(device: &Arc<DeviceContext>, queue: Queue) -> Self {
-        let semaphore = Self::create_semaphore(device);
-        let command_pool = Self::create_command_pool(device, queue.get_queue_family_index());
+        let semaphore = Self::create_semaphore(device.get_functions());
+        let command_pool = Self::create_command_pool(device.get_functions(), queue.get_queue_family_index());
 
         Self {
             queue,
@@ -284,7 +284,7 @@ impl Data {
 
     fn update(&mut self, device: &DeviceContext) {
         let current_value = unsafe {
-            device.vk().get_semaphore_counter_value(self.semaphore.get_handle())
+            device.get_functions().timeline_semaphore_khr.get_semaphore_counter_value(self.semaphore.get_handle())
         }.unwrap_or_else(|err| {
             log::error!("vkGetSemaphoreCounterValue returned {:?} in Data::update", err);
             panic!()
@@ -305,6 +305,8 @@ impl Data {
     }
 
     fn flush(&mut self, device: &DeviceContext) -> Option<SemaphoreOp> {
+        let vk = &device.get_functions().vk;
+
         let sync_id = self.pending_sync.take();
         if let Some(sync_id) = sync_id {
             device.get_transfer().wait_for_submit(sync_id);
@@ -312,7 +314,7 @@ impl Data {
 
         if let Some(cmd) = self.pending_command_buffer.take() {
             unsafe {
-                device.vk().end_command_buffer(cmd)
+                vk.end_command_buffer(cmd)
             }.unwrap_or_else(|err| {
                 log::error!("vkEndCommandBuffer returned {:?} in Data::flush!", err);
                 panic!();
@@ -387,7 +389,7 @@ impl Data {
             .flags(vk::CommandBufferUsageFlags::ONE_TIME_SUBMIT);
 
         unsafe {
-            device.vk().begin_command_buffer(cmd, &info)
+            device.vk.begin_command_buffer(cmd, &info)
         }.unwrap_or_else(|err| {
             log::error!("vkBeginCommandBuffer returned {:?} in Data::get_begin_command_buffer!", err);
             panic!("");
@@ -418,7 +420,7 @@ impl Data {
         }
     }
 
-    fn create_semaphore(device: &DeviceContext) -> vk::Semaphore {
+    fn create_semaphore(device: &DeviceFunctions) -> vk::Semaphore {
         let mut type_info = vk::SemaphoreTypeCreateInfo::builder()
             .semaphore_type(vk::SemaphoreType::TIMELINE)
             .initial_value(0);
@@ -427,29 +429,29 @@ impl Data {
             .push_next(&mut type_info);
 
         unsafe {
-            device.vk().create_semaphore(&info, None)
+            device.vk.create_semaphore(&info, None)
         }.unwrap_or_else(|err| {
             log::error!("vkCreateSemaphore returned {:?} while trying to create GlobalObjects semaphore!", err);
             panic!()
         })
     }
 
-    fn create_command_pool(device: &DeviceContext, queue_family: u32) -> vk::CommandPool {
+    fn create_command_pool(device: &DeviceFunctions, queue_family: u32) -> vk::CommandPool {
         let info = vk::CommandPoolCreateInfo::builder()
             .flags(vk::CommandPoolCreateFlags::RESET_COMMAND_BUFFER | vk::CommandPoolCreateFlags::TRANSIENT)
             .queue_family_index(queue_family);
 
         unsafe {
-            device.vk().create_command_pool(&info, None)
+            device.vk.create_command_pool(&info, None)
         }.unwrap_or_else(|err| {
             log::error!("vkCreateCommandPool returned {:?} in Data::create_command_pool!", err);
             panic!()
         })
     }
 
-    fn destroy(&mut self, device: &DeviceContext) {
+    fn destroy(&mut self, device: &DeviceFunctions) {
         unsafe {
-            device.vk().destroy_semaphore(self.semaphore.get_handle(), None);
+            device.vk.destroy_semaphore(self.semaphore.get_handle(), None);
         }
     }
 }
@@ -516,20 +518,22 @@ impl StaticMesh {
         }
 
         unsafe {
-            device.vk().destroy_buffer(self.buffer.get_handle(), None);
+            device.get_functions().vk.destroy_buffer(self.buffer.get_handle(), None);
         }
 
         device.get_allocator().free(self.allocation);
     }
 
     fn create_buffer(device: &DeviceContext, size: usize) -> (Buffer, Allocation) {
+        let vk = &device.get_functions().vk;
+
         let info = vk::BufferCreateInfo::builder()
             .size(size as vk::DeviceSize)
             .usage(vk::BufferUsageFlags::VERTEX_BUFFER | vk::BufferUsageFlags::INDEX_BUFFER | vk::BufferUsageFlags::TRANSFER_DST)
             .sharing_mode(vk::SharingMode::EXCLUSIVE);
 
         let buffer = unsafe {
-            device.vk().create_buffer(&info, None)
+            vk.create_buffer(&info, None)
         }.unwrap_or_else(|err| {
             log::error!("vkCreateBuffer returned {:?} when trying to create buffer for static mesh of size {:?}", err, size);
             panic!()
@@ -542,7 +546,7 @@ impl StaticMesh {
             });
 
         unsafe {
-            device.vk().bind_buffer_memory(buffer, alloc.memory(), alloc.offset())
+            vk.bind_buffer_memory(buffer, alloc.memory(), alloc.offset())
         }.unwrap_or_else(|err| {
             log::error!("vkBindBufferMemory returned {:?} when trying to bind memory for static mesh buffer of size {:?}", err, size);
             panic!()

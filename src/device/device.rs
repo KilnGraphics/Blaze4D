@@ -82,6 +82,30 @@ impl DeviceContext {
         &self.functions
     }
 
+    pub fn vk(&self) -> &ash::Device {
+        &self.functions.vk
+    }
+
+    pub fn synchronization_2_khr(&self) -> &ash::extensions::khr::Synchronization2 {
+        &self.functions.synchronization_2_khr
+    }
+
+    pub fn timeline_semaphore_khr(&self) -> &ash::extensions::khr::TimelineSemaphore {
+        &self.functions.timeline_semaphore_khr
+    }
+
+    pub fn push_descriptor_khr(&self) -> &ash::extensions::khr::PushDescriptor {
+        &self.functions.push_descriptor_khr
+    }
+
+    pub fn swapchain_khr(&self) -> Option<&ash::extensions::khr::Swapchain> {
+        self.functions.swapchain_khr.as_ref()
+    }
+
+    pub fn maintenance_4(&self) -> Option<&ash::extensions::khr::Maintenance4> {
+        self.functions.maintenance_4_khr.as_ref()
+    }
+
     pub fn get_main_queue(&self) -> &Arc<Queue> {
         &self.main_queue
     }
