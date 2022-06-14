@@ -1,17 +1,13 @@
 use core::panic::{UnwindSafe, RefUnwindSafe};
 
 use std::cmp::Ordering;
-use std::collections::HashMap;
 use std::fmt::{Debug, Formatter};
-use std::mem::ManuallyDrop;
-use std::sync::{Arc, Mutex};
+use std::sync::Arc;
 
 use ash::vk;
 use vk_profiles_rs::vp;
 
 use crate::instance::init::DebugUtilsMessengerWrapper;
-use crate::objects::id::SurfaceId;
-use crate::vk::objects::surface::{SurfaceInitError, SurfaceProvider};
 
 use crate::prelude::*;
 

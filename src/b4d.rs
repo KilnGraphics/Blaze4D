@@ -22,7 +22,7 @@ use crate::renderer::emulator::pipeline::{EmulatorPipeline, SwapchainOutput};
 
 pub struct Blaze4D {
     instance: Arc<InstanceContext>,
-    device: DeviceEnvironment,
+    device: Arc<DeviceContext>,
     emulator: Arc<EmulatorRenderer>,
 
     render_config: Mutex<RenderConfig>,
@@ -33,8 +33,6 @@ impl Blaze4D {
     ///
     /// The supported vertex formats for the [`EmulatorRenderer`] must be provided here.
     pub fn new(main_window: Box<dyn SurfaceProvider>, enable_validation: bool) -> Self {
-        crate::debug::text::ldfnt();
-
         let mut instance_config = InstanceCreateConfig::new(
             vp::KhrRoadmap2022::profile_properties(),
             VulkanVersion::VK_1_3,

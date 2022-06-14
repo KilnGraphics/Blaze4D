@@ -1,17 +1,18 @@
 use std::ptr::NonNull;
 use std::sync::Arc;
 use ash::vk;
-use crate::prelude::DeviceContext;
-use crate::vk::objects::allocator::{Allocation, AllocationStrategy, Allocator};
 
+use crate::vk::objects::allocator::{Allocation, AllocationStrategy, Allocator};
 use crate::vk::objects::buffer::Buffer;
+
+use crate::prelude::*;
 
 pub(super) struct PoolAllocator {
     pools: [Pool; 8],
 }
 
 impl PoolAllocator {
-    pub(super) fn new(device: Arc<DeviceContext>, allocator: Arc<Allocator>) -> Self {
+    pub(super) fn new(device: Arc<DeviceFunctions>, allocator: Arc<Allocator>) -> Self {
         let pools = [
             Pool::new(device.clone(), allocator.clone(), 2u64.pow(10), 2048),
             Pool::new(device.clone(), allocator.clone(), 2u64.pow(21), 32),
@@ -119,7 +120,7 @@ unsafe impl Send for PoolAllocation {
 
 /// A pool providing allocations of a specific size.
 struct Pool {
-    device: Arc<DeviceContext>,
+    device: Arc<DeviceFunctions>,
     allocator: Arc<Allocator>,
     pages: Vec<(u8, PoolPage)>,
     current_page: usize,
@@ -128,7 +129,7 @@ struct Pool {
 }
 
 impl Pool {
-    fn new(device: Arc<DeviceContext>, allocator: Arc<Allocator>, alloc_size: vk::DeviceSize, slots_per_page: u16) -> Self {
+    fn new(device: Arc<DeviceFunctions>, allocator: Arc<Allocator>, alloc_size: vk::DeviceSize, slots_per_page: u16) -> Self {
         let page = PoolPage::new(&device, &allocator, alloc_size, slots_per_page);
 
         Pool {
@@ -212,7 +213,9 @@ struct PoolPage {
 }
 
 impl PoolPage {
-    fn new(device: &DeviceContext, allocator: &Allocator, slot_size: vk::DeviceSize, slot_count: u16) -> Self {
+    fn new(device: &DeviceFunctions, allocator: &Allocator, slot_size: vk::DeviceSize, slot_count: u16) -> Self {
+        let vk = &device.vk;
+
         let byte_size = slot_size * (slot_count as vk::DeviceSize);
         let info = vk::BufferCreateInfo::builder()
             .size(byte_size)
@@ -220,13 +223,13 @@ impl PoolPage {
             .sharing_mode(vk::SharingMode::EXCLUSIVE);
 
         let buffer = unsafe {
-            device.vk().create_buffer(&info, None)
+            vk.create_buffer(&info, None)
         }.unwrap();
 
         let allocation = allocator.allocate_buffer_memory(buffer, &AllocationStrategy::AutoGpuCpu).unwrap();
 
         unsafe {
-            device.vk().bind_buffer_memory(buffer, allocation.memory(), allocation.offset())
+            vk.bind_buffer_memory(buffer, allocation.memory(), allocation.offset())
         }.unwrap();
 
         let buffer_memory = allocation.mapped_ptr().unwrap().cast();
@@ -247,9 +250,9 @@ impl PoolPage {
         }
     }
 
-    fn destroy(self, device: &DeviceContext, allocator: &Allocator) {
+    fn destroy(self, device: &DeviceFunctions, allocator: &Allocator) {
         unsafe {
-            device.vk().destroy_buffer(self.buffer.get_handle(), None);
+            device.vk.destroy_buffer(self.buffer.get_handle(), None);
         }
         allocator.free(self.allocation);
     }

@@ -11,8 +11,6 @@ pub mod vk;
 pub mod util;
 pub mod b4d;
 
-pub mod debug;
-
 mod glfw_surface;
 pub mod window;
 mod c_api;

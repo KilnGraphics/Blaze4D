@@ -1,10 +1,11 @@
 use std::ffi::c_void;
 use std::ptr::NonNull;
-use std::sync::Mutex;
+use std::sync::{Arc, Mutex};
 
 use ash::vk;
 use gpu_allocator::MemoryLocation;
 use gpu_allocator::vulkan::{AllocationCreateDesc, AllocatorCreateDesc};
+use crate::prelude::DeviceFunctions;
 
 #[derive(Debug)]
 pub enum AllocationError {
@@ -29,16 +30,16 @@ pub enum AllocationStrategy {
 ///
 /// Currently just uses the [`gpu_allocator::vulkan::Allocator`] struct.
 pub struct Allocator {
-    device: ash::Device,
+    device: Arc<DeviceFunctions>,
     allocator: Mutex<gpu_allocator::vulkan::Allocator>
 }
 
 impl Allocator {
-    pub fn new(instance: ash::Instance, device: ash::Device, physical_device: vk::PhysicalDevice) -> Self {
+    pub fn new(device: Arc<DeviceFunctions>) -> Self {
         let allocator = gpu_allocator::vulkan::Allocator::new(&AllocatorCreateDesc{
-            instance,
-            device: device.clone(),
-            physical_device,
+            instance: device.instance.vk().clone(),
+            device: device.vk.clone(),
+            physical_device: device.physical_device,
             debug_settings: Default::default(),
             buffer_device_address: false
         }).unwrap();
@@ -56,7 +57,7 @@ impl Allocator {
         };
 
         let requirements = unsafe {
-            self.device.get_buffer_memory_requirements(buffer)
+            self.device.vk.get_buffer_memory_requirements(buffer)
         };
 
         let alloc_desc = AllocationCreateDesc{
@@ -78,7 +79,7 @@ impl Allocator {
         };
 
         let requirements = unsafe {
-            self.device.get_image_memory_requirements(image)
+            self.device.vk.get_image_memory_requirements(image)
         };
 
         let alloc_desc = AllocationCreateDesc{

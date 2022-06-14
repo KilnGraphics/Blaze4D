@@ -9,12 +9,12 @@ use crate::vk::objects::allocator::Allocator;
 
 use crate::prelude::*;
 
-pub fn create_shader_from_bytes(device: &DeviceContext, code: &[u8]) -> VkResult<vk::ShaderModule> {
+pub fn create_shader_from_bytes(device: &DeviceFunctions, code: &[u8]) -> VkResult<vk::ShaderModule> {
     let info = vk::ShaderModuleCreateInfo::builder()
         .code(crate::util::slice::from_byte_slice(code));
 
     unsafe {
-        device.vk().create_shader_module(&info, None)
+        device.vk.create_shader_module(&info, None)
     }
 }
 
@@ -23,7 +23,7 @@ pub struct DeviceUtils {
 }
 
 impl DeviceUtils {
-    pub fn new(device: Arc<DeviceContext>, _: Arc<Allocator>) -> Arc<Self> {
+    pub fn new(device: Arc<DeviceFunctions>, _: Arc<Allocator>) -> Arc<Self> {
         Arc::new_cyclic(|weak| {
             Self {
                 blit_utils: BlitUtils::new(weak.clone(), device)
@@ -38,7 +38,7 @@ impl DeviceUtils {
 
 pub struct BlitUtils {
     utils: Weak<DeviceUtils>,
-    device: Arc<DeviceContext>,
+    device: Arc<DeviceFunctions>,
     vertex_shader: vk::ShaderModule,
     fragment_shader: vk::ShaderModule,
     sampler: vk::Sampler,
@@ -47,12 +47,12 @@ pub struct BlitUtils {
 }
 
 impl BlitUtils {
-    fn new(utils: Weak<DeviceUtils>, device: Arc<DeviceContext>) -> Self {
+    fn new(utils: Weak<DeviceUtils>, device: Arc<DeviceFunctions>) -> Self {
         let vertex_shader = create_shader_from_bytes(&device, FULL_SCREEN_QUAD_VERTEX_SHADER).unwrap();
         let fragment_shader = create_shader_from_bytes(&device, BLIT_FRAGMENT_SHADER).unwrap();
-        let sampler = Self::create_sampler(&*device);
-        let set_layout = Self::create_descriptor_set_layout(&*device, sampler);
-        let pipeline_layout = Self::create_pipeline_layout(&*device, set_layout);
+        let sampler = Self::create_sampler(&device);
+        let set_layout = Self::create_descriptor_set_layout(&device, sampler);
+        let pipeline_layout = Self::create_pipeline_layout(&device, set_layout);
 
         Self {
             utils,
@@ -99,7 +99,7 @@ impl BlitUtils {
             .subpasses(std::slice::from_ref(&subpass));
 
         unsafe {
-            self.device.vk().create_render_pass(&info, None)
+            self.device.vk.create_render_pass(&info, None)
         }.unwrap()
     }
 
@@ -173,13 +173,13 @@ impl BlitUtils {
             .render_pass(render_pass);
 
         let pipeline = * unsafe {
-            self.device.vk().create_graphics_pipelines(vk::PipelineCache::null(), std::slice::from_ref(&info), None)
+            self.device.vk.create_graphics_pipelines(vk::PipelineCache::null(), std::slice::from_ref(&info), None)
         }.unwrap().get(0).unwrap();
 
         pipeline
     }
 
-    fn create_sampler(device: &DeviceContext) -> vk::Sampler {
+    fn create_sampler(device: &DeviceFunctions) -> vk::Sampler {
         let info = vk::SamplerCreateInfo::builder()
             .mag_filter(vk::Filter::LINEAR)
             .min_filter(vk::Filter::LINEAR)
@@ -192,11 +192,11 @@ impl BlitUtils {
             .unnormalized_coordinates(false);
 
         unsafe {
-            device.vk().create_sampler(&info, None)
+            device.vk.create_sampler(&info, None)
         }.unwrap()
     }
 
-    fn create_descriptor_set_layout(device: &DeviceContext, sampler: vk::Sampler) -> vk::DescriptorSetLayout {
+    fn create_descriptor_set_layout(device: &DeviceFunctions, sampler: vk::Sampler) -> vk::DescriptorSetLayout {
         let binding = vk::DescriptorSetLayoutBinding::builder()
             .descriptor_type(vk::DescriptorType::COMBINED_IMAGE_SAMPLER)
             .descriptor_count(1)
@@ -207,16 +207,16 @@ impl BlitUtils {
             .bindings(std::slice::from_ref(&binding));
 
         unsafe {
-            device.vk().create_descriptor_set_layout(&info, None)
+            device.vk.create_descriptor_set_layout(&info, None)
         }.unwrap()
     }
 
-    fn create_pipeline_layout(device: &DeviceContext, set_layout: vk::DescriptorSetLayout) -> vk::PipelineLayout {
+    fn create_pipeline_layout(device: &DeviceFunctions, set_layout: vk::DescriptorSetLayout) -> vk::PipelineLayout {
         let info = vk::PipelineLayoutCreateInfo::builder()
             .set_layouts(std::slice::from_ref(&set_layout));
 
         unsafe {
-            device.vk().create_pipeline_layout(&info, None)
+            device.vk.create_pipeline_layout(&info, None)
         }.unwrap()
     }
 }
@@ -224,11 +224,11 @@ impl BlitUtils {
 impl Drop for BlitUtils {
     fn drop(&mut self) {
         unsafe {
-            self.device.vk().destroy_pipeline_layout(self.pipeline_layout, None);
-            self.device.vk().destroy_descriptor_set_layout(self.set_layout, None);
-            self.device.vk().destroy_sampler(self.sampler, None);
-            self.device.vk().destroy_shader_module(self.fragment_shader, None);
-            self.device.vk().destroy_shader_module(self.vertex_shader, None);
+            self.device.vk.destroy_pipeline_layout(self.pipeline_layout, None);
+            self.device.vk.destroy_descriptor_set_layout(self.set_layout, None);
+            self.device.vk.destroy_sampler(self.sampler, None);
+            self.device.vk.destroy_shader_module(self.fragment_shader, None);
+            self.device.vk.destroy_shader_module(self.vertex_shader, None);
         }
     }
 }
@@ -251,7 +251,7 @@ impl BlitPass {
             .set_layouts(layouts.as_ref());
 
         let sets = unsafe {
-            self.utils.blit_utils.device.vk().allocate_descriptor_sets(&info)
+            self.utils.blit_utils.device.vk.allocate_descriptor_sets(&info)
         }?;
 
         let image_writes: Box<[_]> = image_views.iter().map(|view| {
@@ -271,7 +271,7 @@ impl BlitPass {
         }).collect();
 
         unsafe {
-            self.utils.blit_utils.device.vk().update_descriptor_sets(writes.as_ref(), &[])
+            self.utils.blit_utils.device.vk.update_descriptor_sets(writes.as_ref(), &[])
         };
 
         // We had to build so we need to make sure lifetimes are guaranteed
@@ -293,7 +293,7 @@ impl BlitPass {
             .layers(1);
 
         unsafe {
-            self.utils.blit_utils.device.vk().create_framebuffer(&info, None)
+            self.utils.blit_utils.device.vk.create_framebuffer(&info, None)
         }
     }
 
@@ -331,14 +331,14 @@ impl BlitPass {
         };
 
         unsafe {
-            device.vk().cmd_set_viewport(command_buffer, 0, std::slice::from_ref(&viewport));
-            device.vk().cmd_set_scissor(command_buffer, 0, std::slice::from_ref(&scissor));
+            device.vk.cmd_set_viewport(command_buffer, 0, std::slice::from_ref(&viewport));
+            device.vk.cmd_set_scissor(command_buffer, 0, std::slice::from_ref(&scissor));
 
-            device.vk().cmd_begin_render_pass(command_buffer, &info, vk::SubpassContents::INLINE);
+            device.vk.cmd_begin_render_pass(command_buffer, &info, vk::SubpassContents::INLINE);
 
-            device.vk().cmd_bind_pipeline(command_buffer, vk::PipelineBindPoint::GRAPHICS, self.pipeline);
+            device.vk.cmd_bind_pipeline(command_buffer, vk::PipelineBindPoint::GRAPHICS, self.pipeline);
 
-            device.vk().cmd_bind_descriptor_sets(
+            device.vk.cmd_bind_descriptor_sets(
                 command_buffer,
                 vk::PipelineBindPoint::GRAPHICS,
                 self.utils.blit_utils.pipeline_layout,
@@ -347,13 +347,13 @@ impl BlitPass {
                 &[]
             );
 
-            device.vk().cmd_draw(command_buffer, 4, 1, 0, 0);
+            device.vk.cmd_draw(command_buffer, 4, 1, 0, 0);
 
-            device.vk().cmd_end_render_pass(command_buffer);
+            device.vk.cmd_end_render_pass(command_buffer);
         }
     }
 
-    pub fn get_device(&self) -> &Arc<DeviceContext> {
+    pub fn get_device(&self) -> &Arc<DeviceFunctions> {
         &self.utils.blit_utils.device
     }
 }
@@ -361,8 +361,8 @@ impl BlitPass {
 impl Drop for BlitPass {
     fn drop(&mut self) {
         unsafe {
-            self.utils.blit_utils.device.vk().destroy_pipeline(self.pipeline, None);
-            self.utils.blit_utils.device.vk().destroy_render_pass(self.render_pass, None);
+            self.utils.blit_utils.device.vk.destroy_pipeline(self.pipeline, None);
+            self.utils.blit_utils.device.vk.destroy_render_pass(self.render_pass, None);
         }
     }
 }

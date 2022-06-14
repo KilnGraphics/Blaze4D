@@ -1,8 +1,9 @@
 use std::ffi::CStr;
+use std::fmt::Debug;
 use std::panic::{RefUnwindSafe, UnwindSafe};
 use ash::vk;
 
-pub trait DebugMessengerCallback: Send + Sync + UnwindSafe + RefUnwindSafe {
+pub trait DebugMessengerCallback: Send + Sync + UnwindSafe + RefUnwindSafe + Debug {
     fn on_message(
         &self,
         message_severity: vk::DebugUtilsMessageSeverityFlagsEXT,
@@ -12,6 +13,7 @@ pub trait DebugMessengerCallback: Send + Sync + UnwindSafe + RefUnwindSafe {
     );
 }
 
+#[derive(Debug)]
 pub struct RustLogDebugMessenger {
 }
 

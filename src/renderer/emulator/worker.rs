@@ -27,7 +27,7 @@ use crate::renderer::emulator::mc_shaders::ShaderId;
 use crate::vk::objects::allocator::AllocationStrategy;
 
 pub struct Share {
-    pub(super) device: DeviceEnvironment,
+    pub(super) device: Arc<DeviceContext>,
     pub(super) global_objects: GlobalObjects,
     pub(super) descriptors: Mutex<DescriptorPool>,
     pub(super) pool: Arc<Mutex<BufferPool>>,
@@ -37,7 +37,7 @@ pub struct Share {
 }
 
 impl Share {
-    pub fn new(device: DeviceEnvironment, pool: Arc<Mutex<BufferPool>>) -> Self {
+    pub fn new(device: Arc<DeviceContext>, pool: Arc<Mutex<BufferPool>>) -> Self {
         let queue = device.get_device().get_main_queue();
         let queue_family = queue.get_queue_family_index();
 
@@ -129,7 +129,7 @@ pub(super) enum WorkerTask {
     PipelineTask(PipelineTask),
 }
 
-pub(super) fn run_worker(device: DeviceEnvironment, share: Arc<Share>) {
+pub(super) fn run_worker(device: Arc<DeviceContext>, share: Arc<Share>) {
     let queue = device.get_device().get_main_queue();
 
     let pool = Rc::new(RefCell::new(WorkerObjectPool::new(device.get_device().clone(), queue.get_queue_family_index())));
@@ -377,7 +377,7 @@ struct PassState {
 }
 
 impl PassState {
-    fn new(pipeline: Arc<dyn EmulatorPipeline>, mut pass: Box<dyn EmulatorPipelinePass>, device: &DeviceEnvironment, queue: &Queue, share: Arc<Share>, pool: Rc<RefCell<WorkerObjectPool>>) -> Self {
+    fn new(pipeline: Arc<dyn EmulatorPipeline>, mut pass: Box<dyn EmulatorPipelinePass>, device: &DeviceContext, queue: &Queue, share: Arc<Share>, pool: Rc<RefCell<WorkerObjectPool>>) -> Self {
         let mut object_pool = PooledObjectProvider::new(share, pool);
 
         let pre_cmd = object_pool.get_begin_command_buffer().unwrap();

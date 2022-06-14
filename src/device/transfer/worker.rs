@@ -19,7 +19,7 @@ pub(super) struct Share {
     /// Signaled when some new data is available for the worker.
     worker_condvar: Condvar,
 
-    device: Arc<DeviceContext>,
+    device: Arc<DeviceFunctions>,
     semaphore: Semaphore,
 }
 
@@ -29,7 +29,7 @@ impl UnwindSafe for Share {}
 impl RefUnwindSafe for Share {}
 
 impl Share {
-    pub(super) fn new(device: Arc<DeviceContext>, allocator: Arc<Allocator>) -> Self {
+    pub(super) fn new(device: Arc<DeviceFunctions>, allocator: Arc<Allocator>) -> Self {
         let mut type_info = vk::SemaphoreTypeCreateInfo::builder()
             .semaphore_type(vk::SemaphoreType::TIMELINE)
             .initial_value(0);
@@ -38,7 +38,7 @@ impl Share {
             .push_next(&mut type_info);
 
         let semaphore = unsafe {
-            device.vk().create_semaphore(&info, None)
+            device.vk.create_semaphore(&info, None)
         }.unwrap();
 
         Self {
@@ -150,7 +150,7 @@ impl Share {
             .values(std::slice::from_ref(&id));
 
         loop {
-            match unsafe { self.device.vk().wait_semaphores(&info, 1000000) } {
+            match unsafe { self.device.timeline_semaphore_khr.wait_semaphores(&info, 1000000) } {
                 Ok(_) => return,
                 Err(vk::Result::TIMEOUT) => {
                     log::warn!("1s timeout hit in Share::wait_for_complete");
@@ -232,7 +232,7 @@ enum NextTaskResult {
 impl Drop for Share {
     fn drop(&mut self) {
         unsafe {
-            self.device.vk().destroy_semaphore(self.semaphore.get_handle(), None);
+            self.device.vk.destroy_semaphore(self.semaphore.get_handle(), None);
         }
     }
 }
@@ -374,7 +374,8 @@ pub(super) fn run_worker(share: Arc<Share>, queue: Queue) {
                 recorder.flush_barriers();
 
                 unsafe {
-                    share.device.vk().cmd_copy_buffer2(recorder.get_command_buffer(), &info)
+                    // TODO how do we want to deal with copy commands 2?
+                    share.device.vk.cmd_copy_buffer2(recorder.get_command_buffer(), &info)
                 };
             }
 

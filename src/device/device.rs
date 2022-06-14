@@ -1,12 +1,10 @@
 use core::panic::{UnwindSafe, RefUnwindSafe};
 
 use std::cmp::Ordering;
-use std::sync::{Arc, Mutex, MutexGuard, Weak};
+use std::sync::{Arc, Mutex, MutexGuard};
 use ash::prelude::VkResult;
 
 use ash::vk;
-use crate::device::device_utils::DeviceUtils;
-use crate::device::transfer::Transfer;
 
 use crate::instance::instance::InstanceContext;
 use crate::vk::objects::allocator::Allocator;
@@ -16,7 +14,7 @@ use crate::prelude::*;
 pub struct DeviceFunctions {
     pub instance: Arc<InstanceContext>,
     pub physical_device: vk::PhysicalDevice,
-    pub device: ash::Device,
+    pub vk: ash::Device,
     pub synchronization_2_khr: ash::extensions::khr::Synchronization2,
     pub timeline_semaphore_khr: ash::extensions::khr::TimelineSemaphore,
     pub push_descriptor_khr: ash::extensions::khr::PushDescriptor,
@@ -27,7 +25,7 @@ pub struct DeviceFunctions {
 impl Drop for DeviceFunctions {
     fn drop(&mut self) {
         unsafe {
-            self.device.destroy_device(None);
+            self.vk.destroy_device(None);
         }
     }
 }
@@ -38,7 +36,7 @@ pub struct DeviceContext {
     main_queue: Arc<Queue>,
     async_compute_queue: Option<Arc<Queue>>,
     async_transfer_queue: Option<Arc<Queue>>,
-    allocator: Allocator,
+    allocator: Arc<Allocator>,
 }
 
 impl DeviceContext {
@@ -48,7 +46,7 @@ impl DeviceContext {
         async_compute_queue: Option<Arc<Queue>>,
         async_transfer_queue: Option<Arc<Queue>>,
     ) -> Arc<Self> {
-        let allocator = Allocator::new(functions.instance.vk().clone(), functions.device.clone(), functions.physical_device);
+        let allocator = Arc::new(Allocator::new(functions.clone()));
 
         Arc::new(Self {
             id: NamedUUID::with_str("Device"),
@@ -88,7 +86,7 @@ impl DeviceContext {
         self.async_transfer_queue.as_ref()
     }
 
-    pub fn get_allocator(&self) -> &Allocator {
+    pub fn get_allocator(&self) -> &Arc<Allocator> {
         &self.allocator
     }
 }
@@ -126,7 +124,7 @@ pub struct Queue {
 impl Queue {
     pub(super) fn new(functions: Arc<DeviceFunctions>, family: u32, index: u32) -> Self {
         let queue = unsafe {
-            functions.device.get_device_queue(family, index)
+            functions.vk.get_device_queue(family, index)
         };
 
         Self {
@@ -140,7 +138,7 @@ impl Queue {
         let fence = fence.unwrap_or(vk::Fence::null());
 
         let queue = self.queue.lock().unwrap();
-        self.functions.device.queue_submit(*queue, submits, fence)
+        self.functions.vk.queue_submit(*queue, submits, fence)
     }
 
     pub unsafe fn submit_2(&self, submits: &[vk::SubmitInfo2], fence: Option<vk::Fence>) -> VkResult<()> {
@@ -152,20 +150,20 @@ impl Queue {
 
     pub unsafe fn wait_idle(&self) -> VkResult<()> {
         let queue = self.queue.lock().unwrap();
-        self.functions.device.queue_wait_idle(*queue)
+        self.functions.vk.queue_wait_idle(*queue)
     }
 
     pub unsafe fn bind_sparse(&self, bindings: &[vk::BindSparseInfo], fence: Option<vk::Fence>) -> VkResult<()> {
         let fence = fence.unwrap_or(vk::Fence::null());
 
         let queue = self.queue.lock().unwrap();
-        self.functions.device.queue_bind_sparse(*queue, bindings, fence)
+        self.functions.vk.queue_bind_sparse(*queue, bindings, fence)
     }
 
     // TODO this also needs to lock the swapchain. How do we properly deal with this?
     pub unsafe fn present(&self, present_info: &vk::PresentInfoKHR) -> VkResult<bool> {
         let queue = self.queue.lock().unwrap();
-        self.device.swapchain_khr().unwrap().queue_present(*queue, present_info)
+        self.functions.swapchain_khr.unwrap().queue_present(*queue, present_info)
     }
 
     pub fn lock_queue(&self) -> MutexGuard<vk::Queue> {

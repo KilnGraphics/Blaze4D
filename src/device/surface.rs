@@ -40,19 +40,19 @@ impl DeviceSurface {
 
     pub fn get_surface_present_modes(&self) -> VkResult<Vec<vk::PresentModeKHR>> {
         unsafe {
-            self.device.instance.surface_khr().unwrap().get_physical_device_surface_present_modes(*self.device.get_physical_device(), self.surface)
+            self.device.instance.surface_khr().unwrap().get_physical_device_surface_present_modes(self.device.physical_device, self.surface)
         }
     }
 
     pub fn get_surface_capabilities(&self) -> VkResult<vk::SurfaceCapabilitiesKHR> {
         unsafe {
-            self.device.instance.surface_khr().unwrap().get_physical_device_surface_capabilities(*self.device.get_physical_device(), self.surface)
+            self.device.instance.surface_khr().unwrap().get_physical_device_surface_capabilities(self.device.physical_device, self.surface)
         }
     }
 
     pub fn get_surface_formats(&self) -> VkResult<Vec<vk::SurfaceFormatKHR>> {
         unsafe {
-            self.device.instance.surface_khr().unwrap().get_physical_device_surface_formats(*self.device.get_physical_device(), self.surface)
+            self.device.instance.surface_khr().unwrap().get_physical_device_surface_formats(self.device.physical_device, self.surface)
         }
     }
 
@@ -93,7 +93,7 @@ impl DeviceSurface {
     /// The surface and old_swapchain fields will be overwritten by this function. Any other fields
     /// or entries in the pNext chain will not be validated.
     pub fn create_swapchain_direct(&self, info: &mut vk::SwapchainCreateInfoKHR) -> VkResult<Arc<SurfaceSwapchain>> {
-        let swapchain_khr = self.device.swapchain_khr().unwrap();
+        let swapchain_khr = self.device.swapchain_khr.unwrap();
 
         info.surface = self.surface;
 
@@ -402,7 +402,7 @@ impl SurfaceSwapchain {
             Some(objects) => objects
         };
 
-        let swapchain_khr = self.surface.device.swapchain_khr().unwrap();
+        let swapchain_khr = self.surface.device.swapchain_khr.unwrap();
 
         let guard = self.swapchain.lock().unwrap();
         let (image_index, suboptimal) = unsafe {
@@ -451,7 +451,7 @@ impl Drop for SurfaceSwapchain {
         let mut guard = self.surface.current_swapchain.lock().unwrap();
 
         // We do this inside the guard to propagate potential panics
-        let swapchain_khr = self.surface.device.swapchain_khr().unwrap();
+        let swapchain_khr = self.surface.device.swapchain_khr.unwrap();
         let swapchain = self.swapchain.get_mut().unwrap();
 
         unsafe {

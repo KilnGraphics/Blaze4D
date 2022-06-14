@@ -1,18 +1,14 @@
-use std::collections::{HashMap, HashSet};
+use std::collections::HashSet;
 use std::ffi::{CStr, CString};
 use std::os::raw::c_char;
 use std::sync::Arc;
-use ash::prelude::VkResult;
 
 use ash::vk;
 use bumpalo::Bump;
 use vk_profiles_rs::{vp, VulkanProfiles};
 
 use crate::device::device::{DeviceFunctions, Queue};
-use crate::device::surface::DeviceSurface;
 use crate::instance::instance::{InstanceContext, VulkanVersion};
-use crate::objects::id::SurfaceId;
-use crate::vk::objects::surface::SurfaceProvider;
 
 use crate::prelude::*;
 
@@ -134,7 +130,7 @@ pub fn create_device(mut config: DeviceCreateConfig, instance: Arc<InstanceConte
     let functions = Arc::new(DeviceFunctions {
         instance,
         physical_device,
-        device,
+        vk: device,
         synchronization_2_khr,
         timeline_semaphore_khr,
         push_descriptor_khr,
@@ -167,7 +163,7 @@ fn filter_devices<'a>(
 ) -> Result<(DeviceConfigInfo, vk::DeviceCreateInfoBuilder<'a>, vk::PhysicalDevice), DeviceCreateError> {
     let profile = instance.get_profile();
 
-    let mut best_device = None;
+    let mut best_device: Option<(DeviceConfigInfo, vk::DeviceCreateInfoBuilder, vk::PhysicalDevice)> = None;
     for device in devices {
         if let Some(mut configurator) = DeviceConfigurator::new(
             instance,
@@ -207,7 +203,7 @@ struct DeviceConfigurator<'a, 'b> {
 }
 
 impl<'a, 'b> DeviceConfigurator<'a, 'b> {
-    fn new(instance: &InstanceContext, vk_vp: &VulkanProfiles, config: &DeviceCreateConfig, profile: &vp::ProfileProperties, physical_device: vk::PhysicalDevice, alloc: &Bump) -> Result<Option<Self>, DeviceCreateError> {
+    fn new(instance: &'a InstanceContext, vk_vp: &VulkanProfiles, config: &'a DeviceCreateConfig, profile: &vp::ProfileProperties, physical_device: vk::PhysicalDevice, alloc: &'b Bump) -> Result<Option<Self>, DeviceCreateError> {
         let properties = unsafe {
             instance.vk().get_physical_device_properties(physical_device)
         };
@@ -238,7 +234,7 @@ impl<'a, 'b> DeviceConfigurator<'a, 'b> {
             instance.vk().get_physical_device_queue_family_properties(physical_device)
         }.len();
 
-        let mut queue_family_surface_support = std::iter::repeat(true).take(queue_family_count).collect();
+        let mut queue_family_surface_support: Box<[bool]> = std::iter::repeat(true).take(queue_family_count).collect();
         for surface in &config.used_surfaces {
             let surface_khr = instance.surface_khr().unwrap();
             for (index, support) in queue_family_surface_support.iter_mut().enumerate() {
@@ -248,7 +244,7 @@ impl<'a, 'b> DeviceConfigurator<'a, 'b> {
             }
         }
 
-        if !queue_family_surface_support.iter().any(|b| b) {
+        if !queue_family_surface_support.iter().any(|b| *b) {
             log::info!("Physical device {:?} does not contain queue family which supports all surfaces", device_name);
             return Ok(None);
         }
@@ -299,7 +295,7 @@ impl<'a, 'b> DeviceConfigurator<'a, 'b> {
         }
 
         families.sort_by(|(a, _), (b, _)| a.cmp(b));
-        families.into_iter().map(|(_, family)| *family).collect()
+        families.into_iter().map(|(_, family)| family).collect()
     }
 
     /// Checks if the extension is supported and if so adds it to the list of used extensions.
@@ -417,7 +413,7 @@ fn configure_device(device: &mut DeviceConfigurator) -> Result<Option<DeviceConf
     }
 
     // Calculate queue family assignments
-    let main_families = device.filter_sort_queues(|(family, properties, surface_support)| {
+    let main_families = device.filter_sort_queues(|family, properties, surface_support| {
         Some(family)
     });
     let main_queue_family;

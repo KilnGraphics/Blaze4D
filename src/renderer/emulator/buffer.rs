@@ -2,6 +2,7 @@
 //!
 //! **TODO THIS ENTIRE MODULE IS TEMPORARY AND IS IN DIRE NEED OF A REWRITE**
 
+use std::sync::Arc;
 use ash::vk;
 
 use crate::objects::id::BufferId;
@@ -15,11 +16,11 @@ use crate::prelude::*;
 pub struct BufferPool {
     buffers: Vec<PoolBuffer>,
 
-    device: DeviceEnvironment,
+    device: Arc<DeviceFunctions>,
 }
 
 impl BufferPool {
-    pub fn new(device: DeviceEnvironment) -> Self {
+    pub fn new(device: Arc<DeviceFunctions>) -> Self {
         Self {
             buffers: Vec::with_capacity(16),
             device,
@@ -118,7 +119,8 @@ impl PoolBuffer {
         }
     }
 
-    fn ensure_init(&mut self, device: &DeviceEnvironment) -> Buffer {
+    fn ensure_init(&mut self, device: &DeviceFunctions) -> Buffer {
+        let vk = &device.vk;
         if let Some((buffer, _)) = &self.buffer {
             *buffer
         } else {
@@ -128,13 +130,13 @@ impl PoolBuffer {
                 .sharing_mode(vk::SharingMode::EXCLUSIVE);
 
             let handle = unsafe {
-                device.vk().create_buffer(&info, None)
+                vk.create_buffer(&info, None)
             }.unwrap();
 
             let allocation = device.get_allocator().allocate_buffer_memory(handle, &AllocationStrategy::AutoGpuOnly).unwrap();
 
             unsafe {
-                device.vk().bind_buffer_memory(handle, allocation.memory(), allocation.offset())
+                vk.bind_buffer_memory(handle, allocation.memory(), allocation.offset())
             }.unwrap();
 
             let buffer = Buffer::new(handle);
@@ -162,12 +164,13 @@ impl PoolBuffer {
         }
     }
 
-    fn try_destroy(&mut self, device: &DeviceEnvironment) -> bool {
+    fn try_destroy(&mut self, device: &DeviceFunctions) -> bool {
+        let vk = &device.vk;
         if let BufferState::Available(wait_op) = &self.state {
             if let Some(wait_op) = wait_op {
                 if let Some(value) = wait_op.value {
                     let semaphore_value = unsafe {
-                        device.vk().get_semaphore_counter_value(wait_op.semaphore.get_handle())
+                        device.timeline_semaphore_khr.get_semaphore_counter_value(wait_op.semaphore.get_handle())
                     }.unwrap();
                     if semaphore_value < value {
                         return false;
@@ -179,7 +182,7 @@ impl PoolBuffer {
 
             if let Some((buffer, allocation)) = self.buffer.take() {
                 unsafe {
-                    device.vk().destroy_buffer(buffer.get_handle(), None)
+                    vk.destroy_buffer(buffer.get_handle(), None)
                 };
 
                 device.get_allocator().free(allocation);

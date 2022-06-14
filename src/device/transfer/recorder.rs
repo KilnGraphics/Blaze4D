@@ -6,10 +6,10 @@ use crate::device::device::Queue;
 use crate::device::transfer::allocator::PoolAllocationId;
 use crate::objects::sync::{SemaphoreOp, SemaphoreOps};
 
-use crate::prelude::DeviceContext;
+use crate::prelude::*;
 
 pub(super) struct Recorder {
-    device: Arc<DeviceContext>,
+    device: Arc<DeviceFunctions>,
     queue: Queue,
 
     command_pool: CommandBufferPool,
@@ -28,7 +28,7 @@ pub(super) struct Recorder {
 }
 
 impl Recorder {
-    pub(super) fn new(device: Arc<DeviceContext>, queue: Queue) -> Self {
+    pub(super) fn new(device: Arc<DeviceFunctions>, queue: Queue) -> Self {
         let command_pool = CommandBufferPool::new(device.clone(), queue.get_queue_family_index());
 
         Self {
@@ -49,7 +49,7 @@ impl Recorder {
     /// Processes the list of old submitted tasks freeing their resources once safe to do so.
     pub(super) fn process_submitted(&mut self, semaphore: vk::Semaphore) -> Vec<PoolAllocationId> {
         let value = unsafe {
-            self.device.vk().get_semaphore_counter_value(semaphore)
+            self.device.timeline_semaphore_khr.get_semaphore_counter_value(semaphore)
         }.unwrap_or_else(|err| {
             log::error!("vkGetSemaphoreCounterValue returned {:?} in Recorder::process_submitted", err);
             panic!()
@@ -85,7 +85,7 @@ impl Recorder {
                 .flags(vk::CommandBufferUsageFlags::ONE_TIME_SUBMIT);
 
             unsafe {
-                self.device.vk().begin_command_buffer(cmd, &info)
+                self.device.vk.begin_command_buffer(cmd, &info)
             }.unwrap_or_else(|err| {
                 log::error!("vkBeginCommandBuffer returned {:?} in Recorder::get_command_buffer!", err);
                 panic!()
@@ -127,7 +127,7 @@ impl Recorder {
                 .image_memory_barriers(self.pending_image_barriers.as_slice());
 
             unsafe {
-                self.device.vk().cmd_pipeline_barrier2(cmd, &info)
+                self.device.synchronization_2_khr.cmd_pipeline_barrier2(cmd, &info)
             };
 
             self.pending_buffer_barriers.clear();
@@ -140,7 +140,7 @@ impl Recorder {
 
         if let Some(cmd) = self.cmd.take() {
             unsafe {
-                self.device.vk().end_command_buffer(cmd)
+                self.device.vk.end_command_buffer(cmd)
             }.unwrap_or_else(|err| {
                 log::error!("vkEndCommandBuffer returned {:?} in Recorder::submit", err);
                 panic!()
@@ -240,19 +240,19 @@ impl SubmitArtifact {
 }
 
 struct CommandBufferPool {
-    device: Arc<DeviceContext>,
+    device: Arc<DeviceFunctions>,
     pool: vk::CommandPool,
     buffers: Vec<vk::CommandBuffer>,
 }
 
 impl CommandBufferPool {
-    fn new(device: Arc<DeviceContext>, queue: u32) -> Self {
+    fn new(device: Arc<DeviceFunctions>, queue: u32) -> Self {
         let info = vk::CommandPoolCreateInfo::builder()
             .flags(vk::CommandPoolCreateFlags::RESET_COMMAND_BUFFER | vk::CommandPoolCreateFlags::TRANSIENT)
             .queue_family_index(queue);
 
         let pool = unsafe {
-            device.vk().create_command_pool(&info, None)
+            device.vk.create_command_pool(&info, None)
         }.unwrap();
 
         Self {
@@ -283,7 +283,7 @@ impl CommandBufferPool {
             .level(vk::CommandBufferLevel::PRIMARY);
 
         let buffers = unsafe {
-            self.device.vk().allocate_command_buffers(&info)
+            self.device.vk.allocate_command_buffers(&info)
         }.unwrap_or_else(|err| {
             log::error!("vkAllocateCommandBuffers returned {:?} in CommandBufferPool::allocate_buffers", err);
             panic!()
@@ -296,7 +296,7 @@ impl CommandBufferPool {
 impl Drop for CommandBufferPool {
     fn drop(&mut self) {
         unsafe {
-            self.device.vk().destroy_command_pool(self.pool, None);
+            self.device.vk.destroy_command_pool(self.pool, None);
         }
     }
 }

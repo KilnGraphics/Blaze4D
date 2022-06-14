@@ -1,19 +1,18 @@
 use std::collections::HashSet;
 use std::ffi::{c_void, CStr, CString};
-use std::fmt::Debug;
+use std::fmt::{Debug, Formatter};
 use std::str::Utf8Error;
 use std::sync::Arc;
 
 use ash::vk;
 
 use vk_profiles_rs::vp;
-use winit::event::VirtualKeyCode::V;
-use crate::{B4D_CORE_VERSION_MAJOR, B4D_CORE_VERSION_MINOR, B4D_CORE_VERSION_PATCH};
 
-use crate::instance::instance::{VulkanVersion, InstanceContext};
-use crate::vk::objects::surface::{SurfaceInitError, SurfaceProvider};
+use crate::{B4D_CORE_VERSION_MAJOR, B4D_CORE_VERSION_MINOR, B4D_CORE_VERSION_PATCH};
 use crate::instance::debug_messenger::DebugMessengerCallback;
-use crate::objects::id::SurfaceId;
+use crate::instance::instance::VulkanVersion;
+
+use crate::prelude::*;
 
 #[derive(Debug)]
 pub struct InstanceCreateConfig {
@@ -60,7 +59,6 @@ pub enum InstanceCreateError {
     ProfileNotSupported,
     MissingExtension(CString),
     Utf8Error(Utf8Error),
-    SurfaceInitError(SurfaceInitError),
 }
 
 impl From<vk::Result> for InstanceCreateError {
@@ -132,7 +130,7 @@ pub fn create_instance(config: InstanceCreateConfig) -> Result<Arc<InstanceConte
         .application_version(config.application_version)
         .engine_name(CStr::from_bytes_with_nul(b"Blaze4D-Core\0").unwrap())
         .engine_version(vk::make_api_version(0, B4D_CORE_VERSION_MAJOR, B4D_CORE_VERSION_MINOR, B4D_CORE_VERSION_PATCH))
-        .api_version(config.api_version.into());
+        .api_version(VulkanVersion::VK_1_1.into());
 
     let mut instance_create_info = vk::InstanceCreateInfo::builder()
         .application_info(&application_info)
@@ -153,7 +151,7 @@ pub fn create_instance(config: InstanceCreateConfig) -> Result<Arc<InstanceConte
     }
 
     let vp_instance_create_info = vp::InstanceCreateInfo::builder()
-        .profile(&config.profile)
+        .profile(&profile)
         .create_info(&instance_create_info)
         .flags(vp::InstanceCreateFlagBits::MERGE_EXTENSIONS);
 
@@ -177,6 +175,12 @@ pub fn create_instance(config: InstanceCreateConfig) -> Result<Arc<InstanceConte
 
 pub struct DebugUtilsMessengerWrapper {
     callback: Box<dyn DebugMessengerCallback>
+}
+
+impl Debug for DebugUtilsMessengerWrapper {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        self.callback.fmt(f)
+    }
 }
 
 extern "system" fn debug_utils_messenger_callback_wrapper(
