@@ -18,7 +18,7 @@ pub fn make_headless_instance() -> Arc<InstanceContext> {
     config.enable_validation();
 
     // The LunarG desktop profile requires the swapchain extension which in turn requires the surface extensions
-    config.require_surface();
+    config.require_surface_khr();
 
     create_instance(config).unwrap()
 }

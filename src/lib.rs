@@ -18,6 +18,9 @@ pub mod window;
 mod c_api;
 mod c_log;
 
+pub const B4D_CORE_VERSION_MAJOR: u32 = 0;
+pub const B4D_CORE_VERSION_MINOR: u32 = 1;
+pub const B4D_CORE_VERSION_PATCH: u32 = 0;
 
 pub mod prelude {
     pub use crate::util::id::UUID;

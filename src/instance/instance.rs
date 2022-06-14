@@ -32,8 +32,16 @@ impl VulkanVersion {
         Self(vk::make_api_version(variant, major, minor, patch))
     }
 
-    pub fn is_supported(&self, version: VulkanVersion) -> bool {
-        vk::api_version_major(self.0) >= vk::api_version_major(version.0)
+    pub const fn get_major(&self) -> u32 {
+        vk::api_version_major(self.0)
+    }
+
+    pub const fn get_minor(&self) -> u32 {
+        vk::api_version_minor(self.0)
+    }
+
+    pub const fn get_patch(&self) -> u32 {
+        vk::api_version_patch(self.0)
     }
 }
 
@@ -59,8 +67,7 @@ pub struct InstanceContext {
     entry: ash::Entry,
     instance: ash::Instance,
     surface_khr: Option<ash::extensions::khr::Surface>,
-    surfaces: ManuallyDrop<Mutex<HashMap<SurfaceId, Box<dyn SurfaceProvider>>>>,
-    _debug_messengers: ManuallyDrop<Box<[DebugUtilsMessengerWrapper]>>,
+    _debug_messengers: Box<[DebugUtilsMessengerWrapper]>,
 }
 
 impl InstanceContext {
@@ -70,8 +77,6 @@ impl InstanceContext {
         entry: ash::Entry,
         instance: ash::Instance,
         surface_khr: Option<ash::extensions::khr::Surface>,
-
-        surfaces: HashMap<SurfaceId, Box<dyn SurfaceProvider>>,
         debug_messengers: Box<[DebugUtilsMessengerWrapper]>
     ) -> Arc<Self> {
         Arc::new(Self {
@@ -81,8 +86,7 @@ impl InstanceContext {
             entry,
             instance,
             surface_khr,
-            surfaces: ManuallyDrop::new(Mutex::new(surfaces)),
-            _debug_messengers: ManuallyDrop::new(debug_messengers),
+            _debug_messengers: debug_messengers,
         })
     }
 
@@ -109,33 +113,12 @@ impl InstanceContext {
     pub fn get_profile(&self) -> &vp::ProfileProperties {
         &self.profile
     }
-
-    pub fn add_surface(&self, mut surface: Box<dyn SurfaceProvider>) -> Result<SurfaceId, SurfaceInitError> {
-        surface.init(&self.entry, &self.instance)?;
-        let id = SurfaceId::new();
-
-        let mut guard = self.surfaces.lock().unwrap();
-        if guard.insert(id, surface).is_some() {
-            panic!("UUID collision");
-        }
-
-        Ok(id)
-    }
-
-    pub(crate) fn take_surface(&self, surface: SurfaceId) -> Option<Box<dyn SurfaceProvider>> {
-        let mut surfaces = self.surfaces.lock().unwrap();
-        surfaces.remove(&surface)
-    }
 }
 
 impl Drop for InstanceContext {
     fn drop(&mut self) {
         unsafe {
-            ManuallyDrop::drop(&mut self.surfaces);
-
             self.instance.destroy_instance(None);
-
-            ManuallyDrop::drop(&mut self._debug_messengers);
         }
     }
 }

@@ -1,45 +1,40 @@
 use std::collections::HashSet;
 use std::ffi::{c_void, CStr, CString};
+use std::fmt::Debug;
 use std::str::Utf8Error;
 use std::sync::Arc;
+
 use ash::vk;
+
 use vk_profiles_rs::vp;
+use winit::event::VirtualKeyCode::V;
+use crate::{B4D_CORE_VERSION_MAJOR, B4D_CORE_VERSION_MINOR, B4D_CORE_VERSION_PATCH};
+
 use crate::instance::instance::{VulkanVersion, InstanceContext};
 use crate::vk::objects::surface::{SurfaceInitError, SurfaceProvider};
 use crate::instance::debug_messenger::DebugMessengerCallback;
 use crate::objects::id::SurfaceId;
 
+#[derive(Debug)]
 pub struct InstanceCreateConfig {
-    profile: vp::ProfileProperties,
-    api_version: VulkanVersion,
     application_name: CString,
     application_version: u32,
-    surfaces: Vec<(SurfaceId, Box<dyn SurfaceProvider>)>,
     debug_messengers: Vec<DebugUtilsMessengerWrapper>,
     enable_validation: bool,
-    require_surface: bool,
+    required_extensions: HashSet<CString>,
+    require_surface_khr: bool,
 }
 
 impl InstanceCreateConfig {
-    pub fn new(profile: vp::ProfileProperties, api_version: VulkanVersion, application_name: CString, application_version: u32) -> Self {
+    pub fn new(application_name: CString, application_version: u32) -> Self {
         Self {
-            profile,
-            api_version,
             application_name,
             application_version,
-            surfaces: Vec::new(),
             debug_messengers: Vec::new(),
             enable_validation: false,
-            require_surface: false,
+            required_extensions: HashSet::new(),
+            require_surface_khr: false,
         }
-    }
-
-    pub fn add_surface_provider(&mut self, surface: Box<dyn SurfaceProvider>) -> SurfaceId {
-        let id = SurfaceId::new();
-
-        self.surfaces.push((id, surface));
-
-        id
     }
 
     pub fn add_debug_messenger(&mut self, messenger: Box<dyn DebugMessengerCallback>) {
@@ -50,8 +45,12 @@ impl InstanceCreateConfig {
         self.enable_validation = true;
     }
 
-    pub fn require_surface(&mut self) {
-        self.require_surface = true;
+    pub fn add_required_extension(&mut self, extension: &CStr) {
+        self.required_extensions.insert(CString::from(extension));
+    }
+
+    pub fn require_surface_khr(&mut self) {
+        self.require_surface_khr = true;
     }
 }
 
@@ -77,18 +76,28 @@ impl From<Utf8Error> for InstanceCreateError {
 }
 
 pub fn create_instance(config: InstanceCreateConfig) -> Result<Arc<InstanceContext>, InstanceCreateError> {
+    log::info!("Creating vulkan instance with config: {:?}", config);
+
+    let profile = vp::LunargDesktopPortability2021::profile_properties();
+
     let entry = ash::Entry::linked();
     let vp_fn = vk_profiles_rs::VulkanProfiles::linked();
 
-    if !unsafe { vp_fn.get_instance_profile_support(None, &config.profile)? } {
+    let vulkan_version;
+    if let Some(version) = entry.try_enumerate_instance_version()? {
+        vulkan_version = VulkanVersion::from_raw(version);
+    } else {
+        vulkan_version = VulkanVersion::VK_1_0;
+    }
+    log::info!("Vulkan instance version: {:?}", vulkan_version);
+
+    log::info!("Using profile {:?} for instance creation", unsafe { CStr::from_ptr(profile.profile_name.as_ptr()) });
+    if !unsafe { vp_fn.get_instance_profile_support(None, &profile)? } {
         return Err(InstanceCreateError::ProfileNotSupported)
     }
 
-    let mut required_extensions = HashSet::new();
-    for (_, surface) in &config.surfaces {
-        required_extensions.extend(surface.get_required_instance_extensions());
-    }
-    if config.require_surface {
+    let mut required_extensions = config.required_extensions;
+    if config.require_surface_khr {
         required_extensions.insert(CString::from(CStr::from_bytes_with_nul(b"VK_KHR_surface\0").unwrap()));
     }
 
@@ -111,24 +120,18 @@ pub fn create_instance(config: InstanceCreateConfig) -> Result<Arc<InstanceConte
     }
 
     let required_layers = if config.enable_validation {
+        log::info!("Validation layers enabled");
         vec![CStr::from_bytes_with_nul(b"VK_LAYER_KHRONOS_validation\0").unwrap().as_ptr()]
     } else {
+        log::info!("Validation layers disabled");
         Vec::new()
     };
-
-    log::error!("Creating vulkan instance for {:?} version {:?}.{:?}.{:?}\n    Requested vulkan version: {:?}",
-        config.application_name,
-        vk::api_version_major(config.application_version),
-        vk::api_version_minor(config.application_version),
-        vk::api_version_patch(config.application_version),
-        config.api_version
-    );
 
     let application_info = vk::ApplicationInfo::builder()
         .application_name(config.application_name.as_c_str())
         .application_version(config.application_version)
-        .engine_name(CStr::from_bytes_with_nul(b"Blaze4D\0").unwrap())
-        .engine_version(vk::make_api_version(0, 0, 1, 0))
+        .engine_name(CStr::from_bytes_with_nul(b"Blaze4D-Core\0").unwrap())
+        .engine_version(vk::make_api_version(0, B4D_CORE_VERSION_MAJOR, B4D_CORE_VERSION_MINOR, B4D_CORE_VERSION_PATCH))
         .api_version(config.api_version.into());
 
     let mut instance_create_info = vk::InstanceCreateInfo::builder()
@@ -162,30 +165,14 @@ pub fn create_instance(config: InstanceCreateConfig) -> Result<Arc<InstanceConte
         None
     };
 
-    let mut surfaces = config.surfaces;
-    if let Err(error) = init_surfaces(&entry, &instance, &mut surfaces) {
-        // Destroy initialized surfaces first then destroy the instance
-        drop(surfaces);
-        unsafe { instance.destroy_instance(None) };
-        return Err(InstanceCreateError::SurfaceInitError(error));
-    }
-
     Ok(InstanceContext::new(
-        config.api_version,
-        config.profile,
+        vulkan_version,
+        profile,
         entry,
         instance,
         surface_khr,
-        surfaces.into_iter().collect(),
         debug_messengers
     ))
-}
-
-fn init_surfaces(entry: &ash::Entry, instance: &ash::Instance, surfaces: &mut Vec<(SurfaceId, Box<dyn SurfaceProvider>)>) -> Result<(), SurfaceInitError> {
-    for (_, surface) in surfaces.iter_mut() {
-        surface.init(entry, instance)?;
-    }
-    Ok(())
 }
 
 pub struct DebugUtilsMessengerWrapper {
@@ -226,13 +213,10 @@ mod tests {
     #[test]
     fn basic_init() {
         let config = InstanceCreateConfig::new(
-            vp::LunargDesktopPortability2021::profile_properties(),
-            VulkanVersion::VK_1_1,
             CString::from(CStr::from_bytes_with_nul(b"B4DCoreTest\0").unwrap()),
             1,
         );
 
         let instance = create_instance(config).unwrap();
-        assert_eq!(instance.get_profile().profile_name, vp::LunargDesktopPortability2021::profile_properties().profile_name);
     }
 }
