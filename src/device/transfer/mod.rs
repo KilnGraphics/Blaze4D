@@ -848,7 +848,7 @@ mod tests {
     use crate::vk::test::make_headless_instance_device;
     use super::*;
 
-    fn create_test_buffer(device: &DeviceEnvironment, size: usize) -> Buffer {
+    fn create_test_buffer(device: &DeviceContext, size: usize) -> Buffer {
         let info = vk::BufferCreateInfo::builder()
             .size(size as vk::DeviceSize)
             .usage(vk::BufferUsageFlags::TRANSFER_SRC | vk::BufferUsageFlags::TRANSFER_DST)

@@ -16,6 +16,7 @@ mod buffer;
 mod worker;
 mod global_objects;
 mod pass;
+mod memory;
 
 pub mod pipeline;
 pub mod debug_pipeline;
