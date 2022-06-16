@@ -6,6 +6,7 @@ pub struct RingAllocator {
     size: vk::DeviceSize,
     head: vk::DeviceSize,
     tail: vk::DeviceSize,
+    used_bytes: vk::DeviceSize,
     alloc_list_head: Option<u16>,
     alloc_list_tail: Option<u16>,
     free_list: Option<u16>,
@@ -20,6 +21,7 @@ impl RingAllocator {
             size,
             head: 0,
             tail: 0,
+            used_bytes: 0,
             alloc_list_head: None,
             alloc_list_tail: None,
             free_list: Some(0),
@@ -32,33 +34,18 @@ impl RingAllocator {
     }
 
     pub fn free_byte_count(&self) -> vk::DeviceSize {
-        if self.alloc_list_head.is_none() {
-            self.size
-        } else {
-            if self.head <= self.tail {
-                self.tail - self.head
-            } else {
-                self.size - (self.head - self.tail)
-            }
-        }
+        self.size - self.used_bytes
     }
 
     pub fn used_byte_count(&self) -> vk::DeviceSize {
-        if self.alloc_list_head.is_none() {
-            0
-        } else {
-            if self.head <= self.tail {
-                self.size - self.tail + self.head
-            } else {
-                self.head - self.tail
-            }
-        }
+        self.used_bytes
     }
 
     pub fn allocate(&mut self, size: u64, alignment: u64) -> Option<(vk::DeviceSize, u16)> {
         assert_ne!(alignment, 0u64);
         let next = Self::next_aligned(self.head, alignment);
 
+        let extra_used;
         let base;
         let end;
         if next + size > self.size {
@@ -66,16 +53,19 @@ impl RingAllocator {
                 return None; // Out of memory
             }
 
+            extra_used = (self.size - self.head) + size;
             base = 0;
             end = size;
         } else {
             base = next;
             end = next + size;
+            extra_used = end - self.head;
         }
 
         if let Some(slot) = self.push_slot(end) {
             // Allocation successful. We only update state now to deal with potential errors
             self.head = end;
+            self.used_bytes += extra_used;
 
             Some((base, slot))
         } else {
@@ -108,6 +98,15 @@ impl RingAllocator {
                     self.alloc_list_head = None;
                     break;
                 }
+            }
+
+            if max_end == self.tail {
+                self.used_bytes = 0;
+            } else if max_end < self.tail {
+                let released = (self.size - self.tail) + max_end;
+                self.used_bytes -= released;
+            } else {
+                self.used_bytes -= (max_end - self.tail);
             }
 
             self.tail = max_end;
