@@ -27,7 +27,36 @@ impl RingAllocator {
         }
     }
 
+    pub fn is_empty(&self) -> bool {
+        self.alloc_list_head.is_none()
+    }
+
+    pub fn free_byte_count(&self) -> vk::DeviceSize {
+        if self.alloc_list_head.is_none() {
+            self.size
+        } else {
+            if self.head <= self.tail {
+                self.tail - self.head
+            } else {
+                self.size - (self.head - self.tail)
+            }
+        }
+    }
+
+    pub fn used_byte_count(&self) -> vk::DeviceSize {
+        if self.alloc_list_head.is_none() {
+            0
+        } else {
+            if self.head <= self.tail {
+                self.size - self.tail + self.head
+            } else {
+                self.head - self.tail
+            }
+        }
+    }
+
     pub fn allocate(&mut self, size: u64, alignment: u64) -> Option<(vk::DeviceSize, u16)> {
+        assert_ne!(alignment, 0u64);
         let next = Self::next_aligned(self.head, alignment);
 
         let base;
@@ -70,7 +99,7 @@ impl RingAllocator {
 
                 // Insert the slot into the free list
                 slot.set_next_slot(self.free_list);
-                self.free_list = Some(id as u16);
+                self.free_list = Some(current as u16);
 
                 if let Some(next_slot) = next_slot {
                     current = next_slot as usize;
@@ -93,6 +122,9 @@ impl RingAllocator {
 
         if let Some(head) = self.alloc_list_head {
             self.slots[head as usize].set_next_slot(Some(next_slot));
+        } else {
+            // If we have no head we also have no tail
+            self.alloc_list_tail = Some(next_slot);
         }
 
         let slot = &mut self.slots[next_slot as usize];
@@ -225,6 +257,7 @@ const_assert_eq!(((RingAllocatorSlot::MAX_SLOT_INDEX as u64) << RingAllocatorSlo
 
 #[cfg(test)]
 mod tests {
+    use rand::prelude::SliceRandom;
     use super::*;
 
     #[test]
@@ -392,5 +425,48 @@ mod tests {
         assert_eq!(slot.get_end_offset(), RingAllocatorSlot::MAX_END_OFFSET);
         assert_eq!(slot.is_free(), false);
         assert_eq!(slot.get_next_slot(), Some(RingAllocatorSlot::MAX_SLOT_INDEX as u16));
+    }
+
+    #[test]
+    fn test_alloc_free() {
+        let mut allocator = RingAllocator::new(1024);
+        assert_eq!(allocator.used_byte_count(), 0);
+        assert_eq!(allocator.free_byte_count(), 1024);
+        assert_eq!(allocator.is_empty(), true);
+
+        let alloc = allocator.allocate(128, 1).unwrap();
+        assert_eq!(alloc.0, 0);
+        assert_eq!(allocator.used_byte_count(), 128);
+        assert_eq!(allocator.free_byte_count(), 1024 - 128);
+        assert_eq!(allocator.is_empty(), false);
+
+        allocator.free(alloc.1);
+        assert_eq!(allocator.used_byte_count(), 0);
+        assert_eq!(allocator.free_byte_count(), 1024);
+        assert_eq!(allocator.is_empty(), true);
+
+        let mut allocs = Vec::with_capacity(16);
+        for _ in 0..1024 {
+            for i in 0..16u64 {
+                let (_, alloc) = allocator.allocate(16, 1).unwrap();
+                allocs.push(alloc);
+
+                let used_size = (i + 1) * 16;
+                assert_eq!(allocator.used_byte_count(), used_size);
+                assert_eq!(allocator.free_byte_count(), 1024 - used_size);
+                assert_eq!(allocator.is_empty(), false);
+            }
+
+            allocs.as_mut_slice().shuffle(&mut rand::thread_rng());
+            for alloc in allocs.iter() {
+                assert_eq!(allocator.is_empty(), false);
+                allocator.free(*alloc);
+            }
+            allocs.clear();
+
+            assert_eq!(allocator.used_byte_count(), 0);
+            assert_eq!(allocator.free_byte_count(), 1024);
+            assert_eq!(allocator.is_empty(), true);
+        }
     }
 }
