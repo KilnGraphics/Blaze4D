@@ -9,7 +9,7 @@ jobs:
     strategy:
       matrix:
         java:
-          - 17
+          - 18
         os:
           - ubuntu-20.04
           - windows-latest
