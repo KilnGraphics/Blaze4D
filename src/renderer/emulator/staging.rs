@@ -66,7 +66,7 @@ impl StagingMemoryPool {
         }
         usage_sum += additional_size;
 
-        let new_size = (usage_sum * (u8::MAX as u64)) / (self.over_allocation as u64);
+        let new_size = usage_sum + ((usage_sum * (self.over_allocation as u64)) / (u8::MAX as u64));
         let new_size = std::cmp::max(new_size, Self::MIN_BUFFER_SIZE);
 
         // Yes this is slow but it shouldn't matter since we never have many buffers

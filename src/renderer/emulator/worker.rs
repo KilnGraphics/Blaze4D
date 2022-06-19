@@ -15,7 +15,7 @@ use crate::device::device::Queue;
 use crate::device::transfer::{SyncId, Transfer};
 
 use crate::renderer::emulator::pass::PassId;
-use crate::renderer::emulator::buffer::BufferPool;
+use crate::renderer::emulator::immediate::BufferPool;
 use crate::renderer::emulator::pipeline::{EmulatorOutput, EmulatorPipeline, EmulatorPipelinePass, PipelineTask};
 use crate::vk::objects::buffer::Buffer;
 
@@ -24,99 +24,8 @@ use crate::renderer::emulator::descriptors::DescriptorPool;
 use crate::renderer::emulator::StaticMeshId;
 use crate::renderer::emulator::global_objects::GlobalObjects;
 use crate::renderer::emulator::mc_shaders::ShaderId;
+use crate::renderer::emulator::share::{NextTaskResult, Share};
 use crate::vk::objects::allocator::AllocationStrategy;
-
-pub struct Share {
-    pub(super) device: Arc<DeviceContext>,
-    pub(super) global_objects: GlobalObjects,
-    pub(super) descriptors: Mutex<DescriptorPool>,
-    pub(super) pool: Arc<Mutex<BufferPool>>,
-    channel: Mutex<Channel>,
-    signal: Condvar,
-    family: u32,
-}
-
-impl Share {
-    pub fn new(device: Arc<DeviceContext>, pool: Arc<Mutex<BufferPool>>) -> Self {
-        let queue = device.get_main_queue();
-        let queue_family = queue.get_queue_family_index();
-
-        let global_objects = GlobalObjects::new(device.clone(), queue.clone());
-        let descriptors = Mutex::new(DescriptorPool::new(device.clone()));
-
-        Self {
-            device,
-            global_objects,
-            descriptors,
-            pool,
-            channel: Mutex::new(Channel::new()),
-            signal: Condvar::new(),
-            family: queue_family,
-        }
-    }
-
-    pub fn get_render_queue_family(&self) -> u32 {
-        self.family
-    }
-
-    pub(super) fn push_task(&self, id: PassId, task: WorkerTask) {
-        self.channel.lock().unwrap().queue.push_back((id, task));
-        self.signal.notify_one();
-    }
-
-    fn try_get_next_task_timeout(&self, timeout: Duration) -> NextTaskResult {
-        let start = Instant::now();
-
-        let mut guard = self.channel.lock().unwrap_or_else(|_| {
-            log::error!("Poisoned channel mutex in Share::try_get_next_task!");
-            panic!()
-        });
-
-        loop {
-            if let Some((id, task)) = guard.queue.pop_front() {
-                return NextTaskResult::Ok(id, task);
-            }
-
-            let diff = (start + timeout).saturating_duration_since(Instant::now());
-            if diff.is_zero() {
-                return NextTaskResult::Timeout;
-            }
-
-            let (new_guard, timeout) = self.signal.wait_timeout(guard, diff).unwrap_or_else(|_| {
-                log::error!("Poisoned channel mutex in Share::try_get_next_task!");
-                panic!()
-            });
-            guard = new_guard;
-
-            if timeout.timed_out() {
-                return NextTaskResult::Timeout;
-            }
-        }
-    }
-}
-
-enum NextTaskResult {
-    Ok(PassId, WorkerTask),
-    Timeout,
-}
-
-// TODO this is needed because condvar is not unwind safe can we do better?
-impl UnwindSafe for Share {
-}
-impl RefUnwindSafe for Share {
-}
-
-struct Channel {
-    queue: VecDeque<(PassId, WorkerTask)>,
-}
-
-impl Channel {
-    fn new() -> Self {
-        Self {
-            queue: VecDeque::new()
-        }
-    }
-}
 
 pub(super) enum WorkerTask {
     StartPass(Arc<dyn EmulatorPipeline>, Box<dyn EmulatorPipelinePass + Send>),
@@ -139,7 +48,7 @@ pub(super) fn run_worker(device: Arc<DeviceContext>, share: Arc<Share>) {
     let queue = device.get_main_queue();
 
     loop {
-        share.global_objects.update();
+        share.worker_update();
 
         old_frames.retain(|old: &PassState| {
             if old.is_complete() {

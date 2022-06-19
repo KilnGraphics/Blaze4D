@@ -3,7 +3,7 @@ use std::sync::Arc;
 
 use ash::vk;
 
-use crate::renderer::emulator::buffer::{BufferAllocation, BufferSubAllocator};
+use crate::renderer::emulator::immediate::{BufferAllocation, BufferSubAllocator};
 use crate::renderer::emulator::{EmulatorRenderer, MeshData, StaticMeshId};
 use crate::renderer::emulator::worker::WorkerTask;
 use crate::device::transfer::{BufferTransferRanges, StagingMemory};
@@ -12,6 +12,7 @@ use crate::objects::sync::SemaphoreOps;
 use crate::renderer::emulator::global_objects::StaticMeshDrawInfo;
 use crate::renderer::emulator::mc_shaders::{DevUniform, McUniform, McUniformData, ShaderId};
 use crate::renderer::emulator::pipeline::{DrawTask, EmulatorOutput, EmulatorPipeline, PipelineTask};
+use crate::renderer::emulator::share::Share;
 use crate::vk::objects::buffer::Buffer;
 
 #[derive(Copy, Clone, PartialEq, Eq, PartialOrd, Ord, Debug, Hash)]
@@ -42,9 +43,7 @@ impl ImmediateMeshId {
 
 pub struct PassRecorder {
     id: PassId,
-    renderer: Arc<EmulatorRenderer>,
-    #[allow(unused)] // We just need to keep the pipeline alive
-    pipeline: Arc<dyn EmulatorPipeline>,
+    share: Arc<Share>,
 
     used_shaders: HashSet<ShaderId>,
     used_static_meshes: HashMap<StaticMeshId, StaticMeshDrawInfo>,
@@ -52,16 +51,18 @@ pub struct PassRecorder {
 
     current_buffer: Option<(BufferSubAllocator, StagingMemory)>,
     written_size: usize,
+
+    #[allow(unused)] // We just need to keep the pipeline alive
+    pipeline: Arc<dyn EmulatorPipeline>,
 }
 
 impl PassRecorder {
-    pub(super) fn new(id: PassId, renderer: Arc<EmulatorRenderer>, pipeline: Arc<dyn EmulatorPipeline>) -> Self {
+    pub(super) fn new(id: PassId, share: Arc<Share>, pipeline: Arc<dyn EmulatorPipeline>) -> Self {
         renderer.worker.push_task(id, WorkerTask::StartPass(pipeline.clone(), pipeline.start_pass()));
 
         Self {
             id,
-            renderer,
-            pipeline,
+            share,
 
             used_shaders: HashSet::new(),
             used_static_meshes: HashMap::new(),
@@ -69,16 +70,18 @@ impl PassRecorder {
 
             current_buffer: None,
             written_size: 0,
+
+            pipeline,
         }
     }
 
     pub fn use_output(&mut self, output: Box<dyn EmulatorOutput + Send>) {
-        self.renderer.worker.push_task(self.id, WorkerTask::UseOutput(output));
+        self.share.worker.push_task(self.id, WorkerTask::UseOutput(output));
     }
 
     pub fn update_uniform(&mut self, data: &McUniformData, shader: ShaderId) {
         self.use_shader(shader);
-        self.renderer.worker.push_task(self.id, WorkerTask::PipelineTask(PipelineTask::UpdateUniform(shader, *data)))
+        self.share.worker.push_task(self.id, WorkerTask::PipelineTask(PipelineTask::UpdateUniform(shader, *data)))
     }
 
     pub fn upload_immediate(&mut self, data: &MeshData) -> ImmediateMeshId {
@@ -117,17 +120,17 @@ impl PassRecorder {
             primitive_topology: mesh_data.primitive_topology,
             depth_write_enable,
         };
-        self.renderer.worker.push_task(self.id, WorkerTask::PipelineTask(PipelineTask::Draw(draw_task)));
+        self.share.worker.push_task(self.id, WorkerTask::PipelineTask(PipelineTask::Draw(draw_task)));
     }
 
     pub fn draw_static(&mut self, mesh_id: StaticMeshId, shader: ShaderId) {
         self.use_shader(shader);
 
         if !self.used_static_meshes.contains_key(&mesh_id) {
-            let draw_info = self.renderer.worker.global_objects.inc_static_mesh(mesh_id);
+            let draw_info = self.share.worker.global_objects.inc_static_mesh(mesh_id);
             self.used_static_meshes.insert(mesh_id, draw_info);
 
-            self.renderer.worker.push_task(self.id, WorkerTask::UseStaticMesh(mesh_id));
+            self.share.worker.push_task(self.id, WorkerTask::UseStaticMesh(mesh_id));
         }
 
         let draw_info = self.used_static_meshes.get(&mesh_id).unwrap();
@@ -144,13 +147,13 @@ impl PassRecorder {
             depth_write_enable: false,
         };
 
-        self.renderer.worker.push_task(self.id, WorkerTask::PipelineTask(PipelineTask::Draw(draw_task)));
+        self.share.worker.push_task(self.id, WorkerTask::PipelineTask(PipelineTask::Draw(draw_task)));
     }
 
     fn use_shader(&mut self, shader: ShaderId) {
         if self.used_shaders.insert(shader) {
             self.pipeline.inc_shader_used(shader);
-            self.renderer.worker.push_task(self.id, WorkerTask::UseShader(shader));
+            self.share.worker.push_task(self.id, WorkerTask::UseShader(shader));
         }
     }
 
@@ -185,21 +188,21 @@ impl PassRecorder {
     fn new_sub_allocator(&mut self, min_size: usize) {
         self.end_sub_allocator();
 
-        let (buffer, size, wait_op) = self.renderer.buffer_pool.lock().unwrap().get_buffer(min_size);
-        let op = self.renderer.device.get_transfer().prepare_buffer_acquire(buffer, None);
-        self.renderer.device.get_transfer().acquire_buffer(op, SemaphoreOps::from_option(wait_op)).unwrap();
+        let (buffer, size, wait_op) = self.share.buffer_pool.lock().unwrap().get_buffer(min_size);
+        let op = self.share.device.get_transfer().prepare_buffer_acquire(buffer, None);
+        self.share.device.get_transfer().acquire_buffer(op, SemaphoreOps::from_option(wait_op)).unwrap();
 
-        self.renderer.worker.push_task(self.id, WorkerTask::UseDynamicBuffer(buffer));
+        self.share.worker.push_task(self.id, WorkerTask::UseDynamicBuffer(buffer));
 
         let allocator = BufferSubAllocator::new(buffer, size);
-        let staging = self.renderer.device.get_transfer().request_staging_memory(allocator.get_buffer_size());
+        let staging = self.share.device.get_transfer().request_staging_memory(allocator.get_buffer_size());
 
         self.current_buffer = Some((allocator, staging))
     }
 
     fn end_sub_allocator(&mut self) {
         if let Some((allocator, staging)) = self.current_buffer.take() {
-            let transfer = self.renderer.device.get_transfer();
+            let transfer = self.share.device.get_transfer();
             let buffer = allocator.get_buffer();
 
             unsafe {
@@ -214,12 +217,12 @@ impl PassRecorder {
             let op = transfer.prepare_buffer_release(buffer, Some((
                 vk::PipelineStageFlags2::VERTEX_INPUT | vk::PipelineStageFlags2::INDEX_INPUT,
                 vk::AccessFlags2::VERTEX_ATTRIBUTE_READ | vk::AccessFlags2::INDEX_READ,
-                self.renderer.worker.get_render_queue_family()
+                self.share.worker.get_render_queue_family()
             )));
             let sync_id = transfer.release_buffer(op.clone()).unwrap();
             transfer.flush(sync_id);
 
-            self.renderer.worker.push_task(self.id, WorkerTask::WaitTransferSync(sync_id))
+            self.share.worker.push_task(self.id, WorkerTask::WaitTransferSync(sync_id))
         }
     }
 }
@@ -227,7 +230,7 @@ impl PassRecorder {
 impl Drop for PassRecorder {
     fn drop(&mut self) {
         self.end_sub_allocator();
-        self.renderer.worker.push_task(self.id, WorkerTask::EndPass);
+        self.share.worker.push_task(self.id, WorkerTask::EndPass);
     }
 }
 

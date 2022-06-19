@@ -2,6 +2,17 @@
 
 use ash::vk;
 
+
+pub fn next_aligned(base: vk::DeviceSize, alignment: vk::DeviceSize) -> vk::DeviceSize {
+    let rem = base % alignment;
+    if rem == 0 {
+        base
+    } else {
+        let diff = alignment - rem;
+        base + diff
+    }
+}
+
 pub struct RingAllocator {
     size: vk::DeviceSize,
     head: vk::DeviceSize,
@@ -43,7 +54,7 @@ impl RingAllocator {
 
     pub fn allocate(&mut self, size: u64, alignment: u64) -> Option<(vk::DeviceSize, u16)> {
         assert_ne!(alignment, 0u64);
-        let next = Self::next_aligned(self.head, alignment);
+        let next = next_aligned(self.head, alignment);
 
         let extra_used;
         let base;
@@ -156,16 +167,6 @@ impl RingAllocator {
             self.slots[head as usize].set_next_slot(Some(base));
         } else {
             self.free_list = Some(base);
-        }
-    }
-
-    fn next_aligned(base: vk::DeviceSize, alignment: vk::DeviceSize) -> vk::DeviceSize {
-        let rem = base % alignment;
-        if rem == 0 {
-            base
-        } else {
-            let diff = alignment - rem;
-            base + diff
         }
     }
 }

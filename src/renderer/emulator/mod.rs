@@ -12,16 +12,17 @@
 //! output of each externally to form a frame. Or use passes asynchronously to the main render loop.
 //! However currently b4d uses a single pass to render a single frame.
 
-mod buffer;
+mod immediate;
 mod worker;
 mod global_objects;
 mod pass;
-mod memory;
 
 pub mod pipeline;
 pub mod debug_pipeline;
 pub mod mc_shaders;
 mod descriptors;
+mod share;
+mod staging;
 
 use std::collections::HashMap;
 use std::fmt::{Debug, Formatter};
@@ -29,8 +30,8 @@ use std::sync::{Arc, Mutex, Weak};
 use std::sync::atomic::{AtomicU64, Ordering};
 use ash::vk;
 
-use crate::renderer::emulator::buffer::BufferPool;
-use crate::renderer::emulator::worker::{run_worker, Share};
+use crate::renderer::emulator::immediate::BufferPool;
+use crate::renderer::emulator::worker::run_worker;
 use crate::renderer::emulator::pipeline::EmulatorPipeline;
 
 use crate::prelude::*;
@@ -40,85 +41,63 @@ pub use global_objects::StaticMeshId;
 pub use pass::PassId;
 pub use pass::PassRecorder;
 pub use pass::ImmediateMeshId;
+use share::Share;
 use crate::renderer::emulator::mc_shaders::{McUniform, Shader, ShaderId, VertexFormat};
 
 pub struct EmulatorRenderer {
-    id: UUID,
-    weak: Weak<EmulatorRenderer>,
-    device: Arc<DeviceContext>,
-    worker: Arc<Share>,
-    next_frame_id: AtomicU64,
-    buffer_pool: Arc<Mutex<BufferPool>>,
-    shader_database: Mutex<HashMap<ShaderId, Arc<Shader>>>,
+    share: Arc<Share>,
+    worker: std::thread::JoinHandle<()>,
 }
 
 impl EmulatorRenderer {
-    pub(crate) fn new(device: Arc<DeviceContext>) -> Arc<Self> {
-        let renderer = Arc::new_cyclic(|weak| {
-            let pool = Arc::new(Mutex::new(BufferPool::new(device.clone())));
-
-            Self {
-                id: UUID::new(),
-                weak: weak.clone(),
-                device: device.clone(),
-                worker: Arc::new(Share::new(device.clone(), pool.clone())),
-                next_frame_id: AtomicU64::new(1),
-                buffer_pool: pool,
-                shader_database: Mutex::new(HashMap::new())
-            }
-        });
+    pub(crate) fn new(device: Arc<DeviceContext>) -> Self {
+        let share = Arc::new(Share::new(device));
 
         let share = renderer.worker.clone();
-
-        std::thread::spawn(move || {
+        let worker = std::thread::spawn(move || {
             std::panic::catch_unwind(|| {
-                run_worker(device, share);
+                run_worker(share);
             }).unwrap_or_else(|_| {
                 log::error!("Emulator worker panicked!");
                 std::process::exit(1);
             })
         });
 
-        renderer
+        Self {
+            share,
+            worker,
+        }
     }
 
     pub fn create_static_mesh(&self, data: &MeshData) -> StaticMeshId {
-        self.worker.global_objects.create_static_mesh(data)
+        self.share.create_static_mesh(data)
     }
 
     pub fn drop_static_mesh(&self, id: StaticMeshId) {
-        self.worker.global_objects.mark_static_mesh(id)
+        self.share.drop_static_mesh(id)
     }
 
     pub fn create_shader(&self, vertex_format: &VertexFormat, used_uniforms: McUniform) -> ShaderId {
-        let shader = Shader::new(*vertex_format, used_uniforms);
-        let id = shader.get_id();
-
-        let mut guard = self.shader_database.lock().unwrap();
-        guard.insert(id, shader);
-
-        id
+        self.share.create_shader(vertex_format, used_uniforms)
     }
 
     pub fn drop_shader(&self, id: ShaderId) {
-        let mut guard = self.shader_database.lock().unwrap();
-        guard.remove(&id);
-    }
-
-    pub fn get_shader(&self, id: ShaderId) -> Option<Arc<Shader>> {
-        let guard = self.shader_database.lock().unwrap();
-        guard.get(&id).cloned()
+        self.share.drop_shader(id)
     }
 
     pub fn start_pass(&self, pipeline: Arc<dyn EmulatorPipeline>) -> PassRecorder {
-        let id = PassId::from_raw(self.next_frame_id.fetch_add(1, Ordering::SeqCst));
-        PassRecorder::new(id, self.weak.upgrade().unwrap(), pipeline)
+        let id = self.share.try_start_pass_id().unwrap_or_else(|| {
+            log::error!("Called EmulatorRenderer::start_pass while a pass is already running!");
+            panic!()
+        });
+        let id = PassId::from_raw(id);
+        PassRecorder::new(id, self.share.clone(), pipeline)
     }
 }
 
 impl PartialEq for EmulatorRenderer {
     fn eq(&self, other: &Self) -> bool {
-        self.id.eq(&other.id)
+        self.share.eq(&other.share)
     }
 }
 
