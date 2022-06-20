@@ -142,8 +142,10 @@ impl Buffer {
         let (main_buffer, main_allocation) = Self::create_main_buffer(&device, size);
 
         let (staging, mapped_memory) = if let Some(mapped) = main_allocation.mapped_ptr() {
+            log::info!("Immediate buffer uses mapped memory");
             (None, mapped.cast())
         } else {
+            log::info!("Immediate buffer uses staging memory");
             let (staging_buffer, staging_allocation) = Self::create_staging_buffer(&device, size);
             let mapped = staging_allocation.mapped_ptr().unwrap();
             (Some((staging_buffer, staging_allocation)), mapped.cast())

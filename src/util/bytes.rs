@@ -179,5 +179,12 @@ unsafe impl FromBytes for usize { from_bytes_body!(); }
 unsafe impl FromBytes for isize { from_bytes_body!(); }
 unsafe impl FromBytes for char { from_bytes_body!(); }
 
+unsafe impl<const DIM: usize, T: ToBytes> ToBytes for [T; DIM] {
+    to_bytes_body!();
+}
+unsafe impl<const DIM: usize, T: FromBytes> FromBytes for [T; DIM] {
+    from_bytes_body!();
+}
+
 unsafe impl<T: ToBytes, R, C, const RV: usize, const CV: usize> ToBytes for nalgebra::Matrix<T, R, C, nalgebra::ArrayStorage<T, RV, CV>> { to_bytes_body!(); }
 unsafe impl<T: FromBytes, R, C, const RV: usize, const CV: usize> FromBytes for nalgebra::Matrix<T, R, C, nalgebra::ArrayStorage<T, RV, CV>> { from_bytes_body!(); }

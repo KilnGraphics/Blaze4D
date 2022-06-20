@@ -200,7 +200,7 @@ impl Data {
             let cmd = self.get_begin_pending_command_buffer();
 
             let region = vk::BufferCopy {
-                src_offset: 0,
+                src_offset: staging_alloc.offset,
                 dst_offset: 0,
                 size: required_size as vk::DeviceSize,
             };
@@ -266,8 +266,31 @@ impl Data {
 
         let cmd = self.get_begin_pending_command_buffer();
 
+        let barrier = vk::ImageMemoryBarrier2::builder()
+            .src_stage_mask(vk::PipelineStageFlags2::NONE)
+            .src_access_mask(vk::AccessFlags2::NONE)
+            .dst_stage_mask(vk::PipelineStageFlags2::TRANSFER)
+            .dst_access_mask(vk::AccessFlags2::TRANSFER_WRITE)
+            .old_layout(vk::ImageLayout::UNDEFINED)
+            .new_layout(vk::ImageLayout::TRANSFER_DST_OPTIMAL)
+            .image(image)
+            .subresource_range(vk::ImageSubresourceRange {
+                aspect_mask: vk::ImageAspectFlags::COLOR,
+                base_mip_level: 0,
+                level_count: data.generate_mip_levels,
+                base_array_layer: 0,
+                layer_count: 1
+            });
+
+        let info = vk::DependencyInfo::builder()
+            .image_memory_barriers(std::slice::from_ref(&barrier));
+
+        unsafe {
+            self.device.synchronization_2_khr().cmd_pipeline_barrier2(cmd, &info)
+        };
+
         let region = vk::BufferImageCopy {
-            buffer_offset: 0,
+            buffer_offset: staging.0.offset,
             buffer_row_length: 0,
             buffer_image_height: 0,
             image_subresource: vk::ImageSubresourceLayers {
@@ -436,6 +459,8 @@ impl Data {
                 .build()
             );
         }
+
+        self.pending_staging_allocations.push(staging.1);
 
         let static_image = StaticImage {
             image,
@@ -825,10 +850,10 @@ impl StaticMesh {
 define_uuid_type!(pub, StaticImageId);
 
 pub struct StaticImageData<'a> {
-    data: &'a [u8],
-    format: vk::Format,
-    size: Vec2u32,
-    generate_mip_levels: u32,
+    pub(crate) data: &'a [u8],
+    pub(crate) format: vk::Format,
+    pub(crate) size: Vec2u32,
+    pub(crate) generate_mip_levels: u32,
 }
 
 struct StaticImage {
@@ -902,9 +927,9 @@ impl StaticImage {
             .array_layers(1)
             .samples(vk::SampleCountFlags::TYPE_1)
             .tiling(vk::ImageTiling::OPTIMAL)
-            .usage(vk::ImageUsageFlags::TRANSFER_DST | vk::ImageUsageFlags::SAMPLED)
+            .usage(vk::ImageUsageFlags::TRANSFER_SRC | vk::ImageUsageFlags::TRANSFER_DST | vk::ImageUsageFlags::SAMPLED)
             .sharing_mode(vk::SharingMode::EXCLUSIVE)
-            .initial_layout(vk::ImageLayout::TRANSFER_DST_OPTIMAL);
+            .initial_layout(vk::ImageLayout::UNDEFINED);
 
         let image = unsafe {
             device.vk().create_image(&info, None)

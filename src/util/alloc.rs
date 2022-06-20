@@ -75,6 +75,7 @@ impl RingAllocator {
 
         if let Some(slot) = self.push_slot(end) {
             // Allocation successful. We only update state now to deal with potential errors
+            log::info!("Allocated {:?} bytes. Old head {:?}, new head {:?}", size, self.head, end);
             self.head = end;
             self.used_bytes += extra_used;
 
