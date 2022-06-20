@@ -62,9 +62,7 @@ pub(super) fn run_worker(device: Arc<DeviceContext>, share: Arc<Share>) {
 
             WorkerTask::EndPass(immediate_buffer) => {
                 if let Some(mut pass) = current_pass.take() {
-                    if let Some(op) = share.flush_global_objects() {
-                        pass.semaphore_waits = Some(op);
-                    }
+                    share.flush_global_objects();
                     pass.use_immediate_buffer(immediate_buffer);
                     pass.submit(&queue);
                     old_frames.push(pass);
@@ -272,8 +270,6 @@ struct PassState {
     static_meshes: Vec<StaticMeshId>,
     shaders: Vec<ShaderId>,
 
-    semaphore_waits: Option<SemaphoreOp>,
-
     pre_cmd: vk::CommandBuffer,
     post_cmd: vk::CommandBuffer,
 
@@ -301,7 +297,6 @@ impl PassState {
             immediate_buffer: None,
             static_meshes: Vec::new(),
             shaders: Vec::new(),
-            semaphore_waits: None,
 
             pre_cmd,
             post_cmd,
@@ -372,18 +367,6 @@ impl PassState {
     }
 
     fn record_pre_submits<'a>(&self, recorder: &mut SubmitRecorder<'a>, alloc: &'a Bump) {
-        let wait_infos: &[vk::SemaphoreSubmitInfo] = if let Some(wait) = self.semaphore_waits.as_ref() {
-            alloc.alloc([
-                vk::SemaphoreSubmitInfo::builder()
-                    .semaphore(wait.semaphore.get_handle())
-                    .value(wait.value.unwrap_or(0))
-                    .stage_mask(vk::PipelineStageFlags2::ALL_COMMANDS)
-                    .build()
-            ])
-        } else {
-            alloc.alloc([])
-        };
-
         let cmd_infos = alloc.alloc([
             vk::CommandBufferSubmitInfo::builder()
                 .command_buffer(self.pre_cmd)
@@ -391,7 +374,6 @@ impl PassState {
         ]);
 
         let submit_info = vk::SubmitInfo2::builder()
-            .wait_semaphore_infos(wait_infos)
             .command_buffer_infos(cmd_infos);
 
         recorder.push(submit_info);

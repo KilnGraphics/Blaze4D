@@ -126,7 +126,7 @@ impl PassRecorder {
         self.share.push_task(WorkerTask::PipelineTask(PipelineTask::Draw(draw_task)));
     }
 
-    pub fn draw_static(&mut self, mesh_id: StaticMeshId, shader: ShaderId) {
+    pub fn draw_static(&mut self, mesh_id: StaticMeshId, shader: ShaderId, depth_write_enable: bool) {
         self.use_shader(shader);
 
         if !self.used_static_meshes.contains_key(&mesh_id) {
@@ -147,7 +147,7 @@ impl PassRecorder {
             index_count: draw_info.index_count,
             shader,
             primitive_topology: draw_info.primitive_topology,
-            depth_write_enable: false,
+            depth_write_enable,
         };
 
         self.share.push_task(WorkerTask::PipelineTask(PipelineTask::Draw(draw_task)));

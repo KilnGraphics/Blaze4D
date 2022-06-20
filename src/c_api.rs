@@ -372,7 +372,7 @@ unsafe extern "C" fn b4d_pass_update_uniform(pass: *mut PassRecorder, data: *con
 }
 
 #[no_mangle]
-unsafe extern "C" fn b4d_pass_draw_static(pass: *mut PassRecorder, mesh_id: u64, shader_id: u64) {
+unsafe extern "C" fn b4d_pass_draw_static(pass: *mut PassRecorder, mesh_id: u64, shader_id: u64, depth_write_enable: u32) {
     catch_unwind(|| {
         let pass = pass.as_mut().unwrap_or_else(|| {
             log::error!("Passed null pass to b4d_pass_draw_static");
@@ -380,7 +380,9 @@ unsafe extern "C" fn b4d_pass_draw_static(pass: *mut PassRecorder, mesh_id: u64,
         });
         let shader_id = ShaderId::from_uuid(UUID::from_raw(shader_id));
 
-        pass.draw_static(StaticMeshId::from_uuid(UUID::from_raw(mesh_id)), shader_id);
+        let depth_write_enable = if depth_write_enable == 1 { true } else { false };
+
+        pass.draw_static(StaticMeshId::from_uuid(UUID::from_raw(mesh_id)), shader_id, depth_write_enable);
     }).unwrap_or_else(|_| {
         log::error!("panic in b4d_pass_draw_static");
         exit(1);

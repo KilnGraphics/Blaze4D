@@ -1,5 +1,8 @@
+use std::ptr::NonNull;
 use std::sync::Arc;
+
 use ash::vk;
+
 use crate::prelude::DeviceContext;
 use crate::util::alloc::RingAllocator;
 use crate::vk::objects::allocator::{Allocation, AllocationStrategy};
@@ -29,17 +32,31 @@ pub struct StagingMemoryPool {
 impl StagingMemoryPool {
     const MIN_BUFFER_SIZE: vk::DeviceSize = 2u64.pow(24); // 16MB
 
-    pub fn allocate(&mut self, size: vk::DeviceSize, alignment: vk::DeviceSize) -> (vk::Buffer, vk::DeviceSize, StagingAllocationId) {
-        if let Some((buffer, offset, slot_id)) = self.current_buffer.try_allocate(size, alignment) {
-            (buffer, offset, StagingAllocationId{ buffer_id: self.current_buffer_id, slot_id })
-        } else {
-            self.create_new_buffer(size);
-            let (buffer, offset, slot_id) = self.current_buffer.try_allocate(size, alignment).unwrap();
-            (buffer, offset, StagingAllocationId{ buffer_id: 0, slot_id })
+    pub(super) fn new(device: Arc<DeviceContext>) -> Self {
+        let current_buffer = StagingBuffer::new(device.clone(), Self::MIN_BUFFER_SIZE);
+
+        Self {
+            device,
+            next_buffer_id: 1,
+            current_buffer_id: 0,
+            current_buffer,
+            old_buffers: Vec::new(),
+            over_allocation: 76,
+            reduce_threshold: 127
         }
     }
 
-    pub fn free(&mut self, allocation: StagingAllocationId) {
+    pub(super) fn allocate(&mut self, size: vk::DeviceSize, alignment: vk::DeviceSize) -> (StagingAllocation, StagingAllocationId) {
+        if let Some((alloc, slot_id)) = self.current_buffer.try_allocate(size, alignment) {
+            (alloc, StagingAllocationId{ buffer_id: self.current_buffer_id, slot_id })
+        } else {
+            self.create_new_buffer(size);
+            let (alloc, slot_id) = self.current_buffer.try_allocate(size, alignment).unwrap();
+            (alloc, StagingAllocationId{ buffer_id: 0, slot_id })
+        }
+    }
+
+    pub(super) fn free(&mut self, allocation: StagingAllocationId) {
         if allocation.buffer_id == self.current_buffer_id {
             self.current_buffer.free(allocation.slot_id);
         } else {
@@ -101,6 +118,7 @@ impl StagingMemoryPool {
 struct StagingBuffer {
     device: Arc<DeviceContext>,
     buffer: vk::Buffer,
+    mapped_ptr: NonNull<u8>,
     allocation: Option<Allocation>,
     allocator: RingAllocator,
 }
@@ -137,14 +155,20 @@ impl StagingBuffer {
         Self {
             device,
             buffer,
+            mapped_ptr: allocation.mapped_ptr().unwrap().cast(),
             allocation: Some(allocation),
             allocator: RingAllocator::new(size)
         }
     }
 
-    fn try_allocate(&mut self, size: vk::DeviceSize, alignment: vk::DeviceSize) -> Option<(vk::Buffer, vk::DeviceSize, u16)> {
+    fn try_allocate(&mut self, size: vk::DeviceSize, alignment: vk::DeviceSize) -> Option<(StagingAllocation, u16)> {
         self.allocator.allocate(size, alignment).map(|(offset, slot)| {
-            (self.buffer, offset, slot)
+            let alloc = StagingAllocation {
+                buffer: self.buffer,
+                offset,
+                mapped: unsafe { NonNull::new_unchecked(self.mapped_ptr.as_ptr().offset(offset as isize)) }
+            };
+            (alloc, slot)
         })
     }
 
@@ -171,4 +195,20 @@ impl Drop for StagingBuffer {
         };
         self.device.get_allocator().free(self.allocation.take().unwrap())
     }
+}
+
+unsafe impl Send for StagingBuffer { // Needed because of NonNull<u8>
+}
+unsafe impl Sync for StagingBuffer { // Needed because of NonNull<u8>
+}
+
+pub(super) struct StagingAllocation {
+    pub(super) buffer: vk::Buffer,
+    pub(super) offset: vk::DeviceSize,
+    pub(super) mapped: NonNull<u8>,
+}
+
+unsafe impl Send for StagingAllocation { // Needed because of NonNull<u8>
+}
+unsafe impl Sync for StagingAllocation { // Needed because of NonNull<u8>
 }

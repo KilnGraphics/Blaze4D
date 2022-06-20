@@ -2,6 +2,7 @@ use std::collections::{HashMap, VecDeque};
 use std::sync::{Arc, Mutex};
 
 use ash::vk;
+use winit::event::VirtualKeyCode::M;
 use crate::define_uuid_type;
 
 use crate::device::device::Queue;
@@ -12,12 +13,13 @@ use crate::vk::objects::allocator::{Allocation, AllocationStrategy};
 use crate::vk::objects::buffer::Buffer;
 
 use crate::prelude::*;
+use crate::renderer::emulator::staging::{StagingAllocationId, StagingMemoryPool};
+use crate::util::alloc::next_aligned;
 
 /// Manages objects which are global to all passes of a emulator renderer.
 ///
 /// This includes things like static meshes or static textures.
 pub(super) struct GlobalObjects {
-    device: Arc<DeviceContext>,
     queue_family: u32,
     data: Mutex<Data>,
 }
@@ -29,10 +31,9 @@ impl GlobalObjects {
     /// this queue family when accessed for rendering.
     pub(super) fn new(device: Arc<DeviceContext>, queue: Arc<Queue>) -> Self {
         let queue_family= queue.get_queue_family_index();
-        let data = Data::new(&device, queue);
+        let data = Data::new(device, queue);
 
         Self {
-            device,
             queue_family,
             data: Mutex::new(data),
         }
@@ -48,64 +49,14 @@ impl GlobalObjects {
         self.data.lock().unwrap_or_else(|_| {
             log::error!("Poisoned data mutex in GlobalObjects::update");
             panic!()
-        }).update(&self.device);
+        }).update();
     }
 
     pub(super) fn create_static_mesh(&self, data: &MeshData) -> StaticMeshId {
-        let index_offset = Self::next_aligned(data.vertex_data.len(), data.get_index_size() as usize);
-        let required_size = index_offset + data.index_data.len();
-
-        let (buffer, allocation) = StaticMesh::create_buffer(&self.device, required_size);
-
-        let transfer = self.device.get_transfer();
-        let op = transfer.prepare_buffer_acquire(buffer, None);
-        transfer.acquire_buffer(op, SemaphoreOps::None).unwrap_or_else(|err| {
-            log::error!("Failed to make buffer available to transfer in GlobalObjects::create_static_mesh. {:?}", err);
-            panic!();
-        });
-
-        let staging = transfer.request_staging_memory(required_size);
-        unsafe {
-            staging.write(data.vertex_data);
-            staging.write_offset(data.index_data, index_offset);
-            staging.copy_to_buffer(buffer, BufferTransferRanges::new_single(
-                0,
-                0,
-                required_size as vk::DeviceSize
-            ));
-        }
-        drop(staging);
-
-        let op = transfer.prepare_buffer_release(buffer, Some((
-            vk::PipelineStageFlags2::ALL_COMMANDS,
-            vk::AccessFlags2::MEMORY_READ,
-            self.queue_family
-        )));
-        let sync = transfer.release_buffer(op).unwrap_or_else(|err| {
-            log::error!("Failed release buffer from transfer in GlobalObjects::create_static_mesh. {:?}", err);
-            panic!();
-        });
-
-        let draw_info = StaticMeshDrawInfo {
-            buffer,
-            first_index: (index_offset / (data.get_index_size() as usize)) as u32,
-            index_type: data.index_type,
-            index_count: data.index_count,
-            primitive_topology: data.primitive_topology
-        };
-
-        let static_mesh = StaticMesh {
-            buffer,
-            allocation,
-            draw_info,
-            used_counter: 0,
-            marked: false
-        };
-
         self.data.lock().unwrap_or_else(|_| {
             log::error!("Poisoned mutex in GlobalObjects::create_static_mesh!");
             panic!();
-        }).add_static_mesh(self.device.get_functions(), static_mesh, sync, op)
+        }).create_static_mesh(data)
     }
 
     pub(super) fn mark_static_mesh(&self, id: StaticMeshId) {
@@ -144,85 +95,130 @@ impl GlobalObjects {
     /// additionally wait on the semaphore before using any global object.
     ///
     /// This is a heavyweight operation and should ideally only be called from the worker thread.
-    pub(super) fn flush(&self) -> Option<SemaphoreOp> {
+    pub(super) fn flush(&self) {
         self.data.lock().unwrap_or_else(|_| {
             log::error!("Poisoned mutex in GlobalObjects::flush!");
             panic!();
-        }).flush(&self.device)
-    }
-
-    /// Returns the next address after and including the base address which has the specified
-    /// alignment.
-    fn next_aligned(base: usize, alignment: usize) -> usize {
-        let diff = base % alignment;
-        if diff == 0 {
-            base
-        } else {
-            base + (alignment - diff)
-        }
-    }
-}
-
-impl Drop for GlobalObjects {
-    fn drop(&mut self) {
-        self.data.get_mut().unwrap_or_else(|_| {
-            log::error!("Poisoned data mutex while destroying GlobalObjects!");
-            panic!()
-        }).destroy(self.device.get_functions());
+        }).flush()
     }
 }
 
 struct Data {
+    device: Arc<DeviceContext>,
     queue: Arc<Queue>,
 
     semaphore: Semaphore,
     semaphore_current_value: u64,
 
+    staging_pool: StagingMemoryPool,
     command_pool: vk::CommandPool,
     available_command_buffers: Vec<vk::CommandBuffer>,
-    pending_sync: Option<SyncId>,
     pending_command_buffer: Option<vk::CommandBuffer>,
-    submitted_command_buffers: VecDeque<(u64, vk::CommandBuffer)>,
+    submitted_command_buffers: VecDeque<(u64, vk::CommandBuffer, Vec<StagingAllocationId>)>,
+
+    pending_buffer_barriers: Vec<vk::BufferMemoryBarrier2>,
+    pending_image_barriers: Vec<vk::ImageMemoryBarrier2>,
+    pending_staging_allocations: Vec<StagingAllocationId>,
 
     static_meshes: HashMap<StaticMeshId, StaticMesh>,
     droppable_static_meshes: Vec<StaticMesh>,
 }
 
 impl Data {
-    fn new(device: &Arc<DeviceContext>, queue: Arc<Queue>) -> Self {
+    fn new(device: Arc<DeviceContext>, queue: Arc<Queue>) -> Self {
         let semaphore = Self::create_semaphore(device.get_functions());
         let command_pool = Self::create_command_pool(device.get_functions(), queue.get_queue_family_index());
+        let staging_pool = StagingMemoryPool::new(device.clone());
 
         Self {
+            device,
             queue,
 
             semaphore: Semaphore::new(semaphore),
             semaphore_current_value: 0,
 
+            staging_pool,
             command_pool,
             available_command_buffers: Vec::new(),
-            pending_sync: None,
             pending_command_buffer: None,
             submitted_command_buffers: VecDeque::new(),
+
+            pending_buffer_barriers: Vec::new(),
+            pending_image_barriers: Vec::new(),
+            pending_staging_allocations: Vec::new(),
 
             static_meshes: HashMap::new(),
             droppable_static_meshes: Vec::new(),
         }
     }
 
-    fn add_static_mesh(&mut self, device: &DeviceFunctions, static_mesh: StaticMesh, sync: SyncId, op: BufferReleaseOp) -> StaticMeshId {
-        self.push_sync(sync);
+    fn create_static_mesh(&mut self, data: &MeshData) -> StaticMeshId {
+        let index_offset = next_aligned(data.vertex_data.len() as vk::DeviceSize, data.get_index_size() as vk::DeviceSize);
+        let required_size = index_offset + (data.index_data.len() as vk::DeviceSize);
 
-        if let Some(barrier) = op.make_barrier() {
-            let cmd = self.get_begin_pending_command_buffer(device);
+        let (buffer, allocation) = StaticMesh::create_buffer(&self.device, required_size as usize);
 
-            let info = vk::DependencyInfo::builder()
-                .buffer_memory_barriers(std::slice::from_ref(&barrier));
+        let (mapped, staging) = if let Some(mapped) = allocation.mapped_ptr() {
+            (mapped.cast(), None)
+        } else {
+            let staging = self.staging_pool.allocate(required_size, 1);
+            (staging.0.mapped, Some(staging))
+        };
+
+        unsafe {
+            let dst = std::slice::from_raw_parts_mut(mapped.as_ptr(), required_size as usize);
+
+            dst[0..data.vertex_data.len()].copy_from_slice(data.vertex_data);
+            dst[(index_offset as usize)..].copy_from_slice(data.index_data);
+        }
+
+        if let Some((staging_alloc, staging_id)) = staging {
+            let cmd = self.get_begin_pending_command_buffer();
+
+            let region = vk::BufferCopy {
+                src_offset: 0,
+                dst_offset: 0,
+                size: required_size as vk::DeviceSize,
+            };
 
             unsafe {
-                device.synchronization_2_khr.cmd_pipeline_barrier2(cmd, &info);
+                self.device.vk().cmd_copy_buffer(
+                    cmd,
+                    staging_alloc.buffer,
+                    buffer.get_handle(),
+                    std::slice::from_ref(&region)
+                );
             }
+
+            self.pending_buffer_barriers.push(vk::BufferMemoryBarrier2::builder()
+                .src_stage_mask(vk::PipelineStageFlags2::TRANSFER)
+                .src_access_mask(vk::AccessFlags2::TRANSFER_WRITE)
+                .dst_stage_mask(vk::PipelineStageFlags2::VERTEX_INPUT | vk::PipelineStageFlags2::INDEX_INPUT)
+                .dst_access_mask(vk::AccessFlags2::VERTEX_ATTRIBUTE_READ | vk::AccessFlags2::INDEX_READ)
+                .buffer(buffer.get_handle())
+                .offset(0)
+                .size(required_size)
+                .build()
+            );
+
+            self.pending_staging_allocations.push(staging_id);
         }
+
+        let draw_info = StaticMeshDrawInfo {
+            buffer,
+            first_index: (index_offset / (data.get_index_size() as vk::DeviceSize)) as u32,
+            index_type: data.index_type,
+            index_count: data.index_count,
+            primitive_topology: data.primitive_topology
+        };
+
+        let static_mesh = StaticMesh {
+            buffer,
+            allocation,
+            draw_info,
+            used_counter: 0,
+            marked: false
+        };
 
         let mesh_id = StaticMeshId::new();
         if self.static_meshes.insert(mesh_id, static_mesh).is_some() {
@@ -282,37 +278,49 @@ impl Data {
         }
     }
 
-    fn update(&mut self, device: &DeviceContext) {
+    fn update(&mut self) {
         let current_value = unsafe {
-            device.get_functions().timeline_semaphore_khr.get_semaphore_counter_value(self.semaphore.get_handle())
+            self.device.timeline_semaphore_khr().get_semaphore_counter_value(self.semaphore.get_handle())
         }.unwrap_or_else(|err| {
             log::error!("vkGetSemaphoreCounterValue returned {:?} in Data::update", err);
             panic!()
         });
 
-        while let Some((value, cmd)) = self.submitted_command_buffers.pop_front() {
+        while let Some((value, cmd, staging)) = self.submitted_command_buffers.pop_front() {
             if current_value >= value {
                 self.available_command_buffers.push(cmd);
+                for alloc in staging {
+                    self.staging_pool.free(alloc);
+                }
             } else {
-                self.submitted_command_buffers.push_front((value, cmd));
+                self.submitted_command_buffers.push_front((value, cmd, staging));
                 break;
             }
         }
 
         while let Some(static_mesh) = self.droppable_static_meshes.pop() {
-            static_mesh.destroy(device);
+            static_mesh.destroy(&self.device);
         }
     }
 
-    fn flush(&mut self, device: &DeviceContext) -> Option<SemaphoreOp> {
-        let vk = &device.get_functions().vk;
-
-        let sync_id = self.pending_sync.take();
-        if let Some(sync_id) = sync_id {
-            device.get_transfer().wait_for_submit(sync_id);
-        }
+    fn flush(&mut self) {
+        let vk = self.device.vk();
 
         if let Some(cmd) = self.pending_command_buffer.take() {
+            if !self.pending_buffer_barriers.is_empty() || !self.pending_image_barriers.is_empty() {
+                let info = vk::DependencyInfo::builder()
+                    .dependency_flags(vk::DependencyFlags::empty())
+                    .buffer_memory_barriers(self.pending_buffer_barriers.as_slice())
+                    .image_memory_barriers(self.pending_image_barriers.as_slice());
+
+                unsafe {
+                    self.device.synchronization_2_khr().cmd_pipeline_barrier2(cmd, &info);
+                }
+
+                self.pending_buffer_barriers.clear();
+                self.pending_image_barriers.clear();
+            }
+
             unsafe {
                 vk.end_command_buffer(cmd)
             }.unwrap_or_else(|err| {
@@ -322,15 +330,6 @@ impl Data {
 
             self.semaphore_current_value += 1;
             let signal_value = self.semaphore_current_value;
-
-            let wait_info = sync_id.map(|sync_id| {
-                let wait_op = device.get_transfer().generate_wait_semaphore(sync_id);
-
-                vk::SemaphoreSubmitInfo::builder()
-                    .semaphore(wait_op.semaphore.get_handle())
-                    .value(wait_op.value.unwrap_or(0))
-                    .stage_mask(vk::PipelineStageFlags2::ALL_COMMANDS)
-            });
 
             let command_infos = [
                 vk::CommandBufferSubmitInfo::builder()
@@ -347,7 +346,6 @@ impl Data {
             ];
 
             let info = vk::SubmitInfo2::builder()
-                .wait_semaphore_infos(wait_info.as_ref().map_or(&[], |r| std::slice::from_ref(r)))
                 .command_buffer_infos(&command_infos)
                 .signal_semaphore_infos(&signal_infos);
 
@@ -358,38 +356,29 @@ impl Data {
                 panic!();
             });
 
-            self.submitted_command_buffers.push_back((signal_value, cmd));
-
-            Some(SemaphoreOp::new_timeline(self.semaphore, signal_value))
-        } else {
-            // We still have to wait since 2 callers could call right after each other in which case
-            // the second one would not get a wait op despite the submission not having completed yet.
-            Some(SemaphoreOp::new_timeline(self.semaphore, self.semaphore_current_value))
+            let staging_allocations = std::mem::replace(&mut self.pending_staging_allocations, Vec::new());
+            self.submitted_command_buffers.push_back((signal_value, cmd, staging_allocations));
         }
     }
 
-    fn push_sync(&mut self, sync: SyncId) {
-        self.pending_sync = self.pending_sync.map_or(Some(sync), |old| Some(std::cmp::max(old, sync)));
-    }
-
-    fn get_begin_pending_command_buffer(&mut self, device: &DeviceFunctions) -> vk::CommandBuffer {
+    fn get_begin_pending_command_buffer(&mut self) -> vk::CommandBuffer {
         if let Some(cmd) = self.pending_command_buffer {
             cmd
         } else {
-            let cmd = self.get_begin_command_buffer(device);
+            let cmd = self.get_begin_command_buffer();
             self.pending_command_buffer = Some(cmd);
             cmd
         }
     }
 
-    fn get_begin_command_buffer(&mut self, device: &DeviceFunctions) -> vk::CommandBuffer {
-        let cmd = self.get_command_buffer(device);
+    fn get_begin_command_buffer(&mut self) -> vk::CommandBuffer {
+        let cmd = self.get_command_buffer();
 
         let info = vk::CommandBufferBeginInfo::builder()
             .flags(vk::CommandBufferUsageFlags::ONE_TIME_SUBMIT);
 
         unsafe {
-            device.vk.begin_command_buffer(cmd, &info)
+            self.device.vk().begin_command_buffer(cmd, &info)
         }.unwrap_or_else(|err| {
             log::error!("vkBeginCommandBuffer returned {:?} in Data::get_begin_command_buffer!", err);
             panic!("");
@@ -398,7 +387,7 @@ impl Data {
         cmd
     }
 
-    fn get_command_buffer(&mut self, device: &DeviceFunctions) -> vk::CommandBuffer {
+    fn get_command_buffer(&mut self) -> vk::CommandBuffer {
         if let Some(cmd) = self.available_command_buffers.pop() {
             return cmd;
         } else {
@@ -408,7 +397,7 @@ impl Data {
                 .command_buffer_count(4);
 
             let new_buffers = unsafe {
-                device.vk.allocate_command_buffers(&info)
+                self.device.vk().allocate_command_buffers(&info)
             }.unwrap_or_else(|err| {
                 log::error!("vkAllocateCommandBuffers returned {:?} in Data::get_command_buffer", err);
                 panic!();
@@ -448,12 +437,17 @@ impl Data {
             panic!()
         })
     }
+}
 
-    fn destroy(&mut self, device: &DeviceFunctions) {
+impl Drop for Data {
+    fn drop(&mut self) {
         unsafe {
-            device.vk.destroy_semaphore(self.semaphore.get_handle(), None);
+            self.device.vk().destroy_semaphore(self.semaphore.get_handle(), None);
         }
     }
+}
+
+unsafe impl Send for Data { // Needed because of the pnext pointer in the memory barriers
 }
 
 define_uuid_type!(pub, StaticMeshId);

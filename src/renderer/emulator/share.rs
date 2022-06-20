@@ -145,7 +145,7 @@ impl Share {
         self.family
     }
 
-    pub(super) fn flush_global_objects(&self) -> Option<SemaphoreOp> {
+    pub(super) fn flush_global_objects(&self) {
         self.global_objects.flush()
     }
 
