@@ -113,8 +113,8 @@ pub enum PipelineTask {
 
 #[derive(Copy, Clone, PartialEq, Eq, Debug, Hash)]
 pub struct DrawTask {
-    pub vertex_buffer: Buffer,
-    pub index_buffer: Buffer,
+    pub vertex_buffer: vk::Buffer,
+    pub index_buffer: vk::Buffer,
     pub vertex_offset: i32,
     pub first_index: u32,
     pub index_type: vk::IndexType,

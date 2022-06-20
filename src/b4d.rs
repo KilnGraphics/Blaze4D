@@ -60,7 +60,7 @@ impl Blaze4D {
         });
         let main_surface = DeviceSurface::new(device.get_functions().clone(), main_window);
 
-        let emulator = EmulatorRenderer::new(device.clone());
+        let emulator = Arc::new(EmulatorRenderer::new(device.clone()));
 
         let render_config = Mutex::new(RenderConfig::new(device.clone(), emulator.clone(), main_surface));
 

@@ -1,15 +1,70 @@
-use std::ops::Deref;
+use std::collections::VecDeque;
+use std::panic::RefUnwindSafe;
 use std::ptr::NonNull;
-use std::sync::Arc;
+use std::sync::{Arc, Condvar, Mutex};
+
 use ash::vk;
 
-use crate::objects::id::BufferId;
-use crate::objects::sync::SemaphoreOp;
 use crate::vk::objects::allocator::{Allocation, AllocationStrategy};
-use crate::vk::objects::buffer::Buffer;
 use crate::util::alloc::next_aligned;
 
 use crate::prelude::*;
+
+pub(super) struct ImmediatePool {
+    buffer_queue: Mutex<VecDeque<Box<ImmediateBuffer>>>,
+    ready_condvar: Condvar,
+}
+
+impl ImmediatePool {
+    pub(super) fn new(device: Arc<DeviceContext>) -> Self {
+        let mut buffer_queue = VecDeque::with_capacity(2);
+        for _ in 0..2 {
+            buffer_queue.push_back(Box::new(ImmediateBuffer::new(device.clone())));
+        }
+
+        Self {
+            buffer_queue: Mutex::new(buffer_queue),
+            ready_condvar: Condvar::new(),
+        }
+    }
+
+    pub(super) fn get_next_buffer(&self) -> Box<ImmediateBuffer> {
+        let mut guard;
+        loop {
+            guard = self.buffer_queue.lock().unwrap_or_else(|_| {
+                log::error!("Poisoned queue mutex in ImmediatePool::get_next_buffer");
+                panic!()
+            });
+
+            if let Some(next) = guard.pop_front() {
+                return next;
+            }
+
+            let (new_guard, timeout) = self.ready_condvar.wait_timeout(guard, std::time::Duration::from_secs(1)).unwrap_or_else(|_| {
+                log::error!("Poisoned queue mutex in ImmediatePool::get_next_buffer after waiting for condvar");
+                panic!()
+            });
+            guard = new_guard;
+
+            if timeout.timed_out() {
+                log::warn!("1s timeout hit while waiting for new buffer in ImmediatePool::get_next_buffer");
+            }
+        }
+    }
+
+    pub(super) fn return_buffer(&self, mut buffer: Box<ImmediateBuffer>) {
+        buffer.reset();
+
+        let mut guard = self.buffer_queue.lock().unwrap_or_else(|_| {
+            log::error!("Poisoned queue mutex in ImmediatePool::return_buffer");
+            panic!()
+        });
+
+        guard.push_back(buffer);
+    }
+}
+
+impl RefUnwindSafe for ImmediatePool {} // Condvar is not RefUnwindSafe
 
 pub(super) struct ImmediateBuffer {
     device: Arc<DeviceContext>,
@@ -20,6 +75,16 @@ pub(super) struct ImmediateBuffer {
 impl ImmediateBuffer {
     const MIN_BUFFER_SIZE: vk::DeviceSize = 2u64.pow(24); // 16MB
     const OVER_ALLOCATION: u8 = 77; // 30%
+
+    fn new(device: Arc<DeviceContext>) -> Self {
+        let current_buffer = Buffer::new(device.clone(), Self::MIN_BUFFER_SIZE);
+
+        Self {
+            device,
+            current_buffer,
+            old_buffers: Vec::new(),
+        }
+    }
 
     pub(super) fn generate_copy_commands(&self, cmd: vk::CommandBuffer) {
         self.current_buffer.generate_copy_commands(cmd);
@@ -33,7 +98,7 @@ impl ImmediateBuffer {
         self.old_buffers.clear();
     }
 
-    pub(super) fn allocate<T: ToBytes>(&mut self, data: &T, alignment: vk::DeviceSize) -> (vk::Buffer, vk::DeviceSize) {
+    pub(super) fn allocate<T: ToBytes + ?Sized>(&mut self, data: &T, alignment: vk::DeviceSize) -> (vk::Buffer, vk::DeviceSize) {
         let data = data.as_bytes();
 
         if let Some(info) = self.current_buffer.allocate(data, alignment) {
@@ -41,7 +106,8 @@ impl ImmediateBuffer {
         } else {
             let usage = self.get_current_usage();
             let alloc_size = usage + (usage * (Self::OVER_ALLOCATION as u64) / (u8::MAX as u64));
-            let alloc_size = std::cmp::max(data.len() as u64, alloc_size);
+            let alloc_size = std::cmp::max(alloc_size, data.len() as u64);
+            let alloc_size = std::cmp::max(alloc_size, Self::MIN_BUFFER_SIZE);
 
             let new_buffer = Buffer::new(self.device.clone(), alloc_size);
             self.old_buffers.push(std::mem::replace(&mut self.current_buffer, new_buffer));
@@ -77,11 +143,11 @@ impl Buffer {
         let (main_buffer, main_allocation) = Self::create_main_buffer(&device, size);
 
         let (staging, mapped_memory) = if let Some(mapped) = main_allocation.mapped_ptr() {
-            (None, mapped.into())
+            (None, mapped.cast())
         } else {
             let (staging_buffer, staging_allocation) = Self::create_staging_buffer(&device, size);
             let mapped = staging_allocation.mapped_ptr().unwrap();
-            (Some((staging_buffer, staging_allocation)), mapped.into())
+            (Some((staging_buffer, staging_allocation)), mapped.cast())
         };
 
         Self {
@@ -120,11 +186,11 @@ impl Buffer {
 
     fn allocate(&mut self, bytes: &[u8], alignment: vk::DeviceSize) -> Option<(vk::Buffer, vk::DeviceSize)> {
         let aligned = next_aligned(self.current_offset, alignment);
-        if aligned + bytes.len() > self.size {
+        if aligned + (bytes.len() as vk::DeviceSize) > self.size {
             return None;
         }
 
-        self.current_offset = aligned + bytes.len();
+        self.current_offset = aligned + (bytes.len() as vk::DeviceSize);
 
         let start = aligned as usize;
         let end = self.current_offset as usize;
@@ -200,6 +266,12 @@ impl Buffer {
 
         (buffer, allocation)
     }
+}
+
+unsafe impl Send for Buffer { // Needed because of NonNull<u8>
+}
+
+unsafe impl Sync for Buffer { // Needed because of NonNull<u8>
 }
 
 impl Drop for Buffer {

@@ -26,11 +26,11 @@ mod staging;
 
 use std::collections::HashMap;
 use std::fmt::{Debug, Formatter};
+use std::panic::RefUnwindSafe;
 use std::sync::{Arc, Mutex, Weak};
 use std::sync::atomic::{AtomicU64, Ordering};
 use ash::vk;
 
-use crate::renderer::emulator::immediate::BufferPool;
 use crate::renderer::emulator::worker::run_worker;
 use crate::renderer::emulator::pipeline::EmulatorPipeline;
 
@@ -51,12 +51,12 @@ pub struct EmulatorRenderer {
 
 impl EmulatorRenderer {
     pub(crate) fn new(device: Arc<DeviceContext>) -> Self {
-        let share = Arc::new(Share::new(device));
+        let share = Arc::new(Share::new(device.clone()));
 
-        let share = renderer.worker.clone();
+        let share2 = share.clone();
         let worker = std::thread::spawn(move || {
             std::panic::catch_unwind(|| {
-                run_worker(share);
+                run_worker(device,share2);
             }).unwrap_or_else(|_| {
                 log::error!("Emulator worker panicked!");
                 std::process::exit(1);
@@ -85,13 +85,12 @@ impl EmulatorRenderer {
         self.share.drop_shader(id)
     }
 
+    pub fn get_shader(&self, id: ShaderId) -> Option<Arc<Shader>> {
+        self.share.get_shader(id)
+    }
+
     pub fn start_pass(&self, pipeline: Arc<dyn EmulatorPipeline>) -> PassRecorder {
-        let id = self.share.try_start_pass_id().unwrap_or_else(|| {
-            log::error!("Called EmulatorRenderer::start_pass while a pass is already running!");
-            panic!()
-        });
-        let id = PassId::from_raw(id);
-        PassRecorder::new(id, self.share.clone(), pipeline)
+        PassRecorder::new(self.share.clone(), pipeline)
     }
 }
 
@@ -102,6 +101,9 @@ impl PartialEq for EmulatorRenderer {
 }
 
 impl Eq for EmulatorRenderer {
+}
+
+impl RefUnwindSafe for EmulatorRenderer { // Join handle is making issues
 }
 
 pub struct MeshData<'a> {

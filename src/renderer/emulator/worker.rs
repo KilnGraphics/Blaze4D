@@ -1,5 +1,4 @@
 use std::cell::RefCell;
-use std::collections::VecDeque;
 use std::marker::PhantomData;
 use std::panic::{RefUnwindSafe, UnwindSafe};
 use std::rc::Rc;
@@ -13,9 +12,10 @@ use bumpalo::Bump;
 
 use crate::device::device::Queue;
 use crate::device::transfer::{SyncId, Transfer};
+use crate::objects::sync::SemaphoreOp;
 
 use crate::renderer::emulator::pass::PassId;
-use crate::renderer::emulator::immediate::BufferPool;
+use crate::renderer::emulator::immediate::ImmediateBuffer;
 use crate::renderer::emulator::pipeline::{EmulatorOutput, EmulatorPipeline, EmulatorPipelinePass, PipelineTask};
 use crate::vk::objects::buffer::Buffer;
 
@@ -28,13 +28,11 @@ use crate::renderer::emulator::share::{NextTaskResult, Share};
 use crate::vk::objects::allocator::AllocationStrategy;
 
 pub(super) enum WorkerTask {
-    StartPass(Arc<dyn EmulatorPipeline>, Box<dyn EmulatorPipelinePass + Send>),
-    EndPass,
-    UseDynamicBuffer(Buffer),
+    StartPass(PassId, Arc<dyn EmulatorPipeline>, Box<dyn EmulatorPipelinePass + Send>),
+    EndPass(Box<ImmediateBuffer>),
     UseStaticMesh(StaticMeshId),
     UseShader(ShaderId),
     UseOutput(Box<dyn EmulatorOutput + Send>),
-    WaitTransferSync(SyncId),
     PipelineTask(PipelineTask),
 }
 
@@ -42,7 +40,7 @@ pub(super) fn run_worker(device: Arc<DeviceContext>, share: Arc<Share>) {
     let queue = device.get_main_queue();
 
     let pool = Rc::new(RefCell::new(WorkerObjectPool::new(device.clone(), queue.get_queue_family_index())));
-    let mut frames = PassList::new();
+    let mut current_pass: Option<PassState> = None;
     let mut old_frames = Vec::new();
 
     let queue = device.get_main_queue();
@@ -51,69 +49,72 @@ pub(super) fn run_worker(device: Arc<DeviceContext>, share: Arc<Share>) {
         share.worker_update();
 
         old_frames.retain(|old: &PassState| {
-            if old.is_complete() {
-                let mut guard = share.pool.lock().unwrap();
-                for buffer in &old.dynamic_buffers {
-                    guard.return_buffer(buffer.get_id(), None);
-                }
-                drop(guard);
-                for static_mesh in &old.static_meshes {
-                    share.global_objects.dec_static_mesh(*static_mesh);
-                }
-                for shader in &old.shaders {
-                    old.pipeline.dec_shader_used(*shader);
-                }
-                false
-            } else {
-                true
-            }
+            !old.is_complete()
         });
 
-        let (id, task) = match share.try_get_next_task_timeout(Duration::from_micros(500)) {
-            NextTaskResult::Ok(id, task) => (id, task),
+        let task = match share.try_get_next_task_timeout(Duration::from_micros(500)) {
+            NextTaskResult::Ok(task) => task,
             NextTaskResult::Timeout => continue,
         };
 
         match task {
-            WorkerTask::StartPass(pipeline, pass) => {
+            WorkerTask::StartPass(_, pipeline, pass) => {
+                if current_pass.is_some() {
+                    log::error!("Worker received WorkerTask::StartPass when a pass is already running");
+                    panic!()
+                }
                 let state = PassState::new(pipeline, pass, device.clone(), &queue, share.clone(), pool.clone());
-                frames.add_pass(id, state);
+                current_pass = Some(state);
             }
 
-            WorkerTask::EndPass => {
-                share.global_objects.flush();
-                let mut pass = frames.pop_pass(id).unwrap();
-                pass.submit(&queue);
-                old_frames.push(pass);
-            }
-
-            WorkerTask::UseDynamicBuffer(buffer) => {
-                let op = device.get_transfer().prepare_buffer_release(buffer, Some((
-                    vk::PipelineStageFlags2::VERTEX_INPUT | vk::PipelineStageFlags2::INDEX_INPUT,
-                    vk::AccessFlags2::VERTEX_ATTRIBUTE_READ | vk::AccessFlags2::INDEX_READ,
-                    queue.get_queue_family_index()
-                )));
-                frames.get_pass(id).unwrap().use_dynamic_buffer(buffer, op.make_barrier().as_ref());
+            WorkerTask::EndPass(immediate_buffer) => {
+                if let Some(mut pass) = current_pass.take() {
+                    if let Some(op) = share.flush_global_objects() {
+                        pass.semaphore_waits = Some(op);
+                    }
+                    pass.use_immediate_buffer(immediate_buffer);
+                    pass.submit(&queue);
+                    old_frames.push(pass);
+                } else {
+                    log::error!("Worker received WorkerTask::EndPass when no active pass exists");
+                    panic!()
+                }
             }
 
             WorkerTask::UseStaticMesh(mesh_id) => {
-                frames.get_pass(id).unwrap().static_meshes.push(mesh_id);
+                if let Some(pass) = &mut current_pass {
+                    pass.static_meshes.push(mesh_id);
+                } else {
+                    log::error!("Worker received WorkerTask::UseStaticMesh when no active pass exists");
+                    panic!()
+                }
             }
 
             WorkerTask::UseShader(shader) => {
-                frames.get_pass(id).unwrap().shaders.push(shader);
+                if let Some(pass) = &mut current_pass {
+                    pass.shaders.push(shader);
+                } else {
+                    log::error!("Worker received WorkerTask::UseShader when no active pass exists");
+                    panic!()
+                }
             }
 
             WorkerTask::UseOutput(output) => {
-                frames.get_pass(id).unwrap().use_output(output);
-            }
-
-            WorkerTask::WaitTransferSync(sync_id) => {
-                frames.get_pass(id).unwrap().wait_transfer(sync_id);
+                if let Some(pass) = &mut current_pass {
+                    pass.use_output(output);
+                } else {
+                    log::error!("Worker received WorkerTask::UseOutput when no active pass exists");
+                    panic!()
+                }
             }
 
             WorkerTask::PipelineTask(task) => {
-                frames.get_pass(id).unwrap().process_task(&task);
+                if let Some(pass) = &mut current_pass {
+                    pass.process_task(&task)
+                } else {
+                    log::error!("Worker received WorkerTask::PipelineTask when no active pass exists");
+                    panic!()
+                }
             }
         }
     }
@@ -233,7 +234,7 @@ impl PooledObjectProvider {
     }
 
     pub fn allocate_uniform<T: ToBytes>(&mut self, data: &T) -> (vk::Buffer, vk::DeviceSize) {
-        self.share.descriptors.lock().unwrap().allocate_uniform(data)
+        self.share.allocate_uniform(data)
     }
 }
 
@@ -266,18 +267,19 @@ impl<'a> SubmitRecorder<'a> {
 }
 
 struct PassState {
+    share: Arc<Share>,
     device: Arc<DeviceContext>,
-    transfer: Arc<Transfer>,
     object_pool: PooledObjectProvider,
 
     pipeline: Arc<dyn EmulatorPipeline>,
     pass: Box<dyn EmulatorPipelinePass>,
     outputs: Vec<Box<dyn EmulatorOutput>>,
 
-    dynamic_buffers: Vec<Buffer>,
+    immediate_buffer: Option<Box<ImmediateBuffer>>,
     static_meshes: Vec<StaticMeshId>,
     shaders: Vec<ShaderId>,
-    transfer_sync_wait: Option<SyncId>,
+
+    semaphore_waits: Option<SemaphoreOp>,
 
     pre_cmd: vk::CommandBuffer,
     post_cmd: vk::CommandBuffer,
@@ -287,28 +289,26 @@ struct PassState {
 
 impl PassState {
     fn new(pipeline: Arc<dyn EmulatorPipeline>, mut pass: Box<dyn EmulatorPipelinePass>, device: Arc<DeviceContext>, queue: &Queue, share: Arc<Share>, pool: Rc<RefCell<WorkerObjectPool>>) -> Self {
-        let mut object_pool = PooledObjectProvider::new(share, pool);
+        let mut object_pool = PooledObjectProvider::new(share.clone(), pool);
 
         let pre_cmd = object_pool.get_begin_command_buffer().unwrap();
         let post_cmd = object_pool.get_begin_command_buffer().unwrap();
 
         pass.init(queue, &mut object_pool);
 
-        let transfer = device.get_transfer().clone();
-
         Self {
+            share,
             device,
-            transfer,
             object_pool,
 
             pipeline,
             pass,
             outputs: Vec::with_capacity(8),
 
-            dynamic_buffers: Vec::with_capacity(8),
+            immediate_buffer: None,
             static_meshes: Vec::new(),
             shaders: Vec::new(),
-            transfer_sync_wait: None,
+            semaphore_waits: None,
 
             pre_cmd,
             post_cmd,
@@ -317,32 +317,14 @@ impl PassState {
         }
     }
 
-    fn wait_transfer(&mut self, sync_id: SyncId) {
-        self.transfer_sync_wait = Some(self.transfer_sync_wait.map_or(sync_id, |old| std::cmp::max(old, sync_id)));
-    }
-
-    fn use_dynamic_buffer(&mut self, buffer: Buffer, pre_barrier: Option<&BufferMemoryBarrier2>) {
-        self.dynamic_buffers.push(buffer);
-
-        if let Some(pre_barrier) = pre_barrier {
-            let info = vk::DependencyInfo::builder()
-                .buffer_memory_barriers(std::slice::from_ref(pre_barrier));
-
-            unsafe {
-                self.device.vk().cmd_pipeline_barrier2(self.pre_cmd, &info)
-            };
+    fn use_immediate_buffer(&mut self, immediate_buffer: Box<ImmediateBuffer>) {
+        if self.immediate_buffer.is_some() {
+            log::error!("Called PassState::use_immediate_buffer when a immediate buffer already exists");
+            panic!()
         }
-    }
 
-    fn wait_barrier(&mut self, pre_barrier: Option<&BufferMemoryBarrier2>) {
-        if let Some(pre_barrier) = pre_barrier {
-            let info = vk::DependencyInfo::builder()
-                .buffer_memory_barriers(std::slice::from_ref(pre_barrier));
-
-            unsafe {
-                self.device.vk().cmd_pipeline_barrier2(self.pre_cmd, &info)
-            };
-        }
+        immediate_buffer.generate_copy_commands(self.pre_cmd);
+        self.immediate_buffer = Some(immediate_buffer);
     }
 
     fn use_output(&mut self, mut output: Box<dyn EmulatorOutput>) {
@@ -377,10 +359,6 @@ impl PassState {
         }
         self.record_post_submits(&mut submit_recorder, &submit_alloc);
 
-        if let Some(sync_id) = &self.transfer_sync_wait {
-            // Release barriers on the transfer queue must be submitted before the acquire barriers on the graphics queue
-            self.transfer.wait_for_submit(*sync_id)
-        }
         unsafe {
             queue.submit_2(submit_recorder.as_slice(), Some(end_fence))
         }.unwrap();
@@ -401,13 +379,12 @@ impl PassState {
     }
 
     fn record_pre_submits<'a>(&self, recorder: &mut SubmitRecorder<'a>, alloc: &'a Bump) {
-        let wait_infos: &[vk::SemaphoreSubmitInfo] = if let Some(sync_id) = &self.transfer_sync_wait {
-            let op = self.transfer.generate_wait_semaphore(*sync_id);
+        let wait_infos: &[vk::SemaphoreSubmitInfo] = if let Some(wait) = self.semaphore_waits.as_ref() {
             alloc.alloc([
                 vk::SemaphoreSubmitInfo::builder()
-                    .semaphore(op.semaphore.get_handle())
-                    .value(op.value.unwrap_or(0))
-                    .stage_mask(vk::PipelineStageFlags2::VERTEX_INPUT | vk::PipelineStageFlags2::INDEX_INPUT)
+                    .semaphore(wait.semaphore.get_handle())
+                    .value(wait.value.unwrap_or(0))
+                    .stage_mask(vk::PipelineStageFlags2::ALL_COMMANDS)
                     .build()
             ])
         } else {
@@ -431,38 +408,16 @@ impl PassState {
     }
 }
 
-struct PassList {
-    frames: Vec<(PassId, PassState)>,
-}
-
-impl PassList {
-    fn new() -> Self {
-        Self {
-            frames: Vec::new(),
+impl Drop for PassState {
+    fn drop(&mut self) {
+        if let Some(immediate_buffer) = self.immediate_buffer.take() {
+            self.share.return_immediate_buffer(immediate_buffer);
         }
-    }
-
-    fn add_pass(&mut self, id: PassId, state: PassState) {
-        self.frames.push((id, state))
-    }
-
-    fn pop_pass(&mut self, id: PassId) -> Option<PassState> {
-        let mut index = None;
-        for (pass_index, (pass_id, _)) in self.frames.iter().enumerate() {
-            if id == *pass_id {
-                index = Some(pass_index);
-            }
+        for static_mesh in &self.static_meshes {
+            self.share.dec_static_mesh(*static_mesh);
         }
-
-        index.map(|index| self.frames.swap_remove(index).1)
-    }
-
-    fn get_pass(&mut self, id: PassId) -> Option<&mut PassState> {
-        for (pass_id, pass) in &mut self.frames {
-            if id == *pass_id {
-                return Some(pass);
-            }
+        for shader in &self.shaders {
+            self.pipeline.dec_shader_used(*shader);
         }
-        None
     }
 }

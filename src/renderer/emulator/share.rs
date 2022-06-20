@@ -3,15 +3,17 @@ use std::time::{Duration, Instant};
 use std::panic::{RefUnwindSafe, UnwindSafe};
 use std::collections::{HashMap, VecDeque};
 use std::sync::atomic::AtomicU64;
+use ash::vk;
+use crate::objects::sync::SemaphoreOp;
 
-use crate::renderer::emulator::immediate::BufferPool;
 use crate::renderer::emulator::descriptors::DescriptorPool;
 use crate::renderer::emulator::global_objects::{GlobalObjects, StaticMeshDrawInfo};
 use crate::renderer::emulator::{MeshData, PassId, StaticMeshId};
-use crate::renderer::emulator::worker::{Channel, WorkerTask};
+use crate::renderer::emulator::worker::WorkerTask;
 use crate::renderer::emulator::mc_shaders::{McUniform, Shader, ShaderId, VertexFormat};
 
 use crate::prelude::*;
+use crate::renderer::emulator::immediate::{ImmediateBuffer, ImmediatePool};
 
 pub(super) struct Share {
     id: UUID,
@@ -19,9 +21,9 @@ pub(super) struct Share {
     current_pass: AtomicU64,
 
     global_objects: GlobalObjects,
+    immediate_buffers: ImmediatePool,
     shader_database: Mutex<HashMap<ShaderId, Arc<Shader>>>,
     descriptors: Mutex<DescriptorPool>,
-    pool: Mutex<BufferPool>,
     channel: Mutex<Channel>,
     signal: Condvar,
     family: u32,
@@ -35,17 +37,18 @@ impl Share {
         let queue_family = queue.get_queue_family_index();
 
         let global_objects = GlobalObjects::new(device.clone(), queue.clone());
+        let immediate_buffers = ImmediatePool::new(device.clone());
         let descriptors = Mutex::new(DescriptorPool::new(device.clone()));
-        let pool = Mutex::new(BufferPool::new(device.clone()));
 
         Self {
             id: UUID::new(),
             device,
             current_pass: AtomicU64::new(0),
+
             global_objects,
+            immediate_buffers,
             shader_database: Mutex::new(HashMap::new()),
             descriptors,
-            pool,
             channel: Mutex::new(Channel::new()),
             signal: Condvar::new(),
             family: queue_family,
@@ -130,8 +133,24 @@ impl Share {
         });
     }
 
+    pub(super) fn get_next_immediate_buffer(&self) -> Box<ImmediateBuffer> {
+        self.immediate_buffers.get_next_buffer()
+    }
+
+    pub(super) fn return_immediate_buffer(&self, buffer: Box<ImmediateBuffer>) {
+        self.immediate_buffers.return_buffer(buffer);
+    }
+
     pub(super) fn get_render_queue_family(&self) -> u32 {
         self.family
+    }
+
+    pub(super) fn flush_global_objects(&self) -> Option<SemaphoreOp> {
+        self.global_objects.flush()
+    }
+
+    pub(super) fn allocate_uniform<T: ToBytes>(&self, data: &T) -> (vk::Buffer, vk::DeviceSize) {
+        self.descriptors.lock().unwrap().allocate_uniform(data)
     }
 
     pub(super) fn push_task(&self, task: WorkerTask) {
@@ -184,10 +203,7 @@ impl PartialEq for Share {
 impl Eq for Share {
 }
 
-// TODO this is needed because condvar is not unwind safe can we do better?
-impl UnwindSafe for Share {
-}
-
+// Condvar issues
 impl RefUnwindSafe for Share {
 }
 

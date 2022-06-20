@@ -752,8 +752,8 @@ struct DebugPipelinePass {
 
     command_buffer: Option<vk::CommandBuffer>,
     current_pipeline: Option<(ShaderId, PipelineConfig)>,
-    current_vertex_buffer: Option<BufferId>,
-    current_index_buffer: Option<BufferId>,
+    current_vertex_buffer: Option<vk::Buffer>,
+    current_index_buffer: Option<vk::Buffer>,
 }
 
 impl DebugPipelinePass {
@@ -840,23 +840,23 @@ impl DebugPipelinePass {
             }
         }
 
-        if self.current_vertex_buffer != Some(task.vertex_buffer.get_id()) {
+        if self.current_vertex_buffer != Some(task.vertex_buffer) {
             unsafe {
                 device.vk().cmd_bind_vertex_buffers(
                     cmd,
                     0,
-                    std::slice::from_ref(&task.vertex_buffer.get_handle()),
+                    std::slice::from_ref(&task.vertex_buffer),
                     std::slice::from_ref(&0)
                 );
             }
-            self.current_vertex_buffer = Some(task.vertex_buffer.get_id());
+            self.current_vertex_buffer = Some(task.vertex_buffer);
         }
 
-        if self.current_index_buffer != Some(task.index_buffer.get_id()) {
+        if self.current_index_buffer != Some(task.index_buffer) {
             unsafe {
-                device.vk().cmd_bind_index_buffer(cmd, task.index_buffer.get_handle(), 0, task.index_type);
+                device.vk().cmd_bind_index_buffer(cmd, task.index_buffer, 0, task.index_type);
             }
-            self.current_index_buffer = Some(task.index_buffer.get_id());
+            self.current_index_buffer = Some(task.index_buffer);
         }
 
         unsafe {
