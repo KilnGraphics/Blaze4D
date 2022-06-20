@@ -2,6 +2,9 @@
  * Defines all inputs to support minecrafts uniforms.
  */
 
+layout(set=0, binding=1) uniform texture2D _mc_image_0;
+layout(set=0, binding=2) uniform texture2D _mc_image_1;
+layout(set=0, binding=3) uniform texture2D _mc_image_2;
 
 layout(set=0, binding=0, std140)
 uniform _McStaticUniforms {

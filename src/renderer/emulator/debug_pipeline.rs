@@ -37,6 +37,7 @@ pub struct DebugPipeline {
     render_pass: vk::RenderPass,
     set0_layout: vk::DescriptorSetLayout,
     pipeline_layout: vk::PipelineLayout,
+    tmp_sampler: vk::Sampler,
     pipelines: Mutex<HashMap<ShaderId, ShaderPipelines>>,
     next_index: AtomicUsize,
     // Need to control drop order
@@ -55,6 +56,8 @@ impl DebugPipeline {
             PassObjects::new(&device, framebuffer_size, vk::Format::D16_UNORM, render_pass)
         ).take(2).collect();
 
+        let sampler = Self::create_sampler(&device);
+
         let output_views: Box<_> = pass_objects.iter().map(|obj| obj.color_sampler_view).collect();
 
         Arc::new_cyclic(|weak| {
@@ -68,6 +71,7 @@ impl DebugPipeline {
                 render_pass,
                 set0_layout,
                 pipeline_layout,
+                tmp_sampler: sampler,
                 pipelines: Mutex::new(HashMap::new()),
                 next_index: AtomicUsize::new(0),
                 pass_objects: ManuallyDrop::new(pass_objects),
@@ -256,6 +260,27 @@ impl DebugPipeline {
                 descriptor_count: 1,
                 stage_flags: vk::ShaderStageFlags::ALL,
                 p_immutable_samplers: std::ptr::null(),
+            },
+            vk::DescriptorSetLayoutBinding {
+                binding: 1,
+                descriptor_type: vk::DescriptorType::SAMPLED_IMAGE,
+                descriptor_count: 1,
+                stage_flags: vk::ShaderStageFlags::ALL_GRAPHICS,
+                p_immutable_samplers: std::ptr::null(),
+            },
+            vk::DescriptorSetLayoutBinding {
+                binding: 2,
+                descriptor_type: vk::DescriptorType::SAMPLED_IMAGE,
+                descriptor_count: 1,
+                stage_flags: vk::ShaderStageFlags::ALL_GRAPHICS,
+                p_immutable_samplers: std::ptr::null(),
+            },
+            vk::DescriptorSetLayoutBinding {
+                binding: 3,
+                descriptor_type: vk::DescriptorType::SAMPLED_IMAGE,
+                descriptor_count: 1,
+                stage_flags: vk::ShaderStageFlags::ALL_GRAPHICS,
+                p_immutable_samplers: std::ptr::null(),
             }
         ];
 
@@ -282,6 +307,26 @@ impl DebugPipeline {
         }.unwrap();
 
         (set_layout, pipeline_layout)
+    }
+
+    fn create_sampler(device: &DeviceContext) -> vk::Sampler {
+        let info = vk::SamplerCreateInfo::builder()
+            .mag_filter(vk::Filter::NEAREST)
+            .min_filter(vk::Filter::NEAREST)
+            .mipmap_mode(vk::SamplerMipmapMode::NEAREST)
+            .address_mode_u(vk::SamplerAddressMode::REPEAT)
+            .address_mode_v(vk::SamplerAddressMode::REPEAT)
+            .address_mode_w(vk::SamplerAddressMode::REPEAT)
+            .mip_lod_bias(0f32)
+            .anisotropy_enable(false)
+            .compare_enable(false)
+            .min_lod(0f32)
+            .max_lod(0f32)
+            .unnormalized_coordinates(false);
+
+        unsafe {
+            device.vk().create_sampler(&info, None)
+        }.unwrap()
     }
 
     fn create_render_pass(device: &DeviceContext, depth_format: vk::Format) -> vk::RenderPass {
@@ -434,6 +479,7 @@ impl Drop for DebugPipeline {
             self.device.vk().destroy_render_pass(self.render_pass, None);
             self.device.vk().destroy_shader_module(self.fragment_module, None);
             self.device.vk().destroy_shader_module(self.vertex_module, None);
+            self.device.vk().destroy_sampler(self.tmp_sampler, None);
         }
     }
 }
@@ -747,6 +793,7 @@ struct DebugPipelinePass {
     parent: Arc<DebugPipeline>,
     index: usize,
 
+    placeholder_texture: vk::ImageView,
     shader_uniforms: HashMap<ShaderId, UniformStateTracker>,
 
     command_buffer: Option<vk::CommandBuffer>,
@@ -761,6 +808,7 @@ impl DebugPipelinePass {
             parent,
             index,
 
+            placeholder_texture: vk::ImageView::null(),
             shader_uniforms: HashMap::new(),
 
             command_buffer: None,
@@ -772,7 +820,7 @@ impl DebugPipelinePass {
 
     fn update_uniform(&mut self, shader: ShaderId, data: &McUniformData) {
         if !self.shader_uniforms.contains_key(&shader) {
-            self.shader_uniforms.insert(shader, UniformStateTracker::new());
+            self.shader_uniforms.insert(shader, UniformStateTracker::new(self.placeholder_texture));
         }
         let tracker = self.shader_uniforms.get_mut(&shader).unwrap();
         tracker.update_uniform(data);
@@ -799,7 +847,7 @@ impl DebugPipelinePass {
 
         if !self.shader_uniforms.contains_key(&task.shader) {
             log::warn!("Called draw without any shader uniforms. Using default values!");
-            self.shader_uniforms.insert(task.shader, UniformStateTracker::new());
+            self.shader_uniforms.insert(task.shader, UniformStateTracker::new(self.placeholder_texture));
         }
         if let Some(tracker) = self.shader_uniforms.get_mut(&task.shader) {
             if let Some(push_constants) = tracker.validate_push_constants() {
@@ -837,6 +885,54 @@ impl DebugPipelinePass {
                     );
                 }
             }
+
+            if let Some(textures) = tracker.validate_textures() {
+                let image_info0 = vk::DescriptorImageInfo {
+                    sampler: vk::Sampler::null(),
+                    image_view: textures[0],
+                    image_layout: vk::ImageLayout::SHADER_READ_ONLY_OPTIMAL
+                };
+                let image_info1 = vk::DescriptorImageInfo {
+                    sampler: vk::Sampler::null(),
+                    image_view: textures[1],
+                    image_layout: vk::ImageLayout::SHADER_READ_ONLY_OPTIMAL
+                };
+                let image_info2 = vk::DescriptorImageInfo {
+                    sampler: vk::Sampler::null(),
+                    image_view: textures[2],
+                    image_layout: vk::ImageLayout::SHADER_READ_ONLY_OPTIMAL
+                };
+                let writes = [
+                    vk::WriteDescriptorSet::builder()
+                        .dst_binding(1)
+                        .dst_array_element(0)
+                        .descriptor_type(vk::DescriptorType::SAMPLED_IMAGE)
+                        .image_info(std::slice::from_ref(&image_info0))
+                        .build(),
+                    vk::WriteDescriptorSet::builder()
+                        .dst_binding(2)
+                        .dst_array_element(0)
+                        .descriptor_type(vk::DescriptorType::SAMPLED_IMAGE)
+                        .image_info(std::slice::from_ref(&image_info1))
+                        .build(),
+                    vk::WriteDescriptorSet::builder()
+                        .dst_binding(3)
+                        .dst_array_element(0)
+                        .descriptor_type(vk::DescriptorType::SAMPLED_IMAGE)
+                        .image_info(std::slice::from_ref(&image_info2))
+                        .build(),
+                ];
+
+                unsafe {
+                    self.parent.device.push_descriptor_khr().cmd_push_descriptor_set(
+                        self.command_buffer.unwrap(),
+                        vk::PipelineBindPoint::GRAPHICS,
+                        self.parent.pipeline_layout,
+                        0,
+                        &writes
+                    );
+                }
+            }
         }
 
         if self.current_vertex_buffer != Some(task.vertex_buffer) {
@@ -865,7 +961,9 @@ impl DebugPipelinePass {
 }
 
 impl EmulatorPipelinePass for DebugPipelinePass {
-    fn init(&mut self, _: &Queue, obj: &mut PooledObjectProvider, _: vk::ImageView) {
+    fn init(&mut self, _: &Queue, obj: &mut PooledObjectProvider, placeholder_texture: vk::ImageView) {
+        self.placeholder_texture = placeholder_texture;
+
         let cmd = obj.get_begin_command_buffer().unwrap();
         self.command_buffer = Some(cmd);
 
@@ -1003,15 +1101,18 @@ impl Drop for DebugPipelinePass {
 struct UniformStateTracker {
     push_constants_dirty: bool,
     static_uniforms_dirty: bool,
+    textures_dirty: bool,
     push_constant_cache: PushConstants,
     static_uniform_cache: StaticUniforms,
+    textures: [vk::ImageView; 3],
 }
 
 impl UniformStateTracker {
-    fn new() -> Self {
+    fn new(initial_texture: vk::ImageView) -> Self {
         Self {
             push_constants_dirty: true,
             static_uniforms_dirty: true,
+            textures_dirty: true,
             push_constant_cache: PushConstants {
                 model_view_matrix: Mat4f32::identity(),
                 chunk_offset: Vec3f32::zeros(),
@@ -1026,7 +1127,8 @@ impl UniformStateTracker {
                 _padding1: Default::default(),
                 fog_shape: 0,
                 _padding2: Default::default(),
-            }
+            },
+            textures: [initial_texture, initial_texture, initial_texture],
         }
     }
 
@@ -1090,6 +1192,15 @@ impl UniformStateTracker {
         if self.static_uniforms_dirty {
             self.static_uniforms_dirty = false;
             Some(&self.static_uniform_cache)
+        } else {
+            None
+        }
+    }
+
+    fn validate_textures(&mut self) -> Option<&[vk::ImageView; 3]> {
+        if self.textures_dirty {
+            self.textures_dirty = false;
+            Some(&self.textures)
         } else {
             None
         }
