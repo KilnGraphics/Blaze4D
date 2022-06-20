@@ -117,7 +117,7 @@ impl RingAllocator {
                 let released = (self.size - self.tail) + max_end;
                 self.used_bytes -= released;
             } else {
-                self.used_bytes -= (max_end - self.tail);
+                self.used_bytes -= max_end - self.tail;
             }
 
             self.tail = max_end;

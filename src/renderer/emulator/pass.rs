@@ -4,16 +4,13 @@ use std::sync::Arc;
 use ash::vk;
 
 use crate::renderer::emulator::immediate::ImmediateBuffer;
-use crate::renderer::emulator::{EmulatorRenderer, MeshData, StaticMeshId};
+use crate::renderer::emulator::{MeshData, StaticMeshId};
 use crate::renderer::emulator::worker::WorkerTask;
-use crate::device::transfer::{BufferTransferRanges, StagingMemory};
-use crate::objects::sync::SemaphoreOps;
 
 use crate::renderer::emulator::global_objects::StaticMeshDrawInfo;
-use crate::renderer::emulator::mc_shaders::{DevUniform, McUniform, McUniformData, ShaderId};
+use crate::renderer::emulator::mc_shaders::{McUniformData, ShaderId};
 use crate::renderer::emulator::pipeline::{DrawTask, EmulatorOutput, EmulatorPipeline, PipelineTask};
 use crate::renderer::emulator::share::Share;
-use crate::vk::objects::buffer::Buffer;
 
 #[derive(Copy, Clone, PartialEq, Eq, PartialOrd, Ord, Debug, Hash)]
 pub struct PassId(u64);

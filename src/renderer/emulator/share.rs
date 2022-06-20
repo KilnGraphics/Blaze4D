@@ -1,6 +1,6 @@
 use std::sync::{Arc, Condvar, Mutex};
 use std::time::{Duration, Instant};
-use std::panic::{RefUnwindSafe, UnwindSafe};
+use std::panic::RefUnwindSafe;
 use std::collections::{HashMap, VecDeque};
 use std::sync::atomic::AtomicU64;
 use ash::vk;
@@ -8,7 +8,7 @@ use crate::objects::sync::SemaphoreOp;
 
 use crate::renderer::emulator::descriptors::DescriptorPool;
 use crate::renderer::emulator::global_objects::{GlobalObjects, StaticMeshDrawInfo};
-use crate::renderer::emulator::{MeshData, PassId, StaticMeshId};
+use crate::renderer::emulator::{MeshData, StaticMeshId};
 use crate::renderer::emulator::worker::WorkerTask;
 use crate::renderer::emulator::mc_shaders::{McUniform, Shader, ShaderId, VertexFormat};
 

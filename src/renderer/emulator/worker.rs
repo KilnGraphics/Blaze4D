@@ -1,31 +1,24 @@
 use std::cell::RefCell;
 use std::marker::PhantomData;
-use std::panic::{RefUnwindSafe, UnwindSafe};
 use std::rc::Rc;
-use std::sync::{Arc, Condvar, Mutex};
-use std::time::{Duration, Instant};
+use std::sync::Arc;
+use std::time::Duration;
 
 use ash::prelude::VkResult;
 use ash::vk;
-use ash::vk::BufferMemoryBarrier2;
 use bumpalo::Bump;
 
 use crate::device::device::Queue;
-use crate::device::transfer::{SyncId, Transfer};
 use crate::objects::sync::SemaphoreOp;
 
 use crate::renderer::emulator::pass::PassId;
 use crate::renderer::emulator::immediate::ImmediateBuffer;
 use crate::renderer::emulator::pipeline::{EmulatorOutput, EmulatorPipeline, EmulatorPipelinePass, PipelineTask};
-use crate::vk::objects::buffer::Buffer;
 
 use crate::prelude::*;
-use crate::renderer::emulator::descriptors::DescriptorPool;
 use crate::renderer::emulator::StaticMeshId;
-use crate::renderer::emulator::global_objects::GlobalObjects;
 use crate::renderer::emulator::mc_shaders::ShaderId;
 use crate::renderer::emulator::share::{NextTaskResult, Share};
-use crate::vk::objects::allocator::AllocationStrategy;
 
 pub(super) enum WorkerTask {
     StartPass(PassId, Arc<dyn EmulatorPipeline>, Box<dyn EmulatorPipelinePass + Send>),

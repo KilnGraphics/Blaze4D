@@ -29,13 +29,11 @@ impl ImmediatePool {
     }
 
     pub(super) fn get_next_buffer(&self) -> Box<ImmediateBuffer> {
-        let mut guard;
+        let mut guard = self.buffer_queue.lock().unwrap_or_else(|_| {
+            log::error!("Poisoned queue mutex in ImmediatePool::get_next_buffer");
+            panic!()
+        });
         loop {
-            guard = self.buffer_queue.lock().unwrap_or_else(|_| {
-                log::error!("Poisoned queue mutex in ImmediatePool::get_next_buffer");
-                panic!()
-            });
-
             if let Some(next) = guard.pop_front() {
                 return next;
             }

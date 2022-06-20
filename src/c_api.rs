@@ -1,19 +1,13 @@
-use std::num::NonZeroU32;
-use std::ops::Index;
-use std::panic::{catch_unwind, RefUnwindSafe, UnwindSafe};
+use std::panic::catch_unwind;
 use std::process::exit;
 use ash::vk;
-use winit::event::{Event, WindowEvent};
-use winit::event_loop::{ControlFlow, EventLoop};
-use winit::platform::run_return::EventLoopExtRunReturn;
-use crate::b4d::{B4DVertexFormat, Blaze4D};
+use crate::b4d::Blaze4D;
 use crate::glfw_surface::GLFWSurfaceProvider;
 use crate::prelude::{Mat4f32, UUID, Vec2f32, Vec2u32, Vec3f32, Vec4f32};
 
 use crate::renderer::emulator::{MeshData, PassRecorder, StaticMeshId, ImmediateMeshId};
-use crate::renderer::emulator::mc_shaders::{DevUniform, McUniform, McUniformData, ShaderId, VertexFormat, VertexFormatEntry};
+use crate::renderer::emulator::mc_shaders::{McUniform, McUniformData, ShaderId, VertexFormat, VertexFormatEntry};
 use crate::vk::objects::surface::SurfaceProvider;
-use crate::window::WinitWindow;
 
 #[repr(C)]
 struct NativeMetadata {

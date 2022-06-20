@@ -4,13 +4,10 @@ use std::time::{Duration, Instant};
 
 use ash::vk;
 
-use vk_profiles_rs::vp;
-
 use crate::instance::debug_messenger::RustLogDebugMessenger;
 use crate::device::init::{create_device, DeviceCreateConfig};
 use crate::device::surface::{DeviceSurface, SurfaceSwapchain, SwapchainConfig};
 use crate::instance::init::{create_instance, InstanceCreateConfig};
-use crate::instance::instance::VulkanVersion;
 use crate::vk::objects::surface::SurfaceProvider;
 
 use crate::prelude::*;

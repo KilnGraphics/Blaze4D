@@ -24,11 +24,9 @@ mod descriptors;
 mod share;
 mod staging;
 
-use std::collections::HashMap;
 use std::fmt::{Debug, Formatter};
 use std::panic::RefUnwindSafe;
-use std::sync::{Arc, Mutex, Weak};
-use std::sync::atomic::{AtomicU64, Ordering};
+use std::sync::Arc;
 use ash::vk;
 
 use crate::renderer::emulator::worker::run_worker;

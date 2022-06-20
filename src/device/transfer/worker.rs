@@ -333,8 +333,8 @@ pub(super) fn run_worker(share: Arc<Share>, queue: Arc<Queue>) {
             }
 
             Task::BufferTransfer(transfer) => {
-                let mut src_buff;
-                let mut dst_buff;
+                let src_buff;
+                let dst_buff;
                 if transfer.src_buffer == transfer.dst_buffer {
                     let (buffer, _) = buffers.get_mut(&transfer.src_buffer.as_uuid()).unwrap_or_else(|| {
                         log::error!("Transfer buffer {:?} is not available!", transfer.src_buffer);

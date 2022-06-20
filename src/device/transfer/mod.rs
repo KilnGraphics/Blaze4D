@@ -882,7 +882,7 @@ mod tests {
         let op = transfer.prepare_buffer_acquire(buffer, None);
         transfer.acquire_buffer(op, SemaphoreOps::None).unwrap();
 
-        let mut write_mem = transfer.request_staging_memory(byte_size);
+        let write_mem = transfer.request_staging_memory(byte_size);
         unsafe {
             write_mem.write(data.as_slice());
             write_mem.copy_to_buffer(buffer, BufferTransferRanges::new_single(0, 0, byte_size as vk::DeviceSize));
@@ -891,7 +891,7 @@ mod tests {
         let mut dst_data = Vec::new();
         dst_data.resize(data.len(), 0u32);
 
-        let mut read_mem = transfer.request_staging_memory(byte_size);
+        let read_mem = transfer.request_staging_memory(byte_size);
         unsafe {
             read_mem.copy_from_buffer(buffer, BufferTransferRanges::new_single(0, 0, byte_size as vk::DeviceSize));
         }

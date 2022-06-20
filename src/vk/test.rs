@@ -1,14 +1,12 @@
 use std::ffi::{CString};
 use std::sync::Arc;
 
-use ash::{Entry, Instance, vk};
+use ash::vk;
 
-use vk_profiles_rs::vp;
 use crate::{B4D_CORE_VERSION_MAJOR, B4D_CORE_VERSION_MINOR, B4D_CORE_VERSION_PATCH};
 
 use crate::device::init::{create_device, DeviceCreateConfig};
 use crate::instance::init::{create_instance, InstanceCreateConfig};
-use crate::instance::instance::VulkanVersion;
 
 use crate::prelude::*;
 

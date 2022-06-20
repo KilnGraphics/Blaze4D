@@ -1,8 +1,7 @@
 //! Structs used to process minecrafts uniforms and samplers
 
 use std::collections::HashMap;
-use std::fmt::{Debug, Formatter};
-use std::num::NonZeroU32;
+use std::fmt::Debug;
 use std::ops::{BitAnd, BitAndAssign, BitOr, BitOrAssign, BitXor, BitXorAssign, Not};
 use std::sync::{Arc, Mutex, Weak};
 use ash::vk;
