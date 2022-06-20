@@ -16,14 +16,16 @@ use crate::renderer::emulator::immediate::ImmediateBuffer;
 use crate::renderer::emulator::pipeline::{EmulatorOutput, EmulatorPipeline, EmulatorPipelinePass, PipelineTask};
 
 use crate::prelude::*;
+use crate::renderer::emulator::global_objects::StaticImageId;
 use crate::renderer::emulator::StaticMeshId;
 use crate::renderer::emulator::mc_shaders::ShaderId;
 use crate::renderer::emulator::share::{NextTaskResult, Share};
 
 pub(super) enum WorkerTask {
-    StartPass(PassId, Arc<dyn EmulatorPipeline>, Box<dyn EmulatorPipelinePass + Send>),
+    StartPass(PassId, Arc<dyn EmulatorPipeline>, Box<dyn EmulatorPipelinePass + Send>, vk::ImageView, StaticImageId),
     EndPass(Box<ImmediateBuffer>),
     UseStaticMesh(StaticMeshId),
+    UseStaticImage(StaticImageId),
     UseShader(ShaderId),
     UseOutput(Box<dyn EmulatorOutput + Send>),
     PipelineTask(PipelineTask),
@@ -51,12 +53,12 @@ pub(super) fn run_worker(device: Arc<DeviceContext>, share: Arc<Share>) {
         };
 
         match task {
-            WorkerTask::StartPass(_, pipeline, pass) => {
+            WorkerTask::StartPass(_, pipeline, pass, placeholder_image, placeholder_id) => {
                 if current_pass.is_some() {
                     log::error!("Worker received WorkerTask::StartPass when a pass is already running");
                     panic!()
                 }
-                let state = PassState::new(pipeline, pass, device.clone(), &queue, share.clone(), pool.clone());
+                let mut state = PassState::new(pipeline, pass, device.clone(), &queue, share.clone(), pool.clone(), placeholder_image, placeholder_id);
                 current_pass = Some(state);
             }
 
@@ -77,6 +79,15 @@ pub(super) fn run_worker(device: Arc<DeviceContext>, share: Arc<Share>) {
                     pass.static_meshes.push(mesh_id);
                 } else {
                     log::error!("Worker received WorkerTask::UseStaticMesh when no active pass exists");
+                    panic!()
+                }
+            }
+
+            WorkerTask::UseStaticImage(image_id) => {
+                if let Some(pass) = &mut current_pass {
+                    pass.static_images.push(image_id);
+                } else {
+                    log::error!("Worker received WorkerTask::UseStaticImage when no active pass exits");
                     panic!()
                 }
             }
@@ -268,6 +279,7 @@ struct PassState {
 
     immediate_buffer: Option<Box<ImmediateBuffer>>,
     static_meshes: Vec<StaticMeshId>,
+    static_images: Vec<StaticImageId>,
     shaders: Vec<ShaderId>,
 
     pre_cmd: vk::CommandBuffer,
@@ -277,13 +289,13 @@ struct PassState {
 }
 
 impl PassState {
-    fn new(pipeline: Arc<dyn EmulatorPipeline>, mut pass: Box<dyn EmulatorPipelinePass>, device: Arc<DeviceContext>, queue: &Queue, share: Arc<Share>, pool: Rc<RefCell<WorkerObjectPool>>) -> Self {
+    fn new(pipeline: Arc<dyn EmulatorPipeline>, mut pass: Box<dyn EmulatorPipelinePass>, device: Arc<DeviceContext>, queue: &Queue, share: Arc<Share>, pool: Rc<RefCell<WorkerObjectPool>>, placeholder_image: vk::ImageView, placeholder_id: StaticImageId) -> Self {
         let mut object_pool = PooledObjectProvider::new(share.clone(), pool);
 
         let pre_cmd = object_pool.get_begin_command_buffer().unwrap();
         let post_cmd = object_pool.get_begin_command_buffer().unwrap();
 
-        pass.init(queue, &mut object_pool);
+        pass.init(queue, &mut object_pool, placeholder_image);
 
         Self {
             share,
@@ -296,6 +308,7 @@ impl PassState {
 
             immediate_buffer: None,
             static_meshes: Vec::new(),
+            static_images: vec![placeholder_id],
             shaders: Vec::new(),
 
             pre_cmd,
@@ -390,6 +403,9 @@ impl Drop for PassState {
         }
         for static_mesh in &self.static_meshes {
             self.share.dec_static_mesh(*static_mesh);
+        }
+        for static_image in &self.static_images {
+            self.share.dec_static_image(*static_image);
         }
         for shader in &self.shaders {
             self.pipeline.dec_shader_used(*shader);

@@ -71,7 +71,10 @@ pub trait EmulatorPipelinePass {
     ///
     /// The queue which will be used to submit command buffers is provided. All resources (i.e.
     /// buffers, images etc.) passed to this pass will be owned by this queue family.
-    fn init(&mut self, queue: &Queue, obj: &mut PooledObjectProvider);
+    ///
+    /// A placeholder image is provided which can be used for sampled images. This image must only
+    /// be used in submits made by [`EmulatorPipelinePass::record`].
+    fn init(&mut self, queue: &Queue, obj: &mut PooledObjectProvider, placeholder_image: vk::ImageView);
 
     /// Called to process a task.
     ///

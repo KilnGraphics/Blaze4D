@@ -865,7 +865,7 @@ impl DebugPipelinePass {
 }
 
 impl EmulatorPipelinePass for DebugPipelinePass {
-    fn init(&mut self, _: &Queue, obj: &mut PooledObjectProvider) {
+    fn init(&mut self, _: &Queue, obj: &mut PooledObjectProvider, _: vk::ImageView) {
         let cmd = obj.get_begin_command_buffer().unwrap();
         self.command_buffer = Some(cmd);
 

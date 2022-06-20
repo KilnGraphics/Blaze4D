@@ -7,7 +7,7 @@ use crate::renderer::emulator::immediate::ImmediateBuffer;
 use crate::renderer::emulator::{MeshData, StaticMeshId};
 use crate::renderer::emulator::worker::WorkerTask;
 
-use crate::renderer::emulator::global_objects::StaticMeshDrawInfo;
+use crate::renderer::emulator::global_objects::{StaticImageId, StaticMeshDrawInfo};
 use crate::renderer::emulator::mc_shaders::{McUniformData, ShaderId};
 use crate::renderer::emulator::pipeline::{DrawTask, EmulatorOutput, EmulatorPipeline, PipelineTask};
 use crate::renderer::emulator::share::Share;
@@ -44,6 +44,7 @@ pub struct PassRecorder {
 
     used_shaders: HashSet<ShaderId>,
     used_static_meshes: HashMap<StaticMeshId, StaticMeshDrawInfo>,
+    used_static_images: HashMap<StaticImageId, vk::ImageView>,
     immediate_meshes: Vec<ImmediateMeshInfo>,
 
     immediate_buffer: Option<Box<ImmediateBuffer>>,
@@ -55,14 +56,20 @@ pub struct PassRecorder {
 impl PassRecorder {
     pub(super) fn new(share: Arc<Share>, pipeline: Arc<dyn EmulatorPipeline>) -> Self {
         let id = share.try_start_pass_id().unwrap_or_else(|| {
-            log::error!("Attempted to start pass with an already runnign pass!");
+            log::error!("Attempted to start pass with an already running pass!");
             panic!();
         });
         let id = PassId::from_raw(id);
 
         let immediate_buffer = Some(share.get_next_immediate_buffer());
 
-        share.push_task(WorkerTask::StartPass(id, pipeline.clone(), pipeline.start_pass()));
+        let placeholder_id = share.get_placeholder_image();
+        let placeholder_image = share.inc_static_image(placeholder_id);
+
+        share.push_task(WorkerTask::StartPass(id, pipeline.clone(), pipeline.start_pass(), placeholder_image, placeholder_id));
+
+        let mut used_static_images = HashMap::new();
+        used_static_images.insert(placeholder_id, placeholder_image);
 
         Self {
             id,
@@ -70,6 +77,7 @@ impl PassRecorder {
 
             used_shaders: HashSet::new(),
             used_static_meshes: HashMap::new(),
+            used_static_images,
             immediate_meshes: Vec::with_capacity(128),
             immediate_buffer,
 

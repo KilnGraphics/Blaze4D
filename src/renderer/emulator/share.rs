@@ -76,6 +76,22 @@ impl Share {
         self.global_objects.dec_static_mesh(id)
     }
 
+    pub(super) fn create_static_image(&self, data: &StaticImageData) -> StaticImageId {
+        self.global_objects.create_static_image(data)
+    }
+
+    pub(super) fn drop_static_image(&self, id: StaticImageId) {
+        self.global_objects.mark_static_image(id);
+    }
+
+    pub(super) fn inc_static_image(&self, id: StaticImageId) -> vk::ImageView {
+        self.global_objects.inc_static_image(id)
+    }
+
+    pub(super) fn dec_static_image(&self, id: StaticImageId) {
+        self.global_objects.dec_static_image(id)
+    }
+
     pub(super) fn create_shader(&self, vertex_format: &VertexFormat, used_uniforms: McUniform) -> ShaderId {
         let shader = Shader::new(*vertex_format, used_uniforms);
         let id = shader.get_id();
@@ -148,6 +164,10 @@ impl Share {
 
     pub(super) fn get_render_queue_family(&self) -> u32 {
         self.family
+    }
+
+    pub(super) fn get_placeholder_image(&self) -> StaticImageId {
+        self.placeholder_image_id
     }
 
     pub(super) fn flush_global_objects(&self) {
