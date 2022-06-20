@@ -59,6 +59,7 @@ impl ImmediatePool {
         });
 
         guard.push_back(buffer);
+        self.ready_condvar.notify_one();
     }
 }
 
