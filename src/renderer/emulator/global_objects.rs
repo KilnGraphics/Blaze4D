@@ -80,12 +80,32 @@ impl GlobalObjects {
         }).dec_static_mesh(id)
     }
 
-    pub(super) fn create_static_texture(&self) {
-        todo!()
+    pub(super) fn create_static_image(&self, data: &StaticImageData) -> StaticImageId {
+        self.data.lock().unwrap_or_else(|_| {
+            log::error!("Poisoned mutex in GlobalObjects::create_static_image!");
+            panic!();
+        }).create_static_image(data)
     }
 
-    pub(super) fn mark_static_texture(&self) {
-        todo!()
+    pub(super) fn mark_static_image(&self, id: StaticImageId) {
+        self.data.lock().unwrap_or_else(|_| {
+            log::error!("Poisoned mutex in GlobalObjects::mark_static_image!");
+            panic!();
+        }).mark_static_image(id)
+    }
+
+    pub(super) fn inc_static_image(&self, id: StaticImageId) -> vk::ImageView {
+        self.data.lock().unwrap_or_else(|_| {
+            log::error!("Poisoned mutex in GlobalObjects::inc_static_image!");
+            panic!();
+        }).inc_get_static_image(id)
+    }
+
+    pub(super) fn dec_static_image(&self, id: StaticImageId) {
+        self.data.lock().unwrap_or_else(|_| {
+            log::error!("Poisoned mutex in GlobalObjects::dec_static_image!");
+            panic!();
+        }).dec_static_image(id)
     }
 
     /// Flushes any pending operations which need to be executed on global objects.
@@ -121,7 +141,9 @@ struct Data {
     pending_staging_allocations: Vec<StagingAllocationId>,
 
     static_meshes: HashMap<StaticMeshId, StaticMesh>,
+    static_images: HashMap<StaticImageId, StaticImage>,
     droppable_static_meshes: Vec<StaticMesh>,
+    droppable_static_images: Vec<StaticImage>,
 }
 
 impl Data {
@@ -148,7 +170,9 @@ impl Data {
             pending_staging_allocations: Vec::new(),
 
             static_meshes: HashMap::new(),
+            static_images: HashMap::new(),
             droppable_static_meshes: Vec::new(),
+            droppable_static_images: Vec::new(),
         }
     }
 
@@ -229,6 +253,207 @@ impl Data {
         mesh_id
     }
 
+    fn create_static_image(&mut self, data: &StaticImageData) -> StaticImageId {
+        let (image, allocation, view) = StaticImage::create_image(&self.device, data.size, data.generate_mip_levels, data.format);
+
+        let staging = self.staging_pool.allocate(data.data.len() as vk::DeviceSize, 1);
+        let mapped = staging.0.mapped;
+
+        unsafe {
+            let dst = std::slice::from_raw_parts_mut(mapped.as_ptr(), data.data.len());
+            dst.copy_from_slice(data.data);
+        }
+
+        let cmd = self.get_begin_pending_command_buffer();
+
+        let region = vk::BufferImageCopy {
+            buffer_offset: 0,
+            buffer_row_length: 0,
+            buffer_image_height: 0,
+            image_subresource: vk::ImageSubresourceLayers {
+                aspect_mask: vk::ImageAspectFlags::COLOR,
+                mip_level: 0,
+                base_array_layer: 0,
+                layer_count: 1,
+            },
+            image_offset: vk::Offset3D {
+                x: 0,
+                y: 0,
+                z: 0
+            },
+            image_extent: vk::Extent3D {
+                width: data.size[0],
+                height: data.size[1],
+                depth: 1
+            }
+        };
+
+        unsafe {
+            self.device.vk().cmd_copy_buffer_to_image(
+                cmd,
+                staging.0.buffer,
+                image,
+                vk::ImageLayout::TRANSFER_DST_OPTIMAL,
+                std::slice::from_ref(&region)
+            );
+        }
+
+        let mut last_size = data.size;
+        for level in 1..data.generate_mip_levels {
+            let current_size = Vec2u32::new(
+                if last_size[0] > 1 { last_size[0] / 2 } else { 1 },
+                if last_size[1] > 1 { last_size[1] / 2 } else { 1 },
+            );
+
+            let barrier = vk::ImageMemoryBarrier2::builder()
+                .src_stage_mask(vk::PipelineStageFlags2::TRANSFER)
+                .src_access_mask(vk::AccessFlags2::TRANSFER_WRITE)
+                .dst_stage_mask(vk::PipelineStageFlags2::BLIT)
+                .dst_access_mask(vk::AccessFlags2::TRANSFER_READ)
+                .old_layout(vk::ImageLayout::TRANSFER_DST_OPTIMAL)
+                .new_layout(vk::ImageLayout::TRANSFER_SRC_OPTIMAL)
+                .image(image)
+                .subresource_range(vk::ImageSubresourceRange {
+                    aspect_mask: vk::ImageAspectFlags::COLOR,
+                    base_mip_level: level - 1,
+                    level_count: 1,
+                    base_array_layer: 0,
+                    layer_count: 1
+                });
+
+            let info = vk::DependencyInfo::builder()
+                .image_memory_barriers(std::slice::from_ref(&barrier));
+
+            unsafe {
+                self.device.synchronization_2_khr().cmd_pipeline_barrier2(cmd, &info);
+            }
+            
+            let region = vk::ImageBlit {
+                src_subresource: vk::ImageSubresourceLayers {
+                    aspect_mask: vk::ImageAspectFlags::COLOR,
+                    mip_level: level - 1,
+                    base_array_layer: 0,
+                    layer_count: 1
+                },
+                src_offsets: [
+                    vk::Offset3D {
+                        x: 0,
+                        y: 0,
+                        z: 0
+                    },
+                    vk::Offset3D {
+                        x: last_size[0] as i32,
+                        y: last_size[1] as i32,
+                        z: 1
+                    }
+                ],
+                dst_subresource: vk::ImageSubresourceLayers {
+                    aspect_mask: vk::ImageAspectFlags::COLOR,
+                    mip_level: level,
+                    base_array_layer: 0,
+                    layer_count: 1
+                },
+                dst_offsets: [
+                    vk::Offset3D {
+                        x: 0,
+                        y: 0,
+                        z: 0
+                    },
+                    vk::Offset3D {
+                        x: current_size[0] as i32,
+                        y: current_size[1] as i32,
+                        z: 1
+                    }
+                ]
+            };
+
+            unsafe {
+                self.device.vk().cmd_blit_image(
+                    cmd,
+                    image,
+                    vk::ImageLayout::TRANSFER_SRC_OPTIMAL,
+                    image,
+                    vk::ImageLayout::TRANSFER_DST_OPTIMAL,
+                    std::slice::from_ref(&region),
+                    vk::Filter::LINEAR,
+                );
+            }
+
+            last_size = current_size;
+        }
+
+        if data.generate_mip_levels > 1 {
+            self.pending_image_barriers.push(vk::ImageMemoryBarrier2::builder()
+                .src_stage_mask(vk::PipelineStageFlags2::BLIT)
+                .src_access_mask(vk::AccessFlags2::TRANSFER_READ)
+                .dst_stage_mask(vk::PipelineStageFlags2::ALL_GRAPHICS)
+                .dst_access_mask(vk::AccessFlags2::SHADER_SAMPLED_READ)
+                .old_layout(vk::ImageLayout::TRANSFER_SRC_OPTIMAL)
+                .new_layout(vk::ImageLayout::SHADER_READ_ONLY_OPTIMAL)
+                .image(image)
+                .subresource_range(vk::ImageSubresourceRange {
+                    aspect_mask: vk::ImageAspectFlags::COLOR,
+                    base_mip_level: 0,
+                    level_count: data.generate_mip_levels - 1,
+                    base_array_layer: 0,
+                    layer_count: 1
+                })
+                .build()
+            );
+            self.pending_image_barriers.push(vk::ImageMemoryBarrier2::builder()
+                .src_stage_mask(vk::PipelineStageFlags2::BLIT)
+                .src_access_mask(vk::AccessFlags2::TRANSFER_WRITE)
+                .dst_stage_mask(vk::PipelineStageFlags2::ALL_GRAPHICS)
+                .dst_access_mask(vk::AccessFlags2::SHADER_SAMPLED_READ)
+                .old_layout(vk::ImageLayout::TRANSFER_DST_OPTIMAL)
+                .new_layout(vk::ImageLayout::SHADER_READ_ONLY_OPTIMAL)
+                .image(image)
+                .subresource_range(vk::ImageSubresourceRange {
+                    aspect_mask: vk::ImageAspectFlags::COLOR,
+                    base_mip_level: data.generate_mip_levels - 1,
+                    level_count: 1,
+                    base_array_layer: 0,
+                    layer_count: 1
+                })
+                .build()
+            );
+        } else {
+            self.pending_image_barriers.push(vk::ImageMemoryBarrier2::builder()
+                .src_stage_mask(vk::PipelineStageFlags2::TRANSFER)
+                .src_access_mask(vk::AccessFlags2::TRANSFER_WRITE)
+                .dst_stage_mask(vk::PipelineStageFlags2::ALL_GRAPHICS)
+                .dst_access_mask(vk::AccessFlags2::SHADER_SAMPLED_READ)
+                .old_layout(vk::ImageLayout::TRANSFER_DST_OPTIMAL)
+                .new_layout(vk::ImageLayout::SHADER_READ_ONLY_OPTIMAL)
+                .image(image)
+                .subresource_range(vk::ImageSubresourceRange {
+                    aspect_mask: vk::ImageAspectFlags::COLOR,
+                    base_mip_level: 0,
+                    level_count: 1,
+                    base_array_layer: 0,
+                    layer_count: 1
+                })
+                .build()
+            );
+        }
+
+        let static_image = StaticImage {
+            image,
+            allocation,
+            view,
+            used_counter: 0,
+            marked: false
+        };
+
+        let image_id = StaticImageId::new();
+        if self.static_images.insert(image_id, static_image).is_some() {
+            log::error!("UUID collision");
+            panic!();
+        }
+
+        image_id
+    }
+
     fn mark_static_mesh(&mut self, mesh_id: StaticMeshId) {
         let mut drop = false;
         if let Some(static_mesh) = self.static_meshes.get_mut(&mesh_id) {
@@ -278,6 +503,50 @@ impl Data {
         }
     }
 
+    fn mark_static_image(&mut self, image_id: StaticImageId) {
+        let mut drop = false;
+        if let Some(static_image) = self.static_images.get_mut(&image_id) {
+            static_image.marked = true;
+            if static_image.is_unused() {
+                drop = true;
+            }
+        } else {
+            log::error!("Failed to find image with id {:?} in Data::mark_static_image", image_id);
+            panic!()
+        }
+
+        if drop {
+            let static_image = self.static_images.remove(&image_id).unwrap();
+            self.droppable_static_images.push(static_image);
+        }
+    }
+
+    fn inc_get_static_image(&mut self, image_id: StaticImageId) -> vk::ImageView {
+        if let Some(static_image) = self.static_images.get_mut(&image_id) {
+            if !static_image.inc() {
+                log::error!("Inc was called on marked static image!");
+                panic!();
+            }
+
+            static_image.view
+        } else {
+            log::error!("Failed to find image wiht id {:?} in Data::inc_get_static_image", image_id);
+            panic!()
+        }
+    }
+
+    fn dec_static_image(&mut self, image_id: StaticImageId) {
+        let mut drop = false;
+        if let Some(static_image) = self.static_images.get_mut(&image_id) {
+            if static_image.dec() {
+                drop = true;
+            }
+        } else {
+            log::error!("Failed to find image with id {:?} in Data::dec_static_image", image_id);
+            panic!()
+        }
+    }
+
     fn update(&mut self) {
         let current_value = unsafe {
             self.device.timeline_semaphore_khr().get_semaphore_counter_value(self.semaphore.get_handle())
@@ -300,6 +569,9 @@ impl Data {
 
         while let Some(static_mesh) = self.droppable_static_meshes.pop() {
             static_mesh.destroy(&self.device);
+        }
+        while let Some(static_image) = self.droppable_static_images.pop() {
+            static_image.destroy(&self.device);
         }
     }
 
@@ -547,5 +819,137 @@ impl StaticMesh {
         });
 
         (Buffer::new(buffer), alloc)
+    }
+}
+
+define_uuid_type!(pub, StaticImageId);
+
+pub struct StaticImageData<'a> {
+    data: &'a [u8],
+    format: vk::Format,
+    size: Vec2u32,
+    generate_mip_levels: u32,
+}
+
+struct StaticImage {
+    image: vk::Image,
+    allocation: Allocation,
+    view: vk::ImageView,
+
+    used_counter: u32,
+    marked: bool,
+}
+
+impl StaticImage {
+    /// Attempts to increment the used counter.
+    ///
+    /// If the image is marked the counter is not incremented and false is returned.
+    fn inc(&mut self) -> bool {
+        if self.marked {
+            return false;
+        }
+
+        self.used_counter += 1;
+        true
+    }
+
+    /// Decrements the used counter.
+    ///
+    /// If the image is marked and the counter decrements to 0 true is returned indicating that the
+    /// image can be destroyed.
+    fn dec(&mut self) -> bool {
+        if self.used_counter == 0 {
+            log::error!("Used counter is already 0 when calling StaticImage::dec");
+            panic!()
+        }
+
+        self.used_counter -= 1;
+
+        if self.marked && self.is_unused() {
+            return true;
+        }
+        false
+    }
+
+    /// Returns true if the mesh used counter is 0
+    fn is_unused(&self) -> bool {
+        self.used_counter == 0
+    }
+
+    fn destroy(self, device: &DeviceContext) {
+        if self.used_counter != 0 {
+            log::warn!("Destroying static image despite used counter being {:?}", self.used_counter);
+        }
+
+        unsafe {
+            device.vk().destroy_image_view(self.view, None);
+            device.get_functions().vk.destroy_image(self.image, None);
+        }
+
+        device.get_allocator().free(self.allocation);
+    }
+
+    fn create_image(device: &DeviceContext, size: Vec2u32, mip_levels: u32, format: vk::Format) -> (vk::Image, Allocation, vk::ImageView) {
+        let info = vk::ImageCreateInfo::builder()
+            .image_type(vk::ImageType::TYPE_2D)
+            .format(format)
+            .extent(vk::Extent3D {
+                width: size[0],
+                height: size[1],
+                depth: 1
+            })
+            .mip_levels(mip_levels)
+            .array_layers(1)
+            .samples(vk::SampleCountFlags::TYPE_1)
+            .tiling(vk::ImageTiling::OPTIMAL)
+            .usage(vk::ImageUsageFlags::TRANSFER_DST | vk::ImageUsageFlags::SAMPLED)
+            .sharing_mode(vk::SharingMode::EXCLUSIVE)
+            .initial_layout(vk::ImageLayout::TRANSFER_DST_OPTIMAL);
+
+        let image = unsafe {
+            device.vk().create_image(&info, None)
+        }.unwrap_or_else(|err| {
+            log::error!("vkCreateImage returned {:?} in StaticImage::create_image", err);
+            panic!();
+        });
+
+        let allocation = device.get_allocator().allocate_image_memory(image, &AllocationStrategy::AutoGpuOnly).unwrap_or_else(|err| {
+            log::error!("allocate_image_memory failed with {:?} in StaticImage::create_image", err);
+            panic!()
+        });
+
+        unsafe {
+            device.vk().bind_image_memory(image, allocation.memory(), allocation.offset())
+        }.unwrap_or_else(|err| {
+            log::error!("vkBindImageMemory returned {:?} in StaticImage::create_image", err);
+            panic!()
+        });
+
+        let info = vk::ImageViewCreateInfo::builder()
+            .image(image)
+            .view_type(vk::ImageViewType::TYPE_2D)
+            .format(format)
+            .components(vk::ComponentMapping {
+                r: vk::ComponentSwizzle::IDENTITY,
+                g: vk::ComponentSwizzle::IDENTITY,
+                b: vk::ComponentSwizzle::IDENTITY,
+                a: vk::ComponentSwizzle::IDENTITY
+            })
+            .subresource_range(vk::ImageSubresourceRange {
+                aspect_mask: vk::ImageAspectFlags::COLOR,
+                base_mip_level: 0,
+                level_count: mip_levels,
+                base_array_layer: 0,
+                layer_count: 1
+            });
+
+        let view = unsafe {
+            device.vk().create_image_view(&info, None)
+        }.unwrap_or_else(|err| {
+            log::error!("vkCreateImageView returned {:?} in StaticImage::create_image", err);
+            panic!()
+        });
+
+        (image, allocation, view)
     }
 }
