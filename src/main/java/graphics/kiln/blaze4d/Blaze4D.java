@@ -38,9 +38,17 @@ public class Blaze4D implements ClientModInitializer {
         }
     }
 
-    public static void drawImmediate(long shaderId, int meshId) {
+    public static void drawImmediate(int meshId, long shaderId) {
         if(currentFrame != null) {
-            currentFrame.drawImmediate(shaderId, meshId, depthWriteEnable);
+            currentFrame.drawImmediate(meshId, shaderId, depthWriteEnable);
+        } else {
+            LOGGER.warn("Attempted to draw outside of frame");
+        }
+    }
+
+    public static void drawStatic(long meshId, long shaderId) {
+        if(currentFrame != null) {
+            currentFrame.drawStatic(meshId, shaderId, depthWriteEnable);
         } else {
             LOGGER.warn("Attempted to draw outside of frame");
         }

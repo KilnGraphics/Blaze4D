@@ -26,10 +26,13 @@ public class Natives {
     public static final MethodHandle B4D_CREATE_GLFW_SURFACE_PROVIDER_HANDLE;
     public static final MethodHandle B4D_INIT_HANDLE;
     public static final MethodHandle B4D_DESTROY_HANDLE;
+    public static final MethodHandle B4D_CREATE_STATIC_MESH_HANDLE;
+    public static final MethodHandle B4D_DESTROY_STATIC_MESH_HANDLE;
     public static final MethodHandle B4D_CREATE_SHADER_HANDLE;
     public static final MethodHandle B4D_DESTROY_SHADER_HANDLE;
     public static final MethodHandle B4D_START_FRAME_HANDLE;
     public static final MethodHandle B4D_PASS_UPDATE_UNIFORM_HANDLE;
+    public static final MethodHandle B4D_PASS_DRAW_STATIC_HANDLE;
     public static final MethodHandle B4D_PASS_UPLOAD_IMMEDIATE_HANDLE;
     public static final MethodHandle B4D_PASS_DRAW_IMMEDIATE_HANDLE;
     public static final MethodHandle B4D_END_FRAME_HANDLE;
@@ -55,6 +58,14 @@ public class Natives {
                 FunctionDescriptor.ofVoid(ADDRESS)
         );
 
+        B4D_CREATE_STATIC_MESH_HANDLE = lookupFunction("b4d_create_static_mesh",
+                FunctionDescriptor.of(JAVA_LONG, ADDRESS, ADDRESS)
+        );
+
+        B4D_DESTROY_STATIC_MESH_HANDLE = lookupFunction("b4d_destroy_static_mesh",
+                FunctionDescriptor.ofVoid(ADDRESS, JAVA_LONG)
+        );
+
         B4D_CREATE_SHADER_HANDLE = lookupFunction("b4d_create_shader",
                 FunctionDescriptor.of(JAVA_LONG, ADDRESS, ADDRESS, JAVA_LONG)
         );
@@ -69,6 +80,10 @@ public class Natives {
 
         B4D_PASS_UPDATE_UNIFORM_HANDLE = lookupFunction("b4d_pass_update_uniform",
                 FunctionDescriptor.ofVoid(ADDRESS, ADDRESS, JAVA_LONG)
+        );
+
+        B4D_PASS_DRAW_STATIC_HANDLE = lookupFunction("b4d_pass_draw_static",
+                FunctionDescriptor.ofVoid(ADDRESS, JAVA_LONG, JAVA_LONG, JAVA_INT)
         );
 
         B4D_PASS_UPLOAD_IMMEDIATE_HANDLE = lookupFunction("b4d_pass_upload_immediate",
@@ -111,6 +126,22 @@ public class Natives {
         }
     }
 
+    public static long b4dCreateStaticMesh(MemoryAddress b4d, MemoryAddress meshData) {
+        try {
+            return (long) B4D_CREATE_STATIC_MESH_HANDLE.invoke(b4d, meshData);
+        } catch (Throwable e) {
+            throw new RuntimeException("Failed to invoke b4d_create_static_mesh", e);
+        }
+    }
+
+    public static void b4dDestroyStaticMesh(MemoryAddress b4d, long meshId) {
+        try {
+            B4D_DESTROY_STATIC_MESH_HANDLE.invoke(b4d, meshId);
+        } catch (Throwable e) {
+            throw new RuntimeException("Failed to invoke b4d_destroy_static_mesh", e);
+        }
+    }
+
     public static long b4dCreateShader(MemoryAddress b4d, MemoryAddress vertexFormat, long usedUniforms) {
         try {
             return (long) B4D_CREATE_SHADER_HANDLE.invoke(b4d, vertexFormat, usedUniforms);
@@ -140,6 +171,20 @@ public class Natives {
             B4D_PASS_UPDATE_UNIFORM_HANDLE.invoke(frame, data, shaderId);
         } catch (Throwable e) {
             throw new RuntimeException("Failed to invoke b4d_pass_update_uniform", e);
+        }
+    }
+
+    public static void b4dPassDrawStatic(MemoryAddress frame, long meshId, long shaderId, boolean depthWrite) {
+        int depthWriteInt;
+        if (depthWrite) {
+            depthWriteInt = 1;
+        } else {
+            depthWriteInt = 0;
+        }
+        try {
+            B4D_PASS_DRAW_STATIC_HANDLE.invoke(frame, meshId, shaderId, depthWriteInt);
+        } catch (Throwable e) {
+            throw new RuntimeException("Failed to invoke b4d_pass_draw_static", e);
         }
     }
 
