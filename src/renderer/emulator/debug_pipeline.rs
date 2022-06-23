@@ -85,7 +85,7 @@ assert_impl_all!(DebugPipeline: Send, Sync);
 impl DebugPipeline {
     pub fn new(emulator: Arc<EmulatorRenderer>, mode: DebugPipelineMode, framebuffer_size: Vec2u32) -> Result<Arc<Self>, ObjectCreateError> {
         let concurrent_passes = 2usize;
-        let depth_format = vk::Format::D16_UNORM;
+        let depth_format = vk::Format::D32_SFLOAT;
 
         let device = emulator.get_device();
 
@@ -238,7 +238,7 @@ impl DebugPipeline {
         let rasterization_state = vk::PipelineRasterizationStateCreateInfo::builder()
             .polygon_mode(vk::PolygonMode::FILL)
             .cull_mode(vk::CullModeFlags::BACK)
-            .front_face(vk::FrontFace::CLOCKWISE)
+            .front_face(vk::FrontFace::COUNTER_CLOCKWISE)
             .line_width(1f32);
 
         let multisample_state = vk::PipelineMultisampleStateCreateInfo::builder()
