@@ -128,17 +128,19 @@ struct Data {
     queue: Arc<Queue>,
 
     semaphore: Semaphore,
-    semaphore_current_value: u64,
+    semaphore_next_value: u64,
 
     staging_pool: StagingMemoryPool,
     command_pool: vk::CommandPool,
     available_command_buffers: Vec<vk::CommandBuffer>,
     pending_command_buffer: Option<vk::CommandBuffer>,
-    submitted_command_buffers: VecDeque<(u64, vk::CommandBuffer, Vec<StagingAllocationId>)>,
+    submitted_command_buffers: VecDeque<(u64, vk::CommandBuffer, Vec<StagingAllocationId>, Vec<StaticMeshId>, Vec<StaticImageId>)>,
 
     pending_buffer_barriers: Vec<vk::BufferMemoryBarrier2>,
     pending_image_barriers: Vec<vk::ImageMemoryBarrier2>,
     pending_staging_allocations: Vec<StagingAllocationId>,
+    pending_static_meshes: Vec<StaticMeshId>,
+    pending_static_images: Vec<StaticImageId>,
 
     static_meshes: HashMap<StaticMeshId, StaticMesh>,
     static_images: HashMap<StaticImageId, StaticImage>,
@@ -157,7 +159,7 @@ impl Data {
             queue,
 
             semaphore: Semaphore::new(semaphore),
-            semaphore_current_value: 0,
+            semaphore_next_value: 1,
 
             staging_pool,
             command_pool,
@@ -168,6 +170,8 @@ impl Data {
             pending_buffer_barriers: Vec::new(),
             pending_image_barriers: Vec::new(),
             pending_staging_allocations: Vec::new(),
+            pending_static_meshes: Vec::new(),
+            pending_static_images: Vec::new(),
 
             static_meshes: HashMap::new(),
             static_images: HashMap::new(),
@@ -177,6 +181,9 @@ impl Data {
     }
 
     fn create_static_mesh(&mut self, data: &MeshData) -> StaticMeshId {
+        let mesh_id = StaticMeshId::new();
+        let mut used_counter = 0;
+
         let index_offset = next_aligned(data.vertex_data.len() as vk::DeviceSize, data.get_index_size() as vk::DeviceSize);
         let required_size = index_offset + (data.index_data.len() as vk::DeviceSize);
 
@@ -226,6 +233,8 @@ impl Data {
             );
 
             self.pending_staging_allocations.push(staging_id);
+            self.pending_static_meshes.push(mesh_id);
+            used_counter += 1;
         }
 
         let draw_info = StaticMeshDrawInfo {
@@ -240,11 +249,10 @@ impl Data {
             buffer,
             allocation,
             draw_info,
-            used_counter: 0,
+            used_counter,
             marked: false
         };
 
-        let mesh_id = StaticMeshId::new();
         if self.static_meshes.insert(mesh_id, static_mesh).is_some() {
             log::error!("UUID collision");
             panic!();
@@ -254,6 +262,8 @@ impl Data {
     }
 
     fn create_static_image(&mut self, data: &StaticImageData) -> StaticImageId {
+        let image_id = StaticImageId::new();
+
         let (image, allocation, view) = StaticImage::create_image(&self.device, data.size, data.generate_mip_levels, data.format);
 
         let staging = self.staging_pool.allocate(data.data.len() as vk::DeviceSize, 1);
@@ -461,16 +471,16 @@ impl Data {
         }
 
         self.pending_staging_allocations.push(staging.1);
+        self.pending_static_images.push(image_id);
 
         let static_image = StaticImage {
             image,
             allocation,
             view,
-            used_counter: 0,
+            used_counter: 1,
             marked: false
         };
 
-        let image_id = StaticImageId::new();
         if self.static_images.insert(image_id, static_image).is_some() {
             log::error!("UUID collision");
             panic!();
@@ -580,14 +590,20 @@ impl Data {
             panic!()
         });
 
-        while let Some((value, cmd, staging)) = self.submitted_command_buffers.pop_front() {
+        while let Some((value, cmd, staging, meshes, images)) = self.submitted_command_buffers.pop_front() {
             if current_value >= value {
                 self.available_command_buffers.push(cmd);
                 for alloc in staging {
                     self.staging_pool.free(alloc);
                 }
+                for mesh in meshes {
+                    self.dec_static_mesh(mesh);
+                }
+                for image in images {
+                    self.dec_static_image(image);
+                }
             } else {
-                self.submitted_command_buffers.push_front((value, cmd, staging));
+                self.submitted_command_buffers.push_front((value, cmd, staging, meshes, images));
                 break;
             }
         }
@@ -625,8 +641,8 @@ impl Data {
                 panic!();
             });
 
-            self.semaphore_current_value += 1;
-            let signal_value = self.semaphore_current_value;
+            let signal_value = self.semaphore_next_value;
+            self.semaphore_next_value += 1;
 
             let command_infos = [
                 vk::CommandBufferSubmitInfo::builder()
@@ -654,7 +670,9 @@ impl Data {
             });
 
             let staging_allocations = std::mem::replace(&mut self.pending_staging_allocations, Vec::new());
-            self.submitted_command_buffers.push_back((signal_value, cmd, staging_allocations));
+            let meshes = std::mem::replace(&mut self.pending_static_meshes, Vec::new());
+            let images = std::mem::replace(&mut self.pending_static_images, Vec::new());
+            self.submitted_command_buffers.push_back((signal_value, cmd, staging_allocations, meshes, images));
         }
     }
 
