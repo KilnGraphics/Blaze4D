@@ -803,6 +803,7 @@ impl BackgroundPipeline {
             err
         })?;
 
+        let specialization_data = Vec2f32::new(framebuffer_size[0] as f32, framebuffer_size[1] as f32);
         let specializations = [
             vk::SpecializationMapEntry {
                 constant_id: 0,
@@ -818,7 +819,7 @@ impl BackgroundPipeline {
 
         let specialization_info = vk::SpecializationInfo::builder()
             .map_entries(&specializations)
-            .data(framebuffer_size.as_bytes());
+            .data(specialization_data.as_bytes());
 
         let shader_stages = [
             vk::PipelineShaderStageCreateInfo::builder()
@@ -1721,15 +1722,6 @@ const_assert_eq!(std::mem::size_of::<StaticUniforms>(), 128);
 const_assert_eq!(std::mem::size_of::<StaticUniforms>() % 16, 0);
 
 unsafe impl ToBytes for StaticUniforms { to_bytes_body!(); }
-
-#[repr(C)]
-#[derive(Copy, Clone, Default)]
-struct VertexSpecializationEntries {
-    #[allow(unused)]
-    has_color: u32,
-}
-
-unsafe impl ToBytes for VertexSpecializationEntries { to_bytes_body!(); }
 
 fn try_create_shader_module(device: &DeviceContext, data: &[u8], name: &str) -> Result<vk::ShaderModule, vk::Result> {
     let info = vk::ShaderModuleCreateInfo::builder()
