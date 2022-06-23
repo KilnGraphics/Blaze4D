@@ -4,7 +4,6 @@ use std::panic::RefUnwindSafe;
 use std::collections::{HashMap, VecDeque};
 use std::sync::atomic::AtomicU64;
 use ash::vk;
-use crate::objects::sync::SemaphoreOp;
 
 use crate::renderer::emulator::descriptors::DescriptorPool;
 use crate::renderer::emulator::global_objects::{GlobalObjects, StaticImageData, StaticImageId, StaticMeshDrawInfo};
@@ -58,6 +57,10 @@ impl Share {
             family: queue_family,
             placeholder_image_id
         }
+    }
+
+    pub(super) fn get_device(&self) -> &Arc<DeviceContext> {
+        &self.device
     }
 
     pub(super) fn create_static_mesh(&self, data: &MeshData) -> StaticMeshId {

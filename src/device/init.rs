@@ -58,7 +58,7 @@ impl From<vk::Result> for DeviceCreateError {
     }
 }
 
-pub fn create_device(mut config: DeviceCreateConfig, instance: Arc<InstanceContext>) -> Result<Arc<DeviceContext>, DeviceCreateError> {
+pub fn create_device(config: DeviceCreateConfig, instance: Arc<InstanceContext>) -> Result<Arc<DeviceContext>, DeviceCreateError> {
     log::info!("Creating vulkan device with config: {:?}", config);
 
     let vk_vp = VulkanProfiles::linked();
@@ -325,7 +325,7 @@ impl<'a, 'b> DeviceConfigurator<'a, 'b> {
         self.create_info = info.push_next(data);
     }
 
-    fn build(mut self) -> vk::DeviceCreateInfoBuilder<'b> {
+    fn build(self) -> vk::DeviceCreateInfoBuilder<'b> {
         let c_extensions = self.alloc.alloc_slice_fill_copy(self.used_extensions.len(), std::ptr::null());
 
         for (index, extension) in self.used_extensions.iter().enumerate() {

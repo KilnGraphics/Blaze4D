@@ -150,8 +150,29 @@ tasks.register<CompileShaders>("compileEmulatorShaders") {
         source("debug/position.vert")
         output("debug_position_vert.spv")
     });
+    addModule("DebugColor", {
+        source("debug/color.vert")
+        output("debug_color_vert.spv")
+    });
+    addModule("DebugUV", {
+        source("debug/uv.vert")
+        output("debug_uv_vert.spv")
+    });
+    addModule("DebugNull", {
+        source("debug/null.vert")
+        output("debug_null_vert.spv")
+    });
     addModule("DebugFragment", {
         source("debug/debug.frag")
         output("debug_frag.spv")
+    });
+
+    addModule("BackgroundVertex", {
+        source("debug/background.vert")
+        output("background_vert.spv")
+    });
+    addModule("BackgroundFragment", {
+        source("debug/background.frag")
+        output("background_frag.spv")
     });
 }

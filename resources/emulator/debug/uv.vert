@@ -1,6 +1,9 @@
 #version 450
+/**
+ * A debug shader passing uv data to the fragment shader.
+ */
 
-#include <push_constants.glsl>
+#include <mc_uniforms.glsl>
 
 layout(location=0) in vec3 in_position;
 layout(location=1) in vec2 in_uv;
@@ -8,6 +11,6 @@ layout(location=1) in vec2 in_uv;
 layout(location=0) out vec4 out_color;
 
 void main() {
-    gl_Position = matrices.projection * (matrices.model_view * vec4(position, 1.0));
-    out_color = vec4(in_color, 0.0, 1.0);
+    gl_Position = mc_transform_position(in_position);
+    out_color = vec4(in_uv, 0.0, 1.0);
 }

@@ -12,7 +12,7 @@ use crate::vk::objects::surface::SurfaceProvider;
 
 use crate::prelude::*;
 use crate::renderer::emulator::{EmulatorRenderer, MeshData, StaticMeshId};
-use crate::renderer::emulator::debug_pipeline::DebugPipeline;
+use crate::renderer::emulator::debug_pipeline::{DebugPipeline, DebugPipelineMode};
 use crate::renderer::emulator::mc_shaders::{McUniform, ShaderId, VertexFormat};
 use crate::renderer::emulator::PassRecorder;
 use crate::renderer::emulator::pipeline::{EmulatorPipeline, SwapchainOutput};
@@ -70,6 +70,14 @@ impl Blaze4D {
         }
     }
 
+    /// Configures the current debug mode. Any frame started after calling this function will use
+    /// the specified debug mode until another call to this function is made.
+    ///
+    /// If [`None`] is passed the debug mode is disabled.
+    pub fn set_debug_node(&self, mode: Option<DebugPipelineMode>) {
+
+    }
+
     pub fn create_static_mesh(&self, data: &MeshData) -> StaticMeshId {
         self.emulator.create_static_mesh(data)
     }
@@ -103,6 +111,9 @@ struct RenderConfig {
     last_rebuild: Instant,
     current_swapchain: Option<Arc<SurfaceSwapchain>>,
     current_pipeline: Option<(Arc<dyn EmulatorPipeline>, Arc<SwapchainOutput>)>,
+
+    debug_mode: Option<DebugPipelineMode>,
+    debug_pipeline: Option<(Arc<dyn EmulatorPipeline>, Arc<SwapchainOutput>)>,
 }
 
 impl RenderConfig {
@@ -115,6 +126,16 @@ impl RenderConfig {
             last_rebuild: Instant::now() - Duration::from_secs(100),
             current_swapchain: None,
             current_pipeline: None,
+
+            debug_mode: Some(DebugPipelineMode::Color),
+            debug_pipeline: None
+        }
+    }
+
+    fn set_debug_mode(&mut self, view: Option<DebugPipelineMode>) {
+        if self.debug_mode != view {
+            self.debug_mode = view;
+            self.debug_pipeline = None;
         }
     }
 
@@ -133,22 +154,15 @@ impl RenderConfig {
                 return None;
             }
             self.current_pipeline = None;
+            self.debug_pipeline = None;
         }
 
-        if self.current_pipeline.is_none() {
-            log::info!("No pipeline present. Rebuilding for size {:?}", size);
-
-            let pipeline = DebugPipeline::new(self.device.clone(), self.emulator.clone(), size);
-            let swapchain_output = SwapchainOutput::new(&self.device, pipeline.clone(), self.current_swapchain.as_ref().unwrap().clone());
-
-            self.current_pipeline = Some((pipeline, swapchain_output));
-        }
-
-        let (pipeline, output) = self.current_pipeline.as_ref().unwrap();
+        let (pipeline, output) = self.prepare_pipeline(size);
 
         let (output, suboptimal) = match output.next_image() {
             None => {
                 self.current_pipeline = None;
+                self.debug_pipeline = None;
                 self.current_swapchain = None;
                 return None;
             }
@@ -160,10 +174,29 @@ impl RenderConfig {
 
         if suboptimal {
             self.current_pipeline = None;
+            self.debug_pipeline = None;
             self.current_swapchain = None;
         }
 
         Some(recorder)
+    }
+
+    fn prepare_pipeline(&mut self, output_size: Vec2u32) -> (Arc<dyn EmulatorPipeline>, &Arc<SwapchainOutput>) {
+        if let Some(debug_mode) = &self.debug_mode {
+            if self.debug_pipeline.is_none() {
+                log::info!("No debug pipeline present. Rebuilding for size {:?}", output_size);
+
+                let pipeline = DebugPipeline::new(self.emulator.clone(), *debug_mode, output_size).unwrap();
+                let swapchain_output = SwapchainOutput::new(&self.device, pipeline.clone(), self.current_swapchain.as_ref().cloned().unwrap());
+
+                self.debug_pipeline = Some((pipeline, swapchain_output));
+            }
+
+            let (pipeline, output) = self.debug_pipeline.as_ref().unwrap();
+            (pipeline.clone(), output)
+        } else {
+            todo!()
+        }
     }
 
     fn try_create_swapchain(&mut self, size: Vec2u32) -> bool {

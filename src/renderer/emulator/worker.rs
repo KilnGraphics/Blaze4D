@@ -9,7 +9,6 @@ use ash::vk;
 use bumpalo::Bump;
 
 use crate::device::device::Queue;
-use crate::objects::sync::SemaphoreOp;
 
 use crate::renderer::emulator::pass::PassId;
 use crate::renderer::emulator::immediate::ImmediateBuffer;
@@ -58,7 +57,7 @@ pub(super) fn run_worker(device: Arc<DeviceContext>, share: Arc<Share>) {
                     log::error!("Worker received WorkerTask::StartPass when a pass is already running");
                     panic!()
                 }
-                let mut state = PassState::new(pipeline, pass, device.clone(), &queue, share.clone(), pool.clone(), placeholder_image, placeholder_id);
+                let state = PassState::new(pipeline, pass, device.clone(), &queue, share.clone(), pool.clone(), placeholder_image, placeholder_id);
                 current_pass = Some(state);
             }
 

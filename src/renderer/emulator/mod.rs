@@ -67,6 +67,10 @@ impl EmulatorRenderer {
         }
     }
 
+    pub fn get_device(&self) -> &Arc<DeviceContext> {
+        self.share.get_device()
+    }
+
     pub fn create_static_mesh(&self, data: &MeshData) -> StaticMeshId {
         self.share.create_static_mesh(data)
     }

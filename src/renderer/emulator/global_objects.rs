@@ -2,12 +2,10 @@ use std::collections::{HashMap, VecDeque};
 use std::sync::{Arc, Mutex};
 
 use ash::vk;
-use winit::event::VirtualKeyCode::M;
 use crate::define_uuid_type;
 
 use crate::device::device::Queue;
-use crate::device::transfer::{BufferReleaseOp, BufferTransferRanges, SyncId};
-use crate::objects::sync::{Semaphore, SemaphoreOp, SemaphoreOps};
+use crate::objects::sync::Semaphore;
 use crate::renderer::emulator::MeshData;
 use crate::vk::objects::allocator::{Allocation, AllocationStrategy};
 use crate::vk::objects::buffer::Buffer;
@@ -579,6 +577,11 @@ impl Data {
         } else {
             log::error!("Failed to find image with id {:?} in Data::dec_static_image", image_id);
             panic!()
+        }
+
+        if drop {
+            let static_image = self.static_images.remove(&image_id).unwrap();
+            self.droppable_static_images.push(static_image);
         }
     }
 

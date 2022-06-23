@@ -29,6 +29,17 @@ fn main() {
     };
     let mut shader = b4d.create_shader(&vertex_format, McUniform::empty());
 
+    let data = MeshData {
+        vertex_data: b4d_core::util::slice::to_byte_slice(&CUBE_VERTICES),
+        index_data: b4d_core::util::slice::to_byte_slice(&CUBE_INDICES),
+        vertex_stride: std::mem::size_of::<Vertex>() as u32,
+        index_count: CUBE_INDICES.len() as u32,
+        index_type: vk::IndexType::UINT32,
+        primitive_topology: vk::PrimitiveTopology::TRIANGLE_LIST,
+    };
+
+    let mut static_id = b4d.create_static_mesh(&data);
+
     let mut draw_times = Vec::with_capacity(1000);
     let mut last_update = std::time::Instant::now();
 
@@ -55,21 +66,16 @@ fn main() {
             }
             Event::MainEventsCleared => {
                 let now = std::time::Instant::now();
+
+                b4d.drop_static_mesh(static_id);
+                static_id = b4d.create_static_mesh(&data);
+
                 if let Some(mut recorder) = b4d.try_start_frame(current_size) {
 
                     recorder.update_uniform(&McUniformData::ProjectionMatrix(make_projection_matrix(current_size, 90f32)), shader);
 
                     let elapsed = start.elapsed().as_secs_f32();
                     let rotation = Mat4f32::new_rotation(Vec3f32::new(elapsed / 2.34f32, elapsed / 2.783f32, elapsed / 2.593f32));
-
-                    let data = MeshData {
-                        vertex_data: b4d_core::util::slice::to_byte_slice(&CUBE_VERTICES),
-                        index_data: b4d_core::util::slice::to_byte_slice(&CUBE_INDICES),
-                        vertex_stride: std::mem::size_of::<Vertex>() as u32,
-                        index_count: CUBE_INDICES.len() as u32,
-                        index_type: vk::IndexType::UINT32,
-                        primitive_topology: vk::PrimitiveTopology::TRIANGLE_LIST,
-                    };
 
                     for x in -5i32..=5i32 {
                         for y in -5i32..=5i32 {
@@ -80,8 +86,10 @@ fn main() {
                                     5f32 + ((z as f32) / 2f32)
                                 ));
                                 recorder.update_uniform(&McUniformData::ModelViewMatrix(translation * rotation), shader);
-                                let id = recorder.upload_immediate(&data);
-                                recorder.draw_immediate(id, shader, true);
+
+                                // let id = recorder.upload_immediate(&data);
+                                // recorder.draw_immediate(id, shader, true);
+                                recorder.draw_static(static_id, shader, true);
                             }
                         }
                     }
@@ -89,8 +97,8 @@ fn main() {
                     drop(recorder);
 
                     // Stress test the shader stuff
-                    b4d.drop_shader(shader);
-                    shader = b4d.create_shader(&vertex_format, McUniform::empty());
+                    // b4d.drop_shader(shader);
+                    // shader = b4d.create_shader(&vertex_format, McUniform::empty());
                 }
                 draw_times.push(now.elapsed());
 

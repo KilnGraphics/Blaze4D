@@ -102,3 +102,9 @@ float mc_game_time() {
 vec3 mc_chunk_offset() {
     return _push_constant.chunk_offset;
 }
+
+vec4 mc_transform_position(vec3 position) {
+    vec4 tmp = mc_projection_matrix() * (mc_model_view_matrix() * vec4(position, 1.0));
+    tmp.z = (tmp.z + tmp.w) / 2.0;
+    return tmp;
+}
