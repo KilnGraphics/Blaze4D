@@ -27,7 +27,7 @@ fn main() {
         uv1: None,
         uv2: None
     };
-    let mut shader = b4d.create_shader(&vertex_format, McUniform::empty());
+    let mut shader = b4d.create_shader(&vertex_format, McUniform::MODEL_VIEW_MATRIX | McUniform::PROJECTION_MATRIX);
 
     let data = MeshData {
         vertex_data: b4d_core::util::slice::to_byte_slice(&CUBE_VERTICES),
@@ -97,8 +97,8 @@ fn main() {
                     drop(recorder);
 
                     // Stress test the shader stuff
-                    // b4d.drop_shader(shader);
-                    // shader = b4d.create_shader(&vertex_format, McUniform::empty());
+                    b4d.drop_shader(shader);
+                    shader = b4d.create_shader(&vertex_format, McUniform::MODEL_VIEW_MATRIX | McUniform::PROJECTION_MATRIX);
                 }
                 draw_times.push(now.elapsed());
 

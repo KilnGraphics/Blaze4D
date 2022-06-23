@@ -463,9 +463,11 @@ impl EmulatorPipeline for DebugPipeline {
                 panic!()
             }).register_drop_listener(&(self.weak.upgrade().unwrap() as Arc<dyn ShaderDropListener + Send + Sync>));
 
-            let vertex_format = self.emulator.get_shader(shader).unwrap().get_vertex_format().clone();
+            let shader_obj = self.emulator.get_shader(shader).unwrap();
+            let vertex_format = shader_obj.get_vertex_format().clone();
+            let used_uniforms = shader_obj.get_used_uniforms();
 
-            let mut  pipelines = ShaderPipelines::new(self.emulator.get_device().clone(), shader, vertex_format, listener);
+            let mut  pipelines = ShaderPipelines::new(self.emulator.get_device().clone(), shader, vertex_format, used_uniforms, listener);
             pipelines.inc_used();
 
             guard.insert(shader, pipelines);
@@ -1178,6 +1180,7 @@ struct ShaderPipelines {
     device: Arc<DeviceContext>,
     shader: ShaderId,
     vertex_format: VertexFormat,
+    used_uniforms: McUniform,
     pipelines: HashMap<PipelineConfig, vk::Pipeline>,
     #[allow(unused)]
     listener: ShaderListener,
@@ -1186,11 +1189,12 @@ struct ShaderPipelines {
 }
 
 impl ShaderPipelines {
-    fn new(device: Arc<DeviceContext>, shader: ShaderId, vertex_format: VertexFormat, listener: ShaderListener) -> Self {
+    fn new(device: Arc<DeviceContext>, shader: ShaderId, vertex_format: VertexFormat, used_uniforms: McUniform, listener: ShaderListener) -> Self {
         Self {
             device,
             shader,
             vertex_format,
+            used_uniforms,
             pipelines: HashMap::new(),
             listener,
             used_counter: 0,
@@ -1266,7 +1270,7 @@ impl DebugPipelinePass {
 
     fn update_uniform(&mut self, shader: ShaderId, data: &McUniformData) {
         if !self.shader_uniforms.contains_key(&shader) {
-            let uniforms = self.parent.emulator.get_shader(shader).unwrap().get_used_uniforms();
+            let uniforms = self.parent.pipelines.lock().unwrap().get(&shader).unwrap().used_uniforms;
             self.shader_uniforms.insert(shader, UniformStateTracker::new(uniforms, self.placeholder_texture));
         }
         let tracker = self.shader_uniforms.get_mut(&shader).unwrap();
@@ -1294,7 +1298,7 @@ impl DebugPipelinePass {
 
         if !self.shader_uniforms.contains_key(&task.shader) {
             log::warn!("Called draw without any shader uniforms. Using default values!");
-            let uniforms = self.parent.emulator.get_shader(task.shader).unwrap().get_used_uniforms();
+            let uniforms = self.parent.pipelines.lock().unwrap().get(&task.shader).unwrap().used_uniforms;
             self.shader_uniforms.insert(task.shader, UniformStateTracker::new(uniforms, self.placeholder_texture));
         }
         if let Some(tracker) = self.shader_uniforms.get_mut(&task.shader) {
