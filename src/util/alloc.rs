@@ -60,6 +60,7 @@ impl RingAllocator {
         let base;
         let end;
         if next + size > self.size {
+            // Wraparound
             if size > self.tail {
                 return None; // Out of memory
             }
@@ -68,6 +69,11 @@ impl RingAllocator {
             base = 0;
             end = size;
         } else {
+            // We need to test >= but only if we actually have allocations
+            if self.alloc_list_head.is_some() && self.tail >= self.head && (next + size) > self.tail {
+                return None; // Out of memory
+            }
+
             base = next;
             end = next + size;
             extra_used = end - self.head;
@@ -468,5 +474,51 @@ mod tests {
             assert_eq!(allocator.free_byte_count(), 1024);
             assert_eq!(allocator.is_empty(), true);
         }
+    }
+
+    #[test]
+    fn test_alloc_fail() {
+        let mut allocator = RingAllocator::new(1024);
+        assert_eq!(allocator.used_byte_count(), 0);
+        assert_eq!(allocator.free_byte_count(), 1024);
+        assert_eq!(allocator.is_empty(), true);
+
+        let mut allocs0 = Vec::with_capacity(4);
+        let mut allocs1 = Vec::with_capacity(12);
+        for _ in 0..4 {
+            let (_, alloc) = allocator.allocate(64, 1).unwrap();
+            allocs0.push(alloc);
+        }
+        for _ in 0..12 {
+            let (_, alloc) = allocator.allocate(64, 1).unwrap();
+            allocs1.push(alloc);
+        }
+
+        assert_eq!(allocator.used_byte_count(), 1024);
+        assert_eq!(allocator.free_byte_count(), 0);
+        assert_eq!(allocator.is_empty(), false);
+
+        assert_eq!(allocator.allocate(1, 1), None);
+        assert_eq!(allocator.allocate(16, 1), None);
+        assert_eq!(allocator.allocate(1024, 1), None);
+        assert_eq!(allocator.allocate(2348793, 1), None);
+
+        for alloc in allocs0 {
+            allocator.free(alloc);
+        }
+        let mut allocs0 = Vec::with_capacity(4);
+        for _ in 0..4 {
+            let (_, alloc) = allocator.allocate(64, 1).unwrap();
+            allocs0.push(alloc);
+        }
+
+        assert_eq!(allocator.used_byte_count(), 1024);
+        assert_eq!(allocator.free_byte_count(), 0);
+        assert_eq!(allocator.is_empty(), false);
+
+        assert_eq!(allocator.allocate(1, 1), None);
+        assert_eq!(allocator.allocate(16, 1), None);
+        assert_eq!(allocator.allocate(1024, 1), None);
+        assert_eq!(allocator.allocate(2348793, 1), None);
     }
 }
