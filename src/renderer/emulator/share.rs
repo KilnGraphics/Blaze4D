@@ -13,12 +13,14 @@ use crate::renderer::emulator::mc_shaders::{McUniform, Shader, ShaderId, VertexF
 
 use crate::prelude::*;
 use crate::renderer::emulator::immediate::{ImmediateBuffer, ImmediatePool};
+use crate::renderer::emulator::staging::StagingMemoryPool;
 
 pub(super) struct Share {
     id: UUID,
     device: Arc<DeviceContext>,
     current_pass: AtomicU64,
 
+    staging_memory: Mutex<StagingMemoryPool>,
     global_objects: GlobalObjects,
     immediate_buffers: ImmediatePool,
     shader_database: Mutex<HashMap<ShaderId, Arc<Shader>>>,
@@ -37,6 +39,7 @@ impl Share {
         let queue = device.get_main_queue();
         let queue_family = queue.get_queue_family_index();
 
+        let staging_memory = StagingMemoryPool::new(device.clone());
         let global_objects = GlobalObjects::new(device.clone(), queue.clone());
         let immediate_buffers = ImmediatePool::new(device.clone());
         let descriptors = Mutex::new(DescriptorPool::new(device.clone()));
@@ -48,6 +51,7 @@ impl Share {
             device,
             current_pass: AtomicU64::new(0),
 
+            staging_memory: Mutex::new(staging_memory),
             global_objects,
             immediate_buffers,
             shader_database: Mutex::new(HashMap::new()),
@@ -61,6 +65,14 @@ impl Share {
 
     pub(super) fn get_device(&self) -> &Arc<DeviceContext> {
         &self.device
+    }
+
+    pub(super) fn get_staging_pool(&self) -> &Mutex<StagingMemoryPool> {
+        &self.staging_memory
+    }
+
+    pub(super) fn get_global_objects(&self) -> &GlobalObjects {
+        &self.global_objects
     }
 
     pub(super) fn create_static_mesh(&self, data: &MeshData) -> StaticMeshId {

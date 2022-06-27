@@ -1,5 +1,7 @@
+use std::cmp::Ordering;
 use std::collections::{HashMap, VecDeque};
-use std::sync::{Arc, Mutex};
+use std::hash::{Hash, Hasher};
+use std::sync::{Arc, Mutex, Weak};
 
 use ash::vk;
 use crate::define_uuid_type;
@@ -11,8 +13,184 @@ use crate::vk::objects::allocator::{Allocation, AllocationStrategy};
 use crate::vk::objects::buffer::Buffer;
 
 use crate::prelude::*;
+use crate::renderer::emulator::share::Share;
 use crate::renderer::emulator::staging::{StagingAllocationId, StagingMemoryPool};
 use crate::util::alloc::next_aligned;
+
+pub struct GlobalMesh {
+    share: Weak<Share>,
+    id: StaticMeshId,
+
+    handle: vk::Buffer,
+}
+
+impl GlobalMesh {
+    fn new(share: Arc<Share>) -> Arc<Self> {
+        todo!()
+    }
+
+    pub(super) fn get_buffer_handle(&self) -> vk::Buffer {
+        self.handle
+    }
+}
+
+impl PartialEq for GlobalMesh {
+    fn eq(&self, other: &Self) -> bool {
+        self.id.eq(&other.id)
+    }
+}
+
+impl Eq for GlobalMesh {
+}
+
+impl PartialOrd for GlobalMesh {
+    fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
+        self.id.partial_cmp(&other.id)
+    }
+}
+
+impl Ord for GlobalMesh {
+    fn cmp(&self, other: &Self) -> Ordering {
+        self.id.cmp(&other.id)
+    }
+}
+
+impl Hash for GlobalMesh {
+    fn hash<H: Hasher>(&self, state: &mut H) {
+        self.id.hash(state)
+    }
+}
+
+impl Drop for GlobalMesh {
+    fn drop(&mut self) {
+        todo!()
+    }
+}
+
+pub struct ImageUploadData<'a> {
+    /// The image data
+    pub data: &'a [u8],
+
+    /// The stride between 2 rows of image data in texels. If 0 the data is assumed to be tightly packed.
+    pub row_stride: u32,
+
+    /// The offset of the upload region in the image.
+    pub offset: Vec2u32,
+
+    /// The size of the upload region in the image.
+    pub extent: Vec2u32,
+}
+
+impl<'a> ImageUploadData<'a> {
+    pub fn new_full(data: &'a [u8], size: Vec2u32) -> Self {
+        Self {
+            data,
+            row_stride: 0,
+            offset: Vec2u32::new(0, 0),
+            extent: size,
+        }
+    }
+
+    pub fn new_full_with_stride(data: &'a [u8], row_stride: u32, size: Vec2u32) -> Self {
+        Self {
+            data,
+            row_stride,
+            offset: Vec2u32::new(0, 0),
+            extent: size,
+        }
+    }
+
+    pub fn new_extent(data: &'a [u8], offset: Vec2u32, extent: Vec2u32) -> Self {
+        Self {
+            data,
+            row_stride: 0,
+            offset,
+            extent
+        }
+    }
+
+    pub fn new_extent_with_stride(data: &'a [u8], row_stride: u32, offset: Vec2u32, extent: Vec2u32) -> Self {
+        Self {
+            data,
+            row_stride,
+            offset,
+            extent
+        }
+    }
+}
+
+pub struct GlobalImage {
+    share: Weak<Share>,
+    id: StaticImageId,
+}
+
+impl GlobalImage {
+    fn new(share: Weak<Share>, id: StaticImageId) -> Self {
+        Self {
+            share,
+            id
+        }
+    }
+
+    pub(super) fn get_image_handle(&self) -> vk::Image {
+        todo!()
+    }
+
+    pub(super) fn get_image_size(&self) -> Vec2u32 {
+        todo!()
+    }
+
+    pub(super) fn get_mip_levels(&self) -> u32 {
+        todo!()
+    }
+
+    pub fn upload(&self, data: &[ImageUploadData]) {
+        if data.is_empty() {
+            return;
+        }
+
+        if let Some(share) = self.share.upgrade() {
+            todo!()
+        }
+    }
+}
+
+impl PartialEq for GlobalImage {
+    fn eq(&self, other: &Self) -> bool {
+        self.id.eq(&other.id)
+    }
+}
+
+impl Eq for GlobalImage {
+}
+
+impl PartialOrd for GlobalImage {
+    fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
+        self.id.partial_cmp(&other.id)
+    }
+}
+
+impl Ord for GlobalImage {
+    fn cmp(&self, other: &Self) -> Ordering {
+        self.id.cmp(&other.id)
+    }
+}
+
+impl Hash for GlobalImage {
+    fn hash<H: Hasher>(&self, state: &mut H) {
+        self.id.hash(state)
+    }
+}
+
+impl Drop for GlobalImage {
+    fn drop(&mut self) {
+        if let Some(share) = self.share.upgrade() {
+            share.get_global_objects().mark_static_image(self.id);
+        }
+    }
+}
+
+
 
 /// Manages objects which are global to all passes of a emulator renderer.
 ///
@@ -140,9 +318,9 @@ struct Data {
     pending_static_meshes: Vec<StaticMeshId>,
     pending_static_images: Vec<StaticImageId>,
 
-    static_meshes: HashMap<StaticMeshId, StaticMesh>,
+    static_meshes: HashMap<StaticMeshId, StaticMeshData>,
     static_images: HashMap<StaticImageId, StaticImage>,
-    droppable_static_meshes: Vec<StaticMesh>,
+    droppable_static_meshes: Vec<StaticMeshData>,
     droppable_static_images: Vec<StaticImage>,
 }
 
@@ -185,7 +363,7 @@ impl Data {
         let index_offset = next_aligned(data.vertex_data.len() as vk::DeviceSize, data.get_index_size() as vk::DeviceSize);
         let required_size = index_offset + (data.index_data.len() as vk::DeviceSize);
 
-        let (buffer, allocation) = StaticMesh::create_buffer(&self.device, required_size as usize);
+        let (buffer, allocation) = StaticMeshData::create_buffer(&self.device, required_size as usize);
 
         let (mapped, staging) = if let Some(mapped) = allocation.mapped_ptr() {
             (mapped.cast(), None)
@@ -243,7 +421,7 @@ impl Data {
             primitive_topology: data.primitive_topology
         };
 
-        let static_mesh = StaticMesh {
+        let static_mesh = StaticMeshData {
             buffer,
             allocation,
             draw_info,
@@ -779,7 +957,7 @@ pub struct StaticMeshDrawInfo {
     pub primitive_topology: vk::PrimitiveTopology,
 }
 
-pub struct StaticMesh {
+pub struct StaticMeshData {
     buffer: Buffer,
     allocation: Allocation,
     draw_info: StaticMeshDrawInfo,
@@ -788,7 +966,7 @@ pub struct StaticMesh {
     marked: bool,
 }
 
-impl StaticMesh {
+impl StaticMeshData {
     /// Attempts to increment the used counter.
     ///
     /// If the mesh is marked the counter is not incremented and false is returned.
