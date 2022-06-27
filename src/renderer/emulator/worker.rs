@@ -16,45 +16,40 @@ use crate::renderer::emulator::immediate::ImmediateBuffer;
 use crate::renderer::emulator::pipeline::{EmulatorOutput, EmulatorPipeline, EmulatorPipelinePass, PipelineTask};
 
 use crate::prelude::*;
-use crate::renderer::emulator::global_objects::{GlobalImage, StaticImageId, GlobalMesh};
-use crate::renderer::emulator::StaticMeshId;
+use crate::renderer::emulator::global_objects::{GlobalImage, GlobalMesh};
 use crate::renderer::emulator::mc_shaders::ShaderId;
 use crate::renderer::emulator::share::{NextTaskResult, Share};
 use crate::renderer::emulator::staging::StagingAllocationId;
 
 pub(super) enum WorkerTask {
-    StartPass(PassId, Arc<dyn EmulatorPipeline>, Box<dyn EmulatorPipelinePass + Send>, vk::ImageView, StaticImageId),
+    StartPass(PassId, Arc<dyn EmulatorPipeline>, Box<dyn EmulatorPipelinePass + Send>),
     EndPass(Box<ImmediateBuffer>),
     UseStaticMesh(StaticMeshId),
     UseStaticImage(StaticImageId),
     UseShader(ShaderId),
     UseOutput(Box<dyn EmulatorOutput + Send>),
     PipelineTask(PipelineTask),
-    WriteGlobalMesh(GlobalMeshWrite),
-    WriteGlobalImage(GlobalImageWrite),
+    WriteGlobalMesh(GlobalMeshWrite, bool),
+    WriteGlobalImage(GlobalImageWrite, bool),
     GenerateGlobalImageMipmaps(Arc<GlobalImage>, PassId),
 }
 
 pub(super) struct GlobalMeshWrite {
-    /// The last frame where the buffer was used in. If this is 0 the buffer has not been used yet
-    /// and is in an uninitialized state.
-    after_pass: PassId,
-    staging_allocation: StagingAllocationId,
-    staging_range: (vk::DeviceSize, vk::DeviceSize),
-    staging_buffer: vk::Buffer,
-    dst_mesh: Arc<GlobalMesh>,
-    regions: Box<[vk::BufferCopy]>,
+    pub(super) after_pass: PassId,
+    pub(super) staging_allocation: StagingAllocationId,
+    pub(super) staging_range: (vk::DeviceSize, vk::DeviceSize),
+    pub(super) staging_buffer: vk::Buffer,
+    pub(super) dst_mesh: Arc<GlobalMesh>,
+    pub(super) regions: Box<[vk::BufferCopy]>,
 }
 
 pub(super) struct GlobalImageWrite {
-    /// The last frame where the image was used in. If this is 0 the image has not been used yet and
-    /// is in an uninitialized state.
-    after_pass: PassId,
-    staging_allocation: StagingAllocationId,
-    staging_range: (vk::DeviceSize, vk::DeviceSize),
-    staging_buffer: vk::Buffer,
-    dst_image: Arc<GlobalImage>,
-    regions: Box<[vk::BufferImageCopy]>,
+    pub(super) after_pass: PassId,
+    pub(super) staging_allocation: StagingAllocationId,
+    pub(super) staging_range: (vk::DeviceSize, vk::DeviceSize),
+    pub(super) staging_buffer: vk::Buffer,
+    pub(super) dst_image: Arc<GlobalImage>,
+    pub(super) regions: Box<[vk::BufferImageCopy]>,
 }
 
 pub(super) fn run_worker(device: Arc<DeviceContext>, share: Arc<Share>) {
@@ -86,12 +81,12 @@ pub(super) fn run_worker(device: Arc<DeviceContext>, share: Arc<Share>) {
         };
 
         match task {
-            WorkerTask::StartPass(id, pipeline, pass, placeholder_image, placeholder_id) => {
+            WorkerTask::StartPass(id, pipeline, pass) => {
                 if current_pass.is_some() {
                     log::error!("Worker received WorkerTask::StartPass when a pass is already running");
                     panic!()
                 }
-                let state = PassState::new(id, pipeline, pass, device.clone(), &queue, share.clone(), pool.clone(), placeholder_image, placeholder_id);
+                let state = PassState::new(id, pipeline, pass, device.clone(), &queue, share.clone(), pool.clone());
                 current_pass = Some(state);
                 current_global_recorder = next_global_recorder.take();
             }
@@ -152,27 +147,27 @@ pub(super) fn run_worker(device: Arc<DeviceContext>, share: Arc<Share>) {
                 }
             }
 
-            WorkerTask::WriteGlobalMesh(write) => {
+            WorkerTask::WriteGlobalMesh(write, uninit) => {
                 if let Some(current_pass) = &current_pass {
                     if current_pass.pass_id > write.after_pass {
-                        get_or_create_recorder(&mut current_global_recorder, &share, &pool).record_global_buffer_write(write);
+                        get_or_create_recorder(&mut current_global_recorder, &share, &pool).record_global_buffer_write(write, uninit);
                     } else {
-                        get_or_create_recorder(&mut next_global_recorder, &share, &pool).record_global_buffer_write(write);
+                        get_or_create_recorder(&mut next_global_recorder, &share, &pool).record_global_buffer_write(write, uninit);
                     }
                 } else {
-                    get_or_create_recorder(&mut next_global_recorder, &share, &pool).record_global_buffer_write(write);
+                    get_or_create_recorder(&mut next_global_recorder, &share, &pool).record_global_buffer_write(write, uninit);
                 }
             }
 
-            WorkerTask::WriteGlobalImage(write) => {
+            WorkerTask::WriteGlobalImage(write, uninit) => {
                 if let Some(current_pass) = &current_pass {
                     if current_pass.pass_id > write.after_pass {
-                        get_or_create_recorder(&mut current_global_recorder, &share, &pool).record_global_image_write(write);
+                        get_or_create_recorder(&mut current_global_recorder, &share, &pool).record_global_image_write(write, uninit);
                     } else {
-                        get_or_create_recorder(&mut next_global_recorder, &share, &pool).record_global_image_write(write);
+                        get_or_create_recorder(&mut next_global_recorder, &share, &pool).record_global_image_write(write, uninit);
                     }
                 } else {
-                    get_or_create_recorder(&mut next_global_recorder, &share, &pool).record_global_image_write(write);
+                    get_or_create_recorder(&mut next_global_recorder, &share, &pool).record_global_image_write(write, uninit);
                 }
             }
 
@@ -551,11 +546,11 @@ impl GlobalObjectsRecorder {
         }
     }
 
-    fn record_global_buffer_write(&mut self, write: GlobalMeshWrite) {
+    fn record_global_buffer_write(&mut self, write: GlobalMeshWrite, is_uninit: bool) {
         let dst_buffer = write.dst_mesh.get_buffer_handle();
 
         if !write.regions.is_empty() {
-            self.transition_mesh(write.dst_mesh, gob::MeshState::TransferWrite, write.after_pass.get_raw() == 0);
+            self.transition_mesh(write.dst_mesh, gob::MeshState::TransferWrite, is_uninit);
 
             unsafe {
                 self.share.get_device().vk().cmd_copy_buffer(
@@ -570,10 +565,10 @@ impl GlobalObjectsRecorder {
         self.push_staging(write.staging_allocation, write.staging_buffer, write.staging_range.0, write.staging_range.1);
     }
 
-    fn record_global_image_write(&mut self, write: GlobalImageWrite) {
+    fn record_global_image_write(&mut self, write: GlobalImageWrite, is_uninit: bool) {
         let dst_image = write.dst_image.get_image_handle();
 
-        self.transition_image(write.dst_image, gob::ImageState::TransferWrite, write.after_pass.get_raw() == 0);
+        self.transition_image(write.dst_image, gob::ImageState::TransferWrite, is_uninit);
 
         if !write.regions.is_empty() {
             unsafe {
@@ -635,14 +630,14 @@ impl GlobalObjectsRecorder {
                         aspect_mask: vk::ImageAspectFlags::COLOR,
                         mip_level: level - 1,
                         base_array_layer: 0,
-                        layer_count: vk::REMAINING_ARRAY_LAYERS
+                        layer_count: 1
                     })
                     .src_offsets([vk::Offset3D { x: 0, y: 0, z: 0 }, vk::Offset3D { x: src_size[0], y: src_size[1], z: 1 }])
                     .dst_subresource(vk::ImageSubresourceLayers {
                         aspect_mask: vk::ImageAspectFlags::COLOR,
                         mip_level: level,
                         base_array_layer: 0,
-                        layer_count: vk::REMAINING_ARRAY_LAYERS
+                        layer_count: 1
                     })
                     .dst_offsets([vk::Offset3D { x: 0, y: 0, z: 0 }, vk::Offset3D { x: dst_size[0], y: dst_size[1], z: 1 }]);
 

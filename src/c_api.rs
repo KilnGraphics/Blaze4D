@@ -1,11 +1,12 @@
 use std::panic::catch_unwind;
 use std::process::exit;
+use std::sync::Arc;
 use ash::vk;
 use crate::b4d::Blaze4D;
 use crate::glfw_surface::GLFWSurfaceProvider;
 use crate::prelude::{Mat4f32, UUID, Vec2f32, Vec2u32, Vec3f32, Vec4f32};
 
-use crate::renderer::emulator::{MeshData, PassRecorder, StaticMeshId, ImmediateMeshId};
+use crate::renderer::emulator::{MeshData, PassRecorder, ImmediateMeshId, GlobalMesh};
 use crate::renderer::emulator::mc_shaders::{McUniform, McUniformData, ShaderId, VertexFormat, VertexFormatEntry};
 use crate::vk::objects::surface::SurfaceProvider;
 
@@ -256,37 +257,40 @@ unsafe extern "C" fn b4d_destroy(b4d: *mut Blaze4D) {
 }
 
 #[no_mangle]
-unsafe extern "C" fn b4d_create_static_mesh(b4d: *const Blaze4D, data: *const CMeshData) -> u64 {
+unsafe extern "C" fn b4d_create_global_mesh(b4d: *const Blaze4D, data: *const CMeshData) -> *mut Arc<GlobalMesh> {
     catch_unwind(|| {
         let b4d = b4d.as_ref().unwrap_or_else(|| {
-            log::error!("Passed null b4d to b4d_create_static_mesh");
+            log::error!("Passed null b4d to b4d_create_global_mesh");
             exit(1);
         });
         let data = data.as_ref().unwrap_or_else(|| {
-            log::error!("Passed null mesh data to b4d_create_static_mesh");
+            log::error!("Passed null mesh data to b4d_create_global_mesh");
             exit(1);
         });
 
         let mesh_data = data.to_mesh_data();
 
-        b4d.create_static_mesh(&mesh_data).as_uuid().get_raw()
+        Box::leak(Box::new(b4d.create_global_mesh(&mesh_data)))
     }).unwrap_or_else(|_| {
-        log::error!("panic in b4d_create_static_mesh");
+        log::error!("panic in b4d_create_global_mesh");
         exit(1);
     })
 }
 
 #[no_mangle]
-unsafe extern "C" fn b4d_destroy_static_mesh(b4d: *const Blaze4D, mesh_id: u64) {
+unsafe extern "C" fn b4d_destroy_global_mesh(b4d: *const Blaze4D, mesh: *mut Arc<GlobalMesh>) {
     catch_unwind(|| {
         let b4d = b4d.as_ref().unwrap_or_else(|| {
-            log::error!("Passed null b4d to b4d_destroy_static_mesh");
+            log::error!("Passed null b4d to b4d_destroy_global_mesh");
             exit(1);
         });
+        if mesh.is_null() {
+            log::error!("Passed null mesh to b4d_destroy_global_mesh");
+        }
 
-        b4d.drop_static_mesh(StaticMeshId::from_uuid(UUID::from_raw(mesh_id)));
+        Box::from_raw(mesh);
     }).unwrap_or_else(|_| {
-        log::error!("panic in b4d_destroy_static_mesh");
+        log::error!("panic in b4d_destroy_global_mesh");
         exit(1);
     })
 }
@@ -372,19 +376,23 @@ unsafe extern "C" fn b4d_pass_update_uniform(pass: *mut PassRecorder, data: *con
 }
 
 #[no_mangle]
-unsafe extern "C" fn b4d_pass_draw_static(pass: *mut PassRecorder, mesh_id: u64, shader_id: u64, depth_write_enable: u32) {
+unsafe extern "C" fn b4d_pass_draw_global(pass: *mut PassRecorder, mesh: *const Arc<GlobalMesh>, shader_id: u64, depth_write_enable: u32) {
     catch_unwind(|| {
         let pass = pass.as_mut().unwrap_or_else(|| {
-            log::error!("Passed null pass to b4d_pass_draw_static");
+            log::error!("Passed null pass to b4d_pass_draw_global");
+            exit(1);
+        });
+        let mesh = mesh.as_ref().unwrap_or_else(|| {
+            log::error!("Passed null mesh to b4d_pass_draw_global");
             exit(1);
         });
         let shader_id = ShaderId::from_uuid(UUID::from_raw(shader_id));
 
         let depth_write_enable = if depth_write_enable == 1 { true } else { false };
 
-        pass.draw_static(StaticMeshId::from_uuid(UUID::from_raw(mesh_id)), shader_id, depth_write_enable);
+        pass.draw_global(mesh.clone(), shader_id, depth_write_enable);
     }).unwrap_or_else(|_| {
-        log::error!("panic in b4d_pass_draw_static");
+        log::error!("panic in b4d_pass_draw_global");
         exit(1);
     })
 }

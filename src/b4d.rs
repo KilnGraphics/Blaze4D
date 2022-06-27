@@ -11,7 +11,7 @@ use crate::instance::init::{create_instance, InstanceCreateConfig};
 use crate::vk::objects::surface::SurfaceProvider;
 
 use crate::prelude::*;
-use crate::renderer::emulator::{EmulatorRenderer, MeshData, StaticMeshId};
+use crate::renderer::emulator::{EmulatorRenderer, GlobalMesh, MeshData};
 use crate::renderer::emulator::debug_pipeline::{DebugPipeline, DebugPipelineMode};
 use crate::renderer::emulator::mc_shaders::{McUniform, ShaderId, VertexFormat};
 use crate::renderer::emulator::PassRecorder;
@@ -78,12 +78,8 @@ impl Blaze4D {
 
     }
 
-    pub fn create_static_mesh(&self, data: &MeshData) -> StaticMeshId {
-        self.emulator.create_static_mesh(data)
-    }
-
-    pub fn drop_static_mesh(&self, id: StaticMeshId) {
-        self.emulator.drop_static_mesh(id);
+    pub fn create_global_mesh(&self, data: &MeshData) -> Arc<GlobalMesh> {
+        self.emulator.create_global_mesh(data)
     }
 
     pub fn create_shader(&self, vertex_format: &VertexFormat, used_uniforms: McUniform) -> ShaderId {

@@ -6,8 +6,6 @@ use std::sync::atomic::AtomicU64;
 use ash::vk;
 
 use crate::renderer::emulator::descriptors::DescriptorPool;
-use crate::renderer::emulator::global_objects::{GlobalObjects, StaticImageData, StaticImageId, StaticMeshDrawInfo};
-use crate::renderer::emulator::{MeshData, StaticMeshId};
 use crate::renderer::emulator::worker::WorkerTask;
 use crate::renderer::emulator::mc_shaders::{McUniform, Shader, ShaderId, VertexFormat};
 
@@ -40,7 +38,6 @@ impl Share {
         let queue_family = queue.get_queue_family_index();
 
         let staging_memory = StagingMemoryPool::new(device.clone());
-        let global_objects = GlobalObjects::new(device.clone(), queue.clone());
         let immediate_buffers = ImmediatePool::new(device.clone());
         let descriptors = Mutex::new(DescriptorPool::new(device.clone()));
 
@@ -52,7 +49,6 @@ impl Share {
             current_pass: AtomicU64::new(0),
 
             staging_memory: Mutex::new(staging_memory),
-            global_objects,
             immediate_buffers,
             shader_database: Mutex::new(HashMap::new()),
             descriptors,
@@ -69,42 +65,6 @@ impl Share {
 
     pub(super) fn get_staging_pool(&self) -> &Mutex<StagingMemoryPool> {
         &self.staging_memory
-    }
-
-    pub(super) fn get_global_objects(&self) -> &GlobalObjects {
-        &self.global_objects
-    }
-
-    pub(super) fn create_static_mesh(&self, data: &MeshData) -> StaticMeshId {
-        self.global_objects.create_static_mesh(data)
-    }
-
-    pub(super) fn drop_static_mesh(&self, id: StaticMeshId) {
-        self.global_objects.mark_static_mesh(id)
-    }
-
-    pub(super) fn inc_static_mesh(&self, id: StaticMeshId) -> StaticMeshDrawInfo {
-        self.global_objects.inc_static_mesh(id)
-    }
-
-    pub(super) fn dec_static_mesh(&self, id: StaticMeshId) {
-        self.global_objects.dec_static_mesh(id)
-    }
-
-    pub(super) fn create_static_image(&self, data: &StaticImageData) -> StaticImageId {
-        self.global_objects.create_static_image(data)
-    }
-
-    pub(super) fn drop_static_image(&self, id: StaticImageId) {
-        self.global_objects.mark_static_image(id);
-    }
-
-    pub(super) fn inc_static_image(&self, id: StaticImageId) -> vk::ImageView {
-        self.global_objects.inc_static_image(id)
-    }
-
-    pub(super) fn dec_static_image(&self, id: StaticImageId) {
-        self.global_objects.dec_static_image(id)
     }
 
     pub(super) fn create_shader(&self, vertex_format: &VertexFormat, used_uniforms: McUniform) -> ShaderId {

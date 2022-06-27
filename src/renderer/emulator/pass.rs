@@ -4,10 +4,9 @@ use std::sync::Arc;
 use ash::vk;
 
 use crate::renderer::emulator::immediate::ImmediateBuffer;
-use crate::renderer::emulator::{MeshData, StaticMeshId};
+use crate::renderer::emulator::{GlobalMesh, MeshData};
 use crate::renderer::emulator::worker::WorkerTask;
 
-use crate::renderer::emulator::global_objects::{StaticImageId, StaticMeshDrawInfo};
 use crate::renderer::emulator::mc_shaders::{McUniformData, ShaderId};
 use crate::renderer::emulator::pipeline::{DrawTask, EmulatorOutput, EmulatorPipeline, PipelineTask};
 use crate::renderer::emulator::share::Share;
@@ -43,8 +42,6 @@ pub struct PassRecorder {
     share: Arc<Share>,
 
     used_shaders: HashSet<ShaderId>,
-    used_static_meshes: HashMap<StaticMeshId, StaticMeshDrawInfo>,
-    used_static_images: HashMap<StaticImageId, vk::ImageView>,
     immediate_meshes: Vec<ImmediateMeshInfo>,
 
     immediate_buffer: Option<Box<ImmediateBuffer>>,
@@ -76,9 +73,8 @@ impl PassRecorder {
             share,
 
             used_shaders: HashSet::new(),
-            used_static_meshes: HashMap::new(),
-            used_static_images,
             immediate_meshes: Vec::with_capacity(128),
+
             immediate_buffer,
 
             pipeline,
@@ -134,21 +130,14 @@ impl PassRecorder {
         self.share.push_task(WorkerTask::PipelineTask(PipelineTask::Draw(draw_task)));
     }
 
-    pub fn draw_static(&mut self, mesh_id: StaticMeshId, shader: ShaderId, depth_write_enable: bool) {
+    pub fn draw_global(&mut self, mesh: Arc<GlobalMesh>, shader: ShaderId, depth_write_enable: bool) {
         self.use_shader(shader);
 
-        if !self.used_static_meshes.contains_key(&mesh_id) {
-            let draw_info = self.share.inc_static_mesh(mesh_id);
-            self.used_static_meshes.insert(mesh_id, draw_info);
-
-            self.share.push_task(WorkerTask::UseStaticMesh(mesh_id));
-        }
-
-        let draw_info = self.used_static_meshes.get(&mesh_id).unwrap();
+        let draw_info = mesh.get_draw_info();
 
         let draw_task = DrawTask {
-            vertex_buffer: draw_info.buffer.get_handle(),
-            index_buffer: draw_info.buffer.get_handle(),
+            vertex_buffer: draw_info.buffer,
+            index_buffer: draw_info.buffer,
             vertex_offset: 0,
             first_index: draw_info.first_index,
             index_type: draw_info.index_type,
@@ -158,6 +147,7 @@ impl PassRecorder {
             depth_write_enable,
         };
 
+        self.share.push_task(WorkerTask::UseStaticMesh(mesh));
         self.share.push_task(WorkerTask::PipelineTask(PipelineTask::Draw(draw_task)));
     }
 

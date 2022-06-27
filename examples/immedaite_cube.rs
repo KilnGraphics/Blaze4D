@@ -89,7 +89,7 @@ fn main() {
 
                                 // let id = recorder.upload_immediate(&data);
                                 // recorder.draw_immediate(id, shader, true);
-                                recorder.draw_static(static_id, shader, true);
+                                recorder.draw_global(static_id, shader, true);
                             }
                         }
                     }

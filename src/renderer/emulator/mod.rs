@@ -34,7 +34,7 @@ use crate::renderer::emulator::pipeline::EmulatorPipeline;
 
 use crate::prelude::*;
 
-pub use global_objects::StaticMeshId;
+pub use global_objects::{GlobalMesh, GlobalImage, ImageData};
 
 pub use pass::PassId;
 pub use pass::PassRecorder;
@@ -71,12 +71,16 @@ impl EmulatorRenderer {
         self.share.get_device()
     }
 
-    pub fn create_static_mesh(&self, data: &MeshData) -> StaticMeshId {
-        self.share.create_static_mesh(data)
+    pub fn create_global_mesh(&self, data: &MeshData) -> Arc<GlobalMesh> {
+        GlobalMesh::new(self.share.clone(), data).unwrap()
     }
 
-    pub fn drop_static_mesh(&self, id: StaticMeshId) {
-        self.share.drop_static_mesh(id)
+    pub fn create_global_image(&self, format: vk::Format, data: &ImageData) -> Arc<GlobalImage> {
+        GlobalImage::new(self.share.clone(), format, 1, data).unwrap()
+    }
+
+    pub fn create_global_image_mips(&self, format: vk::Format, data: &ImageData, mip_levels: u32) -> Arc<GlobalImage> {
+        GlobalImage::new(self.share.clone(), format, mip_levels, data).unwrap()
     }
 
     pub fn create_shader(&self, vertex_format: &VertexFormat, used_uniforms: McUniform) -> ShaderId {
