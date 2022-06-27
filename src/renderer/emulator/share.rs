@@ -6,10 +6,11 @@ use std::sync::atomic::AtomicU64;
 use ash::vk;
 
 use crate::renderer::emulator::descriptors::DescriptorPool;
-use crate::renderer::emulator::worker::WorkerTask;
+use crate::renderer::emulator::worker::{GlobalImageWrite, WorkerTask};
 use crate::renderer::emulator::mc_shaders::{McUniform, Shader, ShaderId, VertexFormat};
 
 use crate::prelude::*;
+use crate::renderer::emulator::{GlobalImage, ImageData};
 use crate::renderer::emulator::immediate::{ImmediateBuffer, ImmediatePool};
 use crate::renderer::emulator::staging::StagingMemoryPool;
 
@@ -19,15 +20,12 @@ pub(super) struct Share {
     current_pass: AtomicU64,
 
     staging_memory: Mutex<StagingMemoryPool>,
-    global_objects: GlobalObjects,
     immediate_buffers: ImmediatePool,
     shader_database: Mutex<HashMap<ShaderId, Arc<Shader>>>,
     descriptors: Mutex<DescriptorPool>,
     channel: Mutex<Channel>,
     signal: Condvar,
     family: u32,
-
-    placeholder_image_id: StaticImageId,
 }
 
 impl Share {
@@ -41,8 +39,6 @@ impl Share {
         let immediate_buffers = ImmediatePool::new(device.clone());
         let descriptors = Mutex::new(DescriptorPool::new(device.clone()));
 
-        let placeholder_image_id = Self::generate_placeholder_image(&global_objects);
-
         Self {
             id: UUID::new(),
             device,
@@ -55,7 +51,6 @@ impl Share {
             channel: Mutex::new(Channel::new()),
             signal: Condvar::new(),
             family: queue_family,
-            placeholder_image_id
         }
     }
 
@@ -141,14 +136,6 @@ impl Share {
         self.family
     }
 
-    pub(super) fn get_placeholder_image(&self) -> StaticImageId {
-        self.placeholder_image_id
-    }
-
-    pub(super) fn flush_global_objects(&self) {
-        self.global_objects.flush()
-    }
-
     pub(super) fn allocate_uniform<T: ToBytes>(&self, data: &T) -> (vk::Buffer, vk::DeviceSize) {
         self.descriptors.lock().unwrap().allocate_uniform(data)
     }
@@ -186,35 +173,6 @@ impl Share {
                 return NextTaskResult::Timeout;
             }
         }
-    }
-
-    /// Called by the worker periodically to update any async state or do cleanup
-    pub(super) fn worker_update(&self) {
-        self.global_objects.update();
-    }
-
-    fn generate_placeholder_image(global_objects: &GlobalObjects) -> StaticImageId {
-        let size = Vec2u32::new(256, 256);
-
-        let mut data: Box<[_]> = std::iter::repeat([0u8, 0u8, 0u8, 255u8]).take((size[0] as usize) * (size[1] as usize)).collect();
-        for x in 0..(size[0] as usize) {
-            for y in 0..(size[1] as usize) {
-                if ((x / 128) + (y / 128)) % 2 == 0 {
-                    data[(y * (size[0] as usize)) + x] = [255u8, 0u8, 255u8, 255u8];
-                }
-            }
-        }
-
-        let bytes = data.as_ref().as_bytes();
-
-        let info = StaticImageData {
-            data: bytes,
-            format: vk::Format::R8G8B8A8_UNORM,
-            size,
-            generate_mip_levels: 8
-        };
-
-        global_objects.create_static_image(&info)
     }
 }
 

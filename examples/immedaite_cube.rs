@@ -38,7 +38,7 @@ fn main() {
         primitive_topology: vk::PrimitiveTopology::TRIANGLE_LIST,
     };
 
-    let mut static_id = b4d.create_static_mesh(&data);
+    let mut mesh = b4d.create_global_mesh(&data);
 
     let mut draw_times = Vec::with_capacity(1000);
     let mut last_update = std::time::Instant::now();
@@ -67,8 +67,7 @@ fn main() {
             Event::MainEventsCleared => {
                 let now = std::time::Instant::now();
 
-                b4d.drop_static_mesh(static_id);
-                static_id = b4d.create_static_mesh(&data);
+                mesh = b4d.create_global_mesh(&data);
 
                 if let Some(mut recorder) = b4d.try_start_frame(current_size) {
 
@@ -89,7 +88,7 @@ fn main() {
 
                                 // let id = recorder.upload_immediate(&data);
                                 // recorder.draw_immediate(id, shader, true);
-                                recorder.draw_global(static_id, shader, true);
+                                recorder.draw_global(mesh.clone(), shader, true);
                             }
                         }
                     }

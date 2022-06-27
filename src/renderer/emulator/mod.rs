@@ -44,6 +44,7 @@ use crate::renderer::emulator::mc_shaders::{McUniform, Shader, ShaderId, VertexF
 
 pub struct EmulatorRenderer {
     share: Arc<Share>,
+    placeholder_image: Arc<GlobalImage>,
     worker: std::thread::JoinHandle<()>,
 }
 
@@ -61,8 +62,11 @@ impl EmulatorRenderer {
             })
         });
 
+        let placeholder_image = Self::create_placeholder_image(share.clone());
+
         Self {
             share,
+            placeholder_image,
             worker,
         }
     }
@@ -96,7 +100,31 @@ impl EmulatorRenderer {
     }
 
     pub fn start_pass(&self, pipeline: Arc<dyn EmulatorPipeline>) -> PassRecorder {
-        PassRecorder::new(self.share.clone(), pipeline)
+        PassRecorder::new(self.share.clone(), pipeline, self.placeholder_image.clone())
+    }
+
+    fn create_placeholder_image(share: Arc<Share>) -> Arc<GlobalImage> {
+        let size = Vec2u32::new(256, 256);
+
+        let mut data: Box<[_]> = std::iter::repeat([0u8, 0u8, 0u8, 255u8]).take((size[0] as usize) * (size[1] as usize)).collect();
+        for x in 0..(size[0] as usize) {
+            for y in 0..(size[1] as usize) {
+                if ((x / 128) + (y / 128)) % 2 == 0 {
+                    data[(y * (size[0] as usize)) + x] = [255u8, 0u8, 255u8, 255u8];
+                }
+            }
+        }
+
+        let bytes = data.as_ref().as_bytes();
+
+        let info = ImageData {
+            data: bytes,
+            row_stride: 0,
+            offset: Vec2u32::new(0, 0),
+            extent: size
+        };
+
+        GlobalImage::new(share, vk::Format::R8G8B8A8_SRGB, 1, &info).unwrap()
     }
 }
 

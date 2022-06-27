@@ -4,7 +4,7 @@ use std::sync::Arc;
 use ash::vk;
 
 use crate::renderer::emulator::immediate::ImmediateBuffer;
-use crate::renderer::emulator::{GlobalMesh, MeshData};
+use crate::renderer::emulator::{GlobalImage, GlobalMesh, MeshData};
 use crate::renderer::emulator::worker::WorkerTask;
 
 use crate::renderer::emulator::mc_shaders::{McUniformData, ShaderId};
@@ -51,7 +51,7 @@ pub struct PassRecorder {
 }
 
 impl PassRecorder {
-    pub(super) fn new(share: Arc<Share>, pipeline: Arc<dyn EmulatorPipeline>) -> Self {
+    pub(super) fn new(share: Arc<Share>, pipeline: Arc<dyn EmulatorPipeline>, placeholder_image: Arc<GlobalImage>) -> Self {
         let id = share.try_start_pass_id().unwrap_or_else(|| {
             log::error!("Attempted to start pass with an already running pass!");
             panic!();
@@ -60,13 +60,7 @@ impl PassRecorder {
 
         let immediate_buffer = Some(share.get_next_immediate_buffer());
 
-        let placeholder_id = share.get_placeholder_image();
-        let placeholder_image = share.inc_static_image(placeholder_id);
-
-        share.push_task(WorkerTask::StartPass(id, pipeline.clone(), pipeline.start_pass(), placeholder_image, placeholder_id));
-
-        let mut used_static_images = HashMap::new();
-        used_static_images.insert(placeholder_id, placeholder_image);
+        share.push_task(WorkerTask::StartPass(id, pipeline.clone(), pipeline.start_pass(), placeholder_image));
 
         Self {
             id,
@@ -147,7 +141,7 @@ impl PassRecorder {
             depth_write_enable,
         };
 
-        self.share.push_task(WorkerTask::UseStaticMesh(mesh));
+        self.share.push_task(WorkerTask::UseGlobalMesh(mesh));
         self.share.push_task(WorkerTask::PipelineTask(PipelineTask::Draw(draw_task)));
     }
 

@@ -59,7 +59,7 @@ impl GlobalMesh {
         }).allocate(required_size, 1);
 
         unsafe {
-            let dst = std::slice::from_raw_parts_mut(mapped.as_ptr(), required_size as usize);
+            let dst = std::slice::from_raw_parts_mut(staging.mapped.as_ptr(), required_size as usize);
 
             dst[0..data.vertex_data.len()].copy_from_slice(data.vertex_data);
             dst[(index_offset as usize)..].copy_from_slice(data.index_data);
@@ -250,6 +250,7 @@ pub struct GlobalImage {
     last_used_pass: AtomicU64,
 
     image: vk::Image,
+    sampler_view: vk::ImageView,
     allocation: Option<Allocation>,
     size: Vec2u32,
     mip_levels: u32,
@@ -257,9 +258,9 @@ pub struct GlobalImage {
 
 impl GlobalImage {
     pub(super) fn new(share: Arc<Share>, format: vk::Format, mip_levels: u32, data: &ImageData) -> Result<Arc<Self>, GlobalObjectCreateError> {
-        assert_eq!(data.offset, Vec2u32(0, 0));
+        assert_eq!(data.offset, Vec2u32::new(0, 0));
 
-        let (image, allocation) = Self::create_image(share.get_device(), format, data.extent, mip_levels)?;
+        let (image, allocation, sampler_view) = Self::create_image(share.get_device(), format, data.extent, mip_levels)?;
 
         let (staging, staging_allocation) = share.get_staging_pool().lock().unwrap_or_else(|_| {
             log::error!("Poisoned staging pool lock in GlobalImage::new");
@@ -267,7 +268,7 @@ impl GlobalImage {
         }).allocate(data.data.len() as u64, 1);
 
         unsafe {
-            let dst = std::slice::from_raw_parts_mut(mapped.as_ptr(), data.data.len());
+            let dst = std::slice::from_raw_parts_mut(staging.mapped.as_ptr(), data.data.len());
             dst.copy_from_slice(data.data);
         }
 
@@ -278,6 +279,7 @@ impl GlobalImage {
             last_used_pass: AtomicU64::new(0),
 
             image,
+            sampler_view,
             allocation: Some(allocation),
             size: data.extent,
             mip_levels
@@ -320,7 +322,7 @@ impl GlobalImage {
     }
 
     pub(super) fn get_sampler_view(&self) -> vk::ImageView {
-        todo!()
+        self.sampler_view
     }
 
     pub fn upload(&self, data: &[ImageData]) {
@@ -328,12 +330,10 @@ impl GlobalImage {
             return;
         }
 
-        if let Some(share) = self.share.upgrade() {
-            todo!()
-        }
+        todo!()
     }
 
-    fn create_image(device: &DeviceContext, format: vk::Format, size: Vec2u32, mip_levels: u32) -> Result<(vk::Image, Allocation), GlobalObjectCreateError> {
+    fn create_image(device: &DeviceContext, format: vk::Format, size: Vec2u32, mip_levels: u32) -> Result<(vk::Image, Allocation, vk::ImageView), GlobalObjectCreateError> {
         let info = vk::ImageCreateInfo::builder()
             .image_type(vk::ImageType::TYPE_2D)
             .format(format)
@@ -372,7 +372,37 @@ impl GlobalImage {
             return Err(GlobalObjectCreateError::Vulkan(err));
         }
 
-        Ok((image, allocation))
+        let info = vk::ImageViewCreateInfo::builder()
+            .image(image)
+            .view_type(vk::ImageViewType::TYPE_2D)
+            .format(format)
+            .components(vk::ComponentMapping {
+                r: vk::ComponentSwizzle::IDENTITY,
+                g: vk::ComponentSwizzle::IDENTITY,
+                b: vk::ComponentSwizzle::IDENTITY,
+                a: vk::ComponentSwizzle::IDENTITY
+            })
+            .subresource_range(vk::ImageSubresourceRange {
+                aspect_mask: vk::ImageAspectFlags::COLOR,
+                base_mip_level: 0,
+                level_count: mip_levels,
+                base_array_layer: 0,
+                layer_count: 1
+            });
+
+        let sampler_view = match unsafe {
+            device.vk().create_image_view(&info, None)
+        } {
+            Ok(view) => view,
+            Err(err) => {
+                log::error!("vkCreateImageView returned {:?} in GlobalImage::create_image", err);
+                unsafe { device.vk().destroy_image(image, None) };
+                device.get_allocator().free(allocation);
+                return Err(GlobalObjectCreateError::Vulkan(err));
+            }
+        };
+
+        Ok((image, allocation, sampler_view))
     }
 }
 
@@ -407,6 +437,7 @@ impl Drop for GlobalImage {
     fn drop(&mut self) {
         let device = self.share.get_device();
         unsafe {
+            device.vk().destroy_image_view(self.sampler_view, None);
             device.vk().destroy_image(self.image, None);
         }
         device.get_allocator().free(self.allocation.take().unwrap());

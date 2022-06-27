@@ -22,10 +22,10 @@ use crate::renderer::emulator::share::{NextTaskResult, Share};
 use crate::renderer::emulator::staging::StagingAllocationId;
 
 pub(super) enum WorkerTask {
-    StartPass(PassId, Arc<dyn EmulatorPipeline>, Box<dyn EmulatorPipelinePass + Send>),
+    StartPass(PassId, Arc<dyn EmulatorPipeline>, Box<dyn EmulatorPipelinePass + Send>, Arc<GlobalImage>),
     EndPass(Box<ImmediateBuffer>),
-    UseStaticMesh(StaticMeshId),
-    UseStaticImage(StaticImageId),
+    UseGlobalMesh(Arc<GlobalMesh>),
+    UseGlobalImage(Arc<GlobalImage>),
     UseShader(ShaderId),
     UseOutput(Box<dyn EmulatorOutput + Send>),
     PipelineTask(PipelineTask),
@@ -69,8 +69,6 @@ pub(super) fn run_worker(device: Arc<DeviceContext>, share: Arc<Share>) {
     let queue = device.get_main_queue();
 
     loop {
-        share.worker_update();
-
         old_frames.retain(|old: &PassState| {
             !old.is_complete()
         });
@@ -81,12 +79,12 @@ pub(super) fn run_worker(device: Arc<DeviceContext>, share: Arc<Share>) {
         };
 
         match task {
-            WorkerTask::StartPass(id, pipeline, pass) => {
+            WorkerTask::StartPass(id, pipeline, pass, placeholder_image) => {
                 if current_pass.is_some() {
                     log::error!("Worker received WorkerTask::StartPass when a pass is already running");
                     panic!()
                 }
-                let state = PassState::new(id, pipeline, pass, device.clone(), &queue, share.clone(), pool.clone());
+                let state = PassState::new(id, pipeline, pass, device.clone(), &queue, share.clone(), pool.clone(), placeholder_image);
                 current_pass = Some(state);
                 current_global_recorder = next_global_recorder.take();
             }
@@ -102,18 +100,18 @@ pub(super) fn run_worker(device: Arc<DeviceContext>, share: Arc<Share>) {
                 }
             }
 
-            WorkerTask::UseStaticMesh(mesh_id) => {
+            WorkerTask::UseGlobalMesh(mesh) => {
                 if let Some(pass) = &mut current_pass {
-                    pass.static_meshes.push(mesh_id);
+                    pass.global_meshes.push(mesh)
                 } else {
                     log::error!("Worker received WorkerTask::UseStaticMesh when no active pass exists");
                     panic!()
                 }
             }
 
-            WorkerTask::UseStaticImage(image_id) => {
+            WorkerTask::UseGlobalImage(image) => {
                 if let Some(pass) = &mut current_pass {
-                    pass.static_images.push(image_id);
+                    pass.global_images.push(image);
                 } else {
                     log::error!("Worker received WorkerTask::UseStaticImage when no active pass exits");
                     panic!()
@@ -353,8 +351,8 @@ struct PassState {
     outputs: Vec<Box<dyn EmulatorOutput>>,
 
     immediate_buffer: Option<Box<ImmediateBuffer>>,
-    static_meshes: Vec<StaticMeshId>,
-    static_images: Vec<StaticImageId>,
+    global_meshes: Vec<Arc<GlobalMesh>>,
+    global_images: Vec<Arc<GlobalImage>>,
     shaders: Vec<ShaderId>,
 
     pre_cmd: vk::CommandBuffer,
@@ -366,13 +364,13 @@ struct PassState {
 }
 
 impl PassState {
-    fn new(pass_id: PassId, pipeline: Arc<dyn EmulatorPipeline>, mut pass: Box<dyn EmulatorPipelinePass>, device: Arc<DeviceContext>, queue: &Queue, share: Arc<Share>, pool: Rc<RefCell<WorkerObjectPool>>, placeholder_image: vk::ImageView, placeholder_id: StaticImageId) -> Self {
+    fn new(pass_id: PassId, pipeline: Arc<dyn EmulatorPipeline>, mut pass: Box<dyn EmulatorPipelinePass>, device: Arc<DeviceContext>, queue: &Queue, share: Arc<Share>, pool: Rc<RefCell<WorkerObjectPool>>, placeholder_image: Arc<GlobalImage>) -> Self {
         let mut object_pool = PooledObjectProvider::new(share.clone(), pool);
 
         let pre_cmd = object_pool.get_begin_command_buffer().unwrap();
         let post_cmd = object_pool.get_begin_command_buffer().unwrap();
 
-        pass.init(queue, &mut object_pool, placeholder_image);
+        pass.init(queue, &mut object_pool, placeholder_image.get_sampler_view());
 
         Self {
             share,
@@ -386,8 +384,8 @@ impl PassState {
             outputs: Vec::with_capacity(8),
 
             immediate_buffer: None,
-            static_meshes: Vec::new(),
-            static_images: vec![placeholder_id],
+            global_meshes: Vec::new(),
+            global_images: vec![placeholder_image],
             shaders: Vec::new(),
 
             pre_cmd,
@@ -485,12 +483,6 @@ impl Drop for PassState {
     fn drop(&mut self) {
         if let Some(immediate_buffer) = self.immediate_buffer.take() {
             self.share.return_immediate_buffer(immediate_buffer);
-        }
-        for static_mesh in &self.static_meshes {
-            self.share.dec_static_mesh(*static_mesh);
-        }
-        for static_image in &self.static_images {
-            self.share.dec_static_image(*static_image);
         }
         for shader in &self.shaders {
             self.pipeline.dec_shader_used(*shader);
@@ -617,7 +609,7 @@ impl GlobalObjectsRecorder {
                         .image_memory_barriers(std::slice::from_ref(&barrier));
 
                     unsafe {
-                        device.vk().cmd_pipeline_barrier2(self.cmd, &info);
+                        device.synchronization_2_khr().cmd_pipeline_barrier2(self.cmd, &info);
                     }
                 }
 
@@ -670,7 +662,7 @@ impl GlobalObjectsRecorder {
                 .image_memory_barriers(image_post_barriers.as_slice());
 
             unsafe {
-                device.vk().cmd_pipeline_barrier2(self.cmd, &info);
+                device.synchronization_2_khr().cmd_pipeline_barrier2(self.cmd, &info);
             }
         }
 
@@ -754,7 +746,7 @@ impl GlobalObjectsRecorder {
                 .buffer_memory_barriers(self.tmp_buffer_barriers.as_slice());
 
             unsafe {
-                self.share.get_device().vk().cmd_pipeline_barrier2(self.cmd, &info);
+                self.share.get_device().synchronization_2_khr().cmd_pipeline_barrier2(self.cmd, &info);
             }
         }
     }
@@ -784,7 +776,7 @@ impl GlobalObjectsRecorder {
                 .image_memory_barriers(self.tmp_image_barriers.as_slice());
 
             unsafe {
-                self.share.get_device().vk().cmd_pipeline_barrier2(self.cmd, &info);
+                self.share.get_device().synchronization_2_khr().cmd_pipeline_barrier2(self.cmd, &info);
             }
         }
     }
