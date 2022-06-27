@@ -1,21 +1,16 @@
 use std::cmp::Ordering;
-use std::collections::{HashMap, VecDeque};
 use std::hash::{Hash, Hasher};
-use std::sync::{Arc, Mutex, Weak};
+use std::sync::Arc;
 use std::sync::atomic::AtomicU64;
 
 use ash::vk;
 use crate::define_uuid_type;
 
-use crate::device::device::Queue;
-use crate::objects::sync::Semaphore;
 use crate::renderer::emulator::{MeshData, PassId};
 use crate::vk::objects::allocator::{Allocation, AllocationStrategy};
-use crate::vk::objects::buffer::Buffer;
 
 use crate::prelude::*;
 use crate::renderer::emulator::share::Share;
-use crate::renderer::emulator::staging::{StagingAllocationId, StagingMemoryPool};
 use crate::renderer::emulator::worker::{GlobalImageWrite, GlobalMeshWrite, WorkerTask};
 use crate::util::alloc::next_aligned;
 
@@ -100,6 +95,19 @@ impl GlobalMesh {
         }, true));
 
         Ok(mesh)
+    }
+
+    pub(super) fn update_used_in(&self, pass: PassId) {
+        let pass = pass.get_raw();
+        loop {
+            let val = self.last_used_pass.load(std::sync::atomic::Ordering::Acquire);
+            if val >= pass {
+                return;
+            }
+            if self.last_used_pass.compare_exchange(val, pass, std::sync::atomic::Ordering::SeqCst, std::sync::atomic::Ordering::SeqCst).is_ok() {
+                return;
+            }
+        }
     }
 
     pub(super) fn get_buffer_handle(&self) -> vk::Buffer {
@@ -305,8 +313,24 @@ impl GlobalImage {
                 image_extent: vk::Extent3D{ width: data.extent[0], height: data.extent[1], depth: 1 }
             }])
         }, true));
+        if mip_levels > 1 {
+            image.share.push_task(WorkerTask::GenerateGlobalImageMipmaps(image.clone(), PassId::from_raw(0)));
+        }
 
         Ok(image)
+    }
+
+    pub(super) fn update_used_in(&self, pass: PassId) {
+        let pass = pass.get_raw();
+        loop {
+            let val = self.last_used_pass.load(std::sync::atomic::Ordering::Acquire);
+            if val >= pass {
+                return;
+            }
+            if self.last_used_pass.compare_exchange(val, pass, std::sync::atomic::Ordering::SeqCst, std::sync::atomic::Ordering::SeqCst).is_ok() {
+                return;
+            }
+        }
     }
 
     pub(super) fn get_image_handle(&self) -> vk::Image {
@@ -441,131 +465,5 @@ impl Drop for GlobalImage {
             device.vk().destroy_image(self.image, None);
         }
         device.get_allocator().free(self.allocation.take().unwrap());
-    }
-}
-
-
-
-
-struct StaticImage {
-    image: vk::Image,
-    allocation: Allocation,
-    view: vk::ImageView,
-
-    used_counter: u32,
-    marked: bool,
-}
-
-impl StaticImage {
-    /// Attempts to increment the used counter.
-    ///
-    /// If the image is marked the counter is not incremented and false is returned.
-    fn inc(&mut self) -> bool {
-        if self.marked {
-            return false;
-        }
-
-        self.used_counter += 1;
-        true
-    }
-
-    /// Decrements the used counter.
-    ///
-    /// If the image is marked and the counter decrements to 0 true is returned indicating that the
-    /// image can be destroyed.
-    fn dec(&mut self) -> bool {
-        if self.used_counter == 0 {
-            log::error!("Used counter is already 0 when calling StaticImage::dec");
-            panic!()
-        }
-
-        self.used_counter -= 1;
-
-        if self.marked && self.is_unused() {
-            return true;
-        }
-        false
-    }
-
-    /// Returns true if the mesh used counter is 0
-    fn is_unused(&self) -> bool {
-        self.used_counter == 0
-    }
-
-    fn destroy(self, device: &DeviceContext) {
-        if self.used_counter != 0 {
-            log::warn!("Destroying static image despite used counter being {:?}", self.used_counter);
-        }
-
-        unsafe {
-            device.vk().destroy_image_view(self.view, None);
-            device.get_functions().vk.destroy_image(self.image, None);
-        }
-
-        device.get_allocator().free(self.allocation);
-    }
-
-    fn create_image(device: &DeviceContext, size: Vec2u32, mip_levels: u32, format: vk::Format) -> (vk::Image, Allocation, vk::ImageView) {
-        let info = vk::ImageCreateInfo::builder()
-            .image_type(vk::ImageType::TYPE_2D)
-            .format(format)
-            .extent(vk::Extent3D {
-                width: size[0],
-                height: size[1],
-                depth: 1
-            })
-            .mip_levels(mip_levels)
-            .array_layers(1)
-            .samples(vk::SampleCountFlags::TYPE_1)
-            .tiling(vk::ImageTiling::OPTIMAL)
-            .usage(vk::ImageUsageFlags::TRANSFER_SRC | vk::ImageUsageFlags::TRANSFER_DST | vk::ImageUsageFlags::SAMPLED)
-            .sharing_mode(vk::SharingMode::EXCLUSIVE)
-            .initial_layout(vk::ImageLayout::UNDEFINED);
-
-        let image = unsafe {
-            device.vk().create_image(&info, None)
-        }.unwrap_or_else(|err| {
-            log::error!("vkCreateImage returned {:?} in StaticImage::create_image", err);
-            panic!();
-        });
-
-        let allocation = device.get_allocator().allocate_image_memory(image, &AllocationStrategy::AutoGpuOnly).unwrap_or_else(|err| {
-            log::error!("allocate_image_memory failed with {:?} in StaticImage::create_image", err);
-            panic!()
-        });
-
-        unsafe {
-            device.vk().bind_image_memory(image, allocation.memory(), allocation.offset())
-        }.unwrap_or_else(|err| {
-            log::error!("vkBindImageMemory returned {:?} in StaticImage::create_image", err);
-            panic!()
-        });
-
-        let info = vk::ImageViewCreateInfo::builder()
-            .image(image)
-            .view_type(vk::ImageViewType::TYPE_2D)
-            .format(format)
-            .components(vk::ComponentMapping {
-                r: vk::ComponentSwizzle::IDENTITY,
-                g: vk::ComponentSwizzle::IDENTITY,
-                b: vk::ComponentSwizzle::IDENTITY,
-                a: vk::ComponentSwizzle::IDENTITY
-            })
-            .subresource_range(vk::ImageSubresourceRange {
-                aspect_mask: vk::ImageAspectFlags::COLOR,
-                base_mip_level: 0,
-                level_count: mip_levels,
-                base_array_layer: 0,
-                layer_count: 1
-            });
-
-        let view = unsafe {
-            device.vk().create_image_view(&info, None)
-        }.unwrap_or_else(|err| {
-            log::error!("vkCreateImageView returned {:?} in StaticImage::create_image", err);
-            panic!()
-        });
-
-        (image, allocation, view)
     }
 }

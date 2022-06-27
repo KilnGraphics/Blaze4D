@@ -278,12 +278,8 @@ unsafe extern "C" fn b4d_create_global_mesh(b4d: *const Blaze4D, data: *const CM
 }
 
 #[no_mangle]
-unsafe extern "C" fn b4d_destroy_global_mesh(b4d: *const Blaze4D, mesh: *mut Arc<GlobalMesh>) {
+unsafe extern "C" fn b4d_destroy_global_mesh(mesh: *mut Arc<GlobalMesh>) {
     catch_unwind(|| {
-        let b4d = b4d.as_ref().unwrap_or_else(|| {
-            log::error!("Passed null b4d to b4d_destroy_global_mesh");
-            exit(1);
-        });
         if mesh.is_null() {
             log::error!("Passed null mesh to b4d_destroy_global_mesh");
         }

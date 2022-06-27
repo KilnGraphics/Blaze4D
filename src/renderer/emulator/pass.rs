@@ -1,4 +1,4 @@
-use std::collections::{HashMap, HashSet};
+use std::collections::HashSet;
 use std::sync::Arc;
 
 use ash::vk;
@@ -125,6 +125,8 @@ impl PassRecorder {
     }
 
     pub fn draw_global(&mut self, mesh: Arc<GlobalMesh>, shader: ShaderId, depth_write_enable: bool) {
+        mesh.update_used_in(self.id);
+
         self.use_shader(shader);
 
         let draw_info = mesh.get_draw_info();

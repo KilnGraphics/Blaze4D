@@ -6,11 +6,10 @@ use std::sync::atomic::AtomicU64;
 use ash::vk;
 
 use crate::renderer::emulator::descriptors::DescriptorPool;
-use crate::renderer::emulator::worker::{GlobalImageWrite, WorkerTask};
+use crate::renderer::emulator::worker::WorkerTask;
 use crate::renderer::emulator::mc_shaders::{McUniform, Shader, ShaderId, VertexFormat};
 
 use crate::prelude::*;
-use crate::renderer::emulator::{GlobalImage, ImageData};
 use crate::renderer::emulator::immediate::{ImmediateBuffer, ImmediatePool};
 use crate::renderer::emulator::staging::StagingMemoryPool;
 
@@ -25,7 +24,6 @@ pub(super) struct Share {
     descriptors: Mutex<DescriptorPool>,
     channel: Mutex<Channel>,
     signal: Condvar,
-    family: u32,
 }
 
 impl Share {
@@ -33,7 +31,6 @@ impl Share {
 
     pub(super) fn new(device: Arc<DeviceContext>) -> Self {
         let queue = device.get_main_queue();
-        let queue_family = queue.get_queue_family_index();
 
         let staging_memory = StagingMemoryPool::new(device.clone());
         let immediate_buffers = ImmediatePool::new(device.clone());
@@ -50,7 +47,6 @@ impl Share {
             descriptors,
             channel: Mutex::new(Channel::new()),
             signal: Condvar::new(),
-            family: queue_family,
         }
     }
 
@@ -130,10 +126,6 @@ impl Share {
 
     pub(super) fn return_immediate_buffer(&self, buffer: Box<ImmediateBuffer>) {
         self.immediate_buffers.return_buffer(buffer);
-    }
-
-    pub(super) fn get_render_queue_family(&self) -> u32 {
-        self.family
     }
 
     pub(super) fn allocate_uniform<T: ToBytes>(&self, data: &T) -> (vk::Buffer, vk::DeviceSize) {
