@@ -710,16 +710,21 @@ impl GlobalObjectsRecorder {
 
     fn push_staging(&mut self, alloc: StagingAllocationId, buffer: vk::Buffer, offset: vk::DeviceSize, size: vk::DeviceSize) {
         self.staging_allocations.push(alloc);
-        self.staging_barriers.push(vk::BufferMemoryBarrier2::builder()
+        let barrier = vk::BufferMemoryBarrier2::builder()
             .src_stage_mask(vk::PipelineStageFlags2::TRANSFER)
             .src_access_mask(vk::AccessFlags2::TRANSFER_READ)
             .dst_stage_mask(vk::PipelineStageFlags2::HOST)
             .dst_access_mask(vk::AccessFlags2::HOST_WRITE)
             .buffer(buffer)
             .offset(offset)
-            .size(size)
-            .build()
-        );
+            .size(size);
+
+        let info = vk::DependencyInfo::builder()
+            .buffer_memory_barriers(std::slice::from_ref(&barrier));
+
+        unsafe {
+            self.share.get_device().vk().cmd_pipeline_barrier2(self.cmd, &info)
+        };
     }
 
     /// Transitions a mesh to a new state and adds it to the used mesh list.
