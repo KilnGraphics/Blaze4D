@@ -47,6 +47,7 @@ public abstract class WindowMixin {
         Blaze4D.glfwWindow = GLFW.glfwCreateWindow(800, 600, "BLAAAAAZEEEE 4DDDDD", 0, 0);
 
         Blaze4D.core = new Blaze4DCore(Blaze4D.glfwWindow);
+        Blaze4D.core.setDebugMode(Blaze4DCore.DebugMode.TEXTURED0);
 
 //        Blaze4D.window = new GlfwWindow.SuppliedGlfwWindow(window);
 //        Blaze4D.rosella = new Rosella(Blaze4D.window, "Blaze4D", Blaze4D.VALIDATION_ENABLED);

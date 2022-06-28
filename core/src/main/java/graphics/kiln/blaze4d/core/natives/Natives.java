@@ -26,8 +26,11 @@ public class Natives {
     public static final MethodHandle B4D_CREATE_GLFW_SURFACE_PROVIDER_HANDLE;
     public static final MethodHandle B4D_INIT_HANDLE;
     public static final MethodHandle B4D_DESTROY_HANDLE;
+    public static final MethodHandle B4D_SET_DEBUG_MODE_HANDLE;
     public static final MethodHandle B4D_CREATE_GLOBAL_MESH_HANDLE;
     public static final MethodHandle B4D_DESTROY_GLOBAL_MESH_HANDLE;
+    public static final MethodHandle B4D_CREATE_GLOBAL_IMAGE_HANDLE;
+    public static final MethodHandle B4D_DESTROY_GLOBAL_IMAGE_HANDLE;
     public static final MethodHandle B4D_CREATE_SHADER_HANDLE;
     public static final MethodHandle B4D_DESTROY_SHADER_HANDLE;
     public static final MethodHandle B4D_START_FRAME_HANDLE;
@@ -58,11 +61,23 @@ public class Natives {
                 FunctionDescriptor.ofVoid(ADDRESS)
         );
 
+        B4D_SET_DEBUG_MODE_HANDLE = lookupFunction("b4d_set_debug_mode",
+                FunctionDescriptor.ofVoid(ADDRESS, JAVA_INT)
+        );
+
         B4D_CREATE_GLOBAL_MESH_HANDLE = lookupFunction("b4d_create_global_mesh",
                 FunctionDescriptor.of(ADDRESS, ADDRESS, ADDRESS)
         );
 
         B4D_DESTROY_GLOBAL_MESH_HANDLE = lookupFunction("b4d_destroy_global_mesh",
+                FunctionDescriptor.ofVoid(ADDRESS)
+        );
+
+        B4D_CREATE_GLOBAL_IMAGE_HANDLE = lookupFunction("b4d_create_global_image",
+                FunctionDescriptor.of(ADDRESS, ADDRESS, JAVA_INT, ADDRESS)
+        );
+
+        B4D_DESTROY_GLOBAL_IMAGE_HANDLE = lookupFunction("b4d_destroy_global_image",
                 FunctionDescriptor.ofVoid(ADDRESS)
         );
 
@@ -126,6 +141,14 @@ public class Natives {
         }
     }
 
+    public static void b4dSetDebugMode(MemoryAddress b4d, int debugMode) {
+        try {
+            B4D_SET_DEBUG_MODE_HANDLE.invoke(b4d, debugMode);
+        } catch (Throwable e) {
+            throw new RuntimeException("Failed to invoke b4d_set_debug_mode", e);
+        }
+    }
+
     public static MemoryAddress b4dCreateGlobalMesh(MemoryAddress b4d, MemoryAddress meshData) {
         try {
             return (MemoryAddress) B4D_CREATE_GLOBAL_MESH_HANDLE.invoke(b4d, meshData);
@@ -139,6 +162,22 @@ public class Natives {
             B4D_DESTROY_GLOBAL_MESH_HANDLE.invoke(mesh);
         } catch (Throwable e) {
             throw new RuntimeException("Failed to invoke b4d_destroy_global_mesh", e);
+        }
+    }
+
+    public static MemoryAddress b4dCreateGlobalImage(MemoryAddress b4d, int format, MemoryAddress imageData) {
+        try {
+            return (MemoryAddress) B4D_CREATE_GLOBAL_IMAGE_HANDLE.invoke(b4d, imageData);
+        } catch (Throwable e) {
+            throw new RuntimeException("Failed to invoke b4d_create_global_image", e);
+        }
+    }
+
+    public static void b4dDestroyGlobalImage(MemoryAddress image) {
+        try {
+            B4D_DESTROY_GLOBAL_IMAGE_HANDLE.invoke(image);
+        } catch (Throwable e) {
+            throw new RuntimeException("Failed to invoke b4d_destroy_global_image", e);
         }
     }
 
