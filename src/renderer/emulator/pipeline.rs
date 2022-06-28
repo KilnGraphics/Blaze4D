@@ -74,7 +74,7 @@ pub trait EmulatorPipelinePass {
     ///
     /// A placeholder image is provided which can be used for sampled images. This image must only
     /// be used in submits made by [`EmulatorPipelinePass::record`].
-    fn init(&mut self, queue: &Queue, obj: &mut PooledObjectProvider, placeholder_image: vk::ImageView);
+    fn init(&mut self, queue: &Queue, obj: &mut PooledObjectProvider, placeholder_image: vk::ImageView, placeholder_sampler: vk::Sampler);
 
     /// Called to process a task.
     ///

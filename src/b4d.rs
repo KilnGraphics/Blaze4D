@@ -74,8 +74,8 @@ impl Blaze4D {
     /// the specified debug mode until another call to this function is made.
     ///
     /// If [`None`] is passed the debug mode is disabled.
-    pub fn set_debug_node(&self, mode: Option<DebugPipelineMode>) {
-
+    pub fn set_debug_mode(&self, mode: Option<DebugPipelineMode>) {
+        self.render_config.lock().unwrap().set_debug_mode(mode);
     }
 
     pub fn create_global_mesh(&self, data: &MeshData) -> Arc<GlobalMesh> {
@@ -128,9 +128,9 @@ impl RenderConfig {
         }
     }
 
-    fn set_debug_mode(&mut self, view: Option<DebugPipelineMode>) {
-        if self.debug_mode != view {
-            self.debug_mode = view;
+    fn set_debug_mode(&mut self, mode: Option<DebugPipelineMode>) {
+        if self.debug_mode != mode {
+            self.debug_mode = mode;
             self.debug_pipeline = None;
         }
     }

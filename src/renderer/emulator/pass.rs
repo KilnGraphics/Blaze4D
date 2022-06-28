@@ -5,6 +5,7 @@ use ash::vk;
 
 use crate::renderer::emulator::immediate::ImmediateBuffer;
 use crate::renderer::emulator::{GlobalImage, GlobalMesh, MeshData};
+use crate::renderer::emulator::global_objects::SamplerInfo;
 use crate::renderer::emulator::worker::WorkerTask;
 
 use crate::renderer::emulator::mc_shaders::{McUniformData, ShaderId};
@@ -51,7 +52,7 @@ pub struct PassRecorder {
 }
 
 impl PassRecorder {
-    pub(super) fn new(share: Arc<Share>, pipeline: Arc<dyn EmulatorPipeline>, placeholder_image: Arc<GlobalImage>) -> Self {
+    pub(super) fn new(share: Arc<Share>, pipeline: Arc<dyn EmulatorPipeline>, placeholder_image: Arc<GlobalImage>, placeholder_sampler: &SamplerInfo) -> Self {
         let id = share.try_start_pass_id().unwrap_or_else(|| {
             log::error!("Attempted to start pass with an already running pass!");
             panic!();
@@ -60,7 +61,8 @@ impl PassRecorder {
 
         let immediate_buffer = Some(share.get_next_immediate_buffer());
 
-        share.push_task(WorkerTask::StartPass(id, pipeline.clone(), pipeline.start_pass(), placeholder_image));
+        let placeholder_sampler = placeholder_image.get_sampler(placeholder_sampler);
+        share.push_task(WorkerTask::StartPass(id, pipeline.clone(), pipeline.start_pass(), placeholder_image, placeholder_sampler));
 
         Self {
             id,

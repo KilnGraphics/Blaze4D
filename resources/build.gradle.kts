@@ -166,6 +166,10 @@ tasks.register<CompileShaders>("compileEmulatorShaders") {
         source("debug/debug.frag")
         output("debug_frag.spv")
     });
+    addModule("TexturedFragment", {
+        source("debug/textured.frag")
+        output("textured_frag.spv")
+    });
 
     addModule("BackgroundVertex", {
         source("debug/background.vert")

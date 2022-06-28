@@ -2,9 +2,7 @@
  * Defines all inputs to support minecrafts uniforms.
  */
 
-layout(set=0, binding=1) uniform texture2D _mc_image_0;
-layout(set=0, binding=2) uniform texture2D _mc_image_1;
-layout(set=0, binding=3) uniform texture2D _mc_image_2;
+layout(set=0, binding=1) uniform sampler2D[3] _mc_image;
 
 layout(set=0, binding=0, std140)
 uniform _McStaticUniforms {
@@ -31,16 +29,6 @@ uniform _PushConstant {
     mat4 model_view_matrix;
     vec3 chunk_offset;
 } _push_constant;
-
-/*
-layout(set=1, binding=1)
-uniform texture2D mc_texture_0;
-
-layout(set=1, binding=2)
-uniform texture2D mc_texture_1;
-
-layout(set=1, binding=3)
-uniform texture2D mc_texture_2;*/
 
 mat4 mc_model_view_matrix() {
     return _push_constant.model_view_matrix;
@@ -108,4 +96,20 @@ vec4 mc_transform_position(vec3 position) {
     tmp.z = (tmp.z + tmp.w) / 2.0;
     tmp.y *= -1.0;
     return tmp;
+}
+
+vec4 mc_image(uint index, vec2 coord) {
+    return texture(_mc_image[index], coord);
+}
+
+vec4 mc_image_0(vec2 coord) {
+    return texture(_mc_image[0], coord);
+}
+
+vec4 mc_image_1(vec2 coord) {
+    return texture(_mc_image[1], coord);
+}
+
+vec4 mc_image_2(vec2 coord) {
+    return texture(_mc_image[2], coord);
 }

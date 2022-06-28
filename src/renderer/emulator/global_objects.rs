@@ -1,6 +1,7 @@
 use std::cmp::Ordering;
+use std::collections::HashMap;
 use std::hash::{Hash, Hasher};
-use std::sync::Arc;
+use std::sync::{Arc, Mutex};
 use std::sync::atomic::AtomicU64;
 
 use ash::vk;
@@ -262,6 +263,8 @@ pub struct GlobalImage {
     allocation: Option<Allocation>,
     size: Vec2u32,
     mip_levels: u32,
+
+    sampler_database: Mutex<HashMap<SamplerInfo, vk::Sampler>>,
 }
 
 impl GlobalImage {
@@ -290,7 +293,9 @@ impl GlobalImage {
             sampler_view,
             allocation: Some(allocation),
             size: data.extent,
-            mip_levels
+            mip_levels,
+
+            sampler_database: Mutex::new(HashMap::new())
         });
 
         image.share.push_task(WorkerTask::WriteGlobalImage(GlobalImageWrite {
@@ -333,12 +338,12 @@ impl GlobalImage {
         }
     }
 
-    pub(super) fn get_image_handle(&self) -> vk::Image {
-        self.image
+    pub fn get_size(&self) -> Vec2u32 {
+        self.size
     }
 
-    pub(super) fn get_image_size(&self) -> Vec2u32 {
-        self.size
+    pub(super) fn get_image_handle(&self) -> vk::Image {
+        self.image
     }
 
     pub(super) fn get_mip_levels(&self) -> u32 {
@@ -347,6 +352,38 @@ impl GlobalImage {
 
     pub(super) fn get_sampler_view(&self) -> vk::ImageView {
         self.sampler_view
+    }
+
+    pub(super) fn get_sampler(&self, sampler_info: &SamplerInfo) -> vk::Sampler {
+        let mut guard = self.sampler_database.lock().unwrap();
+        if let Some(sampler) = guard.get(sampler_info) {
+            *sampler
+        } else {
+            let info = vk::SamplerCreateInfo::builder()
+                .mag_filter(sampler_info.mag_filter)
+                .min_filter(sampler_info.min_filter)
+                .mipmap_mode(sampler_info.mipmap_mode)
+                .address_mode_u(sampler_info.address_mode_u)
+                .address_mode_v(sampler_info.address_mode_v)
+                .address_mode_w(vk::SamplerAddressMode::REPEAT)
+                .mip_lod_bias(0f32)
+                .anisotropy_enable(sampler_info.anisotropy_enable)
+                .max_anisotropy(0f32)
+                .compare_enable(false)
+                .min_lod(0f32)
+                .max_lod(vk::LOD_CLAMP_NONE)
+                .unnormalized_coordinates(false);
+
+            let sampler = unsafe {
+                self.share.get_device().vk().create_sampler(&info, None)
+            }.unwrap_or_else(|err| {
+                log::error!("vkCreateSampler returned {:?} in GlobalImage::get_sampler", err);
+                panic!()
+            });
+
+            guard.insert(*sampler_info, sampler);
+            sampler
+        }
     }
 
     pub fn upload(&self, data: &[ImageData]) {
@@ -461,9 +498,22 @@ impl Drop for GlobalImage {
     fn drop(&mut self) {
         let device = self.share.get_device();
         unsafe {
+            for (_, sampler) in self.sampler_database.get_mut().unwrap() {
+                device.vk().destroy_sampler(*sampler, None);
+            }
             device.vk().destroy_image_view(self.sampler_view, None);
             device.vk().destroy_image(self.image, None);
         }
         device.get_allocator().free(self.allocation.take().unwrap());
     }
+}
+
+#[derive(Copy, Clone, PartialEq, Eq, Hash, Debug)]
+pub(super) struct SamplerInfo {
+    pub(super) mag_filter: vk::Filter,
+    pub(super) min_filter: vk::Filter,
+    pub(super) mipmap_mode: vk::SamplerMipmapMode,
+    pub(super) address_mode_u: vk::SamplerAddressMode,
+    pub(super) address_mode_v: vk::SamplerAddressMode,
+    pub(super) anisotropy_enable: bool,
 }

@@ -6,6 +6,7 @@ use winit::event_loop::{ControlFlow, EventLoop};
 use b4d_core::b4d::B4DVertexFormat;
 
 use b4d_core::prelude::*;
+use b4d_core::renderer::emulator::debug_pipeline::DebugPipelineMode;
 use b4d_core::renderer::emulator::mc_shaders::{DevUniform, McUniform, McUniformData, VertexFormat, VertexFormatEntry};
 use b4d_core::renderer::emulator::MeshData;
 
@@ -18,15 +19,8 @@ fn main() {
     let window = Box::new(WinitWindow::new("ImmediateCube", 800.0, 600.0, &event_loop));
 
     let b4d = b4d_core::b4d::Blaze4D::new(window, true);
-    let vertex_format = VertexFormat {
-        stride: std::mem::size_of::<Vertex>() as u32,
-        position: VertexFormatEntry { offset: 0, format: vk::Format::R32G32B32_SFLOAT },
-        normal: None,
-        color: Some(VertexFormatEntry { offset: std::mem::size_of::<Vec3f32>() as u32, format: vk::Format::R32G32B32A32_SFLOAT }),
-        uv0: None,
-        uv1: None,
-        uv2: None
-    };
+    b4d.set_debug_mode(Some(DebugPipelineMode::Color));
+    let vertex_format = Vertex::make_b4d_vertex_format();
     let mut shader = b4d.create_shader(&vertex_format, McUniform::MODEL_VIEW_MATRIX | McUniform::PROJECTION_MATRIX);
 
     let data = MeshData {
@@ -122,34 +116,42 @@ const CUBE_VERTICES: [Vertex; 8] = [
     Vertex {
         position: Vec3f32::new(-1f32, -1f32, -1f32),
         color: Vec4f32::new(0f32, 0f32, 0f32, 1f32),
+        uv: Vec2f32::new(0f32, 0f32),
     },
     Vertex {
         position: Vec3f32::new(1f32, -1f32, -1f32),
         color: Vec4f32::new(1f32, 0f32, 0f32, 1f32),
+        uv: Vec2f32::new(1f32, 0f32),
     },
     Vertex {
         position: Vec3f32::new(-1f32, 1f32, -1f32),
         color: Vec4f32::new(0f32, 1f32, 0f32, 1f32),
+        uv: Vec2f32::new(0f32, 1f32),
     },
     Vertex {
         position: Vec3f32::new(1f32, 1f32, -1f32),
         color: Vec4f32::new(1f32, 1f32, 0f32, 1f32),
+        uv: Vec2f32::new(1f32, 1f32),
     },
     Vertex {
         position: Vec3f32::new(-1f32, -1f32, 1f32),
         color: Vec4f32::new(0f32, 0f32, 1f32, 1f32),
+        uv: Vec2f32::new(0f32, 0f32),
     },
     Vertex {
         position: Vec3f32::new(1f32, -1f32, 1f32),
         color: Vec4f32::new(1f32, 0f32, 1f32, 1f32),
+        uv: Vec2f32::new(1f32, 0f32),
     },
     Vertex {
         position: Vec3f32::new(-1f32, 1f32, 1f32),
         color: Vec4f32::new(0f32, 1f32, 1f32, 1f32),
+        uv: Vec2f32::new(0f32, 1f32),
     },
     Vertex {
         position: Vec3f32::new(1f32, 1f32, 1f32),
         color: Vec4f32::new(1f32, 1f32, 1f32, 1f32),
+        uv: Vec2f32::new(1f32, 1f32),
     },
 ];
 
@@ -168,16 +170,20 @@ struct Vertex {
     position: Vec3f32,
     #[allow(unused)]
     color: Vec4f32,
+    #[allow(unused)]
+    uv: Vec2f32,
 }
 
 impl Vertex {
-    fn make_b4d_vertex_format() -> B4DVertexFormat {
-        B4DVertexFormat {
-            topology: vk::PrimitiveTopology::TRIANGLE_LIST,
+    fn make_b4d_vertex_format() -> VertexFormat {
+        VertexFormat {
             stride: std::mem::size_of::<Vertex>() as u32,
-            position: (0, vk::Format::R32G32B32_SFLOAT),
-            color: None,
-            uv: None
+            position: VertexFormatEntry { offset: 0, format: vk::Format::R32G32B32_SFLOAT },
+            normal: None,
+            color: Some(VertexFormatEntry { offset: std::mem::size_of::<Vec3f32>() as u32, format: vk::Format::R32G32B32A32_SFLOAT }),
+            uv0: Some(VertexFormatEntry { offset: std::mem::size_of::<Vec3f32>() as u32 + std::mem::size_of::<Vec4f32>() as u32, format: vk::Format::R32G32_SFLOAT }),
+            uv1: None,
+            uv2: None
         }
     }
 }

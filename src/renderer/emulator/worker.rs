@@ -22,7 +22,7 @@ use crate::renderer::emulator::share::{NextTaskResult, Share};
 use crate::renderer::emulator::staging::StagingAllocationId;
 
 pub(super) enum WorkerTask {
-    StartPass(PassId, Arc<dyn EmulatorPipeline>, Box<dyn EmulatorPipelinePass + Send>, Arc<GlobalImage>),
+    StartPass(PassId, Arc<dyn EmulatorPipeline>, Box<dyn EmulatorPipelinePass + Send>, Arc<GlobalImage>, vk::Sampler),
     EndPass(Box<ImmediateBuffer>),
     UseGlobalMesh(Arc<GlobalMesh>),
     UseGlobalImage(Arc<GlobalImage>),
@@ -79,12 +79,12 @@ pub(super) fn run_worker(device: Arc<DeviceContext>, share: Arc<Share>) {
         };
 
         match task {
-            WorkerTask::StartPass(id, pipeline, pass, placeholder_image) => {
+            WorkerTask::StartPass(id, pipeline, pass, placeholder_image, placeholder_sampler) => {
                 if current_pass.is_some() {
                     log::error!("Worker received WorkerTask::StartPass when a pass is already running");
                     panic!()
                 }
-                let state = PassState::new(id, pipeline, pass, device.clone(), &queue, share.clone(), pool.clone(), placeholder_image);
+                let state = PassState::new(id, pipeline, pass, device.clone(), &queue, share.clone(), pool.clone(), placeholder_image, placeholder_sampler);
                 current_pass = Some(state);
                 current_global_recorder = next_global_recorder.take();
             }
@@ -364,13 +364,23 @@ struct PassState {
 }
 
 impl PassState {
-    fn new(pass_id: PassId, pipeline: Arc<dyn EmulatorPipeline>, mut pass: Box<dyn EmulatorPipelinePass>, device: Arc<DeviceContext>, queue: &Queue, share: Arc<Share>, pool: Rc<RefCell<WorkerObjectPool>>, placeholder_image: Arc<GlobalImage>) -> Self {
+    fn new(
+        pass_id: PassId,
+        pipeline: Arc<dyn EmulatorPipeline>,
+        mut pass: Box<dyn EmulatorPipelinePass>,
+        device: Arc<DeviceContext>,
+        queue: &Queue,
+        share: Arc<Share>,
+        pool: Rc<RefCell<WorkerObjectPool>>,
+        placeholder_image: Arc<GlobalImage>,
+        placeholder_sampler: vk::Sampler
+    ) -> Self {
         let mut object_pool = PooledObjectProvider::new(share.clone(), pool);
 
         let pre_cmd = object_pool.get_begin_command_buffer().unwrap();
         let post_cmd = object_pool.get_begin_command_buffer().unwrap();
 
-        pass.init(queue, &mut object_pool, placeholder_image.get_sampler_view());
+        pass.init(queue, &mut object_pool, placeholder_image.get_sampler_view(), placeholder_sampler);
 
         Self {
             share,
@@ -581,7 +591,7 @@ impl GlobalObjectsRecorder {
         let mip_levels = image.get_mip_levels();
         if mip_levels > 1 {
             let handle = image.get_image_handle();
-            let src_size = image.get_image_size();
+            let src_size = image.get_size();
             let mut src_size = Vec2i32::new(src_size[0] as i32, src_size[1] as i32);
 
             self.transition_image(image, gob::ImageState::GenerateMipmaps, false);
@@ -723,7 +733,7 @@ impl GlobalObjectsRecorder {
             .buffer_memory_barriers(std::slice::from_ref(&barrier));
 
         unsafe {
-            self.share.get_device().vk().cmd_pipeline_barrier2(self.cmd, &info)
+            self.share.get_device().synchronization_2_khr().cmd_pipeline_barrier2(self.cmd, &info)
         };
     }
 

@@ -48,6 +48,8 @@ pub enum DebugPipelineMode {
     UV1,
     UV2,
     Textured0,
+    Textured1,
+    Textured2,
 }
 
 /// A [`EmulatorPipeline`] which provides debug information.
@@ -72,8 +74,6 @@ pub struct DebugPipeline {
     draw_pipeline: DrawPipeline,
     background_pipeline: BackgroundPipeline,
     descriptor_pool: vk::DescriptorPool,
-
-    tmp_sampler: vk::Sampler,
 
     pipelines: Mutex<HashMap<ShaderId, ShaderPipelines>>,
     next_index: AtomicUsize,
@@ -174,10 +174,6 @@ impl DebugPipeline {
             pass_objects.iter().map(|obj| obj.output_view).collect()
         };
 
-
-
-        let sampler = Self::create_sampler(&device);
-
         Ok(Arc::new_cyclic(|weak| {
             Self {
                 emulator,
@@ -190,8 +186,6 @@ impl DebugPipeline {
                 draw_pipeline,
                 background_pipeline,
                 descriptor_pool,
-
-                tmp_sampler: sampler,
 
                 pipelines: Mutex::new(HashMap::new()),
                 next_index: AtomicUsize::new(0),
@@ -295,26 +289,6 @@ impl DebugPipeline {
         }).get(0).unwrap();
 
         pipeline
-    }
-
-    fn create_sampler(device: &DeviceContext) -> vk::Sampler {
-        let info = vk::SamplerCreateInfo::builder()
-            .mag_filter(vk::Filter::NEAREST)
-            .min_filter(vk::Filter::NEAREST)
-            .mipmap_mode(vk::SamplerMipmapMode::NEAREST)
-            .address_mode_u(vk::SamplerAddressMode::REPEAT)
-            .address_mode_v(vk::SamplerAddressMode::REPEAT)
-            .address_mode_w(vk::SamplerAddressMode::REPEAT)
-            .mip_lod_bias(0f32)
-            .anisotropy_enable(false)
-            .compare_enable(false)
-            .min_lod(0f32)
-            .max_lod(0f32)
-            .unnormalized_coordinates(false);
-
-        unsafe {
-            device.vk().create_sampler(&info, None)
-        }.unwrap()
     }
 
     fn create_render_pass(device: &DeviceContext, depth_format: vk::Format) -> Result<vk::RenderPass, ObjectCreateError> {
@@ -467,7 +441,7 @@ impl EmulatorPipeline for DebugPipeline {
             let vertex_format = shader_obj.get_vertex_format().clone();
             let used_uniforms = shader_obj.get_used_uniforms();
 
-            let mut  pipelines = ShaderPipelines::new(self.emulator.get_device().clone(), shader, vertex_format, used_uniforms, listener);
+            let mut  pipelines = ShaderPipelines::new(self.emulator.get_device().clone(), vertex_format, used_uniforms, listener);
             pipelines.inc_used();
 
             guard.insert(shader, pipelines);
@@ -516,7 +490,6 @@ impl Drop for DebugPipeline {
         self.draw_pipeline.destroy(device);
         unsafe {
             device.vk().destroy_render_pass(self.render_pass, None);
-            device.vk().destroy_sampler(self.tmp_sampler, None);
         }
         self.shader_modules.destroy(device);
     }
@@ -528,6 +501,7 @@ struct ShaderModules {
     vertex_module: vk::ShaderModule,
     null_module: vk::ShaderModule,
     fragment_module: vk::ShaderModule,
+    texture_module: Option<vk::ShaderModule>,
 }
 
 impl ShaderModules {
@@ -546,8 +520,10 @@ impl ShaderModules {
             DebugPipelineMode::Normal => { todo!() }
             DebugPipelineMode::UV0 |
             DebugPipelineMode::UV1 |
-            DebugPipelineMode::UV2 => try_create_shader_module(device, DEBUG_UV_VERTEX_BIN, "uv_vertex"),
-            DebugPipelineMode::Textured0 => { todo!() }
+            DebugPipelineMode::UV2 |
+            DebugPipelineMode::Textured0 |
+            DebugPipelineMode::Textured1 |
+            DebugPipelineMode::Textured2 => try_create_shader_module(device, DEBUG_UV_VERTEX_BIN, "uv_vertex"),
         }.map_err(|err| {
             unsafe {
                 device.vk().destroy_shader_module(null_module, None);
@@ -556,11 +532,24 @@ impl ShaderModules {
             err
         })?;
 
+        let texture_module = match mode {
+            DebugPipelineMode::Textured0 => try_create_shader_module(device, TEXTURED_FRAGMENT_BIN, "textured_fragment").map(|val| Some(val)),
+            _ => Ok(None),
+        }.map_err(|err| {
+            unsafe {
+                device.vk().destroy_shader_module(null_module, None);
+                device.vk().destroy_shader_module(fragment_module, None);
+                device.vk().destroy_shader_module(vertex_module, None);
+            }
+            err
+        })?;
+
         Ok(Self {
             mode,
             vertex_module,
             null_module,
-            fragment_module
+            fragment_module,
+            texture_module,
         })
     }
 
@@ -575,7 +564,9 @@ impl ShaderModules {
 
         let vertex_module;
         let input_attributes: &[_];
+        let vertex_format_supported;
         if let Some(entry) = self.process_vertex_format(vertex_format) {
+            vertex_format_supported = true;
             vertex_module = self.vertex_module;
 
             input_attributes = alloc.alloc([
@@ -593,6 +584,7 @@ impl ShaderModules {
                 }
             ]);
         } else {
+            vertex_format_supported = false;
             vertex_module = self.null_module;
 
             input_attributes = alloc.alloc([
@@ -605,6 +597,33 @@ impl ShaderModules {
             ]);
         }
 
+        let (fragment_module, fragment_specialization) = match (self.mode, vertex_format_supported) {
+            (DebugPipelineMode::Textured0, true) |
+            (DebugPipelineMode::Textured1, true) |
+            (DebugPipelineMode::Textured2, true) => {
+                let data = alloc.alloc(match self.mode {
+                    DebugPipelineMode::Textured0 => 0u32,
+                    DebugPipelineMode::Textured1 => 1u32,
+                    DebugPipelineMode::Textured2 => 2u32,
+                    _ => panic!(),
+                });
+                let entries = alloc.alloc([
+                    vk::SpecializationMapEntry {
+                        constant_id: 0,
+                        offset: 0,
+                        size: 4
+                    }
+                ]);
+                (*self.texture_module.as_ref().unwrap(), alloc.alloc(vk::SpecializationInfo::builder()
+                    .map_entries(entries)
+                    .data(data.as_bytes())
+                ))
+            }
+            _ => {
+                (self.fragment_module, alloc.alloc(vk::SpecializationInfo::builder()))
+            }
+        };
+
         let shader_stages: &[_] = alloc.alloc([
             vk::PipelineShaderStageCreateInfo::builder()
                 .stage(vk::ShaderStageFlags::VERTEX)
@@ -613,8 +632,9 @@ impl ShaderModules {
                 .build(),
             vk::PipelineShaderStageCreateInfo::builder()
                 .stage(vk::ShaderStageFlags::FRAGMENT)
-                .module(self.fragment_module)
+                .module(fragment_module)
                 .name(SHADER_ENTRY)
+                .specialization_info(fragment_specialization)
                 .build(),
         ]);
 
@@ -635,8 +655,10 @@ impl ShaderModules {
             DebugPipelineMode::Normal => vertex_format.normal.as_ref(),
             DebugPipelineMode::UV0 |
             DebugPipelineMode::Textured0 => vertex_format.uv0.as_ref(),
-            DebugPipelineMode::UV1 => vertex_format.uv1.as_ref(),
-            DebugPipelineMode::UV2 => vertex_format.uv2.as_ref(),
+            DebugPipelineMode::UV1 |
+            DebugPipelineMode::Textured1 => vertex_format.uv1.as_ref(),
+            DebugPipelineMode::UV2 |
+            DebugPipelineMode::Textured2 => vertex_format.uv2.as_ref(),
         }
     }
 
@@ -645,6 +667,9 @@ impl ShaderModules {
             device.vk().destroy_shader_module(self.vertex_module, None);
             device.vk().destroy_shader_module(self.null_module, None);
             device.vk().destroy_shader_module(self.fragment_module, None);
+            if let Some(texture_module) = self.texture_module.take() {
+                device.vk().destroy_shader_module(texture_module, None);
+            }
         }
     }
 }
@@ -666,25 +691,11 @@ impl DrawPipeline {
             },
             vk::DescriptorSetLayoutBinding {
                 binding: 1,
-                descriptor_type: vk::DescriptorType::SAMPLED_IMAGE,
-                descriptor_count: 1,
+                descriptor_type: vk::DescriptorType::COMBINED_IMAGE_SAMPLER,
+                descriptor_count: 3,
                 stage_flags: vk::ShaderStageFlags::ALL_GRAPHICS,
                 p_immutable_samplers: std::ptr::null(),
             },
-            vk::DescriptorSetLayoutBinding {
-                binding: 2,
-                descriptor_type: vk::DescriptorType::SAMPLED_IMAGE,
-                descriptor_count: 1,
-                stage_flags: vk::ShaderStageFlags::ALL_GRAPHICS,
-                p_immutable_samplers: std::ptr::null(),
-            },
-            vk::DescriptorSetLayoutBinding {
-                binding: 3,
-                descriptor_type: vk::DescriptorType::SAMPLED_IMAGE,
-                descriptor_count: 1,
-                stage_flags: vk::ShaderStageFlags::ALL_GRAPHICS,
-                p_immutable_samplers: std::ptr::null(),
-            }
         ];
 
         let info = vk::DescriptorSetLayoutCreateInfo::builder()
@@ -1179,7 +1190,6 @@ struct PipelineConfig {
 
 struct ShaderPipelines {
     device: Arc<DeviceContext>,
-    shader: ShaderId,
     vertex_format: VertexFormat,
     used_uniforms: McUniform,
     pipelines: HashMap<PipelineConfig, vk::Pipeline>,
@@ -1190,10 +1200,9 @@ struct ShaderPipelines {
 }
 
 impl ShaderPipelines {
-    fn new(device: Arc<DeviceContext>, shader: ShaderId, vertex_format: VertexFormat, used_uniforms: McUniform, listener: ShaderListener) -> Self {
+    fn new(device: Arc<DeviceContext>, vertex_format: VertexFormat, used_uniforms: McUniform, listener: ShaderListener) -> Self {
         Self {
             device,
-            shader,
             vertex_format,
             used_uniforms,
             pipelines: HashMap::new(),
@@ -1245,6 +1254,7 @@ struct DebugPipelinePass {
     index: usize,
 
     placeholder_texture: vk::ImageView,
+    placeholder_sampler: vk::Sampler,
     shader_uniforms: HashMap<ShaderId, UniformStateTracker>,
 
     command_buffer: Option<vk::CommandBuffer>,
@@ -1260,6 +1270,7 @@ impl DebugPipelinePass {
             index,
 
             placeholder_texture: vk::ImageView::null(),
+            placeholder_sampler: vk::Sampler::null(),
             shader_uniforms: HashMap::new(),
 
             command_buffer: None,
@@ -1272,7 +1283,7 @@ impl DebugPipelinePass {
     fn update_uniform(&mut self, shader: ShaderId, data: &McUniformData) {
         if !self.shader_uniforms.contains_key(&shader) {
             let uniforms = self.parent.pipelines.lock().unwrap().get(&shader).unwrap().used_uniforms;
-            self.shader_uniforms.insert(shader, UniformStateTracker::new(uniforms, self.placeholder_texture));
+            self.shader_uniforms.insert(shader, UniformStateTracker::new(uniforms, self.placeholder_texture, self.placeholder_sampler));
         }
         let tracker = self.shader_uniforms.get_mut(&shader).unwrap();
         tracker.update_uniform(data);
@@ -1300,7 +1311,7 @@ impl DebugPipelinePass {
         if !self.shader_uniforms.contains_key(&task.shader) {
             log::warn!("Called draw without any shader uniforms. Using default values!");
             let uniforms = self.parent.pipelines.lock().unwrap().get(&task.shader).unwrap().used_uniforms;
-            self.shader_uniforms.insert(task.shader, UniformStateTracker::new(uniforms, self.placeholder_texture));
+            self.shader_uniforms.insert(task.shader, UniformStateTracker::new(uniforms, self.placeholder_texture, self.placeholder_sampler));
         }
         if let Some(tracker) = self.shader_uniforms.get_mut(&task.shader) {
             if let Some(push_constants) = tracker.validate_push_constants() {
@@ -1341,37 +1352,37 @@ impl DebugPipelinePass {
 
             if let Some(textures) = tracker.validate_textures() {
                 let image_info0 = vk::DescriptorImageInfo {
-                    sampler: vk::Sampler::null(),
-                    image_view: textures[0],
+                    sampler: textures[0].1,
+                    image_view: textures[0].0,
                     image_layout: vk::ImageLayout::SHADER_READ_ONLY_OPTIMAL
                 };
                 let image_info1 = vk::DescriptorImageInfo {
-                    sampler: vk::Sampler::null(),
-                    image_view: textures[1],
+                    sampler: textures[1].1,
+                    image_view: textures[1].0,
                     image_layout: vk::ImageLayout::SHADER_READ_ONLY_OPTIMAL
                 };
                 let image_info2 = vk::DescriptorImageInfo {
-                    sampler: vk::Sampler::null(),
-                    image_view: textures[2],
+                    sampler: textures[2].1,
+                    image_view: textures[2].0,
                     image_layout: vk::ImageLayout::SHADER_READ_ONLY_OPTIMAL
                 };
                 let writes = [
                     vk::WriteDescriptorSet::builder()
                         .dst_binding(1)
                         .dst_array_element(0)
-                        .descriptor_type(vk::DescriptorType::SAMPLED_IMAGE)
+                        .descriptor_type(vk::DescriptorType::COMBINED_IMAGE_SAMPLER)
                         .image_info(std::slice::from_ref(&image_info0))
                         .build(),
                     vk::WriteDescriptorSet::builder()
-                        .dst_binding(2)
-                        .dst_array_element(0)
-                        .descriptor_type(vk::DescriptorType::SAMPLED_IMAGE)
+                        .dst_binding(1)
+                        .dst_array_element(1)
+                        .descriptor_type(vk::DescriptorType::COMBINED_IMAGE_SAMPLER)
                         .image_info(std::slice::from_ref(&image_info1))
                         .build(),
                     vk::WriteDescriptorSet::builder()
-                        .dst_binding(3)
-                        .dst_array_element(0)
-                        .descriptor_type(vk::DescriptorType::SAMPLED_IMAGE)
+                        .dst_binding(1)
+                        .dst_array_element(2)
+                        .descriptor_type(vk::DescriptorType::COMBINED_IMAGE_SAMPLER)
                         .image_info(std::slice::from_ref(&image_info2))
                         .build(),
                 ];
@@ -1414,8 +1425,9 @@ impl DebugPipelinePass {
 }
 
 impl EmulatorPipelinePass for DebugPipelinePass {
-    fn init(&mut self, _: &Queue, obj: &mut PooledObjectProvider, placeholder_texture: vk::ImageView) {
+    fn init(&mut self, _: &Queue, obj: &mut PooledObjectProvider, placeholder_texture: vk::ImageView, placeholder_sampler: vk::Sampler) {
         self.placeholder_texture = placeholder_texture;
+        self.placeholder_sampler = placeholder_sampler;
 
         let cmd = obj.get_begin_command_buffer().unwrap();
         self.command_buffer = Some(cmd);
@@ -1556,11 +1568,11 @@ struct UniformStateTracker {
     textures_dirty: bool,
     push_constant_cache: PushConstants,
     static_uniform_cache: StaticUniforms,
-    textures: [vk::ImageView; 3],
+    textures: [(vk::ImageView, vk::Sampler); 3],
 }
 
 impl UniformStateTracker {
-    fn new(used_uniforms: McUniform, initial_texture: vk::ImageView) -> Self {
+    fn new(used_uniforms: McUniform, initial_texture: vk::ImageView, initial_sampler: vk::Sampler) -> Self {
         Self {
             used_uniforms,
             push_constants_dirty: true,
@@ -1581,7 +1593,7 @@ impl UniformStateTracker {
                 fog_shape: 0,
                 _padding2: Default::default(),
             },
-            textures: [initial_texture, initial_texture, initial_texture],
+            textures: [(initial_texture, initial_sampler); 3],
         }
     }
 
@@ -1668,7 +1680,7 @@ impl UniformStateTracker {
         }
     }
 
-    fn validate_textures(&mut self) -> Option<&[vk::ImageView; 3]> {
+    fn validate_textures(&mut self) -> Option<&[(vk::ImageView, vk::Sampler); 3]> {
         if self.textures_dirty {
             self.textures_dirty = false;
             Some(&self.textures)
@@ -1741,6 +1753,7 @@ const DEBUG_COLOR_VERTEX_BIN: &'static [u8] = include_bytes!(concat!(env!("B4D_R
 const DEBUG_UV_VERTEX_BIN: &'static [u8] = include_bytes!(concat!(env!("B4D_RESOURCE_DIR"), "emulator/debug_uv_vert.spv"));
 const DEBUG_NULL_VERTEX_BIN: &'static [u8] = include_bytes!(concat!(env!("B4D_RESOURCE_DIR"), "emulator/debug_null_vert.spv"));
 const DEBUG_FRAGMENT_BIN: &'static [u8] = include_bytes!(concat!(env!("B4D_RESOURCE_DIR"), "emulator/debug_frag.spv"));
+const TEXTURED_FRAGMENT_BIN: &'static [u8] = include_bytes!(concat!(env!("B4D_RESOURCE_DIR"), "emulator/textured_frag.spv"));
 
 const BACKGROUND_VERTEX_BIN: &'static [u8] = include_bytes!(concat!(env!("B4D_RESOURCE_DIR"), "emulator/background_vert.spv"));
 const BACKGROUND_FRAGMENT_BIN: &'static [u8] = include_bytes!(concat!(env!("B4D_RESOURCE_DIR"), "emulator/background_frag.spv"));

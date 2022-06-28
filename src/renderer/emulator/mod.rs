@@ -40,11 +40,13 @@ pub use pass::PassId;
 pub use pass::PassRecorder;
 pub use pass::ImmediateMeshId;
 use share::Share;
+use crate::renderer::emulator::global_objects::SamplerInfo;
 use crate::renderer::emulator::mc_shaders::{McUniform, Shader, ShaderId, VertexFormat};
 
 pub struct EmulatorRenderer {
     share: Arc<Share>,
     placeholder_image: Arc<GlobalImage>,
+    placeholder_sampler: SamplerInfo,
     worker: std::thread::JoinHandle<()>,
 }
 
@@ -63,10 +65,19 @@ impl EmulatorRenderer {
         });
 
         let placeholder_image = Self::create_placeholder_image(share.clone());
+        let placeholder_sampler = SamplerInfo {
+            mag_filter: vk::Filter::LINEAR,
+            min_filter: vk::Filter::LINEAR,
+            mipmap_mode: vk::SamplerMipmapMode::LINEAR,
+            address_mode_u: vk::SamplerAddressMode::REPEAT,
+            address_mode_v: vk::SamplerAddressMode::REPEAT,
+            anisotropy_enable: false
+        };
 
         Self {
             share,
             placeholder_image,
+            placeholder_sampler,
             worker,
         }
     }
@@ -100,7 +111,7 @@ impl EmulatorRenderer {
     }
 
     pub fn start_pass(&self, pipeline: Arc<dyn EmulatorPipeline>) -> PassRecorder {
-        PassRecorder::new(self.share.clone(), pipeline, self.placeholder_image.clone())
+        PassRecorder::new(self.share.clone(), pipeline, self.placeholder_image.clone(), &self.placeholder_sampler)
     }
 
     fn create_placeholder_image(share: Arc<Share>) -> Arc<GlobalImage> {
