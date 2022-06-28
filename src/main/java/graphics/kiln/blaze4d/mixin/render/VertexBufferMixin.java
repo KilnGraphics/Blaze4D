@@ -5,6 +5,7 @@ import com.mojang.blaze3d.vertex.*;
 import graphics.kiln.blaze4d.Blaze4D;
 import graphics.kiln.blaze4d.api.B4DShader;
 import graphics.kiln.blaze4d.api.B4DVertexBuffer;
+import graphics.kiln.blaze4d.core.GlobalMesh;
 import graphics.kiln.blaze4d.core.types.B4DIndexType;
 import graphics.kiln.blaze4d.core.types.B4DMeshData;
 import graphics.kiln.blaze4d.core.types.B4DPrimitiveTopology;
@@ -26,7 +27,7 @@ public class VertexBufferMixin implements B4DVertexBuffer {
 
     @Final
     private B4DMeshData meshData = new B4DMeshData();
-    private Long staticMeshId = null;
+    private GlobalMesh globalMesh = null;
 
     private Integer currentImmediate = null;
 
@@ -36,9 +37,13 @@ public class VertexBufferMixin implements B4DVertexBuffer {
      */
     @Inject(method="upload", at = @At("HEAD"))
     private void uploadBuffer(BufferBuilder.RenderedBuffer renderedBuffer, CallbackInfo ci) {
-        if (this.staticMeshId != null) {
-            Blaze4D.core.destroyStaticMesh(this.staticMeshId);
-            this.staticMeshId = null;
+        if (this.globalMesh != null) {
+            try {
+                this.globalMesh.close();
+            } catch (Exception e) {
+                throw new RuntimeException(e);
+            }
+            this.globalMesh = null;
         }
 
         if (!renderedBuffer.isEmpty()) {
@@ -68,7 +73,7 @@ public class VertexBufferMixin implements B4DVertexBuffer {
                 this.meshData.setIndexData(MemoryUtil.memAddress(indexData), indexData.remaining());
             }
 
-            this.staticMeshId = Blaze4D.core.createStaticMesh(this.meshData);
+            this.globalMesh = Blaze4D.core.createGlobalMesh(this.meshData);
         }
     }
 
@@ -102,9 +107,9 @@ public class VertexBufferMixin implements B4DVertexBuffer {
                 Blaze4D.drawImmediate(this.currentImmediate, ((B4DShader) RenderSystem.getShader()).b4dGetShaderId());
                 this.currentImmediate = null;
             }
-        } else if (this.staticMeshId != null) {
+        } else if (this.globalMesh != null) {
             if (RenderSystem.getShader() != null) {
-                Blaze4D.drawStatic(this.staticMeshId, ((B4DShader) RenderSystem.getShader()).b4dGetShaderId());
+                Blaze4D.drawGlobal(this.globalMesh, ((B4DShader) RenderSystem.getShader()).b4dGetShaderId());
             }
         }
     }
@@ -129,9 +134,9 @@ public class VertexBufferMixin implements B4DVertexBuffer {
 //
     @Inject(method = "close", at = @At("HEAD"), cancellable = true)
     private void close(CallbackInfo ci) throws Exception {
-        if (this.staticMeshId != null) {
-            Blaze4D.core.destroyStaticMesh(this.staticMeshId);
-            this.staticMeshId = null;
+        if (this.globalMesh != null) {
+            this.globalMesh.close();
+            this.globalMesh = null;
         }
         this.meshData.close();
     }

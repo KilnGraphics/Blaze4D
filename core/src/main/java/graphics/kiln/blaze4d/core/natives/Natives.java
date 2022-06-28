@@ -26,13 +26,13 @@ public class Natives {
     public static final MethodHandle B4D_CREATE_GLFW_SURFACE_PROVIDER_HANDLE;
     public static final MethodHandle B4D_INIT_HANDLE;
     public static final MethodHandle B4D_DESTROY_HANDLE;
-    public static final MethodHandle B4D_CREATE_STATIC_MESH_HANDLE;
-    public static final MethodHandle B4D_DESTROY_STATIC_MESH_HANDLE;
+    public static final MethodHandle B4D_CREATE_GLOBAL_MESH_HANDLE;
+    public static final MethodHandle B4D_DESTROY_GLOBAL_MESH_HANDLE;
     public static final MethodHandle B4D_CREATE_SHADER_HANDLE;
     public static final MethodHandle B4D_DESTROY_SHADER_HANDLE;
     public static final MethodHandle B4D_START_FRAME_HANDLE;
     public static final MethodHandle B4D_PASS_UPDATE_UNIFORM_HANDLE;
-    public static final MethodHandle B4D_PASS_DRAW_STATIC_HANDLE;
+    public static final MethodHandle B4D_PASS_DRAW_GLOBAL_HANDLE;
     public static final MethodHandle B4D_PASS_UPLOAD_IMMEDIATE_HANDLE;
     public static final MethodHandle B4D_PASS_DRAW_IMMEDIATE_HANDLE;
     public static final MethodHandle B4D_END_FRAME_HANDLE;
@@ -58,12 +58,12 @@ public class Natives {
                 FunctionDescriptor.ofVoid(ADDRESS)
         );
 
-        B4D_CREATE_STATIC_MESH_HANDLE = lookupFunction("b4d_create_static_mesh",
-                FunctionDescriptor.of(JAVA_LONG, ADDRESS, ADDRESS)
+        B4D_CREATE_GLOBAL_MESH_HANDLE = lookupFunction("b4d_create_global_mesh",
+                FunctionDescriptor.of(ADDRESS, ADDRESS, ADDRESS)
         );
 
-        B4D_DESTROY_STATIC_MESH_HANDLE = lookupFunction("b4d_destroy_static_mesh",
-                FunctionDescriptor.ofVoid(ADDRESS, JAVA_LONG)
+        B4D_DESTROY_GLOBAL_MESH_HANDLE = lookupFunction("b4d_destroy_global_mesh",
+                FunctionDescriptor.ofVoid(ADDRESS)
         );
 
         B4D_CREATE_SHADER_HANDLE = lookupFunction("b4d_create_shader",
@@ -82,8 +82,8 @@ public class Natives {
                 FunctionDescriptor.ofVoid(ADDRESS, ADDRESS, JAVA_LONG)
         );
 
-        B4D_PASS_DRAW_STATIC_HANDLE = lookupFunction("b4d_pass_draw_static",
-                FunctionDescriptor.ofVoid(ADDRESS, JAVA_LONG, JAVA_LONG, JAVA_INT)
+        B4D_PASS_DRAW_GLOBAL_HANDLE = lookupFunction("b4d_pass_draw_global",
+                FunctionDescriptor.ofVoid(ADDRESS, ADDRESS, JAVA_LONG, JAVA_INT)
         );
 
         B4D_PASS_UPLOAD_IMMEDIATE_HANDLE = lookupFunction("b4d_pass_upload_immediate",
@@ -126,19 +126,19 @@ public class Natives {
         }
     }
 
-    public static long b4dCreateStaticMesh(MemoryAddress b4d, MemoryAddress meshData) {
+    public static MemoryAddress b4dCreateGlobalMesh(MemoryAddress b4d, MemoryAddress meshData) {
         try {
-            return (long) B4D_CREATE_STATIC_MESH_HANDLE.invoke(b4d, meshData);
+            return (MemoryAddress) B4D_CREATE_GLOBAL_MESH_HANDLE.invoke(b4d, meshData);
         } catch (Throwable e) {
-            throw new RuntimeException("Failed to invoke b4d_create_static_mesh", e);
+            throw new RuntimeException("Failed to invoke b4d_create_global_mesh", e);
         }
     }
 
-    public static void b4dDestroyStaticMesh(MemoryAddress b4d, long meshId) {
+    public static void b4dDestroyGlobalMesh(MemoryAddress mesh) {
         try {
-            B4D_DESTROY_STATIC_MESH_HANDLE.invoke(b4d, meshId);
+            B4D_DESTROY_GLOBAL_MESH_HANDLE.invoke(mesh);
         } catch (Throwable e) {
-            throw new RuntimeException("Failed to invoke b4d_destroy_static_mesh", e);
+            throw new RuntimeException("Failed to invoke b4d_destroy_global_mesh", e);
         }
     }
 
@@ -174,7 +174,7 @@ public class Natives {
         }
     }
 
-    public static void b4dPassDrawStatic(MemoryAddress frame, long meshId, long shaderId, boolean depthWrite) {
+    public static void b4dPassDrawGlobal(MemoryAddress frame, MemoryAddress mesh, long shaderId, boolean depthWrite) {
         int depthWriteInt;
         if (depthWrite) {
             depthWriteInt = 1;
@@ -182,9 +182,9 @@ public class Natives {
             depthWriteInt = 0;
         }
         try {
-            B4D_PASS_DRAW_STATIC_HANDLE.invoke(frame, meshId, shaderId, depthWriteInt);
+            B4D_PASS_DRAW_GLOBAL_HANDLE.invoke(frame, mesh, shaderId, depthWriteInt);
         } catch (Throwable e) {
-            throw new RuntimeException("Failed to invoke b4d_pass_draw_static", e);
+            throw new RuntimeException("Failed to invoke b4d_pass_draw_global", e);
         }
     }
 

@@ -24,12 +24,8 @@ public class Blaze4DCore implements AutoCloseable {
         Natives.b4dDestroyShader(this.handle, shaderId);
     }
 
-    public long createStaticMesh(B4DMeshData meshData) {
-        return Natives.b4dCreateStaticMesh(this.handle, meshData.getAddress());
-    }
-
-    public void destroyStaticMesh(long meshId) {
-        Natives.b4dDestroyStaticMesh(this.handle, meshId);
+    public GlobalMesh createGlobalMesh(B4DMeshData meshData) {
+        return new GlobalMesh(Natives.b4dCreateGlobalMesh(this.handle, meshData.getAddress()));
     }
 
     public Frame startFrame(int windowWidth, int windowHeight) {

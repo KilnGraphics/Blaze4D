@@ -4,6 +4,7 @@ import com.mojang.blaze3d.systems.RenderSystem;
 import graphics.kiln.blaze4d.core.Blaze4DCore;
 
 import graphics.kiln.blaze4d.core.Frame;
+import graphics.kiln.blaze4d.core.GlobalMesh;
 import graphics.kiln.blaze4d.core.natives.Natives;
 import graphics.kiln.blaze4d.core.types.B4DMeshData;
 import graphics.kiln.blaze4d.core.types.B4DUniformData;
@@ -46,9 +47,9 @@ public class Blaze4D implements ClientModInitializer {
         }
     }
 
-    public static void drawStatic(long meshId, long shaderId) {
+    public static void drawGlobal(GlobalMesh mesh, long shaderId) {
         if(currentFrame != null) {
-            currentFrame.drawStatic(meshId, shaderId, depthWriteEnable);
+            currentFrame.drawGlobal(mesh, shaderId, depthWriteEnable);
         } else {
             LOGGER.warn("Attempted to draw outside of frame");
         }

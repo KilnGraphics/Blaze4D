@@ -17,8 +17,8 @@ public class Frame implements AutoCloseable {
         Natives.b4dPassUpdateUniform(this.handle, data.getAddress(), shaderId);
     }
 
-    public void drawStatic(long meshId, long shaderId, boolean depthWrite) {
-        Natives.b4dPassDrawStatic(this.handle, meshId, shaderId, depthWrite);
+    public void drawGlobal(GlobalMesh mesh, long shaderId, boolean depthWrite) {
+        Natives.b4dPassDrawGlobal(this.handle, mesh.getHandle(), shaderId, depthWrite);
     }
 
     public int uploadImmediate(B4DMeshData data) {
