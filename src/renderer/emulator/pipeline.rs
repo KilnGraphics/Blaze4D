@@ -109,6 +109,7 @@ pub trait EmulatorPipelinePass {
 #[derive(Copy, Clone, Debug)]
 pub enum PipelineTask {
     UpdateUniform(ShaderId, McUniformData),
+    UpdateTexture(ShaderId, u32, vk::ImageView, vk::Sampler),
     Draw(DrawTask),
 }
 

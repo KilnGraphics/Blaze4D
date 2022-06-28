@@ -5,7 +5,7 @@ use ash::vk;
 
 use crate::renderer::emulator::immediate::ImmediateBuffer;
 use crate::renderer::emulator::{GlobalImage, GlobalMesh, MeshData};
-use crate::renderer::emulator::global_objects::SamplerInfo;
+use crate::renderer::emulator::global_objects::{GlobalImageId, SamplerInfo};
 use crate::renderer::emulator::worker::WorkerTask;
 
 use crate::renderer::emulator::mc_shaders::{McUniformData, ShaderId};
@@ -43,6 +43,7 @@ pub struct PassRecorder {
     share: Arc<Share>,
 
     used_shaders: HashSet<ShaderId>,
+    used_global_image: HashSet<GlobalImageId>,
     immediate_meshes: Vec<ImmediateMeshInfo>,
 
     immediate_buffer: Option<Box<ImmediateBuffer>>,
@@ -69,6 +70,7 @@ impl PassRecorder {
             share,
 
             used_shaders: HashSet::new(),
+            used_global_image: HashSet::new(),
             immediate_meshes: Vec::with_capacity(128),
 
             immediate_buffer,
@@ -84,6 +86,18 @@ impl PassRecorder {
     pub fn update_uniform(&mut self, data: &McUniformData, shader: ShaderId) {
         self.use_shader(shader);
         self.share.push_task(WorkerTask::PipelineTask(PipelineTask::UpdateUniform(shader, *data)))
+    }
+
+    pub fn update_texture(&mut self, index: u32, image: &Arc<GlobalImage>, sampler_info: &SamplerInfo, shader: ShaderId) {
+        self.use_shader(shader);
+        let view = image.get_sampler_view();
+        let sampler = image.get_sampler(sampler_info);
+
+        if self.used_global_image.insert(image.get_id()) {
+            self.share.push_task(WorkerTask::UseGlobalImage(image.clone()));
+        }
+
+        self.share.push_task(WorkerTask::PipelineTask(PipelineTask::UpdateTexture(shader, index, view, sampler)));
     }
 
     pub fn upload_immediate(&mut self, data: &MeshData) -> ImmediateMeshId {

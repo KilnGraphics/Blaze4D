@@ -1289,6 +1289,15 @@ impl DebugPipelinePass {
         tracker.update_uniform(data);
     }
 
+    fn update_texture(&mut self, shader: ShaderId, index: u32, view: vk::ImageView, sampler: vk::Sampler) {
+        if !self.shader_uniforms.contains_key(&shader) {
+            let uniforms = self.parent.pipelines.lock().unwrap().get(&shader).unwrap().used_uniforms;
+            self.shader_uniforms.insert(shader, UniformStateTracker::new(uniforms, self.placeholder_texture, self.placeholder_sampler));
+        }
+        let tracker = self.shader_uniforms.get_mut(&shader).unwrap();
+        tracker.update_texture(index, view, sampler);
+    }
+
     fn draw(&mut self, task: &DrawTask, obj: &mut PooledObjectProvider) {
         let device = self.parent.emulator.get_device();
         let cmd = *self.command_buffer.as_ref().unwrap();
@@ -1467,6 +1476,9 @@ impl EmulatorPipelinePass for DebugPipelinePass {
         match task {
             PipelineTask::UpdateUniform(shader, data) => {
                 self.update_uniform(*shader, data);
+            }
+            PipelineTask::UpdateTexture(shader, index, view, sampler) => {
+                self.update_texture(*shader, *index, *view, *sampler);
             }
             PipelineTask::Draw(task) => {
                 self.draw(task, obj);
@@ -1659,6 +1671,24 @@ impl UniformStateTracker {
                     self.push_constants_dirty = true;
                 }
             }
+        }
+    }
+
+    fn update_texture(&mut self, index: u32, view: vk::ImageView, sampler: vk::Sampler) {
+        match index {
+            0 => {
+                self.textures[0] = (view, sampler);
+                self.textures_dirty = true;
+            },
+            1 => {
+                self.textures[1] = (view, sampler);
+                self.textures_dirty = true;
+            },
+            2 => {
+                self.textures[2] = (view, sampler);
+                self.textures_dirty = true;
+            },
+            _ => log::warn!("Called updated texture on index {:?} which is out of bounds", index),
         }
     }
 

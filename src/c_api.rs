@@ -6,7 +6,7 @@ use crate::b4d::Blaze4D;
 use crate::glfw_surface::GLFWSurfaceProvider;
 use crate::prelude::{Mat4f32, UUID, Vec2f32, Vec2u32, Vec3f32, Vec4f32};
 
-use crate::renderer::emulator::{MeshData, PassRecorder, ImmediateMeshId, GlobalMesh, ImageData, GlobalImage};
+use crate::renderer::emulator::{MeshData, PassRecorder, ImmediateMeshId, GlobalMesh, ImageData, GlobalImage, SamplerInfo};
 use crate::renderer::emulator::debug_pipeline::DebugPipelineMode;
 use crate::renderer::emulator::mc_shaders::{McUniform, McUniformData, ShaderId, VertexFormat, VertexFormatEntry};
 use crate::vk::objects::surface::SurfaceProvider;
@@ -275,6 +275,29 @@ impl CMcUniformData {
     }
 }
 
+#[repr(C)]
+struct CSamplerInfo {
+    mag_filter: i32,
+    min_filter: i32,
+    mipmap_mode: i32,
+    address_mode_u: i32,
+    address_mode_v: i32,
+    anisotropy_enable: u32,
+}
+
+impl CSamplerInfo {
+    fn to_sampler_info(&self) -> SamplerInfo {
+        SamplerInfo {
+            mag_filter: vk::Filter::from_raw(self.mag_filter),
+            min_filter: vk::Filter::from_raw(self.min_filter),
+            mipmap_mode: vk::SamplerMipmapMode::from_raw(self.mipmap_mode),
+            address_mode_u: vk::SamplerAddressMode::from_raw(self.address_mode_u),
+            address_mode_v: vk::SamplerAddressMode::from_raw(self.address_mode_v),
+            anisotropy_enable: self.anisotropy_enable != 0,
+        }
+    }
+}
+
 /// Returns static information about the natives.
 #[no_mangle]
 unsafe extern "C" fn b4d_get_native_metadata() -> *const NativeMetadata {
@@ -480,6 +503,32 @@ unsafe extern "C" fn b4d_pass_update_uniform(pass: *mut PassRecorder, data: *con
         pass.update_uniform(&data, shader_id);
     }).unwrap_or_else(|_| {
         log::error!("panic in b4d_pass_update_dev_uniform");
+        exit(1);
+    })
+}
+
+#[no_mangle]
+unsafe extern "C" fn b4d_pass_update_texture(pass: *mut PassRecorder, index: u32, image: *const Arc<GlobalImage>, sampler_info: *const CSamplerInfo, shader_id: u64) {
+    catch_unwind(|| {
+        let pass = pass.as_mut().unwrap_or_else(|| {
+            log::error!("Passed null pass to b4d_pass_update_texture");
+            exit(1);
+        });
+        let image = image.as_ref().unwrap_or_else(|| {
+            log::error!("Passed null image to b4d_pass_update_texture");
+            exit(1);
+        });
+        let sampler_info = sampler_info.as_ref().unwrap_or_else(|| {
+            log::error!("Passed null sampler_info to b4d_pass_update_texture");
+            exit(1);
+        });
+
+        let sampler_info = sampler_info.to_sampler_info();
+        let shader_id = ShaderId::from_uuid(UUID::from_raw(shader_id));
+
+        pass.update_texture(index, image, &sampler_info, shader_id);
+    }).unwrap_or_else(|_| {
+        log::error!("panic in b4d_pass_update_texture");
         exit(1);
     })
 }

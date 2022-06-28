@@ -338,6 +338,10 @@ impl GlobalImage {
         }
     }
 
+    pub fn get_id(&self) -> GlobalImageId {
+        self.id
+    }
+
     pub fn get_size(&self) -> Vec2u32 {
         self.size
     }
@@ -509,11 +513,11 @@ impl Drop for GlobalImage {
 }
 
 #[derive(Copy, Clone, PartialEq, Eq, Hash, Debug)]
-pub(super) struct SamplerInfo {
-    pub(super) mag_filter: vk::Filter,
-    pub(super) min_filter: vk::Filter,
-    pub(super) mipmap_mode: vk::SamplerMipmapMode,
-    pub(super) address_mode_u: vk::SamplerAddressMode,
-    pub(super) address_mode_v: vk::SamplerAddressMode,
-    pub(super) anisotropy_enable: bool,
+pub struct SamplerInfo {
+    pub mag_filter: vk::Filter,
+    pub min_filter: vk::Filter,
+    pub mipmap_mode: vk::SamplerMipmapMode,
+    pub address_mode_u: vk::SamplerAddressMode,
+    pub address_mode_v: vk::SamplerAddressMode,
+    pub anisotropy_enable: bool,
 }

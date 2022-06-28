@@ -34,13 +34,13 @@ use crate::renderer::emulator::pipeline::EmulatorPipeline;
 
 use crate::prelude::*;
 
-pub use global_objects::{GlobalMesh, GlobalImage, ImageData};
+pub use global_objects::{GlobalMesh, GlobalImage, ImageData, SamplerInfo};
 
 pub use pass::PassId;
 pub use pass::PassRecorder;
 pub use pass::ImmediateMeshId;
+
 use share::Share;
-use crate::renderer::emulator::global_objects::SamplerInfo;
 use crate::renderer::emulator::mc_shaders::{McUniform, Shader, ShaderId, VertexFormat};
 
 pub struct EmulatorRenderer {
