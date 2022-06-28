@@ -11,7 +11,7 @@ use crate::instance::init::{create_instance, InstanceCreateConfig};
 use crate::vk::objects::surface::SurfaceProvider;
 
 use crate::prelude::*;
-use crate::renderer::emulator::{EmulatorRenderer, GlobalMesh, MeshData};
+use crate::renderer::emulator::{EmulatorRenderer, GlobalImage, GlobalMesh, ImageData, MeshData};
 use crate::renderer::emulator::debug_pipeline::{DebugPipeline, DebugPipelineMode};
 use crate::renderer::emulator::mc_shaders::{McUniform, ShaderId, VertexFormat};
 use crate::renderer::emulator::PassRecorder;
@@ -80,6 +80,10 @@ impl Blaze4D {
 
     pub fn create_global_mesh(&self, data: &MeshData) -> Arc<GlobalMesh> {
         self.emulator.create_global_mesh(data)
+    }
+
+    pub fn create_global_image(&self, format: vk::Format, data: &ImageData) -> Arc<GlobalImage> {
+        self.emulator.create_global_image(format, data)
     }
 
     pub fn create_shader(&self, vertex_format: &VertexFormat, used_uniforms: McUniform) -> ShaderId {

@@ -6,7 +6,8 @@ use crate::b4d::Blaze4D;
 use crate::glfw_surface::GLFWSurfaceProvider;
 use crate::prelude::{Mat4f32, UUID, Vec2f32, Vec2u32, Vec3f32, Vec4f32};
 
-use crate::renderer::emulator::{MeshData, PassRecorder, ImmediateMeshId, GlobalMesh};
+use crate::renderer::emulator::{MeshData, PassRecorder, ImmediateMeshId, GlobalMesh, ImageData, GlobalImage};
+use crate::renderer::emulator::debug_pipeline::DebugPipelineMode;
 use crate::renderer::emulator::mc_shaders::{McUniform, McUniformData, ShaderId, VertexFormat, VertexFormatEntry};
 use crate::vk::objects::surface::SurfaceProvider;
 
@@ -19,6 +20,41 @@ struct NativeMetadata {
 const NATIVE_METADATA: NativeMetadata = NativeMetadata {
     size_bytes: std::mem::size_of::<usize>() as u32,
 };
+
+#[repr(C)]
+#[derive(Copy, Clone, PartialEq, Eq)]
+struct CDebugMode(u32);
+
+impl CDebugMode {
+    pub const NONE: CDebugMode = CDebugMode(0);
+    pub const DEPTH: CDebugMode = CDebugMode(1);
+    pub const POSITION: CDebugMode = CDebugMode(2);
+    pub const COLOR: CDebugMode = CDebugMode(3);
+    pub const NORMAL: CDebugMode = CDebugMode(4);
+    pub const UV0: CDebugMode = CDebugMode(5);
+    pub const UV1: CDebugMode = CDebugMode(6);
+    pub const UV2: CDebugMode = CDebugMode(7);
+    pub const TEXTURED0: CDebugMode = CDebugMode(8);
+    pub const TEXTURED1: CDebugMode = CDebugMode(9);
+    pub const TEXTURED2: CDebugMode = CDebugMode(10);
+
+    pub fn to_debug_pipeline_mode(&self) -> Option<DebugPipelineMode> {
+        match *self {
+            Self::NONE => None,
+            Self::DEPTH => Some(DebugPipelineMode::Depth),
+            Self::POSITION => Some(DebugPipelineMode::Position),
+            Self::COLOR => Some(DebugPipelineMode::Color),
+            Self::NORMAL => Some(DebugPipelineMode::Normal),
+            Self::UV0 => Some(DebugPipelineMode::UV0),
+            Self::UV1 => Some(DebugPipelineMode::UV1),
+            Self::UV2 => Some(DebugPipelineMode::UV2),
+            Self::TEXTURED0 => Some(DebugPipelineMode::Textured0),
+            Self::TEXTURED1 => Some(DebugPipelineMode::Textured1),
+            Self::TEXTURED2 => Some(DebugPipelineMode::Textured2),
+            _ => panic!()
+        }
+    }
+}
 
 #[repr(C)]
 #[derive(Debug)]
@@ -141,6 +177,33 @@ impl CVertexFormat {
 }
 
 #[repr(C)]
+struct CImageData {
+    data_ptr: *const u8,
+    data_ptr_len: usize,
+    row_stride: u32,
+    offset_x: u32,
+    offset_y: u32,
+    extent_x: u32,
+    extent_y: u32,
+}
+
+impl CImageData {
+    unsafe fn to_image_data(&self) -> ImageData {
+        if self.data_ptr.is_null() {
+            log::error!("Data pointer is null");
+            panic!();
+        }
+
+        ImageData {
+            data: std::slice::from_raw_parts(self.data_ptr, self.data_ptr_len),
+            row_stride: 0,
+            offset: Vec2u32::new(self.offset_x, self.offset_y),
+            extent: Vec2u32::new(self.extent_x, self.extent_y)
+        }
+    }
+}
+
+#[repr(C)]
 union CMcUniformDataPayload {
     u32: u32,
     f32: f32,
@@ -257,6 +320,21 @@ unsafe extern "C" fn b4d_destroy(b4d: *mut Blaze4D) {
 }
 
 #[no_mangle]
+unsafe extern "C" fn b4d_set_debug_mode(b4d: *const Blaze4D, mode: CDebugMode) {
+    catch_unwind(|| {
+        let b4d = b4d.as_ref().unwrap_or_else(|| {
+            log::error!("Passed null b4d to b4d_set_debug_mode");
+            exit(1);
+        });
+
+        b4d.set_debug_mode(mode.to_debug_pipeline_mode());
+    }).unwrap_or_else(|_| {
+        log::error!("panic in b4d_set_debug_mode");
+        exit(1);
+    })
+}
+
+#[no_mangle]
 unsafe extern "C" fn b4d_create_global_mesh(b4d: *const Blaze4D, data: *const CMeshData) -> *mut Arc<GlobalMesh> {
     catch_unwind(|| {
         let b4d = b4d.as_ref().unwrap_or_else(|| {
@@ -287,6 +365,41 @@ unsafe extern "C" fn b4d_destroy_global_mesh(mesh: *mut Arc<GlobalMesh>) {
         Box::from_raw(mesh);
     }).unwrap_or_else(|_| {
         log::error!("panic in b4d_destroy_global_mesh");
+        exit(1);
+    })
+}
+
+#[no_mangle]
+unsafe extern "C" fn b4d_create_global_image(b4d: *const Blaze4D, format: i32, data: *const CImageData) -> *mut Arc<GlobalImage> {
+    catch_unwind(|| {
+        let b4d = b4d.as_ref().unwrap_or_else(|| {
+            log::error!("Passed null b4d to b4d_create_global_image");
+            exit(1);
+        });
+        let data = data.as_ref().unwrap_or_else(|| {
+            log::error!("Passed null image data to b4d_create_global_image");
+            exit(1);
+        });
+
+        let image_data = data.to_image_data();
+
+        Box::leak(Box::new(b4d.create_global_image(vk::Format::from_raw(format), &image_data)))
+    }).unwrap_or_else(|_| {
+        log::error!("panic in b4d_create_global_image");
+        exit(1);
+    })
+}
+
+#[no_mangle]
+unsafe extern "C" fn b4d_destroy_global_image(image: *mut Arc<GlobalImage>) {
+    catch_unwind(|| {
+        if image.is_null() {
+            log::error!("Passed null image to b4d_destroy_global_image");
+        }
+
+        Box::from_raw(image);
+    }).unwrap_or_else(|_| {
+        log::error!("panic in b4d_destroy_global_image");
         exit(1);
     })
 }
