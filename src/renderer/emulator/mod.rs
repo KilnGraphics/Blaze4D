@@ -42,6 +42,7 @@ pub use pass::ImmediateMeshId;
 
 use share::Share;
 use crate::renderer::emulator::mc_shaders::{McUniform, Shader, ShaderId, VertexFormat};
+use crate::util::format::Format;
 
 pub struct EmulatorRenderer {
     share: Arc<Share>,
@@ -90,12 +91,12 @@ impl EmulatorRenderer {
         GlobalMesh::new(self.share.clone(), data).unwrap()
     }
 
-    pub fn create_global_image(&self, format: vk::Format, data: &ImageData) -> Arc<GlobalImage> {
-        GlobalImage::new(self.share.clone(), format, 1, data).unwrap()
+    pub fn create_global_image(&self, size: Vec2u32, format: &'static Format) -> Arc<GlobalImage> {
+        GlobalImage::new(self.share.clone(), size, 1, format).unwrap()
     }
 
-    pub fn create_global_image_mips(&self, format: vk::Format, data: &ImageData, mip_levels: u32) -> Arc<GlobalImage> {
-        GlobalImage::new(self.share.clone(), format, mip_levels, data).unwrap()
+    pub fn create_global_image_mips(&self, size: Vec2u32, mip_levels: u32, format: &'static Format) -> Arc<GlobalImage> {
+        GlobalImage::new(self.share.clone(), size, mip_levels, format).unwrap()
     }
 
     pub fn create_shader(&self, vertex_format: &VertexFormat, used_uniforms: McUniform) -> ShaderId {
@@ -135,7 +136,9 @@ impl EmulatorRenderer {
             extent: size
         };
 
-        GlobalImage::new(share, vk::Format::R8G8B8A8_SRGB, 1, &info).unwrap()
+        let image = GlobalImage::new(share, size, 1, &Format::R8G8B8A8_SRGB).unwrap();
+        image.update_regions(std::slice::from_ref(&info));
+        image
     }
 }
 

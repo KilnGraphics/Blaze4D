@@ -30,7 +30,8 @@ pub(super) enum WorkerTask {
     UseOutput(Box<dyn EmulatorOutput + Send>),
     PipelineTask(PipelineTask),
     WriteGlobalMesh(GlobalMeshWrite, bool),
-    WriteGlobalImage(GlobalImageWrite, bool),
+    ClearGlobalImage(GlobalImageClear, bool),
+    WriteGlobalImage(GlobalImageWrite),
     GenerateGlobalImageMipmaps(Arc<GlobalImage>, PassId),
 }
 
@@ -50,6 +51,12 @@ pub(super) struct GlobalImageWrite {
     pub(super) staging_buffer: vk::Buffer,
     pub(super) dst_image: Arc<GlobalImage>,
     pub(super) regions: Box<[vk::BufferImageCopy]>,
+}
+
+pub(super) struct GlobalImageClear {
+    pub(super) after_pass: PassId,
+    pub(super) clear_value: vk::ClearColorValue,
+    pub(super) dst_image: Arc<GlobalImage>,
 }
 
 pub(super) fn run_worker(device: Arc<DeviceContext>, share: Arc<Share>) {
@@ -157,15 +164,27 @@ pub(super) fn run_worker(device: Arc<DeviceContext>, share: Arc<Share>) {
                 }
             }
 
-            WorkerTask::WriteGlobalImage(write, uninit) => {
+            WorkerTask::ClearGlobalImage(clear, uninit) => {
                 if let Some(current_pass) = &current_pass {
-                    if current_pass.pass_id > write.after_pass {
-                        get_or_create_recorder(&mut current_global_recorder, &share, &pool).record_global_image_write(write, uninit);
+                    if current_pass.pass_id > clear.after_pass {
+                        get_or_create_recorder(&mut current_global_recorder, &share, &pool).record_global_image_clear(clear, uninit);
                     } else {
-                        get_or_create_recorder(&mut next_global_recorder, &share, &pool).record_global_image_write(write, uninit);
+                        get_or_create_recorder(&mut next_global_recorder, &share, &pool).record_global_image_clear(clear, uninit);
                     }
                 } else {
-                    get_or_create_recorder(&mut next_global_recorder, &share, &pool).record_global_image_write(write, uninit);
+                    get_or_create_recorder(&mut next_global_recorder, &share, &pool).record_global_image_clear(clear, uninit);
+                }
+            }
+
+            WorkerTask::WriteGlobalImage(write) => {
+                if let Some(current_pass) = &current_pass {
+                    if current_pass.pass_id > write.after_pass {
+                        get_or_create_recorder(&mut current_global_recorder, &share, &pool).record_global_image_write(write, false);
+                    } else {
+                        get_or_create_recorder(&mut next_global_recorder, &share, &pool).record_global_image_write(write, false);
+                    }
+                } else {
+                    get_or_create_recorder(&mut next_global_recorder, &share, &pool).record_global_image_write(write, false);
                 }
             }
 
@@ -565,6 +584,28 @@ impl GlobalObjectsRecorder {
         }
 
         self.push_staging(write.staging_allocation, write.staging_buffer, write.staging_range.0, write.staging_range.1);
+    }
+
+    fn record_global_image_clear(&mut self, clear: GlobalImageClear, is_uninit: bool) {
+        let dst_image = clear.dst_image.get_image_handle();
+
+        self.transition_image(clear.dst_image, gob::ImageState::TransferWrite, is_uninit);
+
+        unsafe {
+            self.share.get_device().vk().cmd_clear_color_image(
+                self.cmd,
+                dst_image,
+                vk::ImageLayout::TRANSFER_DST_OPTIMAL,
+                &clear.clear_value,
+                std::slice::from_ref(&vk::ImageSubresourceRange {
+                    aspect_mask: vk::ImageAspectFlags::COLOR,
+                    base_mip_level: 0,
+                    level_count: vk::REMAINING_MIP_LEVELS,
+                    base_array_layer: 0,
+                    layer_count: vk::REMAINING_ARRAY_LAYERS
+                })
+            )
+        }
     }
 
     fn record_global_image_write(&mut self, write: GlobalImageWrite, is_uninit: bool) {

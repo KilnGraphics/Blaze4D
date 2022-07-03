@@ -9,6 +9,7 @@ use crate::prelude::{Mat4f32, UUID, Vec2f32, Vec2u32, Vec3f32, Vec4f32};
 use crate::renderer::emulator::{MeshData, PassRecorder, ImmediateMeshId, GlobalMesh, ImageData, GlobalImage, SamplerInfo};
 use crate::renderer::emulator::debug_pipeline::DebugPipelineMode;
 use crate::renderer::emulator::mc_shaders::{McUniform, McUniformData, ShaderId, VertexFormat, VertexFormatEntry};
+use crate::util::format::Format;
 use crate::vk::objects::surface::SurfaceProvider;
 
 #[repr(C)]
@@ -54,6 +55,21 @@ impl CDebugMode {
             _ => panic!()
         }
     }
+}
+
+#[repr(C)]
+#[derive(Debug)]
+struct CPipelineConfiguration {
+    depth_test_enable: u32,
+    depth_compare_op: i32,
+    depth_write_enable: u32,
+    blend_enable: u32,
+    blend_color_op: i32,
+    blend_color_src_factor: i32,
+    blend_color_dst_factor: i32,
+    blend_alpha_op: i32,
+    blend_alpha_src_factor: i32,
+    blend_alpha_dst_factor: i32,
 }
 
 #[repr(C)]
@@ -181,10 +197,8 @@ struct CImageData {
     data_ptr: *const u8,
     data_ptr_len: usize,
     row_stride: u32,
-    offset_x: u32,
-    offset_y: u32,
-    extent_x: u32,
-    extent_y: u32,
+    offset: [u32; 2],
+    extent: [u32; 2],
 }
 
 impl CImageData {
@@ -197,8 +211,8 @@ impl CImageData {
         ImageData {
             data: std::slice::from_raw_parts(self.data_ptr, self.data_ptr_len),
             row_stride: 0,
-            offset: Vec2u32::new(self.offset_x, self.offset_y),
-            extent: Vec2u32::new(self.extent_x, self.extent_y)
+            offset: Vec2u32::new(self.offset[0], self.offset[1]),
+            extent: Vec2u32::new(self.extent[0], self.extent[1])
         }
     }
 }
@@ -393,22 +407,41 @@ unsafe extern "C" fn b4d_destroy_global_mesh(mesh: *mut Arc<GlobalMesh>) {
 }
 
 #[no_mangle]
-unsafe extern "C" fn b4d_create_global_image(b4d: *const Blaze4D, format: i32, data: *const CImageData) -> *mut Arc<GlobalImage> {
+unsafe extern "C" fn b4d_create_global_image(b4d: *const Blaze4D, width: u32, height: u32, format: i32) -> *mut Arc<GlobalImage> {
     catch_unwind(|| {
         let b4d = b4d.as_ref().unwrap_or_else(|| {
             log::error!("Passed null b4d to b4d_create_global_image");
             exit(1);
         });
-        let data = data.as_ref().unwrap_or_else(|| {
-            log::error!("Passed null image data to b4d_create_global_image");
-            exit(1);
-        });
 
-        let image_data = data.to_image_data();
+        let size = Vec2u32::new(width, height);
+        let format = Format::format_for(vk::Format::from_raw(format));
 
-        Box::leak(Box::new(b4d.create_global_image(vk::Format::from_raw(format), &image_data)))
+        Box::leak(Box::new(b4d.create_global_image(size, format)))
     }).unwrap_or_else(|_| {
         log::error!("panic in b4d_create_global_image");
+        exit(1);
+    })
+}
+
+#[no_mangle]
+unsafe extern "C" fn b4d_update_global_image(image: *mut Arc<GlobalImage>, writes: *const CImageData, count: u32) {
+    catch_unwind(|| {
+        let image = image.as_ref().unwrap_or_else(|| {
+            log::error!("Passed null image to b4d_update_global_image");
+            exit(1);
+        });
+        if writes.is_null() {
+            log::error!("Passed null writes to b4d_update_global_image");
+            exit(1);
+        }
+
+        let writes = std::slice::from_raw_parts(writes, count as usize);
+        let writes: Box<_> = writes.iter().map(|w| w.to_image_data()).collect();
+
+        image.update_regions(writes.as_ref());
+    }).unwrap_or_else(|_| {
+        log::error!("panic in b4d_update_global_image");
         exit(1);
     })
 }

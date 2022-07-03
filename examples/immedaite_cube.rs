@@ -19,7 +19,7 @@ fn main() {
     let window = Box::new(WinitWindow::new("ImmediateCube", 800.0, 600.0, &event_loop));
 
     let b4d = b4d_core::b4d::Blaze4D::new(window, true);
-    b4d.set_debug_mode(Some(DebugPipelineMode::Color));
+    b4d.set_debug_mode(Some(DebugPipelineMode::Textured0));
     let vertex_format = Vertex::make_b4d_vertex_format();
     let mut shader = b4d.create_shader(&vertex_format, McUniform::MODEL_VIEW_MATRIX | McUniform::PROJECTION_MATRIX);
 

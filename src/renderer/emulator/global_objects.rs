@@ -1,7 +1,7 @@
 use std::cmp::Ordering;
 use std::collections::HashMap;
 use std::hash::{Hash, Hasher};
-use std::sync::{Arc, Mutex};
+use std::sync::{Arc, Mutex, Weak};
 use std::sync::atomic::AtomicU64;
 
 use ash::vk;
@@ -12,8 +12,9 @@ use crate::vk::objects::allocator::{Allocation, AllocationStrategy};
 
 use crate::prelude::*;
 use crate::renderer::emulator::share::Share;
-use crate::renderer::emulator::worker::{GlobalImageWrite, GlobalMeshWrite, WorkerTask};
+use crate::renderer::emulator::worker::{GlobalImageClear, GlobalImageWrite, GlobalMeshWrite, WorkerTask};
 use crate::util::alloc::next_aligned;
+use crate::util::format::Format;
 
 define_uuid_type!(pub, GlobalMeshId);
 
@@ -253,6 +254,7 @@ impl<'a> ImageData<'a> {
 define_uuid_type!(pub, GlobalImageId);
 
 pub struct GlobalImage {
+    weak: Weak<Self>,
     share: Arc<Share>,
     id: GlobalImageId,
 
@@ -268,22 +270,11 @@ pub struct GlobalImage {
 }
 
 impl GlobalImage {
-    pub(super) fn new(share: Arc<Share>, format: vk::Format, mip_levels: u32, data: &ImageData) -> Result<Arc<Self>, GlobalObjectCreateError> {
-        assert_eq!(data.offset, Vec2u32::new(0, 0));
+    pub(super) fn new(share: Arc<Share>, size: Vec2u32, mip_levels: u32, format: &'static Format) -> Result<Arc<Self>, GlobalObjectCreateError> {
+        let (image, allocation, sampler_view) = Self::create_image(share.get_device(), format.into(), size, mip_levels)?;
 
-        let (image, allocation, sampler_view) = Self::create_image(share.get_device(), format, data.extent, mip_levels)?;
-
-        let (staging, staging_allocation) = share.get_staging_pool().lock().unwrap_or_else(|_| {
-            log::error!("Poisoned staging pool lock in GlobalImage::new");
-            panic!()
-        }).allocate(data.data.len() as u64, 1);
-
-        unsafe {
-            let dst = std::slice::from_raw_parts_mut(staging.mapped.as_ptr(), data.data.len());
-            dst.copy_from_slice(data.data);
-        }
-
-        let image = Arc::new(GlobalImage {
+        let image = Arc::new_cyclic(|weak| GlobalImage {
+            weak: weak.clone(),
             share,
             id: GlobalImageId::new(),
 
@@ -292,35 +283,17 @@ impl GlobalImage {
             image,
             sampler_view,
             allocation: Some(allocation),
-            size: data.extent,
+            size,
             mip_levels,
 
             sampler_database: Mutex::new(HashMap::new())
         });
 
-        image.share.push_task(WorkerTask::WriteGlobalImage(GlobalImageWrite {
+        image.share.push_task(WorkerTask::ClearGlobalImage(GlobalImageClear {
             after_pass: PassId::from_raw(0),
-            staging_allocation,
-            staging_range: (staging.offset, data.data.len() as u64),
-            staging_buffer: staging.buffer,
-            dst_image: image.clone(),
-            regions: Box::new([vk::BufferImageCopy {
-                buffer_offset: staging.offset,
-                buffer_row_length: data.row_stride,
-                buffer_image_height: 0,
-                image_subresource: vk::ImageSubresourceLayers {
-                    aspect_mask: vk::ImageAspectFlags::COLOR,
-                    mip_level: 0,
-                    base_array_layer: 0,
-                    layer_count: 1
-                },
-                image_offset: vk::Offset3D{ x: 0, y: 0, z: 0 },
-                image_extent: vk::Extent3D{ width: data.extent[0], height: data.extent[1], depth: 1 }
-            }])
+            clear_value: format.get_clear_color_type().unwrap().make_zero_clear(),
+            dst_image: image.clone()
         }, true));
-        if mip_levels > 1 {
-            image.share.push_task(WorkerTask::GenerateGlobalImageMipmaps(image.clone(), PassId::from_raw(0)));
-        }
 
         Ok(image)
     }
@@ -344,6 +317,54 @@ impl GlobalImage {
 
     pub fn get_size(&self) -> Vec2u32 {
         self.size
+    }
+
+    pub fn update_regions(&self, regions: &[ImageData]) {
+        if regions.is_empty() {
+            return;
+        }
+
+        let required_memory = regions.iter().map(|r| r.data.len()).sum::<usize>() as u64;
+
+        let (staging, allocation) = self.share.get_staging_pool().lock().unwrap().allocate(required_memory as u64, 1);
+
+        let mut copies = Vec::with_capacity(regions.len());
+        let mut current_offset = 0;
+        for region in regions {
+            copies.push(vk::BufferImageCopy {
+                buffer_offset: staging.offset + current_offset,
+                buffer_row_length: region.row_stride,
+                buffer_image_height: 0,
+                image_subresource: vk::ImageSubresourceLayers {
+                    aspect_mask: vk::ImageAspectFlags::COLOR,
+                    mip_level: 0,
+                    base_array_layer: 0,
+                    layer_count: 1
+                },
+                image_offset: vk::Offset3D { x: region.offset[0] as i32, y: region.offset[1] as i32, z: 0 },
+                image_extent: vk::Extent3D {
+                    width: region.extent[0],
+                    height: region.extent[1],
+                    depth: 1
+                }
+            });
+
+            unsafe {
+                let mapped = std::slice::from_raw_parts_mut(staging.mapped.as_ptr().offset(current_offset as isize), region.data.len());
+                mapped.copy_from_slice(region.data);
+            }
+
+            current_offset += region.data.len() as u64;
+        }
+
+        self.share.push_task(WorkerTask::WriteGlobalImage(GlobalImageWrite {
+            after_pass: PassId::from_raw(self.last_used_pass.load(std::sync::atomic::Ordering::Acquire)),
+            staging_allocation: allocation,
+            staging_range: (staging.offset, required_memory),
+            staging_buffer: staging.buffer,
+            dst_image: self.weak.upgrade().unwrap(),
+            regions: copies.into_boxed_slice()
+        }));
     }
 
     pub(super) fn get_image_handle(&self) -> vk::Image {
@@ -388,14 +409,6 @@ impl GlobalImage {
             guard.insert(*sampler_info, sampler);
             sampler
         }
-    }
-
-    pub fn upload(&self, data: &[ImageData]) {
-        if data.is_empty() {
-            return;
-        }
-
-        todo!()
     }
 
     fn create_image(device: &DeviceContext, format: vk::Format, size: Vec2u32, mip_levels: u32) -> Result<(vk::Image, Allocation, vk::ImageView), GlobalObjectCreateError> {

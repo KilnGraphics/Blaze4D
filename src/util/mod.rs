@@ -5,3 +5,4 @@ pub mod slice;
 pub mod bytes;
 pub mod alloc;
 pub mod vk;
+pub mod format;
