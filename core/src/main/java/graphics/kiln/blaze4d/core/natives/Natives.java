@@ -30,6 +30,7 @@ public class Natives {
     public static final MethodHandle B4D_CREATE_GLOBAL_MESH_HANDLE;
     public static final MethodHandle B4D_DESTROY_GLOBAL_MESH_HANDLE;
     public static final MethodHandle B4D_CREATE_GLOBAL_IMAGE_HANDLE;
+    public static final MethodHandle B4D_UPDATE_GLOBAL_IMAGE_HANDLE;
     public static final MethodHandle B4D_DESTROY_GLOBAL_IMAGE_HANDLE;
     public static final MethodHandle B4D_CREATE_SHADER_HANDLE;
     public static final MethodHandle B4D_DESTROY_SHADER_HANDLE;
@@ -74,7 +75,11 @@ public class Natives {
         );
 
         B4D_CREATE_GLOBAL_IMAGE_HANDLE = lookupFunction("b4d_create_global_image",
-                FunctionDescriptor.of(ADDRESS, ADDRESS, JAVA_INT, ADDRESS)
+                FunctionDescriptor.of(ADDRESS, JAVA_INT, JAVA_INT, JAVA_INT)
+        );
+
+        B4D_UPDATE_GLOBAL_IMAGE_HANDLE = lookupFunction("b4d_update_global_image",
+                FunctionDescriptor.ofVoid(ADDRESS, ADDRESS, JAVA_INT)
         );
 
         B4D_DESTROY_GLOBAL_IMAGE_HANDLE = lookupFunction("b4d_destroy_global_image",
@@ -165,11 +170,19 @@ public class Natives {
         }
     }
 
-    public static MemoryAddress b4dCreateGlobalImage(MemoryAddress b4d, int format, MemoryAddress imageData) {
+    public static MemoryAddress b4dCreateGlobalImage(MemoryAddress b4d, int width, int height, int format) {
         try {
-            return (MemoryAddress) B4D_CREATE_GLOBAL_IMAGE_HANDLE.invoke(b4d, imageData);
+            return (MemoryAddress) B4D_CREATE_GLOBAL_IMAGE_HANDLE.invoke(b4d, width, height, format);
         } catch (Throwable e) {
             throw new RuntimeException("Failed to invoke b4d_create_global_image", e);
+        }
+    }
+
+    public static void b4DUpdateGlobalImage(MemoryAddress image, MemoryAddress data, int dataCount) {
+        try {
+            B4D_UPDATE_GLOBAL_IMAGE_HANDLE.invoke(image, data, dataCount);
+        } catch (Throwable e) {
+            throw new RuntimeException("Failed to invoke b4d_update_global_image", e);
         }
     }
 

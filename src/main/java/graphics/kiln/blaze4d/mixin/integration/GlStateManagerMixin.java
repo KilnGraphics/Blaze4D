@@ -31,6 +31,11 @@ import java.util.stream.Collectors;
  */
 @Mixin(value = GlStateManager.class, remap = false)
 public class GlStateManagerMixin {
+
+
+
+
+
 //
 //    private static final Map<Integer, ByteBuffer> BUFFER_MAP = new Object2ObjectLinkedOpenHashMap<>();
 //    private static int NEXT_BUFFER_ID = 1;

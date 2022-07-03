@@ -4,6 +4,7 @@ import com.mojang.blaze3d.systems.RenderSystem;
 import graphics.kiln.blaze4d.core.Blaze4DCore;
 
 import graphics.kiln.blaze4d.core.Frame;
+import graphics.kiln.blaze4d.core.GlobalImage;
 import graphics.kiln.blaze4d.core.GlobalMesh;
 import graphics.kiln.blaze4d.core.natives.Natives;
 import graphics.kiln.blaze4d.core.types.B4DMeshData;
@@ -19,6 +20,7 @@ public class Blaze4D implements ClientModInitializer {
 
     public static Blaze4DCore core;
     public static Frame currentFrame;
+    public static GlobalImage boundTexture = null;
     public static boolean depthWriteEnable = true;
     public static long glfwWindow;
 

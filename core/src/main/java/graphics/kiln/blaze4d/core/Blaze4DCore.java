@@ -34,8 +34,8 @@ public class Blaze4DCore implements AutoCloseable {
         return new GlobalMesh(Natives.b4dCreateGlobalMesh(this.handle, meshData.getAddress()));
     }
 
-    public GlobalImage createGlobalImage(B4DImageData imageData, B4DFormat format) {
-        return new GlobalImage(Natives.b4dCreateGlobalImage(this.handle, format.getValue(), imageData.getAddress()));
+    public GlobalImage createGlobalImage(int width, int height, B4DFormat format) {
+        return new GlobalImage(Natives.b4dCreateGlobalImage(this.handle, width, height, format.getValue()));
     }
 
     public Frame startFrame(int windowWidth, int windowHeight) {
