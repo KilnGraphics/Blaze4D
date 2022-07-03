@@ -1,6 +1,8 @@
 #[macro_use]
 extern crate static_assertions;
 
+use std::fmt::{Debug, Display, Formatter};
+
 pub mod device;
 pub mod instance;
 pub mod objects;
@@ -15,9 +17,36 @@ pub mod window;
 mod c_api;
 mod c_log;
 
-pub const B4D_CORE_VERSION_MAJOR: u32 = 0;
-pub const B4D_CORE_VERSION_MINOR: u32 = 1;
-pub const B4D_CORE_VERSION_PATCH: u32 = 0;
+pub struct BuildInfo {
+    pub version_major: u32,
+    pub version_minor: u32,
+    pub version_patch: u32,
+    pub dev_build: bool,
+}
+
+impl Debug for BuildInfo {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        std::fmt::Display::fmt(&self, f)
+    }
+}
+
+impl Display for BuildInfo {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        if self.dev_build {
+            f.write_fmt(format_args!("{}({}.{}.{}-DEVELOPMENT)", CRATE_NAME, self.version_major, self.version_minor, self.version_patch))
+        } else {
+            f.write_fmt(format_args!("{}({}.{}.{})", CRATE_NAME, self.version_major, self.version_minor, self.version_patch))
+        }
+    }
+}
+
+pub const CRATE_NAME: &'static str = "Blaze4D-Core";
+pub const BUILD_INFO: BuildInfo = BuildInfo {
+    version_major: 0,
+    version_minor: 1,
+    version_patch: 0,
+    dev_build: option_env!("B4D_RELEASE_BUILD").is_none(),
+};
 
 pub mod prelude {
     pub use crate::util::id::UUID;

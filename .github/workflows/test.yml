@@ -41,3 +41,9 @@ jobs:
         with:
           command: build
           args: --release
+
+      - name: Upload binaries
+        uses: actions/upload-artifact@v3
+        with:
+          name: bin-${{ matrix.os }}
+          path: target/release/b4d_core.*

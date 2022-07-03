@@ -3,6 +3,7 @@ use std::sync::{Arc, Mutex};
 use std::time::{Duration, Instant};
 
 use ash::vk;
+use crate::BUILD_INFO;
 
 use crate::instance::debug_messenger::RustLogDebugMessenger;
 use crate::device::init::{create_device, DeviceCreateConfig};
@@ -31,6 +32,8 @@ impl Blaze4D {
     ///
     /// The supported vertex formats for the [`EmulatorRenderer`] must be provided here.
     pub fn new(mut main_window: Box<dyn SurfaceProvider>, enable_validation: bool) -> Self {
+        log::info!("Creating Blaze4D instance {:?}", BUILD_INFO);
+
         let mut instance_config = InstanceCreateConfig::new(
             CString::new("Minecraft").unwrap(),
             vk::make_api_version(0, 0, 1, 0)

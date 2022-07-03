@@ -7,8 +7,8 @@ use std::sync::Arc;
 use ash::vk;
 
 use vk_profiles_rs::vp;
+use crate::{BUILD_INFO, CRATE_NAME};
 
-use crate::{B4D_CORE_VERSION_MAJOR, B4D_CORE_VERSION_MINOR, B4D_CORE_VERSION_PATCH};
 use crate::instance::debug_messenger::DebugMessengerCallback;
 use crate::instance::instance::VulkanVersion;
 
@@ -125,11 +125,12 @@ pub fn create_instance(config: InstanceCreateConfig) -> Result<Arc<InstanceConte
         Vec::new()
     };
 
+    let name = CString::new(CRATE_NAME).unwrap();
     let application_info = vk::ApplicationInfo::builder()
         .application_name(config.application_name.as_c_str())
         .application_version(config.application_version)
-        .engine_name(CStr::from_bytes_with_nul(b"Blaze4D-Core\0").unwrap())
-        .engine_version(vk::make_api_version(0, B4D_CORE_VERSION_MAJOR, B4D_CORE_VERSION_MINOR, B4D_CORE_VERSION_PATCH))
+        .engine_name(&name)
+        .engine_version(vk::make_api_version(0, BUILD_INFO.version_major, BUILD_INFO.version_minor, BUILD_INFO.version_patch))
         .api_version(VulkanVersion::VK_1_1.into());
 
     let mut instance_create_info = vk::InstanceCreateInfo::builder()
