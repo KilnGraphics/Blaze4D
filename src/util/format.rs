@@ -105,7 +105,7 @@ impl PartialEq for CompatibilityClass {
 
 #[derive(Copy, Clone, Eq)]
 pub struct Format {
-    format: ash::vk::Format,
+    format: vk::Format,
     compatibility_class: CompatibilityClass,
 }
 
@@ -125,11 +125,11 @@ macro_rules! define_formats {
 }
 
 impl Format {
-    pub const fn new(format: ash::vk::Format, compatibility_class: CompatibilityClass, _channel_count: u32) -> Self {
+    pub const fn new(format: vk::Format, compatibility_class: CompatibilityClass, _channel_count: u32) -> Self {
         Format { format, compatibility_class }
     }
 
-    pub const fn get_format(&self) -> ash::vk::Format {
+    pub const fn get_format(&self) -> vk::Format {
         self.format
     }
 
