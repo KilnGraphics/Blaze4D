@@ -4,6 +4,8 @@ use std::sync::{Arc, Weak};
 
 use ash::prelude::VkResult;
 use ash::vk;
+use bytemuck::cast_slice;
+use include_bytes_aligned::include_bytes_aligned;
 
 use crate::vk::objects::allocator::Allocator;
 
@@ -11,7 +13,7 @@ use crate::prelude::*;
 
 pub fn create_shader_from_bytes(device: &DeviceFunctions, code: &[u8]) -> VkResult<vk::ShaderModule> {
     let info = vk::ShaderModuleCreateInfo::builder()
-        .code(crate::util::slice::from_byte_slice(code));
+        .code(cast_slice(code));
 
     unsafe {
         device.vk.create_shader_module(&info, None)
@@ -367,5 +369,5 @@ impl Drop for BlitPass {
     }
 }
 
-const FULL_SCREEN_QUAD_VERTEX_SHADER: &'static [u8] = include_bytes!(concat!(env!("B4D_RESOURCE_DIR"), "utils/full_screen_quad_vert.spv"));
-const BLIT_FRAGMENT_SHADER: &'static [u8] = include_bytes!(concat!(env!("B4D_RESOURCE_DIR"), "utils/blit_frag.spv"));
+static FULL_SCREEN_QUAD_VERTEX_SHADER: &'static [u8] = include_bytes_aligned!(4, concat!(env!("B4D_RESOURCE_DIR"), "utils/full_screen_quad_vert.spv"));
+static BLIT_FRAGMENT_SHADER: &'static [u8] = include_bytes_aligned!(4, concat!(env!("B4D_RESOURCE_DIR"), "utils/blit_frag.spv"));

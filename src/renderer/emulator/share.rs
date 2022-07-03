@@ -128,7 +128,7 @@ impl Share {
         self.immediate_buffers.return_buffer(buffer);
     }
 
-    pub(super) fn allocate_uniform<T: ToBytes>(&self, data: &T) -> (vk::Buffer, vk::DeviceSize) {
+    pub(super) fn allocate_uniform(&self, data: &[u8]) -> (vk::Buffer, vk::DeviceSize) {
         self.descriptors.lock().unwrap().allocate_uniform(data)
     }
 

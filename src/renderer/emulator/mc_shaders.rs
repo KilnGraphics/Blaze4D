@@ -5,9 +5,9 @@ use std::fmt::Debug;
 use std::ops::{BitAnd, BitAndAssign, BitOr, BitOrAssign, BitXor, BitXorAssign, Not};
 use std::sync::{Arc, Mutex, Weak};
 use ash::vk;
+use crate::define_uuid_type;
 
 use crate::prelude::*;
-use crate::{define_uuid_type, to_bytes_body};
 
 define_uuid_type!(pub, ShaderId);
 
@@ -227,8 +227,6 @@ pub struct DevUniform {
 }
 const_assert_eq!(std::mem::size_of::<DevUniform>(), 144);
 const_assert_eq!(std::mem::size_of::<DevUniform>() % 16, 0); // std140 size must be multiple of vec4
-
-unsafe impl ToBytes for DevUniform { to_bytes_body!(); }
 
 #[derive(Copy, Clone, Debug)]
 pub struct VertexFormatEntry {

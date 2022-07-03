@@ -21,7 +21,7 @@ impl DescriptorPool {
         }
     }
 
-    pub(super) fn allocate_uniform<T: ToBytes + ?Sized>(&mut self, data: &T) -> (vk::Buffer, vk::DeviceSize) {
+    pub(super) fn allocate_uniform(&mut self, data: &[u8]) -> (vk::Buffer, vk::DeviceSize) {
         self.uniform_buffer_pool.allocate_write(data)
     }
 }
@@ -69,10 +69,10 @@ impl UniformBufferPool {
         }
     }
 
-    fn allocate_write<T: ToBytes + ?Sized>(&mut self, data: &T) -> (vk::Buffer, vk::DeviceSize) {
+    fn allocate_write(&mut self, data: &[u8]) -> (vk::Buffer, vk::DeviceSize) {
         // We just allocate a new slot hoping that it isn't in use anymore. This is not that dangerous right now since we have a 32MB buffer which equates to roughly 100k slots
         // but it for sure can't become a permanent solution.
-        let src = data.as_bytes();
+        let src = data;
         if src.len() > 1024 { // Just a sanity check all of our uniforms currently are < 256
             panic!("Wtf are you doing???");
         }

@@ -9,6 +9,7 @@ use std::sync::{Arc, Condvar, Mutex, Weak};
 use std::thread::JoinHandle;
 
 use ash::vk;
+use bytemuck::{bytes_of, bytes_of_mut, NoUninit, AnyBitPattern};
 
 use crate::prelude::*;
 use crate::device::device::Queue;
@@ -617,7 +618,7 @@ impl StagingMemory {
     /// This function is fully safe from out of bounds memory accesses. However it is the
     /// responsibility of the caller to ensure that no concurrent writes take place on the same
     /// region.
-    pub unsafe fn write<T: ToBytes + ?Sized>(&self, data: &T) -> Option<usize> {
+    pub unsafe fn write<T: NoUninit + ?Sized>(&self, data: &T) -> Option<usize> {
         self.write_offset(data, 0)
     }
 
@@ -629,10 +630,10 @@ impl StagingMemory {
     /// This function is fully safe from out of bounds memory accesses. However it is the
     /// responsibility of the caller to ensure that no concurrent writes take place on the same
     /// region.
-    pub unsafe fn write_offset<T: ToBytes + ?Sized>(&self, data: &T, offset: usize) -> Option<usize> {
+    pub unsafe fn write_offset<T: NoUninit + ?Sized>(&self, data: &T, offset: usize) -> Option<usize> {
         assert!(offset <= (isize::MAX as usize));
 
-        let src = data.as_bytes();
+        let src = bytes_of(data);
         if offset + src.len() > self.memory_size {
             return None;
         }
@@ -643,14 +644,14 @@ impl StagingMemory {
         Some(src.len())
     }
 
-    pub unsafe fn read<T: FromBytes + ?Sized>(&self, data: &mut T) -> Option<usize> {
+    pub unsafe fn read<T: NoUninit + AnyBitPattern + ?Sized>(&self, data: &mut T) -> Option<usize> {
         self.read_offset(data, 0)
     }
 
-    pub unsafe fn read_offset<T: FromBytes + ?Sized>(&self, data: &mut T, offset: usize) -> Option<usize> {
+    pub unsafe fn read_offset<T: NoUninit + AnyBitPattern + ?Sized>(&self, data: &mut T, offset: usize) -> Option<usize> {
         assert!(offset <= (isize::MAX as usize));
 
-        let dst = data.as_bytes_mut();
+        let dst = bytes_of_mut(data);
         if offset + dst.len() > self.memory_size {
             return None;
         }

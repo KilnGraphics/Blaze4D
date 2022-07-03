@@ -11,7 +11,7 @@ use crate::instance::init::{create_instance, InstanceCreateConfig};
 use crate::vk::objects::surface::SurfaceProvider;
 
 use crate::prelude::*;
-use crate::renderer::emulator::{EmulatorRenderer, GlobalImage, GlobalMesh, ImageData, MeshData};
+use crate::renderer::emulator::{EmulatorRenderer, GlobalImage, GlobalMesh, MeshData};
 use crate::renderer::emulator::debug_pipeline::{DebugPipeline, DebugPipelineMode};
 use crate::renderer::emulator::mc_shaders::{McUniform, ShaderId, VertexFormat};
 use crate::renderer::emulator::PassRecorder;

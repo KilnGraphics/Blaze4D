@@ -1,13 +1,13 @@
 extern crate b4d_core;
 
 use ash::vk;
+use bytemuck::{cast_slice, Pod, Zeroable};
 use winit::event::{Event, WindowEvent};
 use winit::event_loop::{ControlFlow, EventLoop};
-use b4d_core::b4d::B4DVertexFormat;
 
 use b4d_core::prelude::*;
 use b4d_core::renderer::emulator::debug_pipeline::DebugPipelineMode;
-use b4d_core::renderer::emulator::mc_shaders::{DevUniform, McUniform, McUniformData, VertexFormat, VertexFormatEntry};
+use b4d_core::renderer::emulator::mc_shaders::{McUniform, McUniformData, VertexFormat, VertexFormatEntry};
 use b4d_core::renderer::emulator::MeshData;
 
 use b4d_core::window::WinitWindow;
@@ -24,8 +24,8 @@ fn main() {
     let mut shader = b4d.create_shader(&vertex_format, McUniform::MODEL_VIEW_MATRIX | McUniform::PROJECTION_MATRIX);
 
     let data = MeshData {
-        vertex_data: b4d_core::util::slice::to_byte_slice(&CUBE_VERTICES),
-        index_data: b4d_core::util::slice::to_byte_slice(&CUBE_INDICES),
+        vertex_data: cast_slice(&CUBE_VERTICES),
+        index_data: cast_slice(&CUBE_INDICES),
         vertex_stride: std::mem::size_of::<Vertex>() as u32,
         index_count: CUBE_INDICES.len() as u32,
         index_type: vk::IndexType::UINT32,
@@ -187,6 +187,9 @@ impl Vertex {
         }
     }
 }
+
+unsafe impl Zeroable for Vertex {}
+unsafe impl Pod for Vertex {}
 
 fn make_projection_matrix(window_size: Vec2u32, fov: f32) -> Mat4f32 {
     let t = (fov / 2f32).tan();

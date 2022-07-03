@@ -28,6 +28,7 @@ use std::fmt::{Debug, Formatter};
 use std::panic::RefUnwindSafe;
 use std::sync::Arc;
 use ash::vk;
+use bytemuck::cast_slice;
 
 use crate::renderer::emulator::worker::run_worker;
 use crate::renderer::emulator::pipeline::EmulatorPipeline;
@@ -127,7 +128,7 @@ impl EmulatorRenderer {
             }
         }
 
-        let bytes = data.as_ref().as_bytes();
+        let bytes = cast_slice(data.as_ref());
 
         let info = ImageData {
             data: bytes,

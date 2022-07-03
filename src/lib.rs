@@ -28,9 +28,6 @@ pub mod prelude {
     pub use crate::device::device::Queue;
     pub use crate::device::device::DeviceContext;
 
-    pub use crate::util::bytes::ToBytes;
-    pub use crate::util::bytes::FromBytes;
-
     pub type Vec2f32 = nalgebra::Vector2<f32>;
     pub type Vec3f32 = nalgebra::Vector3<f32>;
     pub type Vec4f32 = nalgebra::Vector4<f32>;

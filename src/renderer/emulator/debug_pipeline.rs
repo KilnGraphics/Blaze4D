@@ -7,13 +7,15 @@ use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering};
 use std::time::Instant;
 use ash::vk;
 use bumpalo::Bump;
+use bytemuck::{bytes_of, cast_slice, Pod, Zeroable};
+use include_bytes_aligned::include_bytes_aligned;
 use crate::device::device::Queue;
+use crate::device::device_utils::create_shader_from_bytes;
 
 use crate::prelude::*;
 use crate::renderer::emulator::EmulatorRenderer;
 use crate::renderer::emulator::mc_shaders::{McUniform, McUniformData, ShaderDropListener, ShaderId, ShaderListener, VertexFormat, VertexFormatEntry};
 use crate::renderer::emulator::pipeline::{DrawTask, EmulatorPipeline, EmulatorPipelinePass, PipelineTask, PooledObjectProvider, SubmitRecorder};
-use crate::to_bytes_body;
 use crate::util::vk::{make_full_rect, make_full_viewport};
 use crate::vk::objects::allocator::{Allocation, AllocationStrategy};
 
@@ -616,7 +618,7 @@ impl ShaderModules {
                 ]);
                 (*self.texture_module.as_ref().unwrap(), alloc.alloc(vk::SpecializationInfo::builder()
                     .map_entries(entries)
-                    .data(data.as_bytes())
+                    .data(bytes_of(data))
                 ))
             }
             _ => {
@@ -830,7 +832,7 @@ impl BackgroundPipeline {
 
         let specialization_info = vk::SpecializationInfo::builder()
             .map_entries(&specializations)
-            .data(specialization_data.as_bytes());
+            .data(cast_slice(specialization_data.data.as_slice()));
 
         let shader_stages = [
             vk::PipelineShaderStageCreateInfo::builder()
@@ -1330,13 +1332,13 @@ impl DebugPipelinePass {
                         self.parent.draw_pipeline.pipeline_layout,
                         vk::ShaderStageFlags::ALL_GRAPHICS,
                         0,
-                        push_constants.as_bytes()
+                        bytes_of(push_constants)
                     );
                 }
             }
 
             if let Some(static_uniforms) = tracker.validate_static_uniforms() {
-                let (buffer, offset) = obj.allocate_uniform(static_uniforms);
+                let (buffer, offset) = obj.allocate_uniform(bytes_of(static_uniforms));
                 let buffer_info = vk::DescriptorBufferInfo {
                     buffer,
                     offset,
@@ -1734,7 +1736,8 @@ struct PushConstants {
 const_assert_eq!(std::mem::size_of::<PushConstants>(), 80);
 const_assert_eq!(std::mem::size_of::<PushConstants>() % 16, 0);
 
-unsafe impl ToBytes for PushConstants { to_bytes_body!(); }
+unsafe impl Zeroable for PushConstants {}
+unsafe impl Pod for PushConstants {}
 
 #[repr(C)]
 #[derive(Copy, Clone, Default)]
@@ -1763,14 +1766,12 @@ struct StaticUniforms {
 const_assert_eq!(std::mem::size_of::<StaticUniforms>(), 128);
 const_assert_eq!(std::mem::size_of::<StaticUniforms>() % 16, 0);
 
-unsafe impl ToBytes for StaticUniforms { to_bytes_body!(); }
+unsafe impl Zeroable for StaticUniforms {}
+unsafe impl Pod for StaticUniforms {}
 
 fn try_create_shader_module(device: &DeviceContext, data: &[u8], name: &str) -> Result<vk::ShaderModule, vk::Result> {
-    let info = vk::ShaderModuleCreateInfo::builder()
-        .code(crate::util::slice::from_byte_slice(data));
-
     unsafe {
-        device.vk().create_shader_module(&info, None)
+        create_shader_from_bytes(device.get_functions(), data)
     }.map_err(|err| {
         log::error!("vkCreateShaderModule returned {:?} when creating module {:?}", err, name);
         err
@@ -1778,12 +1779,12 @@ fn try_create_shader_module(device: &DeviceContext, data: &[u8], name: &str) -> 
 }
 
 const SHADER_ENTRY: &'static CStr = unsafe { CStr::from_bytes_with_nul_unchecked(b"main\0") }; // GOD I LOVE RUSTS FFI API IT IS SO NICE AND DEFINITELY NOT STUPID WITH WHICH FUNCTIONS ARE CONST AND WHICH AREN'T
-const DEBUG_POSITION_VERTEX_BIN: &'static [u8] = include_bytes!(concat!(env!("B4D_RESOURCE_DIR"), "emulator/debug_position_vert.spv"));
-const DEBUG_COLOR_VERTEX_BIN: &'static [u8] = include_bytes!(concat!(env!("B4D_RESOURCE_DIR"), "emulator/debug_color_vert.spv"));
-const DEBUG_UV_VERTEX_BIN: &'static [u8] = include_bytes!(concat!(env!("B4D_RESOURCE_DIR"), "emulator/debug_uv_vert.spv"));
-const DEBUG_NULL_VERTEX_BIN: &'static [u8] = include_bytes!(concat!(env!("B4D_RESOURCE_DIR"), "emulator/debug_null_vert.spv"));
-const DEBUG_FRAGMENT_BIN: &'static [u8] = include_bytes!(concat!(env!("B4D_RESOURCE_DIR"), "emulator/debug_frag.spv"));
-const TEXTURED_FRAGMENT_BIN: &'static [u8] = include_bytes!(concat!(env!("B4D_RESOURCE_DIR"), "emulator/textured_frag.spv"));
+static DEBUG_POSITION_VERTEX_BIN: &'static [u8] = include_bytes_aligned!(4, concat!(env!("B4D_RESOURCE_DIR"), "emulator/debug_position_vert.spv"));
+static DEBUG_COLOR_VERTEX_BIN: &'static [u8] = include_bytes_aligned!(4, concat!(env!("B4D_RESOURCE_DIR"), "emulator/debug_color_vert.spv"));
+static DEBUG_UV_VERTEX_BIN: &'static [u8] = include_bytes_aligned!(4, concat!(env!("B4D_RESOURCE_DIR"), "emulator/debug_uv_vert.spv"));
+static DEBUG_NULL_VERTEX_BIN: &'static [u8] = include_bytes_aligned!(4, concat!(env!("B4D_RESOURCE_DIR"), "emulator/debug_null_vert.spv"));
+static DEBUG_FRAGMENT_BIN: &'static [u8] = include_bytes_aligned!(4, concat!(env!("B4D_RESOURCE_DIR"), "emulator/debug_frag.spv"));
+static TEXTURED_FRAGMENT_BIN: &'static [u8] = include_bytes_aligned!(4, concat!(env!("B4D_RESOURCE_DIR"), "emulator/textured_frag.spv"));
 
-const BACKGROUND_VERTEX_BIN: &'static [u8] = include_bytes!(concat!(env!("B4D_RESOURCE_DIR"), "emulator/background_vert.spv"));
-const BACKGROUND_FRAGMENT_BIN: &'static [u8] = include_bytes!(concat!(env!("B4D_RESOURCE_DIR"), "emulator/background_frag.spv"));
+static BACKGROUND_VERTEX_BIN: &'static [u8] = include_bytes_aligned!(4, concat!(env!("B4D_RESOURCE_DIR"), "emulator/background_vert.spv"));
+static BACKGROUND_FRAGMENT_BIN: &'static [u8] = include_bytes_aligned!(4, concat!(env!("B4D_RESOURCE_DIR"), "emulator/background_frag.spv"));

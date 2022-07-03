@@ -97,9 +97,7 @@ impl ImmediateBuffer {
         self.old_buffers.clear();
     }
 
-    pub(super) fn allocate<T: ToBytes + ?Sized>(&mut self, data: &T, alignment: vk::DeviceSize) -> (vk::Buffer, vk::DeviceSize) {
-        let data = data.as_bytes();
-
+    pub(super) fn allocate(&mut self, data: &[u8], alignment: vk::DeviceSize) -> (vk::Buffer, vk::DeviceSize) {
         if let Some(info) = self.current_buffer.allocate(data, alignment) {
             info
         } else {

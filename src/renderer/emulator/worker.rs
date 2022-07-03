@@ -325,7 +325,7 @@ impl PooledObjectProvider {
         fence
     }
 
-    pub fn allocate_uniform<T: ToBytes>(&mut self, data: &T) -> (vk::Buffer, vk::DeviceSize) {
+    pub fn allocate_uniform(&mut self, data: &[u8]) -> (vk::Buffer, vk::DeviceSize) {
         self.share.allocate_uniform(data)
     }
 }
