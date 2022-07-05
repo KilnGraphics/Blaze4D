@@ -1,3 +1,5 @@
+rootProject.name = "blaze4d"
+
 pluginManagement {
     repositories {
         gradlePluginPortal()
@@ -14,4 +16,4 @@ pluginManagement {
     }
 }
 
-include("core")
+include("mod", "core:api", "core:natives")

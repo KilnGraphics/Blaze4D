@@ -10,6 +10,8 @@ repositories {
 }
 
 dependencies {
+    implementation(project(":natives"))
+
     implementation("org.apache.logging.log4j:log4j-api:2.17.0")
     implementation("org.lwjgl:lwjgl-glfw:3.3.1")
 
