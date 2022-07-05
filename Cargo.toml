@@ -1,0 +1,39 @@
+[package]
+name = "b4d-core"
+version = "0.1.0"
+edition = "2021"
+
+[lib]
+crate-type = ["lib", "cdylib"]
+
+[[example]]
+name = "immedaite_cube"
+crate-type = ["bin"]
+
+[features]
+__internal_doc_test = []
+
+[dependencies]
+ash = { version="0.36.0", features=["debug", "linked"] }
+ash-window = "0.9.0"
+bumpalo = { version="3.9.1", features=["boxed"] }
+bytemuck = "1.10.0"
+concurrent-queue = "1.2.2"
+gpu-allocator = "0.17.0"
+include_bytes_aligned = "0.1.2"
+json = "0.12.4"
+lazy_static = "1.4.0"
+log = { version="0.4.17", features=["std"] }
+nalgebra = "0.29.0"
+ouroboros = "0.15.0"
+paste = "1.0.6"
+png = "0.17.5"
+static_assertions = "1.1.0"
+shaderc = "0.7.3"
+vk-profiles-rs = { git="https://github.com/CodingRays/vk-profiles-rs.git", branch="ash-0.36" }
+winit = "0.26.1"
+xxhash-rust = { version="0.8.2", features=["xxh3", "const_xxh3"] }
+
+[dev-dependencies]
+env_logger = "0.9.0"
+rand = "0.8.5"
