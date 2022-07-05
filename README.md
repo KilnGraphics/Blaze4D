@@ -1,6 +1,3 @@
-![blaze](https://user-images.githubusercontent.com/68126718/125143247-71be4580-e0f0-11eb-88bc-070eb2838435.png)
-
-<<<<<<< HEAD
 ## Information 
 Blaze4D is a Fabric mod that changes Minecraft's rendering engine to use the Vulkan Graphics Library, it is currently in
 Early Development and is **NOT** intended for use by the faint-hearted. Support for Blaze4D can be found in the #support
@@ -10,19 +7,11 @@ We are currently in the middle of a rewrite using rust. The rust library is loca
 [Blaze4D-core](https://github.com/KilnGraphics/Blaze4D-core) repository. This new version is under heavy development
 and as such many parts are still incomplete including many aspects of the build process. This can make working on the
 new version more challenging until we fix these parts.
-=======
-## Information
-Blaze4D is a Fabric mod that changes Minecraft's rendering engine to use the Vulkan Graphics Library, it is currently in
-Early Development and is NOT intended for use by the faint-hearted.
-
-This repository is the rust core which performs all render work.
->>>>>>> core/main
 
 ## Community
 We have a [Discord server](https://discord.gg/H93wJePuWf) where you can track development progress, ask questions, or just hang out in.
 
 ## Building
-<<<<<<< HEAD
 The [natives](https://github.com/KilnGraphics/Blaze4D-core) have to be manually built first and the path to the resulting 
 shared library has to be provided via the `b4d_native_path` gradle property. The remainder of the project can be built
 without additional configuration using the gradle project.
@@ -40,13 +29,3 @@ Step-by-step build instructions:
 1. Clone the repository (https://github.com/Blaze4D-MC/Blaze4D.git).
 2. Edit
 3. Pull Request
-=======
-### Additional Dependencies
- - Vulkan SDK
- - A c++ compiler and CMake (This is required to build the vulkan profiles library)
- - Gradle
-
-### Build instructions
-1. Compile all resources (shaders, fonts etc.) by running `./gradlew` in the `resources` directory.
-2. Compile Blaze4D-core by running `cargo build -r`.
->>>>>>> core/main

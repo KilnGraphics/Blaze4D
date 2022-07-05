@@ -1,4 +1,3 @@
-<<<<<<< HEAD
 # gradle
 
 .gradle/
@@ -43,12 +42,3 @@ run/
 *.cap
 
 .class
-=======
-# Rust
-/target
-Cargo.lock
-
-# Intellij
-*.iml
-/.idea
->>>>>>> core/main
