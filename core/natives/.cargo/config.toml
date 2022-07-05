@@ -1,2 +1,2 @@
 [env]
-B4D_RESOURCE_DIR = { value="resources/build/", relative=true }
+B4D_RESOURCE_DIR = { value="../assets/build/", relative=true }
