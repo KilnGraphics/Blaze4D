@@ -1,3 +1,7 @@
+/**
+ * Internal api to directly call native functions
+ */
+
 package graphics.kiln.blaze4d.core.natives;
 
 import jdk.incubator.foreign.*;
@@ -18,7 +22,6 @@ import static jdk.incubator.foreign.ValueLayout.*;
 public class Natives {
     private static final Logger NATIVE_LOGGER = LogManager.getLogger("Blaze4DNative", new StringFormatterMessageFactory());
 
-    public static final SymbolLookup lookup;
     public static final CLinker linker;
 
     public static final NativeMetadata nativeMetadata;
@@ -42,9 +45,8 @@ public class Natives {
     public static final MethodHandle B4D_END_FRAME_HANDLE;
 
     static {
-        System.load(System.getProperty("b4d.native"));
+        Lib.prepareLib();
 
-        lookup = SymbolLookup.loaderLookup();
         linker = CLinker.systemCLinker();
         nativeMetadata = loadMetadata();
         initNativeLogger();
@@ -279,7 +281,7 @@ public class Natives {
     }
 
     private static MethodHandle lookupFunction(String name, FunctionDescriptor descriptor) {
-        Optional<NativeSymbol> result = lookup.lookup(name);
+        Optional<NativeSymbol> result = Lib.nativeLookup.lookup(name);
         if (result.isPresent()) {
             return linker.downcallHandle(result.get(), descriptor);
         }

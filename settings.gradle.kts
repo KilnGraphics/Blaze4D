@@ -16,4 +16,4 @@ pluginManagement {
     }
 }
 
-include("mod", "core:api", /*"core:natives",*/ "core:assets")
+include("mod", "core:api", "core:natives", "core:assets")
