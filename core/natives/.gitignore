@@ -1,2 +1,6 @@
-/target
+# Gradle local files
+/build/
+
+# Cargo local files
+/target/
 Cargo.lock

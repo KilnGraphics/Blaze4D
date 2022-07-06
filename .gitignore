@@ -1,23 +1,16 @@
 # gradle
-
 .gradle/
-build/
-out/
-classes/
 
 # eclipse
-
 *.launch
 
 # idea
-
 .idea/
 *.iml
 *.ipr
 *.iws
 
 # vscode
-
 .settings/
 .vscode/
 bin/
@@ -25,20 +18,10 @@ bin/
 .project
 
 # macos
-
 *.DS_Store
-
-# fabric
-
-run/
-
-# Ignore rosella if it's being modified at the same time
-/Rosella
 
 # random log files
 *.log
 
 # renderdoc captures
 *.cap
-
-.class

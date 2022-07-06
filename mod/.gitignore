@@ -1,0 +1,5 @@
+# Gradle local files
+/build/
+
+# Minecraft run directory
+/run/

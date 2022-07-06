@@ -1,5 +1,6 @@
 module graphics.kiln.blaze4d.core {
     requires jdk.incubator.foreign;
+
     requires org.apache.logging.log4j;
     requires org.lwjgl.glfw;
     requires org.apache.commons.lang3;
