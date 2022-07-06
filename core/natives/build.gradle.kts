@@ -1,2 +1,2 @@
-tasks.register("nothing") {
-}
+apply<graphics.kiln.blaze4d.build.RustPlugin>()
+
