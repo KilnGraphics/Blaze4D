@@ -1,85 +1,46 @@
 package graphics.kiln.blaze4d.core.natives;
 
+import graphics.kiln.blaze4d.core.Blaze4DCore;
 import jdk.incubator.foreign.SymbolLookup;
+
+import com.google.gson.Gson;
 import org.apache.commons.lang3.SystemUtils;
 
-import java.io.File;
-import java.io.FileOutputStream;
-import java.io.InputStream;
-import java.io.OutputStream;
+import java.io.*;
+import java.nio.charset.StandardCharsets;
 
 /**
  * Manages loading of the native library
  */
 public class Lib {
-    private static final String BASE_PATH = "natives";
-
     public static SymbolLookup nativeLookup = null;
 
     /**
-     * Generates the resource name of the library for the current system.
-     * This name can be passed to System.getResource() to retrieve the native binaries.
-     *
-     * This function does not validate that the binaries are actually bundled it only generates the name.
-     *
-     * @return The name of the library for the current system.
-     */
-    private static String getSystemLibName() {
-        return BASE_PATH + "." + Os.getOs().name + "-" + Arch.getArch().name;
-    }
-
-    /**
-     * Generates the File where the native library for the current system should be placed at.
-     *
-     * @return The File for the native library.
-     */
-    private static File getNativeFile() {
-        return new File(System.getProperty("user.dir"), "b4d" + Os.getOs().generateLibName("b4d_core"));
-    }
-
-    /**
-     * Ensures the native library is loaded and ready.
+     * Attempts to load the b4d core natives.
      *
      * It is safe to call this function multiple times and concurrently.
      */
-    public static synchronized void prepareLib() {
+    public static synchronized void loadNatives() {
         if (nativeLookup != null) {
             return;
         }
 
-        String overwrite = System.getProperty("b4d.native");
+        String overwrite = System.getProperty("b4d_core.native_lib");
         if (overwrite != null) {
             System.load(overwrite);
             nativeLookup = SymbolLookup.loaderLookup();
             return;
         }
 
-        File natives = getNativeFile();
-        if (!natives.mkdirs()) {
-            throw new RuntimeException("Failed to create b4d natives directory");
+        NativeLib nativeLib = NativeLib.loadSystemLibInfo();
+        if (nativeLib == null) {
+            throw new UnsupportedOperationException("Unable to find natives for current system. Os: " + Os.getOs().name + " Arch: " + Arch.getArch().name);
         }
-        if (natives.exists()) {
-            if (!natives.delete()) {
-                throw new RuntimeException("Failed to delete old b4d natives file");
-            }
-        }
+        Blaze4DCore.LOGGER.info("Found natives for current system. Os: " + nativeLib.os.name + " Arch: " + nativeLib.arch.name + " Version: " + nativeLib.version);
 
-        String resource = getSystemLibName();
-        try (InputStream in = Lib.class.getResourceAsStream(resource)) {
-            if (in == null) {
-                throw new RuntimeException("Unsupported system configuration " + Os.getOs().name + "-" + Arch.getArch().name + ". Unable to find native library.");
-            }
+        File nativeFile = nativeLib.extractNatives(new File(System.getProperty("user.dir"), "b4d" + File.separator + "natives"));
 
-            try (OutputStream out = new FileOutputStream(natives)) {
-                // TODO this is dumb should use a library
-                byte[] bytes = in.readAllBytes();
-                out.write(bytes);
-            }
-        } catch (Exception ex) {
-            throw new RuntimeException("Failed to extract native library", ex);
-        }
-
-        System.load(natives.getAbsolutePath());
+        System.load(nativeFile.getAbsolutePath());
         nativeLookup = SymbolLookup.loaderLookup();
     }
 
@@ -94,13 +55,6 @@ public class Lib {
             this.name = name;
         }
 
-        String generateLibName(String name) {
-            return switch (this) {
-                case WINDOWS -> name + ".dll";
-                case GENERIC_LINUX, MAC -> "lib" + name + ".so";
-            };
-        }
-
         static Os getOs() {
             if (SystemUtils.IS_OS_WINDOWS) {
                 return WINDOWS;
@@ -111,6 +65,15 @@ public class Lib {
             } else {
                 throw new UnsupportedOperationException("Unknown os: " + SystemUtils.OS_NAME);
             }
+        }
+
+        static Os getOsForString(String name) {
+            return switch (name) {
+                case "windows" -> WINDOWS;
+                case "generic_linux" -> GENERIC_LINUX;
+                case "mac" -> MAC;
+                default -> throw new IllegalArgumentException("Invalid os name: " + name);
+            };
         }
     }
 
@@ -126,12 +89,119 @@ public class Lib {
         }
 
         static Arch getArch() {
-            return switch (SystemUtils.OS_ARCH) {
+            return getArchForString(SystemUtils.OS_ARCH);
+        }
+
+        static Arch getArchForString(String name) {
+            return switch (name) {
                 case "x86" -> I686;
                 case "amd64" -> AMD64;
                 case "aarch64" -> AARCH64;
                 default -> throw new UnsupportedOperationException("Unknown arch: " + SystemUtils.OS_ARCH);
             };
+        }
+    }
+
+    private record NativeLib(Os os, Arch arch, Version version, String libResourcePath) {
+        private static final String NATIVES_DESCRIPTION_PATH = "natives.json";
+
+        /**
+         * @return A NativeLib instance describing the native that should be used for the current system configuration.
+         *         If the current system is unsupported null is returned.
+         */
+        static NativeLib loadSystemLibInfo() {
+            NativeLibJson[] natives;
+            try (InputStream in = NativeLib.class.getResourceAsStream(NATIVES_DESCRIPTION_PATH)) {
+                if (in == null) {
+                    throw new RuntimeException("Failed to load natives description. Resource does not exist " + NATIVES_DESCRIPTION_PATH);
+                }
+                BufferedReader reader = new BufferedReader(new InputStreamReader(in, StandardCharsets.UTF_8));
+
+                natives = new Gson().fromJson(reader, NativeLibJson[].class);
+            } catch (IOException e) {
+                throw new RuntimeException("Failed to load natives description.", e);
+            }
+
+            Os sysOs = Os.getOs();
+            Arch sysArch = Arch.getArch();
+            for (NativeLibJson nativeJson : natives) {
+                NativeLib nativeLib = nativeJson.toNativeLib();
+
+                if (sysOs == nativeLib.os() && sysArch == nativeLib.arch()) {
+                    return nativeLib;
+                }
+            }
+
+            return null;
+        }
+
+        File extractNatives(File dstDirectory) {
+            if (!dstDirectory.exists()) {
+                if (!dstDirectory.mkdirs()) {
+                    throw new RuntimeException("Failed to make natives directory");
+                }
+            }
+            if (!dstDirectory.isDirectory()) {
+                throw new RuntimeException("Natives directory is not a directory");
+            }
+
+            String fileName = System.mapLibraryName("b4d_core-" + this.version);
+            File nativesFile = new File(dstDirectory, fileName);
+
+            if(!nativesFile.isFile()) {
+                if(nativesFile.exists()) {
+                    throw new RuntimeException("Natives file already exists but is not a file");
+                }
+
+                this.copyToFile(nativesFile);
+            }
+
+            return nativesFile;
+        }
+
+        private void copyToFile(File dst) {
+            try (InputStream in = NativeLib.class.getResourceAsStream(this.libResourcePath)) {
+                if (in == null) {
+                    throw new RuntimeException("Invalid native lib resource path: " + this.libResourcePath);
+                }
+
+                try (OutputStream out = new FileOutputStream(dst)) {
+                    byte[] buffer = new byte[1024 * 1024 * 16];
+                    int readBytes;
+
+                    while((readBytes = in.read(buffer)) != -1) {
+                        out.write(buffer, 0, readBytes);
+                    }
+                }
+            } catch (IOException e) {
+                throw new RuntimeException("Failed to extract native lib.", e);
+            }
+        }
+
+        record Version(int major, int minor, int patch, long buildId) {
+            @Override
+            public String toString() {
+                return major + "." + minor + "." + patch + "_" + buildId;
+            }
+        }
+
+        private static class NativeLibJson {
+            String os;
+            String arch;
+            int versionMajor;
+            int versionMinor;
+            int versionPatch;
+            long buildId;
+            String libResourcePath;
+
+            NativeLib toNativeLib() {
+                return new NativeLib(
+                        Os.getOsForString(this.os),
+                        Arch.getArchForString(this.arch),
+                        new Version(this.versionMajor, this.versionMinor, this.versionPatch, this.buildId),
+                        libResourcePath
+                );
+            }
         }
     }
 }
