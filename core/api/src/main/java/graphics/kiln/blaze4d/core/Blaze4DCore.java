@@ -6,8 +6,12 @@ import graphics.kiln.blaze4d.core.types.B4DImageData;
 import graphics.kiln.blaze4d.core.types.B4DMeshData;
 import graphics.kiln.blaze4d.core.types.B4DVertexFormat;
 import jdk.incubator.foreign.MemoryAddress;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
+import org.apache.logging.log4j.message.StringFormatterMessageFactory;
 
 public class Blaze4DCore implements AutoCloseable {
+    public static final Logger LOGGER = LogManager.getLogger("Blaze4DCore", new StringFormatterMessageFactory());
 
     private final MemoryAddress handle;
 

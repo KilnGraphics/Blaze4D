@@ -56,7 +56,7 @@ loom {
 		val client by this
 		client.vmArgs.add("--add-modules=jdk.incubator.foreign")
 		client.vmArgs.add("--enable-native-access=ALL-UNNAMED") // should be graphics.kiln.blaze4d.core but modules are screwed
-		client.vmArgs.add("-Db4d.native=" + project(":core:natives").file("target/release/b4d_core.dll"))
+		//client.vmArgs.add("-Db4d_core.native_lib=" + project(":core:natives").file("target/release/b4d_core.dll"))
 
 		create("clientWithValidation") {
 			inherit(client)

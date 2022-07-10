@@ -45,7 +45,7 @@ public class Natives {
     public static final MethodHandle B4D_END_FRAME_HANDLE;
 
     static {
-        Lib.prepareLib();
+        Lib.loadNatives();
 
         linker = CLinker.systemCLinker();
         nativeMetadata = loadMetadata();
