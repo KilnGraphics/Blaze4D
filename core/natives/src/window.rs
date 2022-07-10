@@ -1,6 +1,5 @@
-use std::ffi::CString;
+use std::ffi::{CStr, CString};
 use ash::{Entry, Instance, vk};
-use ash::vk::SurfaceKHR;
 use winit::dpi::LogicalSize;
 use winit::event_loop::EventLoop;
 use winit::window::WindowBuilder;
@@ -32,11 +31,11 @@ impl WinitWindow {
 impl SurfaceProvider for WinitWindow {
     fn get_required_instance_extensions(&self) -> Vec<CString> {
         ash_window::enumerate_required_extensions(&self.handle).unwrap().into_iter().map(|str| {
-            CString::from(str)
+            CString::from(unsafe { CStr::from_ptr(*str) })
         }).collect()
     }
 
-    fn init(&mut self, entry: &Entry, instance: &Instance) -> Result<SurfaceKHR, SurfaceInitError> {
+    fn init(&mut self, entry: &Entry, instance: &Instance) -> Result<vk::SurfaceKHR, SurfaceInitError> {
         let surface = unsafe { ash_window::create_surface(entry, instance, &self.handle, None)? };
 
         self.khr_surface = Some(surface);
@@ -45,7 +44,7 @@ impl SurfaceProvider for WinitWindow {
         Ok(surface)
     }
 
-    fn get_handle(&self) -> Option<SurfaceKHR> {
+    fn get_handle(&self) -> Option<vk::SurfaceKHR> {
         self.khr_surface
     }
 }
