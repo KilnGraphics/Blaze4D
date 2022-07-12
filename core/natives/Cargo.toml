@@ -34,6 +34,9 @@ vk-profiles-rs = "0.3.0"
 winit = "0.26.1"
 xxhash-rust = { version="0.8.2", features=["xxh3", "const_xxh3"] }
 
+[build-dependencies]
+cmake = "0.1.48"
+
 [dev-dependencies]
 env_logger = "0.9.0"
 rand = "0.8.5"

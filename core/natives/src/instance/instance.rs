@@ -39,6 +39,10 @@ impl VulkanVersion {
     pub const fn get_patch(&self) -> u32 {
         vk::api_version_patch(self.0)
     }
+
+    pub const fn get_raw(&self) -> u32 {
+        self.0
+    }
 }
 
 impl From<VulkanVersion> for u32 {

@@ -39,6 +39,7 @@ pub struct DeviceContext {
     async_compute_queue: Option<Arc<Queue>>,
     async_transfer_queue: Option<Arc<Queue>>,
     allocator: Arc<Allocator>,
+    new_alloc: Arc<crate::allocator::Allocator>,
     transfer: Arc<Transfer>,
     utils: Arc<DeviceUtils>,
 }
@@ -54,6 +55,8 @@ impl DeviceContext {
         let transfer = Transfer::new(functions.clone(), allocator.clone(), async_transfer_queue.as_ref().unwrap_or(&main_queue).clone());
         let utils = DeviceUtils::new(functions.clone(), allocator.clone());
 
+        let new_alloc = Arc::new(crate::allocator::Allocator::new(functions.clone()).unwrap());
+
         Arc::new(Self {
             id: NamedUUID::with_str("Device"),
             functions,
@@ -61,6 +64,7 @@ impl DeviceContext {
             async_compute_queue,
             async_transfer_queue,
             allocator,
+            new_alloc,
             transfer,
             utils
         })

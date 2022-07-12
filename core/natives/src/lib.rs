@@ -16,6 +16,7 @@ mod glfw_surface;
 pub mod window;
 mod c_api;
 mod c_log;
+mod allocator;
 
 pub struct BuildInfo {
     pub version_major: u32,
