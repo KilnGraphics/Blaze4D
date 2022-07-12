@@ -60,14 +60,14 @@ impl MemoryUsage {
 #[repr(C)]
 #[derive(Copy, Clone)]
 pub struct AllocationCreateInfo {
-    flags: AllocationCreateFlags,
-    usage: MemoryUsage,
-    required_flags: vk::MemoryPropertyFlags,
-    preferred_flags: vk::MemoryPropertyFlags,
-    memory_type_bits: u32,
-    pool: *const u8,
-    p_user_data: *mut c_void,
-    priority: f32,
+    pub flags: AllocationCreateFlags,
+    pub usage: MemoryUsage,
+    pub required_flags: vk::MemoryPropertyFlags,
+    pub preferred_flags: vk::MemoryPropertyFlags,
+    pub memory_type_bits: u32,
+    pub pool: *const u8,
+    pub p_user_data: *mut c_void,
+    pub priority: f32,
 }
 impl Default for AllocationCreateInfo {
     fn default() -> Self {
@@ -163,13 +163,13 @@ impl<'a> AllocationCreateInfoBuilder<'a> {
 #[repr(C)]
 #[derive(Copy, Clone)]
 pub struct AllocationInfo {
-    memory_type: u32,
-    device_memory: vk::DeviceMemory,
-    offset: vk::DeviceSize,
-    size: vk::DeviceSize,
-    p_mapped_data: *mut c_void,
-    p_user_data: *mut c_void,
-    p_name: *const c_char,
+    pub memory_type: u32,
+    pub device_memory: vk::DeviceMemory,
+    pub offset: vk::DeviceSize,
+    pub size: vk::DeviceSize,
+    pub p_mapped_data: *mut c_void,
+    pub p_user_data: *mut c_void,
+    pub p_name: *const c_char,
 }
 impl Default for AllocationInfo {
     fn default() -> Self {
@@ -335,6 +335,10 @@ impl Allocator {
 
     pub unsafe fn free_memory_pages(&self, allocations: &[Allocation]) {
         sys::vmaFreeMemoryPages(self.handle, allocations.len(), allocations.as_ptr())
+    }
+
+    pub unsafe fn get_allocation_info(&self, allocation: Allocation, info: &mut AllocationInfo) {
+        sys::vmaGetAllocationInfo(self.handle, allocation, info)
     }
 
     pub unsafe fn create_buffer(&self, buffer_create_info: &vk::BufferCreateInfo, allocation_create_info: &AllocationCreateInfo, allocation_info: Option<&mut AllocationInfo>) -> Result<(vk::Buffer, Allocation), vk::Result> {
