@@ -6,8 +6,7 @@ use ash::prelude::VkResult;
 use ash::vk;
 use bytemuck::cast_slice;
 use include_bytes_aligned::include_bytes_aligned;
-
-use crate::vk::objects::allocator::Allocator;
+use crate::allocator::Allocator;
 
 use crate::prelude::*;
 

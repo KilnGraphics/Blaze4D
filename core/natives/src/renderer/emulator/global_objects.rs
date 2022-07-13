@@ -5,10 +5,10 @@ use std::sync::{Arc, Mutex, Weak};
 use std::sync::atomic::AtomicU64;
 
 use ash::vk;
+use crate::allocator::Allocation;
 use crate::define_uuid_type;
 
 use crate::renderer::emulator::{MeshData, PassId};
-use crate::vk::objects::allocator::{Allocation, AllocationStrategy};
 
 use crate::prelude::*;
 use crate::renderer::emulator::share::Share;
@@ -37,7 +37,7 @@ pub struct GlobalMesh {
     last_used_pass: AtomicU64,
 
     buffer: vk::Buffer,
-    allocation: Option<Allocation>,
+    allocation: Allocation,
     buffer_size: vk::DeviceSize,
 
     draw_info: GlobalMeshDrawInfo,
@@ -77,7 +77,7 @@ impl GlobalMesh {
             last_used_pass: AtomicU64::new(0),
 
             buffer,
-            allocation: Some(allocation),
+            allocation,
             buffer_size: required_size,
 
             draw_info
@@ -126,29 +126,9 @@ impl GlobalMesh {
             .usage(vk::BufferUsageFlags::TRANSFER_DST | vk::BufferUsageFlags::VERTEX_BUFFER | vk::BufferUsageFlags::INDEX_BUFFER)
             .sharing_mode(vk::SharingMode::EXCLUSIVE);
 
-        let buffer = unsafe {
-            device.vk().create_buffer(&info, None)
-        }.map_err(|err| {
-            log::error!("vkCreateBuffer returned {:?} in GlobalMesh::create_buffer", err);
-            err
-        })?;
-
-        let alloc = device.get_allocator().allocate_buffer_memory(buffer, &AllocationStrategy::AutoGpuOnly).map_err(|_| {
-            log::error!("Failed to allocate buffer memory in GlobalMesh::create_buffer");
-            unsafe { device.vk().destroy_buffer(buffer, None) };
-            GlobalObjectCreateError::Allocation
-        })?;
-
-        if let Err(err) = unsafe {
-            device.vk().bind_buffer_memory(buffer, alloc.memory(), alloc.offset())
-        } {
-            log::error!("vkBindBufferMemory returned {:?} in GlobalMesh::create_buffer", err);
-            unsafe { device.vk().destroy_buffer(buffer, None) };
-            device.get_allocator().free(alloc);
-            return Err(GlobalObjectCreateError::Vulkan(err));
-        }
-
-        Ok((buffer, alloc))
+        unsafe {
+            device.get_allocator().create_gpu_buffer(&info, &format_args!("GlobalBuffer"))
+        }.ok_or(GlobalObjectCreateError::Allocation)
     }
 }
 
@@ -181,13 +161,9 @@ impl Hash for GlobalMesh {
 
 impl Drop for GlobalMesh {
     fn drop(&mut self) {
-        let allocation = self.allocation.take().unwrap();
-        let device = self.share.get_device();
-
         unsafe {
-            device.vk().destroy_buffer(self.buffer, None);
+            self.share.get_device().get_allocator().destroy_buffer(self.buffer, self.allocation)
         }
-        device.get_allocator().free(allocation);
     }
 }
 
@@ -262,7 +238,7 @@ pub struct GlobalImage {
 
     image: vk::Image,
     sampler_view: vk::ImageView,
-    allocation: Option<Allocation>,
+    allocation: Allocation,
     size: Vec2u32,
     mip_levels: u32,
 
@@ -282,7 +258,7 @@ impl GlobalImage {
 
             image,
             sampler_view,
-            allocation: Some(allocation),
+            allocation,
             size,
             mip_levels,
 
@@ -428,27 +404,9 @@ impl GlobalImage {
             .sharing_mode(vk::SharingMode::EXCLUSIVE)
             .initial_layout(vk::ImageLayout::UNDEFINED);
 
-        let image = unsafe {
-            device.vk().create_image(&info, None)
-        }.map_err(|err| {
-            log::error!("vkCreateImage returned {:?} in GlobalImage::create_image", err);
-            err
-        })?;
-
-        let allocation = device.get_allocator().allocate_image_memory(image, &AllocationStrategy::AutoGpuOnly).map_err(|_| {
-            log::error!("Failed to allocate image memory in GlobalImage::create_image");
-            unsafe { device.vk().destroy_image(image, None) };
-            GlobalObjectCreateError::Allocation
-        })?;
-
-        if let Err(err) = unsafe {
-            device.vk().bind_image_memory(image, allocation.memory(), allocation.offset())
-        } {
-            log::error!("vkBindImageMemory returned {:?} in GlobalImage::create_image", err);
-            unsafe { device.vk().destroy_image(image, None) };
-            device.get_allocator().free(allocation);
-            return Err(GlobalObjectCreateError::Vulkan(err));
-        }
+        let (image, allocation) = unsafe {
+            device.get_allocator().create_gpu_image(&info, &format_args!("GlobalImage"))
+        }.ok_or(GlobalObjectCreateError::Allocation)?;
 
         let info = vk::ImageViewCreateInfo::builder()
             .image(image)
@@ -474,8 +432,7 @@ impl GlobalImage {
             Ok(view) => view,
             Err(err) => {
                 log::error!("vkCreateImageView returned {:?} in GlobalImage::create_image", err);
-                unsafe { device.vk().destroy_image(image, None) };
-                device.get_allocator().free(allocation);
+                unsafe { device.get_allocator().destroy_image(image, allocation) }
                 return Err(GlobalObjectCreateError::Vulkan(err));
             }
         };
@@ -515,13 +472,9 @@ impl Drop for GlobalImage {
     fn drop(&mut self) {
         let device = self.share.get_device();
         unsafe {
-            for (_, sampler) in self.sampler_database.get_mut().unwrap() {
-                device.vk().destroy_sampler(*sampler, None);
-            }
             device.vk().destroy_image_view(self.sampler_view, None);
-            device.vk().destroy_image(self.image, None);
+            device.get_allocator().destroy_image(self.image, self.allocation);
         }
-        device.get_allocator().free(self.allocation.take().unwrap());
     }
 }
 

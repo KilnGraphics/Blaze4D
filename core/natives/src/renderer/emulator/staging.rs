@@ -2,10 +2,10 @@ use std::ptr::NonNull;
 use std::sync::Arc;
 
 use ash::vk;
+use crate::allocator::{Allocation, HostAccess};
 
 use crate::prelude::DeviceContext;
 use crate::util::alloc::RingAllocator;
-use crate::vk::objects::allocator::{Allocation, AllocationStrategy};
 
 pub struct StagingAllocationId {
     buffer_id: u16,
@@ -119,7 +119,7 @@ struct StagingBuffer {
     device: Arc<DeviceContext>,
     buffer: vk::Buffer,
     mapped_ptr: NonNull<u8>,
-    allocation: Option<Allocation>,
+    allocation: Allocation,
     allocator: RingAllocator,
 }
 
@@ -130,33 +130,15 @@ impl StagingBuffer {
             .usage(vk::BufferUsageFlags::TRANSFER_SRC | vk::BufferUsageFlags::TRANSFER_DST)
             .sharing_mode(vk::SharingMode::EXCLUSIVE);
 
-        let buffer = unsafe {
-            device.vk().create_buffer(&info, None)
-        }.unwrap_or_else(|err| {
-            log::error!("Failed to create staging buffer {:?}", err);
-            panic!();
-        });
-
-        let allocation = device.get_allocator().allocate_buffer_memory(buffer, &AllocationStrategy::AutoGpuCpu).unwrap_or_else(|err| {
-            log::error!("Failed to allocate staging buffer memory {:?}", err);
-            unsafe { device.vk().destroy_buffer(buffer, None); };
-            panic!();
-        });
-
-        if let Err(err) = unsafe {
-            device.vk().bind_buffer_memory(buffer, allocation.memory(), allocation.offset())
-        } {
-            log::error!("Failed to bind staging buffer memory {:?}", err);
-            unsafe { device.vk().destroy_buffer(buffer, None); };
-            device.get_allocator().free(allocation);
-            panic!();
-        }
+        let (buffer, allocation, mapped_ptr) = unsafe {
+            device.get_allocator().create_buffer(&info, HostAccess::Random, &format_args!("StagingBuffer"))
+        }.unwrap();
 
         Self {
             device,
             buffer,
-            mapped_ptr: allocation.mapped_ptr().unwrap().cast(),
-            allocation: Some(allocation),
+            mapped_ptr: mapped_ptr.unwrap(),
+            allocation,
             allocator: RingAllocator::new(size)
         }
     }
@@ -191,9 +173,8 @@ impl Drop for StagingBuffer {
             log::warn!("Destroying staging buffer with life allocations!");
         }
         unsafe {
-            self.device.vk().destroy_buffer(self.buffer, None)
+            self.device.get_allocator().destroy_buffer(self.buffer, self.allocation)
         };
-        self.device.get_allocator().free(self.allocation.take().unwrap())
     }
 }
 

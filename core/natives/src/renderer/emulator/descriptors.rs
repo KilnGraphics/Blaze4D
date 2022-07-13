@@ -2,8 +2,7 @@ use std::ptr::NonNull;
 use std::sync::Arc;
 
 use ash::vk;
-
-use crate::vk::objects::allocator::{Allocation, AllocationStrategy};
+use crate::allocator::{Allocation, HostAccess};
 
 use crate::prelude::*;
 
@@ -33,7 +32,7 @@ impl Drop for DescriptorPool {
 }
 
 struct UniformBufferPool {
-    buffer_allocation: Option<Allocation>,
+    buffer_allocation: Allocation,
     buffer: vk::Buffer,
     buffer_size: usize,
     current_offset: usize,
@@ -48,24 +47,16 @@ impl UniformBufferPool {
             .usage(vk::BufferUsageFlags::UNIFORM_BUFFER)
             .sharing_mode(vk::SharingMode::EXCLUSIVE);
 
-        let buffer = unsafe {
-            device.vk().create_buffer(&info, None)
+        let (buffer, buffer_allocation, ptr) = unsafe {
+            device.get_allocator().create_buffer(&info, HostAccess::Random, &format_args!("UniformBufferPool"))
         }.unwrap();
-
-        let allocation = device.get_allocator().allocate_buffer_memory(buffer, &AllocationStrategy::AutoGpuCpu).unwrap();
-
-        unsafe {
-            device.vk().bind_buffer_memory(buffer, allocation.memory(), allocation.offset())
-        }.unwrap();
-
-        let ptr = allocation.mapped_ptr().unwrap().cast();
 
         Self {
-            buffer_allocation: Some(allocation),
+            buffer_allocation,
             buffer,
             buffer_size: target_size,
             current_offset: 0,
-            mapped_ptr: ptr,
+            mapped_ptr: ptr.unwrap(),
         }
     }
 
@@ -98,9 +89,8 @@ impl UniformBufferPool {
 
     fn destroy(&mut self, device: &DeviceContext) {
         unsafe {
-            device.vk().destroy_buffer(self.buffer, None)
+            device.get_allocator().destroy_buffer(self.buffer, self.buffer_allocation)
         };
-        device.get_allocator().free(self.buffer_allocation.take().unwrap());
     }
 }
 

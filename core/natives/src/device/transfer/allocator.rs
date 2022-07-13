@@ -1,8 +1,9 @@
 use std::ptr::NonNull;
 use std::sync::Arc;
+
 use ash::vk;
 
-use crate::vk::objects::allocator::{Allocation, AllocationStrategy, Allocator};
+use crate::allocator::{Allocation, Allocator, HostAccess};
 use crate::vk::objects::buffer::Buffer;
 
 use crate::prelude::*;
@@ -213,26 +214,18 @@ struct PoolPage {
 }
 
 impl PoolPage {
-    fn new(device: &DeviceFunctions, allocator: &Allocator, slot_size: vk::DeviceSize, slot_count: u16) -> Self {
-        let vk = &device.vk;
-
+    fn new(_: &DeviceFunctions, allocator: &Allocator, slot_size: vk::DeviceSize, slot_count: u16) -> Self {
         let byte_size = slot_size * (slot_count as vk::DeviceSize);
         let info = vk::BufferCreateInfo::builder()
             .size(byte_size)
             .usage(vk::BufferUsageFlags::TRANSFER_SRC | vk::BufferUsageFlags::TRANSFER_DST)
             .sharing_mode(vk::SharingMode::EXCLUSIVE);
 
-        let buffer = unsafe {
-            vk.create_buffer(&info, None)
+        let (buffer, allocation, mapped) = unsafe {
+            allocator.create_buffer(&info, HostAccess::Random, &format_args!("PoolPage"))
         }.unwrap();
 
-        let allocation = allocator.allocate_buffer_memory(buffer, &AllocationStrategy::AutoGpuCpu).unwrap();
-
-        unsafe {
-            vk.bind_buffer_memory(buffer, allocation.memory(), allocation.offset())
-        }.unwrap();
-
-        let buffer_memory = allocation.mapped_ptr().unwrap().cast();
+        let buffer_memory = mapped.unwrap();
 
         let mut slots: Box<[_]> = (0..slot_count).map(|index|
             PoolSlot::new(Some(index + 1))
@@ -250,11 +243,10 @@ impl PoolPage {
         }
     }
 
-    fn destroy(self, device: &DeviceFunctions, allocator: &Allocator) {
+    fn destroy(self, _: &DeviceFunctions, allocator: &Allocator) {
         unsafe {
-            device.vk.destroy_buffer(self.buffer.get_handle(), None);
+            allocator.destroy_buffer(self.buffer.get_handle(), self.allocation)
         }
-        allocator.free(self.allocation);
     }
 
     /// Attempts to allocate one slot from the page.

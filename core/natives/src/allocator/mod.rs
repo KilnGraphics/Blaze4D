@@ -230,7 +230,7 @@ impl Allocator {
 
     fn make_default_info<'a>(host_access: HostAccess) -> vma::AllocationCreateInfoBuilder<'a> {
         vma::AllocationCreateInfo::builder()
-            .flags(host_access.to_vma_flags() | vma::AllocationCreateFlags::CREATE_MAPPED)
+            .flags(host_access.to_vma_flags())
             .usage(vma::MemoryUsage::AUTO)
             .required_flags(vk::MemoryPropertyFlags::empty())
             .preferred_flags(vk::MemoryPropertyFlags::empty())
@@ -301,10 +301,10 @@ impl HostAccess {
     fn to_vma_flags(&self) -> vma::AllocationCreateFlags {
         match self {
             HostAccess::None => vma::AllocationCreateFlags::empty(),
-            HostAccess::Random => vma::AllocationCreateFlags::HOST_ACCESS_RANDOM,
-            HostAccess::RandomOptional => vma::AllocationCreateFlags::HOST_ACCESS_RANDOM | vma::AllocationCreateFlags::HOST_ACCESS_ALLOW_TRANSFER_INSTEAD,
-            HostAccess::SequentialWrite => vma::AllocationCreateFlags::HOST_ACCESS_SEQUENTIAL_WRITE,
-            HostAccess::SequentialWriteOptional => vma::AllocationCreateFlags::HOST_ACCESS_SEQUENTIAL_WRITE | vma::AllocationCreateFlags::HOST_ACCESS_ALLOW_TRANSFER_INSTEAD,
+            HostAccess::Random => vma::AllocationCreateFlags::HOST_ACCESS_RANDOM | vma::AllocationCreateFlags::CREATE_MAPPED,
+            HostAccess::RandomOptional => vma::AllocationCreateFlags::HOST_ACCESS_RANDOM | vma::AllocationCreateFlags::HOST_ACCESS_ALLOW_TRANSFER_INSTEAD | vma::AllocationCreateFlags::CREATE_MAPPED,
+            HostAccess::SequentialWrite => vma::AllocationCreateFlags::HOST_ACCESS_SEQUENTIAL_WRITE | vma::AllocationCreateFlags::CREATE_MAPPED,
+            HostAccess::SequentialWriteOptional => vma::AllocationCreateFlags::HOST_ACCESS_SEQUENTIAL_WRITE | vma::AllocationCreateFlags::HOST_ACCESS_ALLOW_TRANSFER_INSTEAD | vma::AllocationCreateFlags::CREATE_MAPPED,
         }
     }
 }

@@ -19,7 +19,6 @@ ash-window = "0.10.0"
 bumpalo = { version="3.9.1", features=["boxed"] }
 bytemuck = "1.10.0"
 concurrent-queue = "1.2.2"
-gpu-allocator = "0.18.0"
 include_bytes_aligned = "0.1.2"
 json = "0.12.4"
 lazy_static = "1.4.0"

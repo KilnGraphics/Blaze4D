@@ -149,66 +149,6 @@ pub trait UnwrapToInstanceData<'a, I> {
     fn unwrap(self) -> &'a I;
 }
 
-macro_rules! declare_object_types {
-    ($($name:ident, $id_value:expr, $instance_type:ty;)+) => {
-        $(
-            impl ObjectId<{$id_value}> {
-                pub fn new(set_id: ObjectSetId, index: u16) -> Self {
-                    Self::make(set_id, index, $id_value)
-                }
-            }
-
-            impl ObjectIdType for ObjectId<{$id_value}> {
-                type InstanceInfo = $instance_type;
-
-                fn as_generic(&self) -> GenericId {
-                    self.as_generic()
-                }
-            }
-
-            impl From<ObjectId<{$id_value}>> for GenericId {
-                fn from(src: ObjectId<{$id_value}>) -> Self {
-                    Self(src.0)
-                }
-            }
-        )+
-
-        pub enum ObjectInstanceData<'a> {
-            $(
-                $name(&'a $instance_type),
-            )+
-        }
-
-        $(
-            impl<'a> UnwrapToInstanceData<'a, $instance_type> for ObjectInstanceData<'a> {
-                fn unwrap(self) -> &'a $instance_type {
-                    match self {
-                        ObjectInstanceData::$name(data) => data,
-                        _ => panic!("Invalid object type"),
-                    }
-                }
-            }
-        )+
-
-        $(
-            impl<'a> From<&'a $instance_type> for ObjectInstanceData<'a> {
-                fn from(src: &'a $instance_type) -> Self {
-                    ObjectInstanceData::$name(src)
-                }
-            }
-        )+
-    }
-}
-
-declare_object_types!(
-    Buffer, ObjectType::BUFFER, super::buffer::BufferInstanceData;
-    BufferView, ObjectType::BUFFER_VIEW, super::buffer::BufferViewInstanceData;
-    Image, ObjectType::IMAGE, super::image::ImageInstanceData;
-    ImageView, ObjectType::IMAGE_VIEW, super::image::ImageViewInstanceData;
-    Surface, ObjectType::SURFACE, ();
-    Swapchain, ObjectType::SWAPCHAIN, super::swapchain::SwapchainInstanceData;
-);
-
 pub type GenericId = ObjectId<{ ObjectType::GENERIC }>;
 pub type BufferId = ObjectId<{ ObjectType::BUFFER }>;
 pub type BufferViewId = ObjectId<{ ObjectType::BUFFER_VIEW }>;

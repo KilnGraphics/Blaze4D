@@ -13,10 +13,10 @@ use bytemuck::{bytes_of, bytes_of_mut, NoUninit, AnyBitPattern};
 
 use crate::prelude::*;
 use crate::device::device::Queue;
-use crate::vk::objects::allocator::Allocator;
 use crate::vk::objects::buffer::Buffer;
 
 use worker::*;
+use crate::allocator::Allocator;
 use crate::objects::id::{BufferId, ImageId, ObjectId};
 use crate::objects::sync::{SemaphoreOp, SemaphoreOps};
 use crate::vk::objects::image::Image;

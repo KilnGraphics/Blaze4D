@@ -410,6 +410,10 @@ impl Default for Allocation {
         Self::null()
     }
 }
+unsafe impl Send for Allocation {
+}
+unsafe impl Sync for Allocation {
+}
 
 mod sys {
     use super::*;

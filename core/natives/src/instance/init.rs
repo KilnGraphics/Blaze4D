@@ -125,13 +125,14 @@ pub fn create_instance(config: InstanceCreateConfig) -> Result<Arc<InstanceConte
         Vec::new()
     };
 
+    let max_api_version = VulkanVersion::VK_1_1;
     let name = CString::new(CRATE_NAME).unwrap();
     let application_info = vk::ApplicationInfo::builder()
         .application_name(config.application_name.as_c_str())
         .application_version(config.application_version)
         .engine_name(&name)
         .engine_version(vk::make_api_version(0, BUILD_INFO.version_major, BUILD_INFO.version_minor, BUILD_INFO.version_patch))
-        .api_version(VulkanVersion::VK_1_1.into());
+        .api_version(max_api_version.into());
 
     let mut instance_create_info = vk::InstanceCreateInfo::builder()
         .application_info(&application_info)
@@ -164,6 +165,7 @@ pub fn create_instance(config: InstanceCreateConfig) -> Result<Arc<InstanceConte
         None
     };
 
+    let vulkan_version = std::cmp::min(max_api_version, vulkan_version);
     Ok(InstanceContext::new(
         vulkan_version,
         profile,

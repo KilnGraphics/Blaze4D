@@ -4,8 +4,8 @@ use std::ptr::NonNull;
 use std::sync::{Arc, Condvar, Mutex};
 
 use ash::vk;
+use crate::allocator::{Allocation, HostAccess};
 
-use crate::vk::objects::allocator::{Allocation, AllocationStrategy};
 use crate::util::alloc::next_aligned;
 
 use crate::prelude::*;
@@ -131,22 +131,21 @@ struct Buffer {
     size: vk::DeviceSize,
     current_offset: vk::DeviceSize,
 
-    main_allocation: Option<Allocation>,
+    main_allocation: Allocation,
     staging: Option<(vk::Buffer, Allocation)>,
 }
 
 impl Buffer {
     fn new(device: Arc<DeviceContext>, size: vk::DeviceSize) -> Self {
-        let (main_buffer, main_allocation) = Self::create_main_buffer(&device, size);
+        let (main_buffer, main_allocation, main_mapped) = Self::create_main_buffer(&device, size);
 
-        let (staging, mapped_memory) = if let Some(mapped) = main_allocation.mapped_ptr() {
+        let (staging, mapped_memory) = if let Some(mapped) = main_mapped {
             log::info!("Immediate buffer uses mapped memory");
-            (None, mapped.cast())
+            (None, mapped)
         } else {
             log::info!("Immediate buffer uses staging memory");
-            let (staging_buffer, staging_allocation) = Self::create_staging_buffer(&device, size);
-            let mapped = staging_allocation.mapped_ptr().unwrap();
-            (Some((staging_buffer, staging_allocation)), mapped.cast())
+            let (staging_buffer, staging_allocation, staging_mapped) = Self::create_staging_buffer(&device, size);
+            (Some((staging_buffer, staging_allocation)), staging_mapped)
         };
 
         Self {
@@ -155,7 +154,7 @@ impl Buffer {
             mapped_memory,
             size,
             current_offset: 0,
-            main_allocation: Some(main_allocation),
+            main_allocation,
             staging
         }
     }
@@ -204,66 +203,36 @@ impl Buffer {
         self.current_offset
     }
 
-    fn create_main_buffer(device: &DeviceContext, size: vk::DeviceSize) -> (vk::Buffer, Allocation) {
+    fn create_main_buffer(device: &DeviceContext, size: vk::DeviceSize) -> (vk::Buffer, Allocation, Option<NonNull<u8>>) {
         let info = vk::BufferCreateInfo::builder()
             .size(size)
             .usage(vk::BufferUsageFlags::VERTEX_BUFFER | vk::BufferUsageFlags::INDEX_BUFFER | vk::BufferUsageFlags::TRANSFER_DST)
             .sharing_mode(vk::SharingMode::EXCLUSIVE);
 
-        let buffer = unsafe {
-            device.vk().create_buffer(&info, None)
-        }.unwrap_or_else(|err| {
-            log::error!("Failed to create main buffer {:?}", err);
+        let (buffer, allocation, mapped) = unsafe {
+            device.get_allocator().create_buffer(&info, HostAccess::RandomOptional, &format_args!("ImmediateMainBuffer"))
+        }.unwrap_or_else(|| {
+            log::error!("Failed to create main buffer.");
             panic!()
         });
 
-        let allocation = device.get_allocator().allocate_buffer_memory(buffer, &AllocationStrategy::AutoGpuOnly).unwrap_or_else(|err| {
-            log::error!("Failed to allocate main buffer memory {:?}", err);
-            unsafe { device.vk().destroy_buffer(buffer, None) };
-            panic!()
-        });
-
-        if let Err(err) = unsafe {
-            device.vk().bind_buffer_memory(buffer, allocation.memory(), allocation.offset())
-        } {
-            log::error!("Failed to bind buffer memory {:?}", err);
-            unsafe { device.vk().destroy_buffer(buffer, None) };
-            device.get_allocator().free(allocation);
-            panic!();
-        }
-
-        (buffer, allocation)
+        (buffer, allocation, mapped)
     }
 
-    fn create_staging_buffer(device: &DeviceContext, size: vk::DeviceSize) -> (vk::Buffer, Allocation) {
+    fn create_staging_buffer(device: &DeviceContext, size: vk::DeviceSize) -> (vk::Buffer, Allocation, NonNull<u8>) {
         let info = vk::BufferCreateInfo::builder()
             .size(size)
             .usage(vk::BufferUsageFlags::TRANSFER_SRC)
             .sharing_mode(vk::SharingMode::EXCLUSIVE);
 
-        let buffer = unsafe {
-            device.vk().create_buffer(&info, None)
-        }.unwrap_or_else(|err| {
-            log::error!("Failed to create staging buffer {:?}", err);
-            panic!();
+        let (buffer, allocation, mapped) = unsafe {
+            device.get_allocator().create_buffer(&info, HostAccess::Random, &format_args!("ImmediateStagingBuffer"))
+        }.unwrap_or_else(|| {
+            log::error!("Failed to create staging buffer.");
+            panic!()
         });
 
-        let allocation = device.get_allocator().allocate_buffer_memory(buffer, &AllocationStrategy::AutoGpuCpu).unwrap_or_else(|err| {
-            log::error!("Failed to allocate staging memory {:?}", err);
-            unsafe { device.vk().destroy_buffer(buffer, None) };
-            panic!();
-        });
-
-        if let Err(err) = unsafe {
-            device.vk().bind_buffer_memory(buffer, allocation.memory(), allocation.offset())
-        } {
-            log::error!("Failed to bind staging memory {:?}", err);
-            unsafe { device.vk().destroy_buffer(buffer, None) };
-            device.get_allocator().free(allocation);
-            panic!();
-        }
-
-        (buffer, allocation)
+        (buffer, allocation, mapped.unwrap())
     }
 }
 
@@ -276,14 +245,10 @@ unsafe impl Sync for Buffer { // Needed because of NonNull<u8>
 impl Drop for Buffer {
     fn drop(&mut self) {
         unsafe {
-            self.device.vk().destroy_buffer(self.main_buffer, None);
-        }
-        self.device.get_allocator().free(self.main_allocation.take().unwrap());
-        if let Some((buffer, alloc)) = self.staging.take() {
-            unsafe {
-                self.device.vk().destroy_buffer(buffer, None)
-            };
-            self.device.get_allocator().free(alloc);
+            self.device.get_allocator().destroy_buffer(self.main_buffer, self.main_allocation);
+            if let Some((buffer, alloc)) = self.staging.take() {
+                self.device.get_allocator().destroy_buffer(buffer, alloc)
+            }
         }
     }
 }

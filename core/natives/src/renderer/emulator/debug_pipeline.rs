@@ -9,6 +9,7 @@ use ash::vk;
 use bumpalo::Bump;
 use bytemuck::{bytes_of, cast_slice, Pod, Zeroable};
 use include_bytes_aligned::include_bytes_aligned;
+use crate::allocator::Allocation;
 use crate::device::device::Queue;
 use crate::device::device_utils::create_shader_from_bytes;
 
@@ -17,7 +18,6 @@ use crate::renderer::emulator::EmulatorRenderer;
 use crate::renderer::emulator::mc_shaders::{McUniform, McUniformData, ShaderDropListener, ShaderId, ShaderListener, VertexFormat, VertexFormatEntry};
 use crate::renderer::emulator::pipeline::{DrawTask, EmulatorPipeline, EmulatorPipelinePass, PipelineTask, PooledObjectProvider, SubmitRecorder};
 use crate::util::vk::{make_full_rect, make_full_viewport};
-use crate::vk::objects::allocator::{Allocation, AllocationStrategy};
 
 pub struct DepthTypeInfo {
     pub vertex_stride: u32,
@@ -1071,9 +1071,7 @@ impl PassObjects {
             if self.depth_image != vk::Image::null() {
                 device.vk().destroy_image(self.depth_image, None);
             }
-        }
-        for allocation in std::mem::replace(&mut self.allocations, Vec::new()) {
-            device.get_allocator().free(allocation);
+            device.get_allocator().free_memory_pages(&self.allocations);
         }
     }
 
@@ -1094,29 +1092,9 @@ impl PassObjects {
             .sharing_mode(vk::SharingMode::EXCLUSIVE)
             .initial_layout(vk::ImageLayout::UNDEFINED);
 
-        let image = unsafe {
-            device.vk().create_image(&info, None)
-        }.map_err(|err| {
-            log::error!("vkCreateImage returned {:?} in PassObjects::create_image", err);
-            err
-        })?;
-
-        let allocation = device.get_allocator().allocate_image_memory(image, &AllocationStrategy::AutoGpuOnly).map_err(|err| {
-            log::error!("Failed to allocate image memory in PassObjects::create_image {:?}", err);
-            unsafe { device.vk().destroy_image(image, None) };
-            ObjectCreateError::Allocation
-        })?;
-
-        if let Err(err) = unsafe {
-            device.vk().bind_image_memory(image, allocation.memory(), allocation.offset())
-        } {
-            log::error!("Failed to bind image memory in PassObjects::create_image {:?}", err);
-            unsafe { device.vk().destroy_image(image, None) };
-            device.get_allocator().free(allocation);
-            return Err(ObjectCreateError::Vulkan(err));
-        }
-
-        Ok((image, allocation))
+        unsafe {
+            device.get_allocator().create_gpu_image(&info, &format_args!("DebugPipelineImage"))
+        }.ok_or(ObjectCreateError::Allocation)
     }
 
     fn create_image_view(device: &DeviceContext, image: vk::Image, format: vk::Format, aspect_mask: vk::ImageAspectFlags, swizzle_r: bool) -> Result<vk::ImageView, ObjectCreateError> {

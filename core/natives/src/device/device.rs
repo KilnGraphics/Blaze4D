@@ -5,11 +5,11 @@ use std::sync::{Arc, Mutex, MutexGuard};
 use ash::prelude::VkResult;
 
 use ash::vk;
+
+use crate::allocator::Allocator;
 use crate::device::device_utils::DeviceUtils;
 use crate::device::transfer::Transfer;
-
 use crate::instance::instance::InstanceContext;
-use crate::vk::objects::allocator::Allocator;
 
 use crate::prelude::*;
 
@@ -39,7 +39,6 @@ pub struct DeviceContext {
     async_compute_queue: Option<Arc<Queue>>,
     async_transfer_queue: Option<Arc<Queue>>,
     allocator: Arc<Allocator>,
-    new_alloc: Arc<crate::allocator::Allocator>,
     transfer: Arc<Transfer>,
     utils: Arc<DeviceUtils>,
 }
@@ -51,11 +50,9 @@ impl DeviceContext {
         async_compute_queue: Option<Arc<Queue>>,
         async_transfer_queue: Option<Arc<Queue>>,
     ) -> Arc<Self> {
-        let allocator = Arc::new(Allocator::new(functions.clone()));
+        let allocator = Arc::new(Allocator::new(functions.clone()).unwrap());
         let transfer = Transfer::new(functions.clone(), allocator.clone(), async_transfer_queue.as_ref().unwrap_or(&main_queue).clone());
         let utils = DeviceUtils::new(functions.clone(), allocator.clone());
-
-        let new_alloc = Arc::new(crate::allocator::Allocator::new(functions.clone()).unwrap());
 
         Arc::new(Self {
             id: NamedUUID::with_str("Device"),
@@ -64,7 +61,6 @@ impl DeviceContext {
             async_compute_queue,
             async_transfer_queue,
             allocator,
-            new_alloc,
             transfer,
             utils
         })
