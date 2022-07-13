@@ -1,3 +1,5 @@
+use std::ffi::CString;
+use std::fmt;
 use std::ptr::NonNull;
 use std::sync::Arc;
 
@@ -10,6 +12,7 @@ mod vma;
 pub struct Allocator {
     vma_allocator: vma::Allocator,
 
+    debug: bool,
     functions: Arc<DeviceFunctions>,
 }
 
@@ -19,25 +22,45 @@ impl Allocator {
 
         Ok(Self {
             vma_allocator,
+            debug: true,
             functions
         })
     }
 
-    pub unsafe fn allocate_memory(&self, requirements: &vk::MemoryRequirements, host_access: HostAccess) -> Option<(Allocation, AllocationBindingInfo)> {
+    /// Allocates vulkan memory for some requirements.
+    ///
+    /// Returns the allocation and a [`AllocationBindingInfo`] containing information necessary to
+    /// bind and use the memory. If allocation fails [`None`] is returned.
+    ///
+    /// # Safety
+    ///
+    /// `requirements` must be a valid [`vk::MemoryRequirements`] instance.
+    pub unsafe fn allocate_memory(&self, requirements: &vk::MemoryRequirements, host_access: HostAccess, name: &fmt::Arguments) -> Option<(Allocation, AllocationBindingInfo)> {
         let create_info = Self::make_default_info(host_access);
         let mut allocation_info = vma::AllocationInfo::default();
         match self.vma_allocator.allocate_memory(requirements, &create_info, Some(&mut allocation_info)) {
             Ok(allocation) => {
+                if self.debug {
+                    self.set_allocation_name(allocation, name);
+                }
                 let binding_info = AllocationBindingInfo::new(&allocation_info);
                 Some((Allocation::new(allocation), binding_info))
             }
             Err(err) => {
-                log::warn!("Failed to allocate vulkan memory {:?}", err);
+                log::warn!("Failed to allocate vulkan memory for {:?}. {:?}", name, err);
                 None
             }
         }
     }
 
+    /// Allocates multiple pages of vulkan memory for some requirements.
+    ///
+    /// Returns the allocations and [`AllocationBindingInfo`] containing information necessary to
+    /// bind and use the memory. If allocation fails [`None`] is returned.
+    ///
+    /// # Safety
+    ///
+    /// Every entry in `requirements` must be a valid [`vk::MemoryRequirements`] instance.
     pub unsafe fn allocate_memory_pages(&self, requirements: &[vk::MemoryRequirements], host_access: HostAccess) -> Option<Vec<(Allocation, AllocationBindingInfo)>> {
         let create_info: Box<_> = std::iter::repeat(Self::make_default_info(host_access).build()).take(requirements.len()).collect();
         let mut allocation_info = Vec::new();
@@ -54,67 +77,155 @@ impl Allocator {
         }
     }
 
+    /// Frees previously allocated memory.
+    ///
+    /// # Safety
+    ///
+    /// The allocation must have been previously allocated from this allocator and not yet freed.
     pub unsafe fn free_memory(&self, allocation: Allocation) {
         self.vma_allocator.free_memory(allocation.vma_allocation)
     }
 
+    /// Frees multiple previously allocated memory pages.
+    ///
+    /// # Safety
+    ///
+    /// All allocations must have been previously allocated from this allocator and not yet freed.
     pub unsafe fn free_memory_pages(&self, allocations: &[Allocation]) {
         let mapped: Box<_> = allocations.iter().map(|a| a.vma_allocation).collect();
         self.vma_allocator.free_memory_pages(mapped.as_ref())
     }
 
-    pub unsafe fn create_gpu_buffer(&self, create_info: &vk::BufferCreateInfo) -> Option<(vk::Buffer, Allocation)> {
+    /// Creates a gpu only buffer and binds memory to it.
+    ///
+    /// If creation, allocation or binding fails [`None`] is returned.
+    ///
+    /// # Safety
+    ///
+    /// `create_info` must be a valid [`vk::BufferCreateInfo`] instance.
+    pub unsafe fn create_gpu_buffer(&self, create_info: &vk::BufferCreateInfo, name: &fmt::Arguments) -> Option<(vk::Buffer, Allocation)> {
         let allocation_create_info = Self::make_default_info(HostAccess::None);
         match self.vma_allocator.create_buffer(create_info, &allocation_create_info, None) {
-            Ok((buffer, allocation)) => Some((buffer, Allocation::new(allocation))),
+            Ok((buffer, allocation)) => {
+                if self.debug {
+                    self.set_allocation_name(allocation, name);
+                }
+                Some((buffer, Allocation::new(allocation)))
+            },
             Err(err) => {
-                log::warn!("Failed to create gpu vulkan buffer {:?}", err);
+                log::warn!("Failed to create gpu vulkan buffer {:?}. {:?}", name, err);
                 None
             }
         }
     }
 
-    pub unsafe fn create_buffer(&self, create_info: &vk::BufferCreateInfo, host_access: HostAccess) -> Option<(vk::Buffer, Allocation, Option<NonNull<u8>>)> {
+    /// Creates a buffer and binds memory to it.
+    ///
+    /// The allocator may select host visible memory even if it was not requested. In that case a
+    /// pointer to the mapped memory will always be returned.
+    ///
+    /// Returns the buffer, allocation and if host visible memory is selected a pointer to the
+    /// mapped memory. If creation, allocation or binding fails [`None`] is returned.
+    ///
+    /// # Safety
+    ///
+    /// `create_info` must be a valid [`vk::BufferCreateInfo`] instance.
+    pub unsafe fn create_buffer(&self, create_info: &vk::BufferCreateInfo, host_access: HostAccess, name: &fmt::Arguments) -> Option<(vk::Buffer, Allocation, Option<NonNull<u8>>)> {
         let allocation_create_info = Self::make_default_info(host_access);
         let mut allocation_info = vma::AllocationInfo::default();
         match self.vma_allocator.create_buffer(create_info, &allocation_create_info, Some(&mut allocation_info)) {
-            Ok((buffer, allocation)) => Some((buffer, Allocation::new(allocation), NonNull::new(allocation_info.p_mapped_data as *mut u8))),
+            Ok((buffer, allocation)) => {
+                if self.debug {
+                    self.set_allocation_name(allocation, name);
+                }
+                Some((buffer, Allocation::new(allocation), NonNull::new(allocation_info.p_mapped_data as *mut u8)))
+            },
             Err(err) => {
-                log::warn!("Failed to create vulkan buffer {:?}", err);
+                log::warn!("Failed to create vulkan buffer {:?}. {:?}", name, err);
                 None
             }
         }
     }
 
-    pub unsafe fn create_gpu_image(&self, create_info: &vk::ImageCreateInfo) -> Option<(vk::Image, Allocation)> {
+    /// Creates a gpu only image and binds memory to it.
+    ///
+    /// If creation, allocation or binding fails [`None`] is returned.
+    ///
+    /// # Safety
+    ///
+    /// `create_info` must be a valid [`vk::ImageCreateInfo`] instance.
+    pub unsafe fn create_gpu_image(&self, create_info: &vk::ImageCreateInfo, name: &fmt::Arguments) -> Option<(vk::Image, Allocation)> {
         let allocation_create_info = Self::make_default_info(HostAccess::None);
         match self.vma_allocator.create_image(create_info, &allocation_create_info, None) {
-            Ok((image, allocation)) => Some((image, Allocation::new(allocation))),
+            Ok((image, allocation)) => {
+                if self.debug {
+                    self.set_allocation_name(allocation, name);
+                }
+                Some((image, Allocation::new(allocation)))
+            },
             Err(err) => {
-                log::warn!("Failed to create gpu vulkan image {:?}", err);
+                log::warn!("Failed to create gpu vulkan image {:?}. {:?}", name, err);
                 None
             }
         }
     }
 
-    pub unsafe fn create_image(&self, create_info: &vk::ImageCreateInfo, host_access: HostAccess) -> Option<(vk::Image, Allocation, Option<NonNull<u8>>)> {
+    /// Creates a image and binds memory to it.
+    ///
+    /// The allocator may select host visible memory even if it was not requested. In that case a
+    /// pointer to the mapped memory will always be returned.
+    ///
+    /// Returns the image, allocation and if host visible memory is selected a pointer to the
+    /// mapped memory. If creation, allocation or binding fails [`None`] is returned.
+    ///
+    /// # Safety
+    ///
+    /// `create_info` must be a valid [`vk::ImageCreateInfo`] instance.
+    pub unsafe fn create_image(&self, create_info: &vk::ImageCreateInfo, host_access: HostAccess, name: &fmt::Arguments) -> Option<(vk::Image, Allocation, Option<NonNull<u8>>)> {
         let allocation_create_info = Self::make_default_info(HostAccess::None);
         let mut allocation_info = vma::AllocationInfo::default();
         match self.vma_allocator.create_image(create_info, &allocation_create_info, Some(&mut allocation_info)) {
-            Ok((image, allocation)) => Some((image, Allocation::new(allocation), NonNull::new(allocation_info.p_mapped_data as *mut u8))),
+            Ok((image, allocation)) => {
+                if self.debug {
+                    self.set_allocation_name(allocation, name);
+                }
+                Some((image, Allocation::new(allocation), NonNull::new(allocation_info.p_mapped_data as *mut u8)))
+            },
             Err(err) => {
-                log::warn!("Failed to create gpu vulkan image {:?}", err);
+                log::warn!("Failed to create vulkan image {:?}. {:?}", name, err);
                 None
             }
         }
     }
 
+    /// Destroys a previously created buffer and allocation
+    ///
+    /// # Safety
+    ///
+    /// `buffer` must be a valid [`vk::Buffer`] handle created on the same device that this
+    /// allocator uses.
+    /// `allocation` must have been previously allocated from this allocator and not yet freed.
     pub unsafe fn destroy_buffer(&self, buffer: vk::Buffer, allocation: Allocation) {
         self.vma_allocator.destroy_buffer(buffer, allocation.vma_allocation)
     }
 
+    /// Destroys a previously created image and allocation
+    ///
+    /// # Safety
+    ///
+    /// `image` must be a valid [`vk::Image`] handle created on the same device that this
+    /// allocator uses.
+    /// `allocation` must have been previously allocated from this allocator and not yet freed.
     pub unsafe fn destroy_image(&self, image: vk::Image, allocation: Allocation) {
         self.vma_allocator.destroy_image(image, allocation.vma_allocation)
+    }
+
+    unsafe fn set_allocation_name(&self, allocation: vma::Allocation, name: &fmt::Arguments) {
+        if let Some(str) = name.as_str() {
+            self.vma_allocator.set_allocation_name(allocation, CString::new(str).unwrap().as_c_str())
+        } else {
+            self.vma_allocator.set_allocation_name(allocation, CString::new(name.to_string()).unwrap().as_c_str())
+        }
     }
 
     fn make_default_info<'a>(host_access: HostAccess) -> vma::AllocationCreateInfoBuilder<'a> {

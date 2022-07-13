@@ -1,5 +1,5 @@
 use std::os::raw::c_char;
-use std::ffi::c_void;
+use std::ffi::{c_void, CStr};
 use ash::vk;
 
 use crate::prelude::*;
@@ -344,6 +344,10 @@ impl Allocator {
         sys::vmaGetAllocationInfo(self.handle, allocation, info)
     }
 
+    pub unsafe fn set_allocation_name(&self, allocation: Allocation, name: &CStr) {
+        sys::vmaSetAllocationName(self.handle, allocation, name.as_ptr())
+    }
+
     pub unsafe fn create_buffer(&self, buffer_create_info: &vk::BufferCreateInfo, allocation_create_info: &AllocationCreateInfo, allocation_info: Option<&mut AllocationInfo>) -> Result<(vk::Buffer, Allocation), vk::Result> {
         let mut buffer_handle = vk::Buffer::null();
         let mut allocation_handle = Allocation::null();
@@ -453,6 +457,12 @@ mod sys {
             allocator: AllocatorHandle,
             allocation: Allocation,
             p_allocation_info: *mut AllocationInfo,
+        );
+
+        pub(super) fn vmaSetAllocationName(
+            allocator: AllocatorHandle,
+            allocation: Allocation,
+            name: *const c_char,
         );
 
         pub(super) fn vmaCreateBuffer(
