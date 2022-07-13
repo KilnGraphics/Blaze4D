@@ -1,6 +1,3 @@
-import org.gradle.internal.impldep.org.junit.experimental.categories.Categories.CategoryFilter.include
-import org.gradle.internal.os.OperatingSystem
-
 plugins {
 	id("fabric-loom") version "0.12-SNAPSHOT"
 	//id("io.github.juuxel.loom-quiltflower-mini") version "1.2.1"
@@ -41,22 +38,13 @@ base {
 	archivesBaseName = "blaze4d"
 }
 
-/*
-java {
-	sourceCompatibility = JavaVersion.VERSION_18
-	targetCompatibility = JavaVersion.VERSION_18
-
-	withSourcesJar()
-}*/
-
 loom {
 	accessWidenerPath.set(file("src/main/resources/blaze4d.aw"))
 
 	runs {
 		val client by this
 		client.vmArgs.add("--add-modules=jdk.incubator.foreign")
-		client.vmArgs.add("--enable-native-access=ALL-UNNAMED") // should be graphics.kiln.blaze4d.core but modules are screwed
-		//client.vmArgs.add("-Db4d_core.native_lib=" + project(":core:natives").file("target/release/b4d_core.dll"))
+		client.vmArgs.add("--enable-native-access=ALL-UNNAMED")
 
 		create("clientWithValidation") {
 			inherit(client)

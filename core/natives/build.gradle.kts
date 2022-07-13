@@ -5,5 +5,5 @@ plugins {
 rust {
     release.set(true)
 
-    targets += defaultTarget();
+    targets += defaultTarget()
 }

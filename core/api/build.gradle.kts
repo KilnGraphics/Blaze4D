@@ -22,6 +22,11 @@ dependencies {
     testRuntimeOnly("org.junit.jupiter:junit-jupiter-engine:5.8.2")
 }
 
+rustImport {
+    baseDir.set("/graphics/kiln/blaze4d/core/natives")
+    layout.set("hierarchical")
+}
+
 tasks.withType<JavaCompile> {
     options.release.set(18)
     options.compilerArgs.add("--add-modules=jdk.incubator.foreign")
