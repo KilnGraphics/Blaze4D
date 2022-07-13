@@ -239,6 +239,11 @@ impl Allocator {
     }
 }
 
+/// Handle of a allocation. This is only a handle and as such any instance must be manually freed.
+///
+/// It is possible copy and clone handles. In that case the using code must ensure only one copy
+/// is freed.
+#[derive(Copy, Clone)]
 pub struct Allocation {
     vma_allocation: vma::Allocation,
 }
@@ -251,6 +256,7 @@ impl Allocation {
     }
 }
 
+/// Information needed to bind and access vulkan memory.
 #[derive(Copy, Clone)]
 pub struct AllocationBindingInfo {
     device_memory: vk::DeviceMemory,
@@ -270,23 +276,24 @@ impl AllocationBindingInfo {
     }
 }
 
+/// Describes how the host will access some vulkan memory.
 #[derive(Copy, Clone, PartialEq, Eq, PartialOrd, Ord, Debug, Hash)]
 pub enum HostAccess {
-    /// Host access is not required or preferred
+    /// Host access is neither required nor preferred
     None,
 
-    /// Host will read or write randomly from the memory
+    /// Host access is required. The host will read or write randomly from the memory
     Random,
 
-    /// Host will read or write randomly from the memory. The allocator can select a non host
-    /// visible memory if necessary or better.
+    /// Host access is preferred but not required. The host will read or write randomly from the
+    /// memory.
     RandomOptional,
 
-    /// Host will only write sequentially to the memory.
+    /// Host access is required. The host will only write sequentially to the memory.
     SequentialWrite,
 
-    /// Host will only write sequentially to the memory. The allocator can select a non host
-    /// visible memory if necessary or better.
+    /// Host access is preferred but not required. The host will only write sequentially to the
+    /// memory.
     SequentialWriteOptional,
 }
 
