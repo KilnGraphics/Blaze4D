@@ -5,6 +5,7 @@ use ash::vk;
 use crate::prelude::*;
 
 #[derive(Copy, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
+#[repr(transparent)]
 pub struct AllocatorCreateFlags(u32);
 
 impl AllocatorCreateFlags {
@@ -19,6 +20,7 @@ impl AllocatorCreateFlags {
 ash::vk_bitflags_wrapped!(AllocatorCreateFlags, u32);
 
 #[derive(Copy, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
+#[repr(transparent)]
 pub struct AllocationCreateFlags(u32);
 
 impl AllocationCreateFlags {
@@ -39,6 +41,7 @@ impl AllocationCreateFlags {
 ash::vk_bitflags_wrapped!(AllocationCreateFlags, u32);
 
 #[derive(Copy, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
+#[repr(transparent)]
 pub struct MemoryUsage(u32);
 
 impl MemoryUsage {
@@ -386,6 +389,7 @@ impl Drop for Allocator {
 }
 
 #[derive(Copy, Clone, Eq, PartialEq)]
+#[repr(transparent)]
 pub struct Allocation(*const u8);
 
 impl Allocation {

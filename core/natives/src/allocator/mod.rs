@@ -2,7 +2,6 @@ use std::ptr::NonNull;
 use std::sync::Arc;
 
 use ash::vk;
-use ash::vk::{BufferCreateInfo};
 
 use crate::prelude::*;
 
@@ -64,7 +63,7 @@ impl Allocator {
         self.vma_allocator.free_memory_pages(mapped.as_ref())
     }
 
-    pub unsafe fn create_gpu_buffer(&self, create_info: &BufferCreateInfo) -> Option<(vk::Buffer, Allocation)> {
+    pub unsafe fn create_gpu_buffer(&self, create_info: &vk::BufferCreateInfo) -> Option<(vk::Buffer, Allocation)> {
         let allocation_create_info = Self::make_default_info(HostAccess::None);
         match self.vma_allocator.create_buffer(create_info, &allocation_create_info, None) {
             Ok((buffer, allocation)) => Some((buffer, Allocation::new(allocation))),
@@ -75,7 +74,7 @@ impl Allocator {
         }
     }
 
-    pub unsafe fn create_buffer(&self, create_info: &BufferCreateInfo, host_access: HostAccess) -> Option<(vk::Buffer, Allocation, Option<NonNull<u8>>)> {
+    pub unsafe fn create_buffer(&self, create_info: &vk::BufferCreateInfo, host_access: HostAccess) -> Option<(vk::Buffer, Allocation, Option<NonNull<u8>>)> {
         let allocation_create_info = Self::make_default_info(host_access);
         let mut allocation_info = vma::AllocationInfo::default();
         match self.vma_allocator.create_buffer(create_info, &allocation_create_info, Some(&mut allocation_info)) {
@@ -87,8 +86,35 @@ impl Allocator {
         }
     }
 
+    pub unsafe fn create_gpu_image(&self, create_info: &vk::ImageCreateInfo) -> Option<(vk::Image, Allocation)> {
+        let allocation_create_info = Self::make_default_info(HostAccess::None);
+        match self.vma_allocator.create_image(create_info, &allocation_create_info, None) {
+            Ok((image, allocation)) => Some((image, Allocation::new(allocation))),
+            Err(err) => {
+                log::warn!("Failed to create gpu vulkan image {:?}", err);
+                None
+            }
+        }
+    }
+
+    pub unsafe fn create_image(&self, create_info: &vk::ImageCreateInfo, host_access: HostAccess) -> Option<(vk::Image, Allocation, Option<NonNull<u8>>)> {
+        let allocation_create_info = Self::make_default_info(HostAccess::None);
+        let mut allocation_info = vma::AllocationInfo::default();
+        match self.vma_allocator.create_image(create_info, &allocation_create_info, Some(&mut allocation_info)) {
+            Ok((image, allocation)) => Some((image, Allocation::new(allocation), NonNull::new(allocation_info.p_mapped_data as *mut u8))),
+            Err(err) => {
+                log::warn!("Failed to create gpu vulkan image {:?}", err);
+                None
+            }
+        }
+    }
+
     pub unsafe fn destroy_buffer(&self, buffer: vk::Buffer, allocation: Allocation) {
         self.vma_allocator.destroy_buffer(buffer, allocation.vma_allocation)
+    }
+
+    pub unsafe fn destroy_image(&self, image: vk::Image, allocation: Allocation) {
+        self.vma_allocator.destroy_image(image, allocation.vma_allocation)
     }
 
     fn make_default_info<'a>(host_access: HostAccess) -> vma::AllocationCreateInfoBuilder<'a> {
