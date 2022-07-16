@@ -2,7 +2,6 @@ apply<graphics.kiln.blaze4d.build.assets.AssetsPlugin>()
 
 configure<graphics.kiln.blaze4d.build.assets.AssetsPluginExtension> {
     shaders {
-        sourceDir("")
         targetSpriv(graphics.kiln.blaze4d.build.assets.shaders.SprivVersion.SPV_1_3)
 
         addProject("Emulator") {

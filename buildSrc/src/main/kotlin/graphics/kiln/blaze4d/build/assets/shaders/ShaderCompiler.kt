@@ -38,8 +38,12 @@ abstract class ShaderCompiler {
         this.projects.create(name, configure)
     }
 
+    fun generateSourceDir(project: Project): File {
+        return this.sourceDir.getOrElse(RelativePath.parse(false, "src")).getFile(project.projectDir);
+    }
+
     fun compile(project: Project, outBaseDir: File) {
-        var srcBaseDir = this.sourceDir.getOrElse(RelativePath.parse(false, "src")).getFile(project.projectDir);
+        var srcBaseDir = this.generateSourceDir(project);
         var newOutBaseDir = this.outputDir.getOrElse(RelativePath.parse(false, "")).getFile(outBaseDir);
 
         var targetSpirv = this.targetSpirv.getOrElse(SprivVersion.SPV_1_0);
