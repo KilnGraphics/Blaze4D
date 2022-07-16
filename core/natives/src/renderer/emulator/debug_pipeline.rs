@@ -1757,12 +1757,12 @@ fn try_create_shader_module(device: &DeviceContext, data: &[u8], name: &str) -> 
 }
 
 const SHADER_ENTRY: &'static CStr = unsafe { CStr::from_bytes_with_nul_unchecked(b"main\0") }; // GOD I LOVE RUSTS FFI API IT IS SO NICE AND DEFINITELY NOT STUPID WITH WHICH FUNCTIONS ARE CONST AND WHICH AREN'T
-static DEBUG_POSITION_VERTEX_BIN: &'static [u8] = include_bytes_aligned!(4, concat!(env!("B4D_RESOURCE_DIR"), "emulator/debug_position_vert.spv"));
-static DEBUG_COLOR_VERTEX_BIN: &'static [u8] = include_bytes_aligned!(4, concat!(env!("B4D_RESOURCE_DIR"), "emulator/debug_color_vert.spv"));
-static DEBUG_UV_VERTEX_BIN: &'static [u8] = include_bytes_aligned!(4, concat!(env!("B4D_RESOURCE_DIR"), "emulator/debug_uv_vert.spv"));
-static DEBUG_NULL_VERTEX_BIN: &'static [u8] = include_bytes_aligned!(4, concat!(env!("B4D_RESOURCE_DIR"), "emulator/debug_null_vert.spv"));
-static DEBUG_FRAGMENT_BIN: &'static [u8] = include_bytes_aligned!(4, concat!(env!("B4D_RESOURCE_DIR"), "emulator/debug_frag.spv"));
-static TEXTURED_FRAGMENT_BIN: &'static [u8] = include_bytes_aligned!(4, concat!(env!("B4D_RESOURCE_DIR"), "emulator/textured_frag.spv"));
+static DEBUG_POSITION_VERTEX_BIN: &'static [u8] = include_bytes_aligned!(4, concat!(env!("B4D_RESOURCE_DIR"), "emulator/debug/position_vert.spv"));
+static DEBUG_COLOR_VERTEX_BIN: &'static [u8] = include_bytes_aligned!(4, concat!(env!("B4D_RESOURCE_DIR"), "emulator/debug/color_vert.spv"));
+static DEBUG_UV_VERTEX_BIN: &'static [u8] = include_bytes_aligned!(4, concat!(env!("B4D_RESOURCE_DIR"), "emulator/debug/uv_vert.spv"));
+static DEBUG_NULL_VERTEX_BIN: &'static [u8] = include_bytes_aligned!(4, concat!(env!("B4D_RESOURCE_DIR"), "emulator/debug/null_vert.spv"));
+static DEBUG_FRAGMENT_BIN: &'static [u8] = include_bytes_aligned!(4, concat!(env!("B4D_RESOURCE_DIR"), "emulator/debug/debug_frag.spv"));
+static TEXTURED_FRAGMENT_BIN: &'static [u8] = include_bytes_aligned!(4, concat!(env!("B4D_RESOURCE_DIR"), "emulator/debug/textured_frag.spv"));
 
-static BACKGROUND_VERTEX_BIN: &'static [u8] = include_bytes_aligned!(4, concat!(env!("B4D_RESOURCE_DIR"), "emulator/background_vert.spv"));
-static BACKGROUND_FRAGMENT_BIN: &'static [u8] = include_bytes_aligned!(4, concat!(env!("B4D_RESOURCE_DIR"), "emulator/background_frag.spv"));
+static BACKGROUND_VERTEX_BIN: &'static [u8] = include_bytes_aligned!(4, concat!(env!("B4D_RESOURCE_DIR"), "emulator/debug/background_vert.spv"));
+static BACKGROUND_FRAGMENT_BIN: &'static [u8] = include_bytes_aligned!(4, concat!(env!("B4D_RESOURCE_DIR"), "emulator/debug/background_frag.spv"));
