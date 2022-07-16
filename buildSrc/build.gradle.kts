@@ -1,9 +1,6 @@
 plugins {
-    id("java")
+    kotlin("jvm") version "1.7.10"
 }
-
-group = "graphics.kild"
-version = "1.0.0-SNAPSHOT"
 
 repositories {
     mavenCentral()
