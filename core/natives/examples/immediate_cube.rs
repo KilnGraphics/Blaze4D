@@ -72,17 +72,17 @@ fn main() {
 
                     for x in -5i32..=5i32 {
                         for y in -5i32..=5i32 {
-                            for z in -5i32..=5i32 {
+                            for z in 1i32..=11i32 {
                                 let translation = Mat4f32::new_translation(&Vec3f32::new(
-                                    0f32 + ((x as f32) / 2f32),
-                                    0f32 + ((y as f32) / 2f32),
-                                    5f32 + ((z as f32) / 2f32)
+                                    0f32 + ((x as f32) / 1f32),
+                                    0f32 + ((y as f32) / 1f32),
+                                    5f32 + ((z as f32) / 1f32)
                                 ));
                                 recorder.update_uniform(&McUniformData::ModelViewMatrix(translation * rotation), shader);
 
-                                // let id = recorder.upload_immediate(&data);
-                                // recorder.draw_immediate(id, shader, true);
-                                recorder.draw_global(mesh.clone(), shader, true);
+                                let id = recorder.upload_immediate(&data);
+                                recorder.draw_immediate(id, shader, true);
+                                // recorder.draw_global(mesh.clone(), shader, true);
                             }
                         }
                     }
@@ -195,8 +195,8 @@ fn make_projection_matrix(window_size: Vec2u32, fov: f32) -> Mat4f32 {
     let t = (fov / 2f32).tan();
     let a1 = (window_size[1] as f32) / (window_size[0] as f32);
 
-    let f = 5f32;
-    let n = 1f32;
+    let f = 15f32;
+    let n = 0.5f32;
 
     Mat4f32::new(
         a1 / t, 0f32, 0f32, 0f32,
