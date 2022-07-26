@@ -708,12 +708,28 @@ impl GlobalObjectsRecorder {
         let device = self.share.get_device();
 
         if !buffer_post_barriers.is_empty() || !image_post_barriers.is_empty() {
-            let info = vk::DependencyInfo::builder()
-                .buffer_memory_barriers(buffer_post_barriers.as_slice())
-                .image_memory_barriers(image_post_barriers.as_slice());
+            let buffer_post_barriers = buffer_post_barriers.as_slice();
+            let image_post_barriers = image_post_barriers.as_slice();
 
-            unsafe {
-                device.synchronization_2_khr().cmd_pipeline_barrier2(self.cmd, &info);
+            // If we have too many barriers in a single command the driver may fail to record (Yes this limit has been hit at 4000 barriers during testing in minecraft)
+            const CHUNK_SIZE: usize = 256;
+            let chunk_count = std::cmp::max((buffer_post_barriers.len() / CHUNK_SIZE) + 1, (image_post_barriers.len() / CHUNK_SIZE) + 1);
+            for chunk in 0..chunk_count {
+                let min = chunk * CHUNK_SIZE;
+                let max = min + CHUNK_SIZE;
+                let mut info = vk::DependencyInfo::builder();
+                if min < buffer_post_barriers.len() {
+                    let max = std::cmp::min(max, buffer_post_barriers.len());
+                    info = info.buffer_memory_barriers(&buffer_post_barriers[min..max]);
+                }
+                if min < image_post_barriers.len() {
+                    let max = std::cmp::min(max, image_post_barriers.len());
+                    info = info.image_memory_barriers(&image_post_barriers[min..max]);
+                }
+
+                unsafe {
+                    device.synchronization_2_khr().cmd_pipeline_barrier2(self.cmd, &info);
+                }
             }
         }
 
