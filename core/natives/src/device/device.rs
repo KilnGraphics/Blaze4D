@@ -8,7 +8,6 @@ use ash::vk;
 
 use crate::allocator::Allocator;
 use crate::device::device_utils::DeviceUtils;
-use crate::device::transfer::Transfer;
 use crate::instance::instance::InstanceContext;
 
 use crate::prelude::*;
@@ -39,7 +38,6 @@ pub struct DeviceContext {
     async_compute_queue: Option<Arc<Queue>>,
     async_transfer_queue: Option<Arc<Queue>>,
     allocator: Arc<Allocator>,
-    transfer: Arc<Transfer>,
     utils: Arc<DeviceUtils>,
 }
 
@@ -51,7 +49,6 @@ impl DeviceContext {
         async_transfer_queue: Option<Arc<Queue>>,
     ) -> Arc<Self> {
         let allocator = Arc::new(Allocator::new(functions.clone()).unwrap());
-        let transfer = Transfer::new(functions.clone(), allocator.clone(), async_transfer_queue.as_ref().unwrap_or(&main_queue).clone());
         let utils = DeviceUtils::new(functions.clone(), allocator.clone());
 
         Arc::new(Self {
@@ -61,7 +58,6 @@ impl DeviceContext {
             async_compute_queue,
             async_transfer_queue,
             allocator,
-            transfer,
             utils
         })
     }
@@ -120,10 +116,6 @@ impl DeviceContext {
 
     pub fn get_allocator(&self) -> &Arc<Allocator> {
         &self.allocator
-    }
-
-    pub fn get_transfer(&self) -> &Arc<Transfer> {
-        &self.transfer
     }
 
     pub fn get_utils(&self) -> &Arc<DeviceUtils> {
