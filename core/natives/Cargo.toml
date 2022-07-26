@@ -7,7 +7,7 @@ edition = "2021"
 crate-type = ["lib", "cdylib"]
 
 [[example]]
-name = "immedaite_cube"
+name = "immediate_cube"
 crate-type = ["bin"]
 
 [features]
