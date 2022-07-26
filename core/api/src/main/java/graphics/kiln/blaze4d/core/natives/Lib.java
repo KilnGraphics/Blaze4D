@@ -25,7 +25,9 @@ public class Lib {
 
         String overwrite = System.getProperty("b4d_core.native_lib");
         if (overwrite != null) {
-            System.load(overwrite);
+            File overwriteFile = new File(overwrite).getAbsoluteFile();
+            Blaze4DCore.LOGGER.info("Using native overwrite: " + overwriteFile);
+            System.load(overwriteFile.getAbsolutePath());
             nativeLookup = SymbolLookup.loaderLookup();
             return;
         }
