@@ -1,2 +1,0 @@
-type: vertex
-uniforms: Projection, 10; Model, 10; View, 10; Time, 4; Color, 7

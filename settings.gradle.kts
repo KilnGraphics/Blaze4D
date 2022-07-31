@@ -1,3 +1,5 @@
+rootProject.name = "blaze4d"
+
 pluginManagement {
     repositories {
         gradlePluginPortal()
@@ -14,9 +16,4 @@ pluginManagement {
     }
 }
 
-// If the user is running an in-tree copy of Rosella, add that as a sub-project
-val rosellaDir = File("Rosella")
-if (rosellaDir.exists()) {
-    include(":rosella")
-    project(":rosella").projectDir = rosellaDir
-}
+include("mod", "core:api", "core:natives", "core:assets")
