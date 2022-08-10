@@ -58,9 +58,9 @@ pub mod prelude {
     pub use crate::device::device::Queue;
     pub use crate::device::device::DeviceContext;
 
-    pub type Vec2f32 = nalgebra::Vector2<f32>;
-    pub type Vec3f32 = nalgebra::Vector3<f32>;
-    pub type Vec4f32 = nalgebra::Vector4<f32>;
+    pub type Vec2Bool = nalgebra::Vector2<bool>;
+    pub type Vec3Bool = nalgebra::Vector2<bool>;
+    pub type Vec4Bool = nalgebra::Vector2<bool>;
 
     pub type Vec2u32 = nalgebra::Vector2<u32>;
     pub type Vec3u32 = nalgebra::Vector3<u32>;
@@ -70,7 +70,33 @@ pub mod prelude {
     pub type Vec3i32 = nalgebra::Vector3<i32>;
     pub type Vec4i32 = nalgebra::Vector4<i32>;
 
+    pub type Vec2f32 = nalgebra::Vector2<f32>;
+    pub type Vec3f32 = nalgebra::Vector3<f32>;
+    pub type Vec4f32 = nalgebra::Vector4<f32>;
+
     pub type Mat2f32 = nalgebra::Matrix2<f32>;
     pub type Mat3f32 = nalgebra::Matrix3<f32>;
     pub type Mat4f32 = nalgebra::Matrix4<f32>;
+
+    pub type Mat2x3f32 = nalgebra::Matrix2x3<f32>;
+    pub type Mat2x4f32 = nalgebra::Matrix2x4<f32>;
+    pub type Mat3x2f32 = nalgebra::Matrix3x2<f32>;
+    pub type Mat3x4f32 = nalgebra::Matrix3x4<f32>;
+    pub type Mat4x2f32 = nalgebra::Matrix4x2<f32>;
+    pub type Mat4x3f32 = nalgebra::Matrix4x3<f32>;
+
+    pub type Vec2f64 = nalgebra::Vector2<f64>;
+    pub type Vec3f64 = nalgebra::Vector3<f64>;
+    pub type Vec4f64 = nalgebra::Vector4<f64>;
+
+    pub type Mat2f64 = nalgebra::Matrix2<f64>;
+    pub type Mat3f64 = nalgebra::Matrix3<f64>;
+    pub type Mat4f64 = nalgebra::Matrix4<f64>;
+
+    pub type Mat2x3f64 = nalgebra::Matrix2x3<f64>;
+    pub type Mat2x4f64 = nalgebra::Matrix2x4<f64>;
+    pub type Mat3x2f64 = nalgebra::Matrix3x2<f64>;
+    pub type Mat3x4f64 = nalgebra::Matrix3x4<f64>;
+    pub type Mat4x2f64 = nalgebra::Matrix4x2<f64>;
+    pub type Mat4x3f64 = nalgebra::Matrix4x3<f64>;
 }
