@@ -45,8 +45,6 @@ loom {
 		val client by this
 		client.vmArgs.add("--add-modules=jdk.incubator.foreign")
 		client.vmArgs.add("--enable-native-access=ALL-UNNAMED")
-		// Hack to make it work while the rust plugin is broken
-		client.vmArgs.add("-Db4d_core.native_lib=../../core/natives/target/release/" + System.mapLibraryName("b4d_core"))
 
 		create("clientWithValidation") {
 			inherit(client)
