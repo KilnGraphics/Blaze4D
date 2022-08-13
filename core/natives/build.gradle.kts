@@ -1,5 +1,5 @@
 plugins {
-    id("fr.stardustenterprises.rust.wrapper") version "3.2.4"
+    id("fr.stardustenterprises.rust.wrapper") version "3.2.5"
 }
 
 rust {
@@ -7,3 +7,5 @@ rust {
 
     targets += defaultTarget()
 }
+
+tasks.getByName("build").dependsOn(":core:assets:build")

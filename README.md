@@ -5,10 +5,6 @@ Blaze4D is a Fabric mod that changes Minecraft's rendering engine to use the Vul
 Early Development and is **NOT** intended for use by the faint-hearted. Support for Blaze4D can be found in the #support
 Discord channel.
 
-We are currently in the middle of a rewrite using rust. This new version is under heavy development and as such many 
-parts are still incomplete including many aspects of the build process. This can make working on the new version more 
-challenging until we fix these parts.
-
 ## Community
 We have a [Discord server](https://discord.gg/H93wJePuWf) where you can track development progress, ask questions, or just hang out in.
 
@@ -21,27 +17,26 @@ We have a [Discord server](https://discord.gg/H93wJePuWf) where you can track de
  - Java 18
 
 ### Build Steps
-The gradle rust plugin were using currently has a bug that prevents us from using it. Because of this the natives and it's
-dependencies must currently be built manually.
-
-#### Assets
-To build the assets run `./gradlew :core:assets:build`. This only needs to be repeated if the assets are modified.
-
-#### Natives
-Building the natives requires to manually run cargo in a release configuration. From the project root run:
+To build the project with natives for your platform run
 ```
-cd core/natives
-cargo build -r
+./gradlew build
 ```
+in the project root directory.
 
-#### Mod
-After building the natives the remainder of the project can be build and run in a single command using the standard
-fabric gradle tasks.
-To build the mod run `./gradlew build` back in the project root directory.
 To run the game with the mod use any of the 3 run targets:
 - `./gradlew runClient`
 - `./gradlew runClientWithValidation` - Enables validation layers
 - `./gradlew runClientWithValidationRenderdoc` - Enables validation layers and automatically loads the renderdoc shared library.
+
+#### Manually building natives
+To work on and test natives it can be useful to run cargo manually. To do this it's necessary to first build the assets
+by running
+```
+./gradlew :core:assets:build
+```
+This only needs to be repeated if the assets are modified.
+
+After that the natives can be manually built using cargo.
 
 ## Contributing
 1. Clone the repository (https://github.com/Blaze4D-MC/Blaze4D.git).
