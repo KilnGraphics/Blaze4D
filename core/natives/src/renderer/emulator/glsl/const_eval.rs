@@ -1,5 +1,4 @@
 use std::collections::HashMap;
-use std::ops::{BitAnd, BitOr, BitXor, Neg, Not};
 
 use glsl::syntax::{ArraySpecifier, BinaryOp, Expr, Identifier, StructSpecifier, TypeSpecifier, TypeSpecifierNonArray, UnaryOp};
 use nalgebra::{Const, DMatrix, Matrix2, Matrix2x3, Matrix2x4, Matrix3, Matrix3x2, Matrix3x4, Matrix4, Matrix4x2, Matrix4x3, Scalar, Vector2, Vector3, Vector4};
@@ -70,6 +69,15 @@ impl<T: Scalar> ConstSVVal<T> {
             _ => None
         }
     }
+
+    fn fold<R, F: FnMut(R, T) -> R>(&self, initial: R, mut f: F) -> R {
+        match self {
+            ConstSVVal::Scalar(v) => f(initial, v.clone()),
+            ConstSVVal::Vec2(v) => v.fold(initial, f),
+            ConstSVVal::Vec3(v) => v.fold(initial, f),
+            ConstSVVal::Vec4(v) => v.fold(initial, f),
+        }
+    }
 }
 
 /// Constant matrix type
@@ -129,6 +137,20 @@ impl<T: Scalar> ConstMVal<T> {
             _ => None
         }
     }
+
+    fn fold<R, F: FnMut(R, T) -> R>(&self, initial: R, mut f: F) -> R {
+        match self {
+            ConstMVal::Mat2(v) => v.fold(initial, f),
+            ConstMVal::Mat23(v) => v.fold(initial, f),
+            ConstMVal::Mat24(v) => v.fold(initial, f),
+            ConstMVal::Mat32(v) => v.fold(initial, f),
+            ConstMVal::Mat3(v) => v.fold(initial, f),
+            ConstMVal::Mat34(v) => v.fold(initial, f),
+            ConstMVal::Mat42(v) => v.fold(initial, f),
+            ConstMVal::Mat43(v) => v.fold(initial, f),
+            ConstMVal::Mat4(v) => v.fold(initial, f),
+        }
+    }
 }
 
 /// Constant scalar, vector or matrix type
@@ -158,6 +180,13 @@ impl<T: Scalar> ConstSVMVal<T> {
             (ConstSVMVal::SV(a), ConstSVMVal::SV(b)) => a.zip_map(b, f).map(ConstSVMVal::from),
             (ConstSVMVal::M(a), ConstSVMVal::M(b)) => a.zip_map(b, f).map(ConstSVMVal::from),
             _ => None,
+        }
+    }
+
+    fn fold<R, F: FnMut(R, T) -> R>(&self, initial: R, mut f: F) -> R {
+        match self {
+            ConstSVMVal::SV(v) => v.fold(initial, f),
+            ConstSVMVal::M(v) => v.fold(initial, f),
         }
     }
 }
@@ -286,10 +315,13 @@ pub enum ConstEvalError {
 mod function {
     use std::any::TypeId;
     use std::cmp::Ordering;
-    use std::ops::Mul;
+
+    use std::ops::{BitAnd, BitOr, BitXor, Neg, Not};
+
     use lazy_static::lazy_static;
+
     use nalgebra::{Matrix2, Matrix2x3, Matrix2x4, Matrix3, Matrix3x2, Matrix3x4, Matrix4, Matrix4x2, Matrix4x3, Scalar, Vector2, Vector3, Vector4};
-    use crate::renderer::emulator::glsl::const_eval::{BaseTypeSize, ConstBaseVal, ConstMVal, ConstSVMVal, ConstSVVal};
+    use super::{BaseTypeSize, ConstBaseVal, ConstMVal, ConstSVMVal, ConstSVVal};
 
     #[derive(Copy, Clone, Eq, PartialEq, Ord, PartialOrd, Debug)]
     pub enum ParameterBaseType {
@@ -528,25 +560,21 @@ mod function {
         }
     }
 
-    pub struct ConstEvalFunction {
+    pub struct ConstEvalFunctionBuilder {
         overloads: Vec<Overload>,
     }
 
-    impl ConstEvalFunction {
+    impl ConstEvalFunctionBuilder {
         pub fn new() -> Self {
             Self {
                 overloads: Vec::new(),
             }
         }
 
-        fn add_overload(&mut self, overload: Overload) {
-            self.overloads.push(overload);
-            self.overloads.sort_by(Overload::cast_cmp)
-        }
-
         /// Adds an overload to this function taking no parameters.
-        pub fn add_overload_0<R, F>(&mut self, f: F) where R: ConstParameter, F: Fn() -> R + Send + Sync + 'static {
-            self.add_overload(Overload::from_fn_0(f))
+        pub fn add_overload_0<R, F>(mut self, f: F) -> Self where R: ConstParameter, F: Fn() -> R + Send + Sync + 'static {
+            self.overloads.push(Overload::from_fn_0(f));
+            self
         }
 
         /// Adds an overload to this function taking 1 parameter.
@@ -556,8 +584,9 @@ mod function {
         /// when using generic sized vectors/matrices). The [ConstEvalFunction::eval] method will
         /// not immediately return but continue searching for a matching overload if a function
         /// returns [`None`].
-        pub fn add_overload_1<R, T0, F>(&mut self, f: F) where R: ConstParameter, T0: ConstParameter + 'static, F: Fn(T0) -> Option<R> + Send + Sync + 'static {
-            self.add_overload(Overload::from_fn_1(f))
+        pub fn add_overload_1<R, T0, F>(mut self, f: F) -> Self where R: ConstParameter, T0: ConstParameter + 'static, F: Fn(T0) -> Option<R> + Send + Sync + 'static {
+            self.overloads.push(Overload::from_fn_1(f));
+            self
         }
 
         /// Adds an overload to this function taking 2 parameter.
@@ -567,10 +596,25 @@ mod function {
         /// when using generic sized vectors/matrices). The [ConstEvalFunction::eval] method will
         /// not immediately return but continue searching for a matching overload if a function
         /// returns [`None`].
-        pub fn add_overload_2<R, T0, T1, F>(&mut self, f: F) where R: ConstParameter, T0: ConstParameter + 'static, T1: ConstParameter + 'static, F: Fn(T0, T1) -> Option<R> + Send + Sync + 'static {
-            self.add_overload(Overload::from_fn_2(f))
+        pub fn add_overload_2<R, T0, T1, F>(mut self, f: F) -> Self where R: ConstParameter, T0: ConstParameter + 'static, T1: ConstParameter + 'static, F: Fn(T0, T1) -> Option<R> + Send + Sync + 'static {
+            self.overloads.push(Overload::from_fn_2(f));
+            self
         }
 
+        pub fn build(mut self) -> ConstEvalFunction {
+            self.overloads.sort_by(Overload::cast_cmp);
+
+            ConstEvalFunction {
+                overloads: self.overloads.into_boxed_slice(),
+            }
+        }
+    }
+
+    pub struct ConstEvalFunction {
+        overloads: Box<[Overload]>,
+    }
+
+    impl ConstEvalFunction {
         /// Evaluates the function on the provided parameters. Returns [`None`] if no matching
         /// overload could be found.
         pub fn eval(&self, params: &[&ConstBaseVal]) -> Option<ConstBaseVal> {
@@ -579,7 +623,7 @@ mod function {
                 types.push((param.get_size(), ParameterBaseType::from_const_val(param)));
             }
 
-            for func in &self.overloads {
+            for func in self.overloads.iter() {
                 if func.compatible_with(&types) {
                     if let Some(result) = func.eval(params) {
                         return Some(result);
@@ -1403,35 +1447,234 @@ mod function {
         }
     }
 
-    fn add_sv_binop_components<T, F>(func: &mut ConstEvalFunction, f: F) where F: Fn(T, T) -> T + Clone + Send + Sync + 'static, T: ConstParameter + Scalar, ConstSVVal<T>: ConstParameter {
+    fn add_sv_binop_components<T, F>(mut func: ConstEvalFunctionBuilder, f: F) -> ConstEvalFunctionBuilder where F: Fn(T, T) -> T + Clone + Send + Sync + 'static, T: ConstParameter + Scalar, ConstSVVal<T>: ConstParameter {
         let fc = f.clone();
-        func.add_overload_2(move |a: ConstSVVal<T>, b: T| Some(a.map(|v| fc(v, b.clone()))));
+        func = func.add_overload_2(move |a: ConstSVVal<T>, b: T| Some(a.map(|v| fc(v, b.clone()))));
         let fc = f.clone();
-        func.add_overload_2(move |a: T, b: ConstSVVal<T>| Some(b.map(|v| fc(a.clone(), v))));
+        func = func.add_overload_2(move |a: T, b: ConstSVVal<T>| Some(b.map(|v| fc(a.clone(), v))));
         let fc = f.clone();
-        func.add_overload_2(move |a: ConstSVVal<T>, b: ConstSVVal<T>| a.zip_map(&b, &fc));
+        func.add_overload_2(move |a: ConstSVVal<T>, b: ConstSVVal<T>| a.zip_map(&b, &fc))
     }
 
-    fn add_i32_binop_components<F>(func: &mut ConstEvalFunction, f: F) where F: Fn(i32, i32) -> i32 + Clone + Send + Sync + 'static {
-        add_sv_binop_components(func, f);
+    fn add_i32_binop_components<F>(func: ConstEvalFunctionBuilder, f: F) -> ConstEvalFunctionBuilder where F: Fn(i32, i32) -> i32 + Clone + Send + Sync + 'static {
+        add_sv_binop_components(func, f)
     }
 
-    fn add_u32_binop_components<F>(func: &mut ConstEvalFunction, f: F) where F: Fn(u32, u32) -> u32 + Clone + Send + Sync + 'static {
-        add_sv_binop_components(func, f);
+    fn add_u32_binop_components<F>(func: ConstEvalFunctionBuilder, f: F) -> ConstEvalFunctionBuilder where F: Fn(u32, u32) -> u32 + Clone + Send + Sync + 'static {
+        add_sv_binop_components(func, f)
+    }
+
+    fn add_svm_binop_components<T, F>(mut func: ConstEvalFunctionBuilder, f: F) -> ConstEvalFunctionBuilder where F: Fn(T, T) -> T + Clone + Send + Sync + 'static, T: ConstParameter + Scalar, ConstSVVal<T>: ConstParameter, ConstMVal<T>: ConstParameter {
+        func = add_sv_binop_components(func, f.clone());
+        let fc = f.clone();
+        func = func.add_overload_2(move |a: ConstMVal<T>, b: T| Some(a.map(|v| fc(v, b.clone()))));
+        let fc = f.clone();
+        func = func.add_overload_2(move |a: T, b: ConstMVal<T>| Some(b.map(|v| fc(v, a.clone()))));
+        let fc = f.clone();
+        func.add_overload_2(move |a: ConstMVal<T>, b: ConstMVal<T>| a.zip_map(&b, &fc))
+    }
+
+    fn add_f32_binop_components<F>(func: ConstEvalFunctionBuilder, f: F) -> ConstEvalFunctionBuilder where F: Fn(f32, f32) -> f32 + Clone + Send + Sync + 'static {
+        add_svm_binop_components(func, f)
+    }
+
+    fn add_f64_binop_components<F>(func: ConstEvalFunctionBuilder, f: F) -> ConstEvalFunctionBuilder where F: Fn(f64, f64) -> f64 + Clone + Send + Sync + 'static {
+        add_svm_binop_components(func, f)
     }
 
     lazy_static! {
         static ref OP_UNARY_ADD: ConstEvalFunction = {
-            let mut f = ConstEvalFunction::new();
-            f.add_overload_1(|v: ConstSVVal<i32>| Some(v));
-            f.add_overload_1(|v: ConstSVVal<u32>| Some(v));
-            f
+            ConstEvalFunctionBuilder::new()
+                .add_overload_1(|v: ConstSVVal<i32>| Some(v))
+                .add_overload_1(|v: ConstSVVal<u32>| Some(v))
+                .add_overload_1(|v: ConstSVVal<f32>| Some(v))
+                .add_overload_1(|v: ConstSVVal<f64>| Some(v))
+                .add_overload_1(|v: ConstMVal<f32>| Some(v))
+                .add_overload_1(|v: ConstMVal<f64>| Some(v))
+                .build()
+        };
+        static ref OP_UNARY_MINUS: ConstEvalFunction = {
+            ConstEvalFunctionBuilder::new()
+                .add_overload_1(|v: ConstSVVal<i32>| Some(v.map(i32::wrapping_neg)))
+                .add_overload_1(|v: ConstSVVal<u32>| Some(v.map(u32::wrapping_neg)))
+                .add_overload_1(|v: ConstSVVal<f32>| Some(v.map(f32::neg)))
+                .add_overload_1(|v: ConstSVVal<f64>| Some(v.map(f64::neg)))
+                .add_overload_1(|v: ConstMVal<f32>| Some(v.map(f32::neg)))
+                .add_overload_1(|v: ConstMVal<f64>| Some(v.map(f64::neg)))
+                .build()
+        };
+        static ref OP_UNARY_NOT: ConstEvalFunction = {
+            ConstEvalFunctionBuilder::new()
+                .add_overload_1(|v: bool| Some(!v))
+                .build()
+        };
+        static ref OP_UNARY_COMPLEMENT: ConstEvalFunction = {
+            ConstEvalFunctionBuilder::new()
+                .add_overload_1(|v: ConstSVVal<i32>| Some(v.map(i32::not)))
+                .add_overload_1(|v: ConstSVVal<u32>| Some(v.map(u32::not)))
+                .build()
+        };
+        static ref OP_BINARY_OR: ConstEvalFunction = {
+            ConstEvalFunctionBuilder::new()
+                .add_overload_2(|a: bool, b: bool| Some(a || b))
+                .build()
+        };
+        static ref OP_BINARY_XOR: ConstEvalFunction = {
+            ConstEvalFunctionBuilder::new()
+                .add_overload_2(|a: bool, b: bool| Some(a != b))
+                .build()
+        };
+        static ref OP_BINARY_AND: ConstEvalFunction = {
+            ConstEvalFunctionBuilder::new()
+                .add_overload_2(|a: bool, b: bool| Some(a && b))
+                .build()
+        };
+        static ref OP_BINARY_BIT_OR: ConstEvalFunction = {
+            let mut f = ConstEvalFunctionBuilder::new();
+            f = add_i32_binop_components(f, i32::bitor);
+            f = add_u32_binop_components(f, u32::bitor);
+            f.build()
+        };
+        static ref OP_BINARY_BIT_XOR: ConstEvalFunction = {
+            let mut f = ConstEvalFunctionBuilder::new();
+            f = add_i32_binop_components(f, i32::bitxor);
+            f = add_u32_binop_components(f, u32::bitxor);
+            f.build()
+        };
+        static ref OP_BINARY_BIT_AND: ConstEvalFunction = {
+            let mut f = ConstEvalFunctionBuilder::new();
+            f = add_i32_binop_components(f, i32::bitand);
+            f = add_u32_binop_components(f, u32::bitand);
+            f.build()
+        };
+        static ref OP_BINARY_EQUAL: ConstEvalFunction = {
+            ConstEvalFunctionBuilder::new()
+                .add_overload_2(|a: ConstSVVal<bool>, b: ConstSVVal<bool>| Some(a.zip_map(&b, |a, b| a == b)?.fold(true, bool::bitand)))
+                .add_overload_2(|a: ConstSVVal<i32>, b: ConstSVVal<i32>| Some(a.zip_map(&b, |a, b| a == b)?.fold(true, bool::bitand)))
+                .add_overload_2(|a: ConstSVVal<u32>, b: ConstSVVal<u32>| Some(a.zip_map(&b, |a, b| a == b)?.fold(true, bool::bitand)))
+                .add_overload_2(|a: ConstSVVal<f32>, b: ConstSVVal<f32>| Some(a.zip_map(&b, |a, b| a == b)?.fold(true, bool::bitand)))
+                .add_overload_2(|a: ConstSVVal<f64>, b: ConstSVVal<f64>| Some(a.zip_map(&b, |a, b| a == b)?.fold(true, bool::bitand)))
+                .add_overload_2(|a: ConstMVal<f32>, b: ConstMVal<f32>| Some(a.zip_map(&b, |a, b| a == b)?.fold(true, bool::bitand)))
+                .add_overload_2(|a: ConstMVal<f64>, b: ConstMVal<f64>| Some(a.zip_map(&b, |a, b| a == b)?.fold(true, bool::bitand)))
+                .build()
+        };
+        static ref OP_BINARY_LT: ConstEvalFunction = {
+            ConstEvalFunctionBuilder::new()
+                .add_overload_2(|a: i32, b: i32| Some(a < b))
+                .add_overload_2(|a: u32, b: u32| Some(a < b))
+                .add_overload_2(|a: f32, b: f32| Some(a < b))
+                .add_overload_2(|a: f64, b: f64| Some(a < b))
+                .build()
+        };
+        static ref OP_BINARY_GT: ConstEvalFunction = {
+            ConstEvalFunctionBuilder::new()
+                .add_overload_2(|a: i32, b: i32| Some(a > b))
+                .add_overload_2(|a: u32, b: u32| Some(a > b))
+                .add_overload_2(|a: f32, b: f32| Some(a > b))
+                .add_overload_2(|a: f64, b: f64| Some(a > b))
+                .build()
+        };
+        static ref OP_BINARY_LTE: ConstEvalFunction = {
+            ConstEvalFunctionBuilder::new()
+                .add_overload_2(|a: i32, b: i32| Some(a <= b))
+                .add_overload_2(|a: u32, b: u32| Some(a <= b))
+                .add_overload_2(|a: f32, b: f32| Some(a <= b))
+                .add_overload_2(|a: f64, b: f64| Some(a <= b))
+                .build()
+        };
+        static ref OP_BINARY_GTE: ConstEvalFunction = {
+            ConstEvalFunctionBuilder::new()
+                .add_overload_2(|a: i32, b: i32| Some(a >= b))
+                .add_overload_2(|a: u32, b: u32| Some(a >= b))
+                .add_overload_2(|a: f32, b: f32| Some(a >= b))
+                .add_overload_2(|a: f64, b: f64| Some(a >= b))
+                .build()
+        };
+        static ref OP_BINARY_LSHITF: ConstEvalFunction = {
+            ConstEvalFunctionBuilder::new()
+                .add_overload_2(|a: ConstSVVal<i32>, b: i32| Some(a.map(|v| v << b)))
+                .add_overload_2(|a: ConstSVVal<i32>, b: u32| Some(a.map(|v| v << b)))
+                .add_overload_2(|a: ConstSVVal<i32>, b: ConstSVVal<i32>| a.zip_map(&b, |a, b| a << b))
+                .add_overload_2(|a: ConstSVVal<i32>, b: ConstSVVal<u32>| a.zip_map(&b, |a, b| a << b))
+                .add_overload_2(|a: ConstSVVal<u32>, b: i32| Some(a.map(|v| v << b)))
+                .add_overload_2(|a: ConstSVVal<u32>, b: u32| Some(a.map(|v| v << b)))
+                .add_overload_2(|a: ConstSVVal<u32>, b: ConstSVVal<i32>| a.zip_map(&b, |a, b| a << b))
+                .add_overload_2(|a: ConstSVVal<u32>, b: ConstSVVal<u32>| a.zip_map(&b, |a, b| a << b))
+                .build()
         };
         static ref OP_BINARY_ADD: ConstEvalFunction = {
-            let mut f = ConstEvalFunction::new();
-            add_i32_binop_components(&mut f, |a, b| a + b);
-            add_u32_binop_components(&mut f, |a, b| a + b);
-            f
+            let mut f = ConstEvalFunctionBuilder::new();
+            f = add_i32_binop_components(f, |a, b| a + b);
+            f = add_u32_binop_components(f, |a, b| a + b);
+            f = add_f32_binop_components(f, |a, b| a + b);
+            f = add_f64_binop_components(f, |a, b| a + b);
+            f.build()
+        };
+        static ref OP_BINARY_SUB: ConstEvalFunction = {
+            let mut f = ConstEvalFunctionBuilder::new();
+            f = add_i32_binop_components(f, |a, b| a - b);
+            f = add_u32_binop_components(f, |a, b| a - b);
+            f = add_f32_binop_components(f, |a, b| a - b);
+            f = add_f64_binop_components(f, |a, b| a - b);
+            f.build()
+        };
+        static ref OP_BINARY_MULT: ConstEvalFunction = {
+            let mut f = ConstEvalFunctionBuilder::new();
+            f = add_i32_binop_components(f, |a, b| a * b);
+            f = add_u32_binop_components(f, |a, b| a * b);
+            f = add_sv_binop_components(f, |a: f32, b: f32| a * b);
+            f = add_sv_binop_components(f, |a: f64, b: f64| a * b);
+            f.add_overload_2(|a: Vector2<f32>, b: Matrix2<f32>| Some((a.transpose() * b).transpose()))
+                .add_overload_2(|a: Vector2<f32>, b: Matrix2x3<f32>| Some((a.transpose() * b).transpose()))
+                .add_overload_2(|a: Vector2<f32>, b: Matrix2x4<f32>| Some((a.transpose() * b).transpose()))
+                .add_overload_2(|a: Vector3<f32>, b: Matrix3x2<f32>| Some((a.transpose() * b).transpose()))
+                .add_overload_2(|a: Vector3<f32>, b: Matrix3<f32>| Some((a.transpose() * b).transpose()))
+                .add_overload_2(|a: Vector3<f32>, b: Matrix3x4<f32>| Some((a.transpose() * b).transpose()))
+                .add_overload_2(|a: Vector4<f32>, b: Matrix4x2<f32>| Some((a.transpose() * b).transpose()))
+                .add_overload_2(|a: Vector4<f32>, b: Matrix4x3<f32>| Some((a.transpose() * b).transpose()))
+                .add_overload_2(|a: Vector4<f32>, b: Matrix4<f32>| Some((a.transpose() * b).transpose()))
+                .add_overload_2(|a: Matrix2<f32>, b: Vector2<f32>| Some(a * b))
+                .add_overload_2(|a: Matrix3x2<f32>, b: Vector2<f32>| Some(a * b))
+                .add_overload_2(|a: Matrix4x2<f32>, b: Vector2<f32>| Some(a * b))
+                .add_overload_2(|a: Matrix2x3<f32>, b: Vector3<f32>| Some(a * b))
+                .add_overload_2(|a: Matrix3<f32>, b: Vector3<f32>| Some(a * b))
+                .add_overload_2(|a: Matrix4x3<f32>, b: Vector3<f32>| Some(a * b))
+                .add_overload_2(|a: Matrix2x4<f32>, b: Vector4<f32>| Some(a * b))
+                .add_overload_2(|a: Matrix3x4<f32>, b: Vector4<f32>| Some(a * b))
+                .add_overload_2(|a: Matrix4<f32>, b: Vector4<f32>| Some(a * b))
+                .add_overload_2(|a: Vector2<f64>, b: Matrix2<f64>| Some((a.transpose() * b).transpose()))
+                .add_overload_2(|a: Vector2<f64>, b: Matrix2x3<f64>| Some((a.transpose() * b).transpose()))
+                .add_overload_2(|a: Vector2<f64>, b: Matrix2x4<f64>| Some((a.transpose() * b).transpose()))
+                .add_overload_2(|a: Vector3<f64>, b: Matrix3x2<f64>| Some((a.transpose() * b).transpose()))
+                .add_overload_2(|a: Vector3<f64>, b: Matrix3<f64>| Some((a.transpose() * b).transpose()))
+                .add_overload_2(|a: Vector3<f64>, b: Matrix3x4<f64>| Some((a.transpose() * b).transpose()))
+                .add_overload_2(|a: Vector4<f64>, b: Matrix4x2<f64>| Some((a.transpose() * b).transpose()))
+                .add_overload_2(|a: Vector4<f64>, b: Matrix4x3<f64>| Some((a.transpose() * b).transpose()))
+                .add_overload_2(|a: Vector4<f64>, b: Matrix4<f64>| Some((a.transpose() * b).transpose()))
+                .add_overload_2(|a: Matrix2<f64>, b: Vector2<f64>| Some(a * b))
+                .add_overload_2(|a: Matrix3x2<f64>, b: Vector2<f64>| Some(a * b))
+                .add_overload_2(|a: Matrix4x2<f64>, b: Vector2<f64>| Some(a * b))
+                .add_overload_2(|a: Matrix2x3<f64>, b: Vector3<f64>| Some(a * b))
+                .add_overload_2(|a: Matrix3<f64>, b: Vector3<f64>| Some(a * b))
+                .add_overload_2(|a: Matrix4x3<f64>, b: Vector3<f64>| Some(a * b))
+                .add_overload_2(|a: Matrix2x4<f64>, b: Vector4<f64>| Some(a * b))
+                .add_overload_2(|a: Matrix3x4<f64>, b: Vector4<f64>| Some(a * b))
+                .add_overload_2(|a: Matrix4<f64>, b: Vector4<f64>| Some(a * b))
+                .build()
+        };
+        static ref OP_BINARY_DIV: ConstEvalFunction = {
+            let mut f = ConstEvalFunctionBuilder::new();
+            f = add_i32_binop_components(f, |a, b| a / b);
+            f = add_u32_binop_components(f, |a, b| a / b);
+            f = add_f32_binop_components(f, |a, b| a / b);
+            f = add_f64_binop_components(f, |a, b| a / b);
+            f.build()
+        };
+        static ref OP_BINARY_MOD: ConstEvalFunction = {
+            let mut f = ConstEvalFunctionBuilder::new();
+            f = add_i32_binop_components(f, |a, b| a % b);
+            f = add_u32_binop_components(f, |a, b| a % b);
+            f.build()
         };
     }
 
