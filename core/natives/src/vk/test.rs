@@ -2,8 +2,7 @@ use std::ffi::{CString};
 use std::sync::Arc;
 
 use ash::vk;
-
-use crate::{B4D_CORE_VERSION_MAJOR, B4D_CORE_VERSION_MINOR, B4D_CORE_VERSION_PATCH};
+use crate::BUILD_INFO;
 
 use crate::device::init::{create_device, DeviceCreateConfig};
 use crate::instance::init::{create_instance, InstanceCreateConfig};
@@ -13,7 +12,7 @@ use crate::prelude::*;
 pub fn make_headless_instance() -> Arc<InstanceContext> {
     let mut config = InstanceCreateConfig::new(
         CString::new("B4D Tests").unwrap(),
-        vk::make_api_version(0, B4D_CORE_VERSION_MAJOR, B4D_CORE_VERSION_MINOR, B4D_CORE_VERSION_PATCH)
+        vk::make_api_version(0, BUILD_INFO.version_major, BUILD_INFO.version_minor, BUILD_INFO.version_patch)
     );
     config.enable_validation();
 
