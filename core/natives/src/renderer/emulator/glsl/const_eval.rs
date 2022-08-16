@@ -286,9 +286,10 @@ pub enum ConstEvalError {
 mod function {
     use std::any::TypeId;
     use std::cmp::Ordering;
+    use std::ops::Mul;
     use lazy_static::lazy_static;
-    use nalgebra::{Scalar, Vector2, Vector3, Vector4};
-    use crate::renderer::emulator::glsl::const_eval::{BaseTypeSize, ConstBaseVal, ConstSVVal};
+    use nalgebra::{Matrix2, Matrix2x3, Matrix2x4, Matrix3, Matrix3x2, Matrix3x4, Matrix4, Matrix4x2, Matrix4x3, Scalar, Vector2, Vector3, Vector4};
+    use crate::renderer::emulator::glsl::const_eval::{BaseTypeSize, ConstBaseVal, ConstMVal, ConstSVMVal, ConstSVVal};
 
     #[derive(Copy, Clone, Eq, PartialEq, Ord, PartialOrd, Debug)]
     pub enum ParameterBaseType {
@@ -854,6 +855,551 @@ mod function {
 
         fn to_val(self) -> ConstBaseVal {
             ConstBaseVal::UInt(self)
+        }
+    }
+
+    impl ConstParameter for f32 {
+        fn get_type() -> ParameterType {
+            ParameterType::new(ParameterBaseType::Float, ParameterSize::Scalar)
+        }
+
+        fn from_val(val: &ConstBaseVal) -> Option<Self> {
+            match val {
+                ConstBaseVal::Int(ConstSVVal::Scalar(v)) => Some(*v as f32),
+                ConstBaseVal::UInt(ConstSVVal::Scalar(v)) => Some(*v as f32),
+                ConstBaseVal::Float(ConstSVMVal::SV(ConstSVVal::Scalar(v))) => Some(*v),
+                _ => None,
+            }
+        }
+
+        fn to_val(self) -> ConstBaseVal {
+            ConstBaseVal::Float(ConstSVMVal::SV(ConstSVVal::Scalar(self)))
+        }
+    }
+
+    impl ConstParameter for Vector2<f32> {
+        fn get_type() -> ParameterType {
+            ParameterType::new(ParameterBaseType::Float, ParameterSize::Vec2)
+        }
+
+        fn from_val(val: &ConstBaseVal) -> Option<Self> {
+            match val {
+                ConstBaseVal::Int(ConstSVVal::Vec2(v)) => Some(v.map(|v| v as f32)),
+                ConstBaseVal::UInt(ConstSVVal::Vec2(v)) => Some(v.map(|v| v as f32)),
+                ConstBaseVal::Float(ConstSVMVal::SV(ConstSVVal::Vec2(v))) => Some(*v),
+                _ => None,
+            }
+        }
+
+        fn to_val(self) -> ConstBaseVal {
+            ConstBaseVal::Float(ConstSVMVal::SV(ConstSVVal::Vec2(self)))
+        }
+    }
+
+    impl ConstParameter for Vector3<f32> {
+        fn get_type() -> ParameterType {
+            ParameterType::new(ParameterBaseType::Float, ParameterSize::Vec3)
+        }
+
+        fn from_val(val: &ConstBaseVal) -> Option<Self> {
+            match val {
+                ConstBaseVal::Int(ConstSVVal::Vec3(v)) => Some(v.map(|v| v as f32)),
+                ConstBaseVal::UInt(ConstSVVal::Vec3(v)) => Some(v.map(|v| v as f32)),
+                ConstBaseVal::Float(ConstSVMVal::SV(ConstSVVal::Vec3(v))) => Some(*v),
+                _ => None,
+            }
+        }
+
+        fn to_val(self) -> ConstBaseVal {
+            ConstBaseVal::Float(ConstSVMVal::SV(ConstSVVal::Vec3(self)))
+        }
+    }
+
+    impl ConstParameter for Vector4<f32> {
+        fn get_type() -> ParameterType {
+            ParameterType::new(ParameterBaseType::Float, ParameterSize::Vec4)
+        }
+
+        fn from_val(val: &ConstBaseVal) -> Option<Self> {
+            match val {
+                ConstBaseVal::Int(ConstSVVal::Vec4(v)) => Some(v.map(|v| v as f32)),
+                ConstBaseVal::UInt(ConstSVVal::Vec4(v)) => Some(v.map(|v| v as f32)),
+                ConstBaseVal::Float(ConstSVMVal::SV(ConstSVVal::Vec4(v))) => Some(*v),
+                _ => None,
+            }
+        }
+
+        fn to_val(self) -> ConstBaseVal {
+            ConstBaseVal::Float(ConstSVMVal::SV(ConstSVVal::Vec4(self)))
+        }
+    }
+
+    impl ConstParameter for ConstSVVal<f32> {
+        fn get_type() -> ParameterType {
+            ParameterType::new(ParameterBaseType::Float, ParameterSize::GenSVec)
+        }
+
+        fn from_val(val: &ConstBaseVal) -> Option<Self> {
+            match val {
+                ConstBaseVal::Int(v) => Some(v.map(|v| v as f32)),
+                ConstBaseVal::UInt(v) => Some(v.map(|v| v as f32)),
+                ConstBaseVal::Float(ConstSVMVal::SV(v)) => Some(v.clone()),
+                _ => None,
+            }
+        }
+
+        fn to_val(self) -> ConstBaseVal {
+            ConstBaseVal::Float(ConstSVMVal::SV(self))
+        }
+    }
+
+    impl ConstParameter for Matrix2<f32> {
+        fn get_type() -> ParameterType {
+            ParameterType::new(ParameterBaseType::Float, ParameterSize::Mat2)
+        }
+
+        fn from_val(val: &ConstBaseVal) -> Option<Self> {
+            match val {
+                ConstBaseVal::Float(ConstSVMVal::M(ConstMVal::Mat2(v))) => Some(*v),
+                _ => None,
+            }
+        }
+
+        fn to_val(self) -> ConstBaseVal {
+            ConstBaseVal::Float(ConstSVMVal::M(ConstMVal::Mat2(self)))
+        }
+    }
+
+    impl ConstParameter for Matrix2x3<f32> {
+        fn get_type() -> ParameterType {
+            ParameterType::new(ParameterBaseType::Float, ParameterSize::Mat23)
+        }
+
+        fn from_val(val: &ConstBaseVal) -> Option<Self> {
+            match val {
+                ConstBaseVal::Float(ConstSVMVal::M(ConstMVal::Mat23(v))) => Some(*v),
+                _ => None,
+            }
+        }
+
+        fn to_val(self) -> ConstBaseVal {
+            ConstBaseVal::Float(ConstSVMVal::M(ConstMVal::Mat23(self)))
+        }
+    }
+
+    impl ConstParameter for Matrix2x4<f32> {
+        fn get_type() -> ParameterType {
+            ParameterType::new(ParameterBaseType::Float, ParameterSize::Mat24)
+        }
+
+        fn from_val(val: &ConstBaseVal) -> Option<Self> {
+            match val {
+                ConstBaseVal::Float(ConstSVMVal::M(ConstMVal::Mat24(v))) => Some(*v),
+                _ => None,
+            }
+        }
+
+        fn to_val(self) -> ConstBaseVal {
+            ConstBaseVal::Float(ConstSVMVal::M(ConstMVal::Mat24(self)))
+        }
+    }
+
+    impl ConstParameter for Matrix3x2<f32> {
+        fn get_type() -> ParameterType {
+            ParameterType::new(ParameterBaseType::Float, ParameterSize::Mat32)
+        }
+
+        fn from_val(val: &ConstBaseVal) -> Option<Self> {
+            match val {
+                ConstBaseVal::Float(ConstSVMVal::M(ConstMVal::Mat32(v))) => Some(*v),
+                _ => None,
+            }
+        }
+
+        fn to_val(self) -> ConstBaseVal {
+            ConstBaseVal::Float(ConstSVMVal::M(ConstMVal::Mat32(self)))
+        }
+    }
+
+    impl ConstParameter for Matrix3<f32> {
+        fn get_type() -> ParameterType {
+            ParameterType::new(ParameterBaseType::Float, ParameterSize::Mat3)
+        }
+
+        fn from_val(val: &ConstBaseVal) -> Option<Self> {
+            match val {
+                ConstBaseVal::Float(ConstSVMVal::M(ConstMVal::Mat3(v))) => Some(*v),
+                _ => None,
+            }
+        }
+
+        fn to_val(self) -> ConstBaseVal {
+            ConstBaseVal::Float(ConstSVMVal::M(ConstMVal::Mat3(self)))
+        }
+    }
+
+    impl ConstParameter for Matrix3x4<f32> {
+        fn get_type() -> ParameterType {
+            ParameterType::new(ParameterBaseType::Float, ParameterSize::Mat34)
+        }
+
+        fn from_val(val: &ConstBaseVal) -> Option<Self> {
+            match val {
+                ConstBaseVal::Float(ConstSVMVal::M(ConstMVal::Mat34(v))) => Some(*v),
+                _ => None,
+            }
+        }
+
+        fn to_val(self) -> ConstBaseVal {
+            ConstBaseVal::Float(ConstSVMVal::M(ConstMVal::Mat34(self)))
+        }
+    }
+
+    impl ConstParameter for Matrix4x2<f32> {
+        fn get_type() -> ParameterType {
+            ParameterType::new(ParameterBaseType::Float, ParameterSize::Mat42)
+        }
+
+        fn from_val(val: &ConstBaseVal) -> Option<Self> {
+            match val {
+                ConstBaseVal::Float(ConstSVMVal::M(ConstMVal::Mat42(v))) => Some(*v),
+                _ => None,
+            }
+        }
+
+        fn to_val(self) -> ConstBaseVal {
+            ConstBaseVal::Float(ConstSVMVal::M(ConstMVal::Mat42(self)))
+        }
+    }
+
+    impl ConstParameter for Matrix4x3<f32> {
+        fn get_type() -> ParameterType {
+            ParameterType::new(ParameterBaseType::Float, ParameterSize::Mat43)
+        }
+
+        fn from_val(val: &ConstBaseVal) -> Option<Self> {
+            match val {
+                ConstBaseVal::Float(ConstSVMVal::M(ConstMVal::Mat43(v))) => Some(*v),
+                _ => None,
+            }
+        }
+
+        fn to_val(self) -> ConstBaseVal {
+            ConstBaseVal::Float(ConstSVMVal::M(ConstMVal::Mat43(self)))
+        }
+    }
+
+    impl ConstParameter for Matrix4<f32> {
+        fn get_type() -> ParameterType {
+            ParameterType::new(ParameterBaseType::Float, ParameterSize::Mat4)
+        }
+
+        fn from_val(val: &ConstBaseVal) -> Option<Self> {
+            match val {
+                ConstBaseVal::Float(ConstSVMVal::M(ConstMVal::Mat4(v))) => Some(*v),
+                _ => None,
+            }
+        }
+
+        fn to_val(self) -> ConstBaseVal {
+            ConstBaseVal::Float(ConstSVMVal::M(ConstMVal::Mat4(self)))
+        }
+    }
+
+    impl ConstParameter for ConstMVal<f32> {
+        fn get_type() -> ParameterType {
+            ParameterType::new(ParameterBaseType::Float, ParameterSize::GenMat)
+        }
+
+        fn from_val(val: &ConstBaseVal) -> Option<Self> {
+            match val {
+                ConstBaseVal::Float(ConstSVMVal::M(v)) => Some(v.clone()),
+                _ => None,
+            }
+        }
+
+        fn to_val(self) -> ConstBaseVal {
+            ConstBaseVal::Float(ConstSVMVal::M(self))
+        }
+    }
+
+    impl ConstParameter for f64 {
+        fn get_type() -> ParameterType {
+            ParameterType::new(ParameterBaseType::Double, ParameterSize::Scalar)
+        }
+
+        fn from_val(val: &ConstBaseVal) -> Option<Self> {
+            match val {
+                ConstBaseVal::Int(ConstSVVal::Scalar(v)) => Some(*v as f64),
+                ConstBaseVal::UInt(ConstSVVal::Scalar(v)) => Some(*v as f64),
+                ConstBaseVal::Float(ConstSVMVal::SV(ConstSVVal::Scalar(v))) => Some(*v as f64),
+                ConstBaseVal::Double(ConstSVMVal::SV(ConstSVVal::Scalar(v))) => Some(*v),
+                _ => None,
+            }
+        }
+
+        fn to_val(self) -> ConstBaseVal {
+            ConstBaseVal::Double(ConstSVMVal::SV(ConstSVVal::Scalar(self)))
+        }
+    }
+
+    impl ConstParameter for Vector2<f64> {
+        fn get_type() -> ParameterType {
+            ParameterType::new(ParameterBaseType::Double, ParameterSize::Vec2)
+        }
+
+        fn from_val(val: &ConstBaseVal) -> Option<Self> {
+            match val {
+                ConstBaseVal::Int(ConstSVVal::Vec2(v)) => Some(v.map(|v| v as f64)),
+                ConstBaseVal::UInt(ConstSVVal::Vec2(v)) => Some(v.map(|v| v as f64)),
+                ConstBaseVal::Float(ConstSVMVal::SV(ConstSVVal::Vec2(v))) => Some(v.map(|v| v as f64)),
+                ConstBaseVal::Double(ConstSVMVal::SV(ConstSVVal::Vec2(v))) => Some(*v),
+                _ => None,
+            }
+        }
+
+        fn to_val(self) -> ConstBaseVal {
+            ConstBaseVal::Double(ConstSVMVal::SV(ConstSVVal::Vec2(self)))
+        }
+    }
+
+    impl ConstParameter for Vector3<f64> {
+        fn get_type() -> ParameterType {
+            ParameterType::new(ParameterBaseType::Double, ParameterSize::Vec3)
+        }
+
+        fn from_val(val: &ConstBaseVal) -> Option<Self> {
+            match val {
+                ConstBaseVal::Int(ConstSVVal::Vec3(v)) => Some(v.map(|v| v as f64)),
+                ConstBaseVal::UInt(ConstSVVal::Vec3(v)) => Some(v.map(|v| v as f64)),
+                ConstBaseVal::Float(ConstSVMVal::SV(ConstSVVal::Vec3(v))) => Some(v.map(|v| v as f64)),
+                ConstBaseVal::Double(ConstSVMVal::SV(ConstSVVal::Vec3(v))) => Some(*v),
+                _ => None,
+            }
+        }
+
+        fn to_val(self) -> ConstBaseVal {
+            ConstBaseVal::Double(ConstSVMVal::SV(ConstSVVal::Vec3(self)))
+        }
+    }
+
+    impl ConstParameter for Vector4<f64> {
+        fn get_type() -> ParameterType {
+            ParameterType::new(ParameterBaseType::Double, ParameterSize::Vec4)
+        }
+
+        fn from_val(val: &ConstBaseVal) -> Option<Self> {
+            match val {
+                ConstBaseVal::Int(ConstSVVal::Vec4(v)) => Some(v.map(|v| v as f64)),
+                ConstBaseVal::UInt(ConstSVVal::Vec4(v)) => Some(v.map(|v| v as f64)),
+                ConstBaseVal::Float(ConstSVMVal::SV(ConstSVVal::Vec4(v))) => Some(v.map(|v| v as f64)),
+                ConstBaseVal::Double(ConstSVMVal::SV(ConstSVVal::Vec4(v))) => Some(*v),
+                _ => None,
+            }
+        }
+
+        fn to_val(self) -> ConstBaseVal {
+            ConstBaseVal::Double(ConstSVMVal::SV(ConstSVVal::Vec4(self)))
+        }
+    }
+
+    impl ConstParameter for ConstSVVal<f64> {
+        fn get_type() -> ParameterType {
+            ParameterType::new(ParameterBaseType::Double, ParameterSize::GenSVec)
+        }
+
+        fn from_val(val: &ConstBaseVal) -> Option<Self> {
+            match val {
+                ConstBaseVal::Int(v) => Some(v.map(|v| v as f64)),
+                ConstBaseVal::UInt(v) => Some(v.map(|v| v as f64)),
+                ConstBaseVal::Float(ConstSVMVal::SV(v)) => Some(v.map(|v| v as f64)),
+                ConstBaseVal::Double(ConstSVMVal::SV(v)) => Some(v.clone()),
+                _ => None,
+            }
+        }
+
+        fn to_val(self) -> ConstBaseVal {
+            ConstBaseVal::Double(ConstSVMVal::SV(self))
+        }
+    }
+
+    impl ConstParameter for Matrix2<f64> {
+        fn get_type() -> ParameterType {
+            ParameterType::new(ParameterBaseType::Double, ParameterSize::Mat2)
+        }
+
+        fn from_val(val: &ConstBaseVal) -> Option<Self> {
+            match val {
+                ConstBaseVal::Float(ConstSVMVal::M(ConstMVal::Mat2(v))) => Some(v.map(|v| v as f64)),
+                ConstBaseVal::Double(ConstSVMVal::M(ConstMVal::Mat2(v))) => Some(*v),
+                _ => None,
+            }
+        }
+
+        fn to_val(self) -> ConstBaseVal {
+            ConstBaseVal::Double(ConstSVMVal::M(ConstMVal::Mat2(self)))
+        }
+    }
+
+    impl ConstParameter for Matrix2x3<f64> {
+        fn get_type() -> ParameterType {
+            ParameterType::new(ParameterBaseType::Double, ParameterSize::Mat23)
+        }
+
+        fn from_val(val: &ConstBaseVal) -> Option<Self> {
+            match val {
+                ConstBaseVal::Float(ConstSVMVal::M(ConstMVal::Mat23(v))) => Some(v.map(|v| v as f64)),
+                ConstBaseVal::Double(ConstSVMVal::M(ConstMVal::Mat23(v))) => Some(*v),
+                _ => None,
+            }
+        }
+
+        fn to_val(self) -> ConstBaseVal {
+            ConstBaseVal::Double(ConstSVMVal::M(ConstMVal::Mat23(self)))
+        }
+    }
+
+    impl ConstParameter for Matrix2x4<f64> {
+        fn get_type() -> ParameterType {
+            ParameterType::new(ParameterBaseType::Double, ParameterSize::Mat24)
+        }
+
+        fn from_val(val: &ConstBaseVal) -> Option<Self> {
+            match val {
+                ConstBaseVal::Float(ConstSVMVal::M(ConstMVal::Mat24(v))) => Some(v.map(|v| v as f64)),
+                ConstBaseVal::Double(ConstSVMVal::M(ConstMVal::Mat24(v))) => Some(*v),
+                _ => None,
+            }
+        }
+
+        fn to_val(self) -> ConstBaseVal {
+            ConstBaseVal::Double(ConstSVMVal::M(ConstMVal::Mat24(self)))
+        }
+    }
+
+    impl ConstParameter for Matrix3x2<f64> {
+        fn get_type() -> ParameterType {
+            ParameterType::new(ParameterBaseType::Double, ParameterSize::Mat32)
+        }
+
+        fn from_val(val: &ConstBaseVal) -> Option<Self> {
+            match val {
+                ConstBaseVal::Float(ConstSVMVal::M(ConstMVal::Mat32(v))) => Some(v.map(|v| v as f64)),
+                ConstBaseVal::Double(ConstSVMVal::M(ConstMVal::Mat32(v))) => Some(*v),
+                _ => None,
+            }
+        }
+
+        fn to_val(self) -> ConstBaseVal {
+            ConstBaseVal::Double(ConstSVMVal::M(ConstMVal::Mat32(self)))
+        }
+    }
+
+    impl ConstParameter for Matrix3<f64> {
+        fn get_type() -> ParameterType {
+            ParameterType::new(ParameterBaseType::Double, ParameterSize::Mat3)
+        }
+
+        fn from_val(val: &ConstBaseVal) -> Option<Self> {
+            match val {
+                ConstBaseVal::Float(ConstSVMVal::M(ConstMVal::Mat3(v))) => Some(v.map(|v| v as f64)),
+                ConstBaseVal::Double(ConstSVMVal::M(ConstMVal::Mat3(v))) => Some(*v),
+                _ => None,
+            }
+        }
+
+        fn to_val(self) -> ConstBaseVal {
+            ConstBaseVal::Double(ConstSVMVal::M(ConstMVal::Mat3(self)))
+        }
+    }
+
+    impl ConstParameter for Matrix3x4<f64> {
+        fn get_type() -> ParameterType {
+            ParameterType::new(ParameterBaseType::Double, ParameterSize::Mat34)
+        }
+
+        fn from_val(val: &ConstBaseVal) -> Option<Self> {
+            match val {
+                ConstBaseVal::Float(ConstSVMVal::M(ConstMVal::Mat34(v))) => Some(v.map(|v| v as f64)),
+                ConstBaseVal::Double(ConstSVMVal::M(ConstMVal::Mat34(v))) => Some(*v),
+                _ => None,
+            }
+        }
+
+        fn to_val(self) -> ConstBaseVal {
+            ConstBaseVal::Double(ConstSVMVal::M(ConstMVal::Mat34(self)))
+        }
+    }
+
+    impl ConstParameter for Matrix4x2<f64> {
+        fn get_type() -> ParameterType {
+            ParameterType::new(ParameterBaseType::Double, ParameterSize::Mat42)
+        }
+
+        fn from_val(val: &ConstBaseVal) -> Option<Self> {
+            match val {
+                ConstBaseVal::Float(ConstSVMVal::M(ConstMVal::Mat42(v))) => Some(v.map(|v| v as f64)),
+                ConstBaseVal::Double(ConstSVMVal::M(ConstMVal::Mat42(v))) => Some(*v),
+                _ => None,
+            }
+        }
+
+        fn to_val(self) -> ConstBaseVal {
+            ConstBaseVal::Double(ConstSVMVal::M(ConstMVal::Mat42(self)))
+        }
+    }
+
+    impl ConstParameter for Matrix4x3<f64> {
+        fn get_type() -> ParameterType {
+            ParameterType::new(ParameterBaseType::Double, ParameterSize::Mat43)
+        }
+
+        fn from_val(val: &ConstBaseVal) -> Option<Self> {
+            match val {
+                ConstBaseVal::Float(ConstSVMVal::M(ConstMVal::Mat43(v))) => Some(v.map(|v| v as f64)),
+                ConstBaseVal::Double(ConstSVMVal::M(ConstMVal::Mat43(v))) => Some(*v),
+                _ => None,
+            }
+        }
+
+        fn to_val(self) -> ConstBaseVal {
+            ConstBaseVal::Double(ConstSVMVal::M(ConstMVal::Mat43(self)))
+        }
+    }
+
+    impl ConstParameter for Matrix4<f64> {
+        fn get_type() -> ParameterType {
+            ParameterType::new(ParameterBaseType::Double, ParameterSize::Mat4)
+        }
+
+        fn from_val(val: &ConstBaseVal) -> Option<Self> {
+            match val {
+                ConstBaseVal::Float(ConstSVMVal::M(ConstMVal::Mat4(v))) => Some(v.map(|v| v as f64)),
+                ConstBaseVal::Double(ConstSVMVal::M(ConstMVal::Mat4(v))) => Some(*v),
+                _ => None,
+            }
+        }
+
+        fn to_val(self) -> ConstBaseVal {
+            ConstBaseVal::Double(ConstSVMVal::M(ConstMVal::Mat4(self)))
+        }
+    }
+
+    impl ConstParameter for ConstMVal<f64> {
+        fn get_type() -> ParameterType {
+            ParameterType::new(ParameterBaseType::Double, ParameterSize::GenMat)
+        }
+
+        fn from_val(val: &ConstBaseVal) -> Option<Self> {
+            match val {
+                ConstBaseVal::Float(ConstSVMVal::M(v)) => Some(v.map(|v| v as f64)),
+                ConstBaseVal::Double(ConstSVMVal::M(v)) => Some(v.clone()),
+                _ => None,
+            }
+        }
+
+        fn to_val(self) -> ConstBaseVal {
+            ConstBaseVal::Double(ConstSVMVal::M(self))
         }
     }
 
