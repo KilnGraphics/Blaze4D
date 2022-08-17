@@ -51,6 +51,25 @@ impl<T: Scalar> ConstSVVal<T> {
         }
     }
 
+    /// Iterates over components in column major order
+    fn component_iter(&self) -> std::slice::Iter<T> {
+        match self {
+            ConstSVVal::Scalar(v) => std::slice::from_ref(v).iter(),
+            ConstSVVal::Vec2(v) => v.as_slice().iter(),
+            ConstSVVal::Vec3(v) => v.as_slice().iter(),
+            ConstSVVal::Vec4(v) => v.as_slice().iter(),
+        }
+    }
+
+    fn first(&self) -> T {
+        match self {
+            ConstSVVal::Scalar(v) => v.clone(),
+            ConstSVVal::Vec2(v) => v[0].clone(),
+            ConstSVVal::Vec3(v) => v[0].clone(),
+            ConstSVVal::Vec4(v) => v[0].clone(),
+        }
+    }
+
     fn map<R: Scalar, F: FnMut(T) -> R>(&self, mut f: F) -> ConstSVVal<R> {
         match self {
             ConstSVVal::Scalar(v) => ConstSVVal::Scalar(f(v.clone())),
@@ -106,6 +125,21 @@ impl<T: Scalar> ConstMVal<T> {
             ConstMVal::Mat42(_) => BaseTypeSize::Mat42,
             ConstMVal::Mat43(_) => BaseTypeSize::Mat43,
             ConstMVal::Mat4(_) => BaseTypeSize::Mat4,
+        }
+    }
+
+    /// Iterates over components in column major order
+    fn component_iter(&self) -> std::slice::Iter<T> {
+        match self {
+            ConstMVal::Mat2(v) => v.as_slice().iter(),
+            ConstMVal::Mat23(v) => v.as_slice().iter(),
+            ConstMVal::Mat24(v) => v.as_slice().iter(),
+            ConstMVal::Mat32(v) => v.as_slice().iter(),
+            ConstMVal::Mat3(v) => v.as_slice().iter(),
+            ConstMVal::Mat34(v) => v.as_slice().iter(),
+            ConstMVal::Mat42(v) => v.as_slice().iter(),
+            ConstMVal::Mat43(v) => v.as_slice().iter(),
+            ConstMVal::Mat4(v) => v.as_slice().iter(),
         }
     }
 
@@ -165,6 +199,14 @@ impl<T: Scalar> ConstSVMVal<T> {
         match self {
             ConstSVMVal::SV(v) => v.get_size(),
             ConstSVMVal::M(v) => v.get_size(),
+        }
+    }
+
+    /// Iterates over components in column major order
+    fn component_iter(&self) -> std::slice::Iter<T> {
+        match self {
+            ConstSVMVal::SV(v) => v.component_iter(),
+            ConstSVMVal::M(v) => v.component_iter(),
         }
     }
 
@@ -315,12 +357,16 @@ pub enum ConstEvalError {
 mod function {
     use std::any::TypeId;
     use std::cmp::Ordering;
+    use std::collections::HashMap;
+    use std::marker::PhantomData;
 
     use std::ops::{BitAnd, BitOr, BitXor, Neg, Not};
+    use glsl::syntax::{Identifier, NonEmpty};
 
     use lazy_static::lazy_static;
 
-    use nalgebra::{Matrix2, Matrix2x3, Matrix2x4, Matrix3, Matrix3x2, Matrix3x4, Matrix4, Matrix4x2, Matrix4x3, Scalar, Vector2, Vector3, Vector4};
+    use nalgebra::{ArrayStorage, Const, DimName, Matrix, Matrix2, Matrix2x3, Matrix2x4, Matrix3, Matrix3x2, Matrix3x4, Matrix4, Matrix4x2, Matrix4x3, Scalar, U1, Vector, Vector2, Vector3, Vector4};
+    use num_traits::{One, Zero};
     use super::{BaseTypeSize, ConstBaseVal, ConstMVal, ConstSVMVal, ConstSVVal};
 
     #[derive(Copy, Clone, Eq, PartialEq, Ord, PartialOrd, Debug)]
@@ -462,13 +508,22 @@ mod function {
     }
 
     struct Overload {
-        prototype: Box<[ParameterType]>,
+        prototype: Option<Box<[ParameterType]>>,
         function: Box<dyn Fn(&[&ConstBaseVal]) -> Option<ConstBaseVal> + Send + Sync>,
     }
 
     impl Overload {
+        fn from_generic<F>(f: F) -> Self where F: Fn(&[&ConstBaseVal]) -> Option<ConstBaseVal> + Send + Sync + 'static {
+            let function = Box::new(f);
+
+            Self {
+                prototype: None,
+                function,
+            }
+        }
+
         fn from_fn_0<R, F>(f: F) -> Self where R: ConstParameter, F: Fn() -> R + Send + Sync + 'static {
-            let prototype = Box::new([]);
+            let prototype = Some(Box::new([]) as Box<[ParameterType]>);
             let function = Box::new(move |params: &[&ConstBaseVal]| {
                 if params.len() != 0 {
                     panic!("Parameter list length mismatch. Expected 0 but got {:?}", params.len());
@@ -484,7 +539,7 @@ mod function {
         }
 
         fn from_fn_1<R, T0, F>(f: F) -> Self where R: ConstParameter, T0: ConstParameter + 'static, F: Fn(T0) -> Option<R> + Send + Sync + 'static {
-            let prototype = Box::new([T0::get_type()]);
+            let prototype = Some(Box::new([T0::get_type()]) as Box<[ParameterType]>);
             let function = Box::new(move |params: &[&ConstBaseVal]| {
                 if params.len() != 1 {
                     panic!("Parameter list length mismatch. Expected 1 but got {:?}", params.len());
@@ -501,7 +556,7 @@ mod function {
         }
 
         fn from_fn_2<R, T0, T1, F>(f: F) -> Self where R: ConstParameter, T0: ConstParameter + 'static, T1: ConstParameter + 'static, F: Fn(T0, T1) -> Option<R> + Send + Sync + 'static {
-            let prototype = Box::new([T0::get_type(), T1::get_type()]);
+            let prototype = Some(Box::new([T0::get_type(), T1::get_type()]) as Box<[ParameterType]>);
             let function = Box::new(move |params: &[&ConstBaseVal]| {
                 if params.len() != 2 {
                     panic!("Parameter list length mismatch. Expected 2 but got {:?}", params.len());
@@ -519,19 +574,23 @@ mod function {
         }
 
         fn compatible_with(&self, params: &[(BaseTypeSize, ParameterBaseType)]) -> bool {
-            if params.len() != self.prototype.len() {
-                return false;
-            }
+            if let Some(prototype) = &self.prototype {
+                if params.len() != prototype.len() {
+                    return false;
+                }
 
-            for ((size, base_type), proto) in params.iter().zip(self.prototype.iter()) {
-                if !proto.size.matches(*size) {
-                    return false;
+                for ((size, base_type), proto) in params.iter().zip(prototype.iter()) {
+                    if !proto.size.matches(*size) {
+                        return false;
+                    }
+                    if !base_type.can_cast_into(&proto.base_type) {
+                        return false;
+                    }
                 }
-                if !base_type.can_cast_into(&proto.base_type) {
-                    return false;
-                }
+                true
+            } else {
+                true
             }
-            true
         }
 
         /// Evaluates this overload on the provided parameters performing implicit casting if
@@ -545,17 +604,24 @@ mod function {
         }
 
         fn cast_cmp(&self, other: &Self) -> Ordering {
-            let len_cmp = self.prototype.len().cmp(&other.prototype.len());
-            if len_cmp == Ordering::Equal {
-                self.prototype.iter().zip(other.prototype.iter()).fold(Ordering::Equal, |i, (a, b)| {
-                    if i == Ordering::Equal {
-                        a.cast_cmp(b)
+            match (&self.prototype, &other.prototype) {
+                (Some(p1), Some(p2)) => {
+                    let len_cmp = p1.len().cmp(&p2.len());
+                    if len_cmp == Ordering::Equal {
+                        p1.iter().zip(p2.iter()).fold(Ordering::Equal, |i, (a, b)| {
+                            if i == Ordering::Equal {
+                                a.cast_cmp(b)
+                            } else {
+                                i
+                            }
+                        })
                     } else {
-                        i
+                        len_cmp
                     }
-                })
-            } else {
-                len_cmp
+                },
+                (None, Some(_)) => Ordering::Greater,
+                (Some(_), None) => Ordering::Less,
+                (None, None) => Ordering::Equal,
             }
         }
     }
@@ -569,6 +635,11 @@ mod function {
             Self {
                 overloads: Vec::new(),
             }
+        }
+
+        pub fn add_generic<F>(mut self, f: F) -> Self where F: Fn(&[&ConstBaseVal]) -> Option<ConstBaseVal> + Send + Sync + 'static {
+            self.overloads.push(Overload::from_generic(f));
+            self
         }
 
         /// Adds an overload to this function taking no parameters.
@@ -631,6 +702,16 @@ mod function {
                 }
             };
             None
+        }
+    }
+
+    pub trait ConstEvalFunctionLookup {
+        fn lookup(&self, ident: Identifier) -> Option<&ConstEvalFunction>;
+    }
+
+    impl ConstEvalFunctionLookup for HashMap<String, ConstEvalFunction> {
+        fn lookup(&self, ident: Identifier) -> Option<&ConstEvalFunction> {
+            self.get(&ident.0)
         }
     }
 
@@ -1447,6 +1528,160 @@ mod function {
         }
     }
 
+    trait ScalarConstructFrom<T> {
+        fn construct(from: &T) -> Self;
+    }
+
+    impl ScalarConstructFrom<bool> for bool {
+        fn construct(from: &bool) -> bool {
+            *from
+        }
+    }
+
+    impl ScalarConstructFrom<i32> for bool {
+        fn construct(from: &i32) -> bool {
+            *from != 0i32
+        }
+    }
+
+    impl ScalarConstructFrom<u32> for bool {
+        fn construct(from: &u32) -> bool {
+            *from != 0u32
+        }
+    }
+
+    impl ScalarConstructFrom<f32> for bool {
+        fn construct(from: &f32) -> bool {
+            *from != 0f32
+        }
+    }
+
+    impl ScalarConstructFrom<f64> for bool {
+        fn construct(from: &f64) -> bool {
+            *from != 0f64
+        }
+    }
+
+    impl ScalarConstructFrom<bool> for i32 {
+        fn construct(from: &bool) -> i32 {
+            if *from { 1i32 } else { 0i32 }
+        }
+    }
+
+    impl ScalarConstructFrom<i32> for i32 {
+        fn construct(from: &i32) -> i32 {
+            *from
+        }
+    }
+
+    impl ScalarConstructFrom<u32> for i32 {
+        fn construct(from: &u32) -> i32 {
+            *from as i32
+        }
+    }
+
+    impl ScalarConstructFrom<f32> for i32 {
+        fn construct(from: &f32) -> i32 {
+            *from as i32
+        }
+    }
+
+    impl ScalarConstructFrom<f64> for i32 {
+        fn construct(from: &f64) -> i32 {
+            *from as i32
+        }
+    }
+
+    impl ScalarConstructFrom<bool> for u32 {
+        fn construct(from: &bool) -> u32 {
+            if *from { 1u32 } else { 0u32 }
+        }
+    }
+
+    impl ScalarConstructFrom<i32> for u32 {
+        fn construct(from: &i32) -> u32 {
+            *from as u32
+        }
+    }
+
+    impl ScalarConstructFrom<u32> for u32 {
+        fn construct(from: &u32) -> u32 {
+            *from
+        }
+    }
+
+    impl ScalarConstructFrom<f32> for u32 {
+        fn construct(from: &f32) -> u32 {
+            *from as u32
+        }
+    }
+
+    impl ScalarConstructFrom<f64> for u32 {
+        fn construct(from: &f64) -> u32 {
+            *from as u32
+        }
+    }
+
+    impl ScalarConstructFrom<bool> for f32 {
+        fn construct(from: &bool) -> f32 {
+            if *from { 1f32 } else { 0f32 }
+        }
+    }
+
+    impl ScalarConstructFrom<i32> for f32 {
+        fn construct(from: &i32) -> f32 {
+            *from as f32
+        }
+    }
+
+    impl ScalarConstructFrom<u32> for f32 {
+        fn construct(from: &u32) -> f32 {
+            *from as f32
+        }
+    }
+
+    impl ScalarConstructFrom<f32> for f32 {
+        fn construct(from: &f32) -> f32 {
+            *from
+        }
+    }
+
+    impl ScalarConstructFrom<f64> for f32 {
+        fn construct(from: &f64) -> f32 {
+            *from as f32
+        }
+    }
+
+    impl ScalarConstructFrom<bool> for f64 {
+        fn construct(from: &bool) -> f64 {
+            if *from { 1f64 } else { 0f64 }
+        }
+    }
+
+    impl ScalarConstructFrom<i32> for f64 {
+        fn construct(from: &i32) -> f64 {
+            *from as f64
+        }
+    }
+
+    impl ScalarConstructFrom<u32> for f64 {
+        fn construct(from: &u32) -> f64 {
+            *from as f64
+        }
+    }
+
+    impl ScalarConstructFrom<f32> for f64 {
+        fn construct(from: &f32) -> f64 {
+            *from as f64
+        }
+    }
+
+    impl ScalarConstructFrom<f64> for f64 {
+        fn construct(from: &f64) -> f64 {
+            *from
+        }
+    }
+
     fn add_sv_binop_components<T, F>(mut func: ConstEvalFunctionBuilder, f: F) -> ConstEvalFunctionBuilder where F: Fn(T, T) -> T + Clone + Send + Sync + 'static, T: ConstParameter + Scalar, ConstSVVal<T>: ConstParameter {
         let fc = f.clone();
         func = func.add_overload_2(move |a: ConstSVVal<T>, b: T| Some(a.map(|v| fc(v, b.clone()))));
@@ -1675,6 +1910,214 @@ mod function {
             f = add_i32_binop_components(f, |a, b| a % b);
             f = add_u32_binop_components(f, |a, b| a % b);
             f.build()
+        };
+    }
+
+    fn add_scalar_constructor<T>(mut f: ConstEvalFunctionBuilder) -> ConstEvalFunctionBuilder where T: Scalar + ConstParameter + ScalarConstructFrom<bool> + ScalarConstructFrom<i32> + ScalarConstructFrom<u32> + ScalarConstructFrom<f32> + ScalarConstructFrom<f64> {
+        f.add_overload_1(|v: ConstSVVal<bool>| Some(T::construct(&v.first())))
+            .add_overload_1(|v: ConstSVVal<i32>| Some(T::construct(&v.first())))
+            .add_overload_1(|v: ConstSVVal<u32>| Some(T::construct(&v.first())))
+            .add_overload_1(|v: ConstSVVal<f32>| Some(T::construct(&v.first())))
+            .add_overload_1(|v: ConstSVVal<f64>| Some(T::construct(&v.first())))
+    }
+
+    enum ScalarIterWrapper<'a, T: ScalarConstructFrom<bool> + ScalarConstructFrom<i32> + ScalarConstructFrom<u32> + ScalarConstructFrom<f32> + ScalarConstructFrom<f64>> {
+        Bool(std::slice::Iter<'a, bool>, PhantomData<T>),
+        Int(std::slice::Iter<'a, i32>),
+        UInt(std::slice::Iter<'a, u32>),
+        Float(std::slice::Iter<'a, f32>),
+        Double(std::slice::Iter<'a, f64>),
+    }
+
+    impl<'a, T> ScalarIterWrapper<'a, T> where T: ScalarConstructFrom<bool> + ScalarConstructFrom<i32> + ScalarConstructFrom<u32> + ScalarConstructFrom<f32> + ScalarConstructFrom<f64> {
+        fn from_base_val(val: &'a ConstBaseVal) -> Self {
+            match val {
+                ConstBaseVal::Bool(v) => Self::Bool(v.component_iter(), PhantomData),
+                ConstBaseVal::Int(v) => Self::Int(v.component_iter()),
+                ConstBaseVal::UInt(v) => Self::UInt(v.component_iter()),
+                ConstBaseVal::Float(v) => Self::Float(v.component_iter()),
+                ConstBaseVal::Double(v) => Self::Double(v.component_iter()),
+            }
+        }
+    }
+
+    impl<'a, T> Iterator for ScalarIterWrapper<'a, T> where T: ScalarConstructFrom<bool> + ScalarConstructFrom<i32> + ScalarConstructFrom<u32> + ScalarConstructFrom<f32> + ScalarConstructFrom<f64> {
+        type Item = T;
+
+        fn next(&mut self) -> Option<Self::Item> {
+            match self {
+                ScalarIterWrapper::Bool(i, _) => i.next().map(T::construct),
+                ScalarIterWrapper::Int(i) => i.next().map(T::construct),
+                ScalarIterWrapper::UInt(i) => i.next().map(T::construct),
+                ScalarIterWrapper::Float(i) => i.next().map(T::construct),
+                ScalarIterWrapper::Double(i) => i.next().map(T::construct),
+            }
+        }
+    }
+
+    struct ValIterator<'a, 'b, T: ScalarConstructFrom<bool> + ScalarConstructFrom<i32> + ScalarConstructFrom<u32> + ScalarConstructFrom<f32> + ScalarConstructFrom<f64>> {
+        params: &'a[&'b ConstBaseVal],
+        current_param: usize,
+        current_iter: Option<ScalarIterWrapper<'b, T>>,
+    }
+
+    impl<'a, 'b, T> ValIterator<'a, 'b, T> where T: ScalarConstructFrom<bool> + ScalarConstructFrom<i32> + ScalarConstructFrom<u32> + ScalarConstructFrom<f32> + ScalarConstructFrom<f64> {
+        fn new(params: &'a[&'b ConstBaseVal]) -> Self {
+            let current_iter = if params.len() != 0 {
+                Some(ScalarIterWrapper::from_base_val(params[0]))
+            } else {
+                None
+            };
+
+            Self {
+                params,
+                current_param: 0,
+                current_iter,
+            }
+        }
+    }
+
+    impl<'a, 'b, T> Iterator for ValIterator<'a, 'b, T> where T: ScalarConstructFrom<bool> + ScalarConstructFrom<i32> + ScalarConstructFrom<u32> + ScalarConstructFrom<f32> + ScalarConstructFrom<f64> {
+        type Item = T;
+
+        fn next(&mut self) -> Option<Self::Item> {
+            loop {
+                let iter = self.current_iter.as_mut()?;
+                if let Some(next) = iter.next() {
+                    return Some(next);
+                } else {
+                    self.current_param += 1;
+                    if self.current_param >= self.params.len() {
+                        self.current_iter = None;
+                        return None;
+                    } else {
+                        self.current_iter = Some(ScalarIterWrapper::from_base_val(self.params[self.current_param]));
+                    }
+                }
+            }
+        }
+    }
+
+    type AVector<const R: usize, T> = Matrix<T, Const<R>, U1, ArrayStorage<T, R, 1>>;
+    fn add_vec_constructor<const R: usize, T>(mut f: ConstEvalFunctionBuilder) -> ConstEvalFunctionBuilder where T: Scalar + ScalarConstructFrom<bool> + ScalarConstructFrom<i32> + ScalarConstructFrom<u32> + ScalarConstructFrom<f32> + ScalarConstructFrom<f64>, AVector<R, T>: ConstParameter {
+        f.add_generic(|params| {
+            if params.len() == 0 {
+                return None;
+            }
+            if params.len() == 1 {
+                if params[0].get_size() == BaseTypeSize::Scalar {
+                    return Some(AVector::<R, T>::from_element(ValIterator::new(params).next().unwrap()).to_val());
+                }
+            }
+
+            if ValIterator::<T>::new(params).count() >= R {
+                Some(AVector::<R, T>::from_iterator(ValIterator::new(params)).to_val())
+            } else {
+                None
+            }
+        })
+    }
+
+    fn copy_to_mat<const R1: usize, const C1: usize, const R2: usize, const C2: usize, T: Scalar>(from: &AMatrix<R1, C1, T>, to: &mut AMatrix<R2, C2, T>) {
+        for r in 0..std::cmp::min(R1, R2) {
+            for c in 0..std::cmp::min(C1, C2) {
+                to[(r, c)] = from[(r, c)].clone();
+            }
+        }
+    }
+
+    type AMatrix<const R: usize, const C: usize, T> = Matrix<T, Const<R>, Const<C>, ArrayStorage<T, R, C>>;
+    fn add_mat_constructor<const R: usize, const C: usize, T>(mut f: ConstEvalFunctionBuilder) -> ConstEvalFunctionBuilder where T: Scalar + Zero + One + ScalarConstructFrom<bool> + ScalarConstructFrom<i32> + ScalarConstructFrom<u32> + ScalarConstructFrom<f32> + ScalarConstructFrom<f64>, AMatrix<R, C, T>: ConstParameter {
+        f.add_generic(|params| {
+            if params.len() == 0 {
+                return None;
+            }
+            if params.len() == 1 {
+                if params[0].get_size() == BaseTypeSize::Scalar {
+                    return Some(AMatrix::<R, C, T>::from_diagonal_element(ValIterator::new(params).next().unwrap()).to_val());
+                } else {
+                    let converted = match params[0] {
+                        ConstBaseVal::Float(ConstSVMVal::M(v)) => Some(v.map(|v| T::construct(&v))),
+                        ConstBaseVal::Double(ConstSVMVal::M(v)) => Some(v.map(|v| T::construct(&v))),
+                        _ => None,
+                    };
+                    if let Some(converted) = converted {
+                        let mut result = AMatrix::<R, C, T>::identity();
+                        match converted {
+                            ConstMVal::Mat2(v) => copy_to_mat(&v, &mut result),
+                            ConstMVal::Mat23(v) => copy_to_mat(&v, &mut result),
+                            ConstMVal::Mat24(v) => copy_to_mat(&v, &mut result),
+                            ConstMVal::Mat32(v) => copy_to_mat(&v, &mut result),
+                            ConstMVal::Mat3(v) => copy_to_mat(&v, &mut result),
+                            ConstMVal::Mat34(v) => copy_to_mat(&v, &mut result),
+                            ConstMVal::Mat42(v) => copy_to_mat(&v, &mut result),
+                            ConstMVal::Mat43(v) => copy_to_mat(&v, &mut result),
+                            ConstMVal::Mat4(v) => copy_to_mat(&v, &mut result),
+                        };
+                        return Some(result.to_val());
+                    }
+                }
+            }
+
+            if ValIterator::<T>::new(params).count() >= R * C {
+                Some(AMatrix::<R, C, T>::from_iterator(ValIterator::new(params)).to_val())
+            } else {
+                None
+            }
+        })
+    }
+
+    /// Registers all type constructors as const functions
+    pub fn register_constructor_const_functions<F: FnMut(Identifier, ConstEvalFunction)>(mut f: F) {
+        f(Identifier::new("bool").unwrap(), add_scalar_constructor::<bool>(ConstEvalFunctionBuilder::new()).build());
+        f(Identifier::new("int").unwrap(), add_scalar_constructor::<i32>(ConstEvalFunctionBuilder::new()).build());
+        f(Identifier::new("uint").unwrap(), add_scalar_constructor::<u32>(ConstEvalFunctionBuilder::new()).build());
+        f(Identifier::new("float").unwrap(), add_scalar_constructor::<f32>(ConstEvalFunctionBuilder::new()).build());
+        f(Identifier::new("double").unwrap(), add_scalar_constructor::<f64>(ConstEvalFunctionBuilder::new()).build());
+        f(Identifier::new("bvec2").unwrap(), add_vec_constructor::<2, bool>(ConstEvalFunctionBuilder::new()).build());
+        f(Identifier::new("ivec2").unwrap(), add_vec_constructor::<2, i32>(ConstEvalFunctionBuilder::new()).build());
+        f(Identifier::new("uvec2").unwrap(), add_vec_constructor::<2, u32>(ConstEvalFunctionBuilder::new()).build());
+        f(Identifier::new("vec2").unwrap(), add_vec_constructor::<2, f32>(ConstEvalFunctionBuilder::new()).build());
+        f(Identifier::new("dvec2").unwrap(), add_vec_constructor::<2, f64>(ConstEvalFunctionBuilder::new()).build());
+        f(Identifier::new("bvec3").unwrap(), add_vec_constructor::<3, bool>(ConstEvalFunctionBuilder::new()).build());
+        f(Identifier::new("ivec3").unwrap(), add_vec_constructor::<3, i32>(ConstEvalFunctionBuilder::new()).build());
+        f(Identifier::new("uvec3").unwrap(), add_vec_constructor::<3, u32>(ConstEvalFunctionBuilder::new()).build());
+        f(Identifier::new("vec3").unwrap(), add_vec_constructor::<3, f32>(ConstEvalFunctionBuilder::new()).build());
+        f(Identifier::new("dvec3").unwrap(), add_vec_constructor::<3, f64>(ConstEvalFunctionBuilder::new()).build());
+        f(Identifier::new("bvec4").unwrap(), add_vec_constructor::<4, bool>(ConstEvalFunctionBuilder::new()).build());
+        f(Identifier::new("ivec4").unwrap(), add_vec_constructor::<4, i32>(ConstEvalFunctionBuilder::new()).build());
+        f(Identifier::new("uvec4").unwrap(), add_vec_constructor::<4, u32>(ConstEvalFunctionBuilder::new()).build());
+        f(Identifier::new("vec4").unwrap(), add_vec_constructor::<4, f32>(ConstEvalFunctionBuilder::new()).build());
+        f(Identifier::new("dvec4").unwrap(), add_vec_constructor::<4, f64>(ConstEvalFunctionBuilder::new()).build());
+        f(Identifier::new("mat2").unwrap(), add_mat_constructor::<2, 2, f32>(ConstEvalFunctionBuilder::new()).build());
+        f(Identifier::new("mat23").unwrap(), add_mat_constructor::<2, 3, f32>(ConstEvalFunctionBuilder::new()).build());
+        f(Identifier::new("mat24").unwrap(), add_mat_constructor::<2, 4, f32>(ConstEvalFunctionBuilder::new()).build());
+        f(Identifier::new("mat32").unwrap(), add_mat_constructor::<3, 2, f32>(ConstEvalFunctionBuilder::new()).build());
+        f(Identifier::new("mat3").unwrap(), add_mat_constructor::<3, 3, f32>(ConstEvalFunctionBuilder::new()).build());
+        f(Identifier::new("mat34").unwrap(), add_mat_constructor::<3, 4, f32>(ConstEvalFunctionBuilder::new()).build());
+        f(Identifier::new("mat42").unwrap(), add_mat_constructor::<4, 2, f32>(ConstEvalFunctionBuilder::new()).build());
+        f(Identifier::new("mat43").unwrap(), add_mat_constructor::<4, 3, f32>(ConstEvalFunctionBuilder::new()).build());
+        f(Identifier::new("mat4").unwrap(), add_mat_constructor::<4, 4, f32>(ConstEvalFunctionBuilder::new()).build());
+        f(Identifier::new("dmat2").unwrap(), add_mat_constructor::<2, 2, f32>(ConstEvalFunctionBuilder::new()).build());
+        f(Identifier::new("dmat23").unwrap(), add_mat_constructor::<2, 3, f32>(ConstEvalFunctionBuilder::new()).build());
+        f(Identifier::new("dmat24").unwrap(), add_mat_constructor::<2, 4, f32>(ConstEvalFunctionBuilder::new()).build());
+        f(Identifier::new("dmat32").unwrap(), add_mat_constructor::<3, 2, f32>(ConstEvalFunctionBuilder::new()).build());
+        f(Identifier::new("dmat3").unwrap(), add_mat_constructor::<3, 3, f32>(ConstEvalFunctionBuilder::new()).build());
+        f(Identifier::new("dmat34").unwrap(), add_mat_constructor::<3, 4, f32>(ConstEvalFunctionBuilder::new()).build());
+        f(Identifier::new("dmat42").unwrap(), add_mat_constructor::<4, 2, f32>(ConstEvalFunctionBuilder::new()).build());
+        f(Identifier::new("dmat43").unwrap(), add_mat_constructor::<4, 3, f32>(ConstEvalFunctionBuilder::new()).build());
+        f(Identifier::new("dmat4").unwrap(), add_mat_constructor::<4, 4, f32>(ConstEvalFunctionBuilder::new()).build());
+    }
+
+    pub fn register_builtin_const_functions<F: FnMut(Identifier, ConstEvalFunction)>(mut f: F) {
+        register_constructor_const_functions(f);
+    }
+
+    lazy_static! {
+        static ref BUILTIN_CONST_FUNCTIONS: HashMap<String, ConstEvalFunction> = {
+            let mut map = HashMap::new();
+            register_builtin_const_functions(|i, f| { map.insert(i.0, f); });
+            map
         };
     }
 
