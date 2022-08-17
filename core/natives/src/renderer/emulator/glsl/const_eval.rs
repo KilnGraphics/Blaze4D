@@ -1,7 +1,7 @@
 use std::collections::HashMap;
 use std::hash::Hash;
 
-use glsl::syntax::{ArraySpecifier, BinaryOp, Expr, Identifier, StructSpecifier, TypeSpecifier, TypeSpecifierNonArray, UnaryOp};
+use glsl::syntax::{ArraySpecifier, BinaryOp, Expr, FunIdentifier, Identifier, StructSpecifier, TypeSpecifier, TypeSpecifierNonArray, UnaryOp};
 use nalgebra::{Matrix2, Matrix2x3, Matrix2x4, Matrix3, Matrix3x2, Matrix3x4, Matrix4, Matrix4x2, Matrix4x3, Scalar, Vector2, Vector3, Vector4};
 
 //use crate::renderer::emulator::glsl::const_eval::function::{ParameterBaseType, ParameterSize, ParameterType};
@@ -19,7 +19,7 @@ pub trait ConstLookup {
 
 /// Allows lookup of const evaluable functions
 pub trait ConstEvalFunctionLookup {
-    fn lookup(&self, ident: Identifier) -> Option<&ConstEvalFunction>;
+    fn lookup(&self, ident: &Identifier) -> Option<&ConstEvalFunction>;
 }
 
 #[derive(Copy, Clone, Eq, PartialEq, Ord, PartialOrd, Hash, Debug)]
@@ -1224,6 +1224,13 @@ pub enum ConstVal {
 }
 
 impl ConstVal {
+    pub fn try_into_base(&self) -> Option<&ConstBaseVal> {
+        match self {
+            ConstVal::Base(v) => Some(v),
+            _ => None,
+        }
+    }
+
     pub fn type_specifier(&self) -> TypeSpecifier {
         match self {
             ConstVal::Base(b) => b.type_specifier(),
@@ -1233,13 +1240,84 @@ impl ConstVal {
     }
 }
 
+pub fn const_eval<CL: ConstLookup, FL: ConstEvalFunctionLookup>(expr: &Expr, cl: &CL, fl: &FL) -> Result<ConstVal, ConstEvalError> {
+    match expr {
+        Expr::Variable(ident) => cl.lookup_const(ident).cloned().ok_or_else(|| ConstEvalError::UnknownIdentifier(ident.0.clone())),
+        Expr::IntConst(v) => Ok(ConstVal::Base(ConstBaseVal::Int(ConstSVVal::Scalar(*v)))),
+        Expr::UIntConst(v) => Ok(ConstVal::Base(ConstBaseVal::UInt(ConstSVVal::Scalar(*v)))),
+        Expr::BoolConst(v) => Ok(ConstVal::Base(ConstBaseVal::Bool(ConstSVVal::Scalar(*v)))),
+        Expr::FloatConst(v) => Ok(ConstVal::Base(ConstBaseVal::Float(ConstSVMVal::Scalar(*v)))),
+        Expr::DoubleConst(v) => Ok(ConstVal::Base(ConstBaseVal::Double(ConstSVMVal::Scalar(*v)))),
+        Expr::Unary(op, a) => {
+            let a = const_eval(a, cl, fl)?;
+            let a_ty = a.type_specifier();
+            let err = || ConstEvalError::IllegalUnaryOperand(op.clone(), a_ty.clone());
+            let a = a.try_into_base().ok_or_else(err)?;
+            match op {
+                UnaryOp::Inc => Err(ConstEvalError::IllegalUnaryOp(UnaryOp::Inc)),
+                UnaryOp::Dec => Err(ConstEvalError::IllegalUnaryOp(UnaryOp::Dec)),
+                UnaryOp::Add => function::OP_UNARY_ADD.eval(&[a]).map(ConstVal::Base).ok_or_else(err),
+                UnaryOp::Minus => function::OP_UNARY_MINUS.eval(&[a]).map(ConstVal::Base).ok_or_else(err),
+                UnaryOp::Not => function::OP_UNARY_NOT.eval(&[a]).map(ConstVal::Base).ok_or_else(err),
+                UnaryOp::Complement => function::OP_UNARY_COMPLEMENT.eval(&[a]).map(ConstVal::Base).ok_or_else(err),
+            }
+        },
+        Expr::Binary(op, a, b) => {
+            let (a, b) = (const_eval(a, cl, fl)?, const_eval(b, cl, fl)?);
+            let (a_ty, b_ty) = (a.type_specifier(), b.type_specifier());
+            let err = || ConstEvalError::IllegalBinaryOperand(op.clone(), a_ty.clone(), b_ty.clone());
+            let (a, b) = (a.try_into_base().ok_or_else(err)?, b.try_into_base().ok_or_else(err)?);
+            match op {
+                BinaryOp::Or => function::OP_BINARY_OR.eval(&[a, b]).map(ConstVal::Base).ok_or_else(err),
+                BinaryOp::Xor => function::OP_BINARY_XOR.eval(&[a, b]).map(ConstVal::Base).ok_or_else(err),
+                BinaryOp::And => function::OP_BINARY_AND.eval(&[a, b]).map(ConstVal::Base).ok_or_else(err),
+                BinaryOp::BitOr => function::OP_BINARY_BIT_OR.eval(&[a, b]).map(ConstVal::Base).ok_or_else(err),
+                BinaryOp::BitXor => function::OP_BINARY_BIT_XOR.eval(&[a, b]).map(ConstVal::Base).ok_or_else(err),
+                BinaryOp::BitAnd => function::OP_BINARY_BIT_AND.eval(&[a, b]).map(ConstVal::Base).ok_or_else(err),
+                BinaryOp::Equal => function::OP_BINARY_EQUAL.eval(&[a, b]).map(ConstVal::Base).ok_or_else(err),
+                BinaryOp::NonEqual => todo!(),
+                BinaryOp::LT => function::OP_BINARY_LT.eval(&[a, b]).map(ConstVal::Base).ok_or_else(err),
+                BinaryOp::GT => function::OP_BINARY_GT.eval(&[a, b]).map(ConstVal::Base).ok_or_else(err),
+                BinaryOp::LTE => function::OP_BINARY_LTE.eval(&[a, b]).map(ConstVal::Base).ok_or_else(err),
+                BinaryOp::GTE => function::OP_BINARY_GTE.eval(&[a, b]).map(ConstVal::Base).ok_or_else(err),
+                BinaryOp::LShift => function::OP_BINARY_LSHIFT.eval(&[a, b]).map(ConstVal::Base).ok_or_else(err),
+                BinaryOp::RShift => function::OP_BINARY_RSHIFT.eval(&[a, b]).map(ConstVal::Base).ok_or_else(err),
+                BinaryOp::Add => function::OP_BINARY_ADD.eval(&[a, b]).map(ConstVal::Base).ok_or_else(err),
+                BinaryOp::Sub => function::OP_BINARY_SUB.eval(&[a, b]).map(ConstVal::Base).ok_or_else(err),
+                BinaryOp::Mult => function::OP_BINARY_MULT.eval(&[a, b]).map(ConstVal::Base).ok_or_else(err),
+                BinaryOp::Div => function::OP_BINARY_DIV.eval(&[a, b]).map(ConstVal::Base).ok_or_else(err),
+                BinaryOp::Mod => function::OP_BINARY_MOD.eval(&[a, b]).map(ConstVal::Base).ok_or_else(err),
+            }
+        },
+        Expr::Ternary(_, _, _) => todo!(),
+        Expr::Assignment(_, _, _) => Err(ConstEvalError::IllegalExpression),
+        Expr::Bracket(_, _) => Err(ConstEvalError::IllegalExpression),
+        Expr::FunCall(ident, params) => {
+            let func = match ident {
+                FunIdentifier::Identifier(ident) => fl.lookup(ident).ok_or_else(|| ConstEvalError::UnknownIdentifier(ident.0.clone()))?,
+                FunIdentifier::Expr(_) => todo!(),
+            };
+            let params = params.iter().map(|e| const_eval(e, cl, fl)).collect::<Result<Vec<_>, ConstEvalError>>()?;
+            let param_ref = params.iter().map(ConstVal::try_into_base).collect::<Option<Vec<_>>>().ok_or(ConstEvalError::NoMatchingFunctionOverload)?;
+
+            func.eval(&param_ref).map(ConstVal::Base).ok_or(ConstEvalError::NoMatchingFunctionOverload)
+        },
+        Expr::Dot(_, _) => todo!(),
+        Expr::PostInc(_) => Err(ConstEvalError::IllegalExpression),
+        Expr::PostDec(_) => Err(ConstEvalError::IllegalExpression),
+        Expr::Comma(_, _) => Err(ConstEvalError::IllegalExpression),
+    }
+}
+
 #[derive(Clone, PartialEq, Debug)]
 pub enum ConstEvalError {
     UnknownIdentifier(String),
+    IllegalExpression,
     IllegalUnaryOp(UnaryOp),
     IllegalUnaryOperand(UnaryOp, TypeSpecifier),
     IllegalBinaryOp(BinaryOp),
     IllegalBinaryOperand(BinaryOp, TypeSpecifier, TypeSpecifier),
+    NoMatchingFunctionOverload,
 }
 
 mod function {
@@ -1599,7 +1677,7 @@ mod function {
     }
 
     impl ConstEvalFunctionLookup for HashMap<String, ConstEvalFunction> {
-        fn lookup(&self, ident: Identifier) -> Option<&ConstEvalFunction> {
+        fn lookup(&self, ident: &Identifier) -> Option<&ConstEvalFunction> {
             self.get(&ident.0)
         }
     }
@@ -1960,7 +2038,7 @@ mod function {
     }
 
     lazy_static! {
-        static ref OP_UNARY_ADD: ConstEvalFunction = {
+        pub static ref OP_UNARY_ADD: ConstEvalFunction = {
             ConstEvalFunctionBuilder::new()
                 .add_overload_1(|v: ConstSVVal<i32>| Some(v))
                 .add_overload_1(|v: ConstSVVal<u32>| Some(v))
@@ -1970,7 +2048,7 @@ mod function {
                 .add_overload_1(|v: ConstMVal<f64>| Some(v))
                 .build()
         };
-        static ref OP_UNARY_MINUS: ConstEvalFunction = {
+        pub static ref OP_UNARY_MINUS: ConstEvalFunction = {
             ConstEvalFunctionBuilder::new()
                 .add_overload_1(|v: ConstSVVal<i32>| Some(v.map(i32::wrapping_neg)))
                 .add_overload_1(|v: ConstSVVal<u32>| Some(v.map(u32::wrapping_neg)))
@@ -1980,51 +2058,51 @@ mod function {
                 .add_overload_1(|v: ConstMVal<f64>| Some(v.map(f64::neg)))
                 .build()
         };
-        static ref OP_UNARY_NOT: ConstEvalFunction = {
+        pub static ref OP_UNARY_NOT: ConstEvalFunction = {
             ConstEvalFunctionBuilder::new()
                 .add_overload_1(|v: bool| Some(!v))
                 .build()
         };
-        static ref OP_UNARY_COMPLEMENT: ConstEvalFunction = {
+        pub static ref OP_UNARY_COMPLEMENT: ConstEvalFunction = {
             ConstEvalFunctionBuilder::new()
                 .add_overload_1(|v: ConstSVVal<i32>| Some(v.map(i32::not)))
                 .add_overload_1(|v: ConstSVVal<u32>| Some(v.map(u32::not)))
                 .build()
         };
-        static ref OP_BINARY_OR: ConstEvalFunction = {
+        pub static ref OP_BINARY_OR: ConstEvalFunction = {
             ConstEvalFunctionBuilder::new()
                 .add_overload_2(|a: bool, b: bool| Some(a || b))
                 .build()
         };
-        static ref OP_BINARY_XOR: ConstEvalFunction = {
+        pub static ref OP_BINARY_XOR: ConstEvalFunction = {
             ConstEvalFunctionBuilder::new()
                 .add_overload_2(|a: bool, b: bool| Some(a != b))
                 .build()
         };
-        static ref OP_BINARY_AND: ConstEvalFunction = {
+        pub static ref OP_BINARY_AND: ConstEvalFunction = {
             ConstEvalFunctionBuilder::new()
                 .add_overload_2(|a: bool, b: bool| Some(a && b))
                 .build()
         };
-        static ref OP_BINARY_BIT_OR: ConstEvalFunction = {
+        pub static ref OP_BINARY_BIT_OR: ConstEvalFunction = {
             let mut f = ConstEvalFunctionBuilder::new();
             f = add_i32_binop_components(f, i32::bitor);
             f = add_u32_binop_components(f, u32::bitor);
             f.build()
         };
-        static ref OP_BINARY_BIT_XOR: ConstEvalFunction = {
+        pub static ref OP_BINARY_BIT_XOR: ConstEvalFunction = {
             let mut f = ConstEvalFunctionBuilder::new();
             f = add_i32_binop_components(f, i32::bitxor);
             f = add_u32_binop_components(f, u32::bitxor);
             f.build()
         };
-        static ref OP_BINARY_BIT_AND: ConstEvalFunction = {
+        pub static ref OP_BINARY_BIT_AND: ConstEvalFunction = {
             let mut f = ConstEvalFunctionBuilder::new();
             f = add_i32_binop_components(f, i32::bitand);
             f = add_u32_binop_components(f, u32::bitand);
             f.build()
         };
-        static ref OP_BINARY_EQUAL: ConstEvalFunction = {
+        pub static ref OP_BINARY_EQUAL: ConstEvalFunction = {
             ConstEvalFunctionBuilder::new()
                 .add_overload_2(|a: ConstSVVal<bool>, b: ConstSVVal<bool>| Some(a.zip_map(&b, |a, b| a == b)?.fold(true, bool::bitand)))
                 .add_overload_2(|a: ConstSVVal<i32>, b: ConstSVVal<i32>| Some(a.zip_map(&b, |a, b| a == b)?.fold(true, bool::bitand)))
@@ -2035,7 +2113,7 @@ mod function {
                 .add_overload_2(|a: ConstMVal<f64>, b: ConstMVal<f64>| Some(a.zip_map(&b, |a, b| a == b)?.fold(true, bool::bitand)))
                 .build()
         };
-        static ref OP_BINARY_LT: ConstEvalFunction = {
+        pub static ref OP_BINARY_LT: ConstEvalFunction = {
             ConstEvalFunctionBuilder::new()
                 .add_overload_2(|a: i32, b: i32| Some(a < b))
                 .add_overload_2(|a: u32, b: u32| Some(a < b))
@@ -2043,7 +2121,7 @@ mod function {
                 .add_overload_2(|a: f64, b: f64| Some(a < b))
                 .build()
         };
-        static ref OP_BINARY_GT: ConstEvalFunction = {
+        pub static ref OP_BINARY_GT: ConstEvalFunction = {
             ConstEvalFunctionBuilder::new()
                 .add_overload_2(|a: i32, b: i32| Some(a > b))
                 .add_overload_2(|a: u32, b: u32| Some(a > b))
@@ -2051,7 +2129,7 @@ mod function {
                 .add_overload_2(|a: f64, b: f64| Some(a > b))
                 .build()
         };
-        static ref OP_BINARY_LTE: ConstEvalFunction = {
+        pub static ref OP_BINARY_LTE: ConstEvalFunction = {
             ConstEvalFunctionBuilder::new()
                 .add_overload_2(|a: i32, b: i32| Some(a <= b))
                 .add_overload_2(|a: u32, b: u32| Some(a <= b))
@@ -2059,7 +2137,7 @@ mod function {
                 .add_overload_2(|a: f64, b: f64| Some(a <= b))
                 .build()
         };
-        static ref OP_BINARY_GTE: ConstEvalFunction = {
+        pub static ref OP_BINARY_GTE: ConstEvalFunction = {
             ConstEvalFunctionBuilder::new()
                 .add_overload_2(|a: i32, b: i32| Some(a >= b))
                 .add_overload_2(|a: u32, b: u32| Some(a >= b))
@@ -2067,7 +2145,7 @@ mod function {
                 .add_overload_2(|a: f64, b: f64| Some(a >= b))
                 .build()
         };
-        static ref OP_BINARY_LSHITF: ConstEvalFunction = {
+        pub static ref OP_BINARY_LSHIFT: ConstEvalFunction = {
             ConstEvalFunctionBuilder::new()
                 .add_overload_2(|a: ConstSVVal<i32>, b: i32| Some(a.map(|v| v << b)))
                 .add_overload_2(|a: ConstSVVal<i32>, b: u32| Some(a.map(|v| v << b)))
@@ -2079,7 +2157,19 @@ mod function {
                 .add_overload_2(|a: ConstSVVal<u32>, b: ConstSVVal<u32>| a.zip_map(&b, |a, b| a << b))
                 .build()
         };
-        static ref OP_BINARY_ADD: ConstEvalFunction = {
+        pub static ref OP_BINARY_RSHIFT: ConstEvalFunction = {
+            ConstEvalFunctionBuilder::new()
+                .add_overload_2(|a: ConstSVVal<i32>, b: i32| Some(a.map(|v| v >> b)))
+                .add_overload_2(|a: ConstSVVal<i32>, b: u32| Some(a.map(|v| v >> b)))
+                .add_overload_2(|a: ConstSVVal<i32>, b: ConstSVVal<i32>| a.zip_map(&b, |a, b| a >> b))
+                .add_overload_2(|a: ConstSVVal<i32>, b: ConstSVVal<u32>| a.zip_map(&b, |a, b| a >> b))
+                .add_overload_2(|a: ConstSVVal<u32>, b: i32| Some(a.map(|v| v >> b)))
+                .add_overload_2(|a: ConstSVVal<u32>, b: u32| Some(a.map(|v| v >> b)))
+                .add_overload_2(|a: ConstSVVal<u32>, b: ConstSVVal<i32>| a.zip_map(&b, |a, b| a >> b))
+                .add_overload_2(|a: ConstSVVal<u32>, b: ConstSVVal<u32>| a.zip_map(&b, |a, b| a >> b))
+                .build()
+        };
+        pub static ref OP_BINARY_ADD: ConstEvalFunction = {
             let mut f = ConstEvalFunctionBuilder::new();
             f = add_i32_binop_components(f, |a, b| a + b);
             f = add_u32_binop_components(f, |a, b| a + b);
@@ -2087,7 +2177,7 @@ mod function {
             f = add_f64_binop_components(f, |a, b| a + b);
             f.build()
         };
-        static ref OP_BINARY_SUB: ConstEvalFunction = {
+        pub static ref OP_BINARY_SUB: ConstEvalFunction = {
             let mut f = ConstEvalFunctionBuilder::new();
             f = add_i32_binop_components(f, |a, b| a - b);
             f = add_u32_binop_components(f, |a, b| a - b);
@@ -2095,7 +2185,7 @@ mod function {
             f = add_f64_binop_components(f, |a, b| a - b);
             f.build()
         };
-        static ref OP_BINARY_MULT: ConstEvalFunction = {
+        pub static ref OP_BINARY_MULT: ConstEvalFunction = {
             let mut f = ConstEvalFunctionBuilder::new();
             f = add_i32_binop_components(f, |a, b| a * b);
             f = add_u32_binop_components(f, |a, b| a * b);
@@ -2139,7 +2229,7 @@ mod function {
                 .add_overload_2(|a: Matrix4<f64>, b: Vector4<f64>| Some(a * b))
                 .build()
         };
-        static ref OP_BINARY_DIV: ConstEvalFunction = {
+        pub static ref OP_BINARY_DIV: ConstEvalFunction = {
             let mut f = ConstEvalFunctionBuilder::new();
             f = add_i32_binop_components(f, |a, b| a / b);
             f = add_u32_binop_components(f, |a, b| a / b);
@@ -2147,7 +2237,7 @@ mod function {
             f = add_f64_binop_components(f, |a, b| a / b);
             f.build()
         };
-        static ref OP_BINARY_MOD: ConstEvalFunction = {
+        pub static ref OP_BINARY_MOD: ConstEvalFunction = {
             let mut f = ConstEvalFunctionBuilder::new();
             f = add_i32_binop_components(f, |a, b| a % b);
             f = add_u32_binop_components(f, |a, b| a % b);
@@ -2356,7 +2446,7 @@ mod function {
     }
 
     lazy_static! {
-        static ref BUILTIN_CONST_FUNCTIONS: HashMap<String, ConstEvalFunction> = {
+        pub static ref BUILTIN_CONST_FUNCTIONS: HashMap<String, ConstEvalFunction> = {
             let mut map = HashMap::new();
             register_builtin_const_functions(|i, f| { map.insert(i.0, f); });
             map
@@ -2380,7 +2470,7 @@ mod function {
             assert_eq!(OP_BINARY_ADD.eval(&[&b, &c]), Some(d.clone()));
             assert_eq!(OP_BINARY_ADD.eval(&[&c, &b]), Some(d));
 
-            assert_eq!(BUILTIN_CONST_FUNCTIONS.lookup(Identifier::new("vec3").unwrap()).unwrap().eval(&[&b, &a]), Some(ConstBaseVal::Float(ConstSVMVal::new_vec3(Vector3::new(4f32, 9f32, 1f32)))));
+            assert_eq!(BUILTIN_CONST_FUNCTIONS.lookup(&Identifier::new("vec3").unwrap()).unwrap().eval(&[&b, &a]), Some(ConstBaseVal::Float(ConstSVMVal::new_vec3(Vector3::new(4f32, 9f32, 1f32)))));
         }
 
         #[test]
