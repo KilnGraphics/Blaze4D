@@ -1,4 +1,5 @@
 use std::collections::HashMap;
+use std::hash::{Hash, Hasher};
 
 use glsl::syntax::{ArraySpecifier, BinaryOp, Expr, Identifier, StructSpecifier, TypeSpecifier, TypeSpecifierNonArray, UnaryOp};
 use nalgebra::{Const, DMatrix, Matrix2, Matrix2x3, Matrix2x4, Matrix3, Matrix3x2, Matrix3x4, Matrix4, Matrix4x2, Matrix4x3, Scalar, Vector2, Vector3, Vector4};
@@ -16,7 +17,7 @@ pub trait ConstLookup {
 }
 
 #[derive(Copy, Clone, Eq, PartialEq, Ord, PartialOrd, Hash, Debug)]
-pub enum BaseTypeSize {
+pub enum BaseTypeShape {
     Scalar,
     Vec2,
     Vec3,
@@ -32,6 +33,290 @@ pub enum BaseTypeSize {
     Mat4
 }
 
+impl BaseTypeShape {
+    fn is_scalar(&self) -> bool {
+        match self {
+            BaseTypeShape::Scalar => true,
+            _ => false,
+        }
+    }
+
+    fn is_vector(&self) -> bool {
+        match self {
+            BaseTypeShape::Vec2 |
+            BaseTypeShape::Vec3 |
+            BaseTypeShape::Vec4 => true,
+            _ => false,
+        }
+    }
+
+    fn is_matrix(&self) -> bool {
+        match self {
+            BaseTypeShape::Mat2 |
+            BaseTypeShape::Mat23 |
+            BaseTypeShape::Mat24 |
+            BaseTypeShape::Mat32 |
+            BaseTypeShape::Mat3 |
+            BaseTypeShape::Mat34 |
+            BaseTypeShape::Mat42 |
+            BaseTypeShape::Mat43 |
+            BaseTypeShape::Mat4 => true,
+            _ => false,
+        }
+    }
+}
+
+/// General utility functions to work with generic shaped constant values
+pub trait ConstGenericValue<'a, T: Scalar> {
+    fn get_shape(&'a self) -> BaseTypeShape;
+
+    fn is_scalar(&'a self) -> bool {
+        self.get_shape().is_scalar()
+    }
+
+    fn is_vector(&'a self) -> bool {
+        self.get_shape().is_vector()
+    }
+
+    fn is_matrix(&'a self) -> bool {
+        self.get_shape().is_matrix()
+    }
+
+    type ColumnIterator: Iterator<Item = &'a T>;
+
+    /// Iterates over all elements in column major order.
+    fn column_iter(&'a self) -> Self::ColumnIterator;
+
+    fn fold<R, F: FnMut(R, T) -> R>(&'a self, initial: R, f: F) -> R {
+        self.column_iter().cloned().fold(initial, f)
+    }
+}
+
+/// Functions for component wise mapping of a generic shaped constant value
+pub trait ConstGenericMappable<'a, 'b, T: Scalar, R: Scalar> {
+    type Result: ConstGenericValue<'b, R>;
+
+    /// Applies the function to each component returning a new ConstGenericValue of the same shape.
+    fn map<F: FnMut(T) -> R>(&'a self, f: F) -> Self::Result;
+}
+
+/// Functions for component wise mapping of 2 generic shaped constant values
+pub trait ConstGenericZipMappable<'a, 'b, 'c, T1: Scalar, T2: Scalar, O: ConstGenericValue<'b, T2>, R: Scalar> {
+    type Result: ConstGenericValue<'c, R>;
+
+    /// Applies the function to each component pair returning a new ConstGenericValue of the same
+    /// shape.
+    ///
+    /// If `other` does not have the same shape as `self`, [`None`] must be returned.
+    fn zip_map<F: FnMut(T1, T2) -> R>(&'a self, other: &'b O, f: F) -> Option<Self::Result>;
+}
+
+/// Constant generic shaped vector value.
+#[derive(Clone, PartialEq, Hash, Debug)]
+pub enum ConstVVal<T: Scalar> {
+    Vec2(Vector2<T>),
+    Vec3(Vector3<T>),
+    Vec4(Vector4<T>),
+}
+
+impl<T: Scalar> ConstVVal<T> {
+    pub fn new_vec2<S: Into<Vector2<T>>>(val: S) -> Self {
+        Self::Vec2(val.into())
+    }
+
+    pub fn new_vec3<S: Into<Vector3<T>>>(val: S) -> Self {
+        Self::Vec3(val.into())
+    }
+
+    pub fn new_vec4<S: Into<Vector4<T>>>(val: S) -> Self {
+        Self::Vec4(val.into())
+    }
+}
+
+impl<'a, T: Scalar> ConstGenericValue<'a, T> for ConstVVal<T> {
+    fn get_shape(&'a self) -> BaseTypeShape {
+        match self {
+            ConstVVal::Vec2(_) => BaseTypeShape::Vec2,
+            ConstVVal::Vec3(_) => BaseTypeShape::Vec3,
+            ConstVVal::Vec4(_) => BaseTypeShape::Vec4,
+        }
+    }
+
+    type ColumnIterator = std::slice::Iter<'a, T>;
+
+    fn column_iter(&'a self) -> Self::ColumnIterator {
+        match self {
+            ConstVVal::Vec2(v) => v.as_slice().iter(),
+            ConstVVal::Vec3(v) => v.as_slice().iter(),
+            ConstVVal::Vec4(v) => v.as_slice().iter(),
+        }
+    }
+}
+
+impl<'a, 'b, T: Scalar, R: Scalar> ConstGenericMappable<'a, 'b, T, R> for ConstVVal<T> {
+    type Result = ConstVVal<R>;
+
+    fn map<F: FnMut(T) -> R>(&'a self, f: F) -> Self::Result {
+        match self {
+            ConstVVal::Vec2(v) => ConstVVal::Vec2(v.map(f)),
+            ConstVVal::Vec3(v) => ConstVVal::Vec3(v.map(f)),
+            ConstVVal::Vec4(v) => ConstVVal::Vec4(v.map(f)),
+        }
+    }
+}
+
+impl<'a, 'b, 'c, T1: Scalar, T2: Scalar, R: Scalar> ConstGenericZipMappable<'a, 'b, 'c, T1, T2, ConstVVal<T2>, R> for ConstVVal<T1> {
+    type Result = ConstVVal<R>;
+
+    fn zip_map<F: FnMut(T1, T2) -> R>(&'a self, other: &'b ConstVVal<T2>, f: F) -> Option<Self::Result> {
+        match (self, other) {
+            (ConstVVal::Vec2(v1), ConstVVal::Vec2(v2)) => Some(ConstVVal::Vec2(v1.zip_map(v2, f))),
+            (ConstVVal::Vec3(v1), ConstVVal::Vec3(v2)) => Some(ConstVVal::Vec3(v1.zip_map(v2, f))),
+            (ConstVVal::Vec4(v1), ConstVVal::Vec4(v2)) => Some(ConstVVal::Vec4(v1.zip_map(v2, f))),
+            _ => None,
+        }
+    }
+}
+
+impl<T: Scalar> From<Vector2<T>> for ConstVVal<T> {
+    fn from(v: Vector2<T>) -> Self {
+        ConstVVal::Vec2(v)
+    }
+}
+
+impl<T: Scalar> From<Vector3<T>> for ConstVVal<T> {
+    fn from(v: Vector3<T>) -> Self {
+        ConstVVal::Vec3(v)
+    }
+}
+
+impl<T: Scalar> From<Vector4<T>> for ConstVVal<T> {
+    fn from(v: Vector4<T>) -> Self {
+        ConstVVal::Vec4(v)
+    }
+}
+
+/// Constant generic shaped matrix value.
+#[derive(Clone, PartialEq, Hash, Debug)]
+pub enum ConstMVal<T: Scalar> {
+    Mat2(Matrix2<T>),
+    Mat23(Matrix2x3<T>),
+    Mat24(Matrix2x4<T>),
+    Mat32(Matrix3x2<T>),
+    Mat3(Matrix3<T>),
+    Mat34(Matrix3x4<T>),
+    Mat42(Matrix4x2<T>),
+    Mat43(Matrix4x3<T>),
+    Mat4(Matrix4<T>),
+}
+
+impl<T: Scalar> ConstMVal<T> {
+    pub fn new_mat2<S: Into<Matrix2<T>>>(val: S) -> Self {
+        Self::Mat2(val.into())
+    }
+
+    pub fn new_mat23<S: Into<Matrix2x3<T>>>(val: S) -> Self {
+        Self::Mat23(val.into())
+    }
+
+    pub fn new_mat24<S: Into<Matrix2x4<T>>>(val: S) -> Self {
+        Self::Mat24(val.into())
+    }
+
+    pub fn new_mat32<S: Into<Matrix3x2<T>>>(val: S) -> Self {
+        Self::Mat32(val.into())
+    }
+
+    pub fn new_mat3<S: Into<Matrix3<T>>>(val: S) -> Self {
+        Self::Mat3(val.into())
+    }
+
+    pub fn new_mat34<S: Into<Matrix3x4<T>>>(val: S) -> Self {
+        Self::Mat34(val.into())
+    }
+
+    pub fn new_mat42<S: Into<Matrix4x2<T>>>(val: S) -> Self {
+        Self::Mat42(val.into())
+    }
+
+    pub fn new_mat43<S: Into<Matrix4x3<T>>>(val: S) -> Self {
+        Self::Mat43(val.into())
+    }
+
+    pub fn new_mat4<S: Into<Matrix4<T>>>(val: S) -> Self {
+        Self::Mat4(val.into())
+    }
+}
+
+impl<'a, T: Scalar> ConstGenericValue<'a, T> for ConstMVal<T> {
+    fn get_shape(&'a self) -> BaseTypeShape {
+        match self {
+            ConstMVal::Mat2(_) => BaseTypeShape::Mat2,
+            ConstMVal::Mat23(_) => BaseTypeShape::Mat23,
+            ConstMVal::Mat24(_) => BaseTypeShape::Mat24,
+            ConstMVal::Mat32(_) => BaseTypeShape::Mat32,
+            ConstMVal::Mat3(_) => BaseTypeShape::Mat3,
+            ConstMVal::Mat34(_) => BaseTypeShape::Mat34,
+            ConstMVal::Mat42(_) => BaseTypeShape::Mat42,
+            ConstMVal::Mat43(_) => BaseTypeShape::Mat43,
+            ConstMVal::Mat4(_) => BaseTypeShape::Mat4,
+        }
+    }
+
+    type ColumnIterator = std::slice::Iter<'a, T>;
+
+    fn column_iter(&'a self) -> Self::ColumnIterator {
+        match self {
+            ConstMVal::Mat2(v) => v.as_slice().iter(),
+            ConstMVal::Mat23(v) => v.as_slice().iter(),
+            ConstMVal::Mat24(v) => v.as_slice().iter(),
+            ConstMVal::Mat32(v) => v.as_slice().iter(),
+            ConstMVal::Mat3(v) => v.as_slice().iter(),
+            ConstMVal::Mat34(v) => v.as_slice().iter(),
+            ConstMVal::Mat42(v) => v.as_slice().iter(),
+            ConstMVal::Mat43(v) => v.as_slice().iter(),
+            ConstMVal::Mat4(v) => v.as_slice().iter(),
+        }
+    }
+}
+
+impl<'a, 'b, T: Scalar, R: Scalar> ConstGenericMappable<'a, 'b, T, R> for ConstMVal<T> {
+    type Result = ConstMVal<R>;
+
+    fn map<F: FnMut(T) -> R>(&'a self, f: F) -> Self::Result {
+        match self {
+            ConstMVal::Mat2(v) => ConstMVal::Mat2(v.map(f)),
+            ConstMVal::Mat23(v) => ConstMVal::Mat23(v.map(f)),
+            ConstMVal::Mat24(v) => ConstMVal::Mat24(v.map(f)),
+            ConstMVal::Mat32(v) => ConstMVal::Mat32(v.map(f)),
+            ConstMVal::Mat3(v) => ConstMVal::Mat3(v.map(f)),
+            ConstMVal::Mat34(v) => ConstMVal::Mat34(v.map(f)),
+            ConstMVal::Mat42(v) => ConstMVal::Mat42(v.map(f)),
+            ConstMVal::Mat43(v) => ConstMVal::Mat43(v.map(f)),
+            ConstMVal::Mat4(v) => ConstMVal::Mat4(v.map(f)),
+        }
+    }
+}
+
+impl<'a, 'b, 'c, T1: Scalar, T2: Scalar, R: Scalar> ConstGenericZipMappable<'a, 'b, 'c, T1, T2, ConstMVal<T2>, R> for ConstMVal<T1> {
+    type Result = ConstMVal<R>;
+
+    fn zip_map<F: FnMut(T1, T2) -> R>(&'a self, other: &'b ConstMVal<T2>, f: F) -> Option<Self::Result> {
+        match (self, other) {
+            (ConstMVal::Mat2(a), ConstMVal::Mat2(b)) => Some(ConstMVal::Mat2(a.zip_map(b, f))),
+            (ConstMVal::Mat23(a), ConstMVal::Mat23(b)) => Some(ConstMVal::Mat23(a.zip_map(b, f))),
+            (ConstMVal::Mat24(a), ConstMVal::Mat24(b)) => Some(ConstMVal::Mat24(a.zip_map(b, f))),
+            (ConstMVal::Mat32(a), ConstMVal::Mat32(b)) => Some(ConstMVal::Mat32(a.zip_map(b, f))),
+            (ConstMVal::Mat3(a), ConstMVal::Mat3(b)) => Some(ConstMVal::Mat3(a.zip_map(b, f))),
+            (ConstMVal::Mat34(a), ConstMVal::Mat34(b)) => Some(ConstMVal::Mat34(a.zip_map(b, f))),
+            (ConstMVal::Mat42(a), ConstMVal::Mat42(b)) => Some(ConstMVal::Mat42(a.zip_map(b, f))),
+            (ConstMVal::Mat43(a), ConstMVal::Mat43(b)) => Some(ConstMVal::Mat43(a.zip_map(b, f))),
+            (ConstMVal::Mat4(a), ConstMVal::Mat4(b)) => Some(ConstMVal::Mat4(a.zip_map(b, f))),
+            _ => None
+        }
+    }
+}
+
 /// Constant scalar or vector type
 #[derive(Clone, PartialEq, Hash, Debug)]
 pub enum ConstSVVal<T: Scalar> {
@@ -42,12 +327,12 @@ pub enum ConstSVVal<T: Scalar> {
 }
 
 impl<T: Scalar> ConstSVVal<T> {
-    fn get_size(&self) -> BaseTypeSize {
+    fn get_size(&self) -> BaseTypeShape {
         match self {
-            ConstSVVal::Scalar(_) => BaseTypeSize::Scalar,
-            ConstSVVal::Vec2(_) => BaseTypeSize::Vec2,
-            ConstSVVal::Vec3(_) => BaseTypeSize::Vec3,
-            ConstSVVal::Vec4(_) => BaseTypeSize::Vec4,
+            ConstSVVal::Scalar(_) => BaseTypeShape::Scalar,
+            ConstSVVal::Vec2(_) => BaseTypeShape::Vec2,
+            ConstSVVal::Vec3(_) => BaseTypeShape::Vec3,
+            ConstSVVal::Vec4(_) => BaseTypeShape::Vec4,
         }
     }
 
@@ -99,94 +384,6 @@ impl<T: Scalar> ConstSVVal<T> {
     }
 }
 
-/// Constant matrix type
-#[derive(Clone, PartialEq, Hash, Debug)]
-pub enum ConstMVal<T: Scalar> {
-    Mat2(Matrix2<T>),
-    Mat23(Matrix2x3<T>),
-    Mat24(Matrix2x4<T>),
-    Mat32(Matrix3x2<T>),
-    Mat3(Matrix3<T>),
-    Mat34(Matrix3x4<T>),
-    Mat42(Matrix4x2<T>),
-    Mat43(Matrix4x3<T>),
-    Mat4(Matrix4<T>),
-}
-
-impl<T: Scalar> ConstMVal<T> {
-    fn get_size(&self) -> BaseTypeSize {
-        match self {
-            ConstMVal::Mat2(_) => BaseTypeSize::Mat2,
-            ConstMVal::Mat23(_) => BaseTypeSize::Mat23,
-            ConstMVal::Mat24(_) => BaseTypeSize::Mat24,
-            ConstMVal::Mat32(_) => BaseTypeSize::Mat32,
-            ConstMVal::Mat3(_) => BaseTypeSize::Mat3,
-            ConstMVal::Mat34(_) => BaseTypeSize::Mat34,
-            ConstMVal::Mat42(_) => BaseTypeSize::Mat42,
-            ConstMVal::Mat43(_) => BaseTypeSize::Mat43,
-            ConstMVal::Mat4(_) => BaseTypeSize::Mat4,
-        }
-    }
-
-    /// Iterates over components in column major order
-    fn component_iter(&self) -> std::slice::Iter<T> {
-        match self {
-            ConstMVal::Mat2(v) => v.as_slice().iter(),
-            ConstMVal::Mat23(v) => v.as_slice().iter(),
-            ConstMVal::Mat24(v) => v.as_slice().iter(),
-            ConstMVal::Mat32(v) => v.as_slice().iter(),
-            ConstMVal::Mat3(v) => v.as_slice().iter(),
-            ConstMVal::Mat34(v) => v.as_slice().iter(),
-            ConstMVal::Mat42(v) => v.as_slice().iter(),
-            ConstMVal::Mat43(v) => v.as_slice().iter(),
-            ConstMVal::Mat4(v) => v.as_slice().iter(),
-        }
-    }
-
-    fn map<R: Scalar, F: FnMut(T) -> R>(&self, mut f: F) -> ConstMVal<R> {
-        match self {
-            ConstMVal::Mat2(v) => ConstMVal::Mat2(v.map(f)),
-            ConstMVal::Mat23(v) => ConstMVal::Mat23(v.map(f)),
-            ConstMVal::Mat24(v) => ConstMVal::Mat24(v.map(f)),
-            ConstMVal::Mat32(v) => ConstMVal::Mat32(v.map(f)),
-            ConstMVal::Mat3(v) => ConstMVal::Mat3(v.map(f)),
-            ConstMVal::Mat34(v) => ConstMVal::Mat34(v.map(f)),
-            ConstMVal::Mat42(v) => ConstMVal::Mat42(v.map(f)),
-            ConstMVal::Mat43(v) => ConstMVal::Mat43(v.map(f)),
-            ConstMVal::Mat4(v) => ConstMVal::Mat4(v.map(f)),
-        }
-    }
-
-    fn zip_map<T2: Scalar, R: Scalar, F: FnMut(T, T2) -> R>(&self, other: &ConstMVal<T2>, mut f: F) -> Option<ConstMVal<R>> {
-        match (self, other) {
-            (ConstMVal::Mat2(a), ConstMVal::Mat2(b)) => Some(ConstMVal::Mat2(a.zip_map(b, f))),
-            (ConstMVal::Mat23(a), ConstMVal::Mat23(b)) => Some(ConstMVal::Mat23(a.zip_map(b, f))),
-            (ConstMVal::Mat24(a), ConstMVal::Mat24(b)) => Some(ConstMVal::Mat24(a.zip_map(b, f))),
-            (ConstMVal::Mat32(a), ConstMVal::Mat32(b)) => Some(ConstMVal::Mat32(a.zip_map(b, f))),
-            (ConstMVal::Mat3(a), ConstMVal::Mat3(b)) => Some(ConstMVal::Mat3(a.zip_map(b, f))),
-            (ConstMVal::Mat34(a), ConstMVal::Mat34(b)) => Some(ConstMVal::Mat34(a.zip_map(b, f))),
-            (ConstMVal::Mat42(a), ConstMVal::Mat42(b)) => Some(ConstMVal::Mat42(a.zip_map(b, f))),
-            (ConstMVal::Mat43(a), ConstMVal::Mat43(b)) => Some(ConstMVal::Mat43(a.zip_map(b, f))),
-            (ConstMVal::Mat4(a), ConstMVal::Mat4(b)) => Some(ConstMVal::Mat4(a.zip_map(b, f))),
-            _ => None
-        }
-    }
-
-    fn fold<R, F: FnMut(R, T) -> R>(&self, initial: R, mut f: F) -> R {
-        match self {
-            ConstMVal::Mat2(v) => v.fold(initial, f),
-            ConstMVal::Mat23(v) => v.fold(initial, f),
-            ConstMVal::Mat24(v) => v.fold(initial, f),
-            ConstMVal::Mat32(v) => v.fold(initial, f),
-            ConstMVal::Mat3(v) => v.fold(initial, f),
-            ConstMVal::Mat34(v) => v.fold(initial, f),
-            ConstMVal::Mat42(v) => v.fold(initial, f),
-            ConstMVal::Mat43(v) => v.fold(initial, f),
-            ConstMVal::Mat4(v) => v.fold(initial, f),
-        }
-    }
-}
-
 /// Constant scalar, vector or matrix type
 #[derive(Clone, PartialEq, Hash, Debug)]
 pub enum ConstSVMVal<T: Scalar> {
@@ -195,10 +392,10 @@ pub enum ConstSVMVal<T: Scalar> {
 }
 
 impl<T: Scalar> ConstSVMVal<T> {
-    fn get_size(&self) -> BaseTypeSize {
+    fn get_size(&self) -> BaseTypeShape {
         match self {
             ConstSVMVal::SV(v) => v.get_size(),
-            ConstSVMVal::M(v) => v.get_size(),
+            ConstSVMVal::M(v) => v.get_shape(),
         }
     }
 
@@ -206,7 +403,7 @@ impl<T: Scalar> ConstSVMVal<T> {
     fn component_iter(&self) -> std::slice::Iter<T> {
         match self {
             ConstSVMVal::SV(v) => v.component_iter(),
-            ConstSVMVal::M(v) => v.component_iter(),
+            ConstSVMVal::M(v) => v.column_iter(),
         }
     }
 
@@ -255,7 +452,7 @@ pub enum ConstBaseVal {
 }
 
 impl ConstBaseVal {
-    pub fn get_size(&self) -> BaseTypeSize {
+    pub fn get_size(&self) -> BaseTypeShape {
         match self {
             Self::Bool(v) => v.get_size(),
             Self::Int(v) => v.get_size(),
@@ -367,7 +564,9 @@ mod function {
 
     use nalgebra::{ArrayStorage, Const, DimName, Matrix, Matrix2, Matrix2x3, Matrix2x4, Matrix3, Matrix3x2, Matrix3x4, Matrix4, Matrix4x2, Matrix4x3, Scalar, U1, Vector, Vector2, Vector3, Vector4};
     use num_traits::{One, Zero};
-    use super::{BaseTypeSize, ConstBaseVal, ConstMVal, ConstSVMVal, ConstSVVal};
+
+    use super::{ConstGenericValue, ConstGenericMappable, ConstGenericZipMappable};
+    use super::{BaseTypeShape, ConstBaseVal, ConstMVal, ConstSVMVal, ConstSVVal};
 
     #[derive(Copy, Clone, Eq, PartialEq, Ord, PartialOrd, Debug)]
     pub enum ParameterBaseType {
@@ -441,34 +640,34 @@ mod function {
     }
 
     impl ParameterSize {
-        pub fn matches(&self, val: BaseTypeSize) -> bool {
+        pub fn matches(&self, val: BaseTypeShape) -> bool {
             match (val, self) {
-                (BaseTypeSize::Scalar, Self::Scalar) |
-                (BaseTypeSize::Vec2, Self::Vec2) |
-                (BaseTypeSize::Vec3, Self::Vec3) |
-                (BaseTypeSize::Vec4, Self::Vec4) |
-                (BaseTypeSize::Mat2, Self::Mat2) |
-                (BaseTypeSize::Mat23, Self::Mat23) |
-                (BaseTypeSize::Mat24, Self::Mat24) |
-                (BaseTypeSize::Mat32, Self::Mat32) |
-                (BaseTypeSize::Mat3, Self::Mat3) |
-                (BaseTypeSize::Mat34, Self::Mat34) |
-                (BaseTypeSize::Mat42, Self::Mat42) |
-                (BaseTypeSize::Mat43, Self::Mat43) |
-                (BaseTypeSize::Mat4, Self::Mat4) |
-                (BaseTypeSize::Scalar, Self::GenSVec) |
-                (BaseTypeSize::Vec2, Self::GenSVec) |
-                (BaseTypeSize::Vec3, Self::GenSVec) |
-                (BaseTypeSize::Vec4, Self::GenSVec) |
-                (BaseTypeSize::Mat2, Self::GenMat) |
-                (BaseTypeSize::Mat23, Self::GenMat) |
-                (BaseTypeSize::Mat24, Self::GenMat) |
-                (BaseTypeSize::Mat32, Self::GenMat) |
-                (BaseTypeSize::Mat3, Self::GenMat) |
-                (BaseTypeSize::Mat34, Self::GenMat) |
-                (BaseTypeSize::Mat42, Self::GenMat) |
-                (BaseTypeSize::Mat43, Self::GenMat) |
-                (BaseTypeSize::Mat4, Self::GenMat) => true,
+                (BaseTypeShape::Scalar, Self::Scalar) |
+                (BaseTypeShape::Vec2, Self::Vec2) |
+                (BaseTypeShape::Vec3, Self::Vec3) |
+                (BaseTypeShape::Vec4, Self::Vec4) |
+                (BaseTypeShape::Mat2, Self::Mat2) |
+                (BaseTypeShape::Mat23, Self::Mat23) |
+                (BaseTypeShape::Mat24, Self::Mat24) |
+                (BaseTypeShape::Mat32, Self::Mat32) |
+                (BaseTypeShape::Mat3, Self::Mat3) |
+                (BaseTypeShape::Mat34, Self::Mat34) |
+                (BaseTypeShape::Mat42, Self::Mat42) |
+                (BaseTypeShape::Mat43, Self::Mat43) |
+                (BaseTypeShape::Mat4, Self::Mat4) |
+                (BaseTypeShape::Scalar, Self::GenSVec) |
+                (BaseTypeShape::Vec2, Self::GenSVec) |
+                (BaseTypeShape::Vec3, Self::GenSVec) |
+                (BaseTypeShape::Vec4, Self::GenSVec) |
+                (BaseTypeShape::Mat2, Self::GenMat) |
+                (BaseTypeShape::Mat23, Self::GenMat) |
+                (BaseTypeShape::Mat24, Self::GenMat) |
+                (BaseTypeShape::Mat32, Self::GenMat) |
+                (BaseTypeShape::Mat3, Self::GenMat) |
+                (BaseTypeShape::Mat34, Self::GenMat) |
+                (BaseTypeShape::Mat42, Self::GenMat) |
+                (BaseTypeShape::Mat43, Self::GenMat) |
+                (BaseTypeShape::Mat4, Self::GenMat) => true,
                 _ => false,
             }
         }
@@ -573,7 +772,7 @@ mod function {
             }
         }
 
-        fn compatible_with(&self, params: &[(BaseTypeSize, ParameterBaseType)]) -> bool {
+        fn compatible_with(&self, params: &[(BaseTypeShape, ParameterBaseType)]) -> bool {
             if let Some(prototype) = &self.prototype {
                 if params.len() != prototype.len() {
                     return false;
@@ -2005,7 +2204,7 @@ mod function {
                 return None;
             }
             if params.len() == 1 {
-                if params[0].get_size() == BaseTypeSize::Scalar {
+                if params[0].get_size() == BaseTypeShape::Scalar {
                     return Some(AVector::<R, T>::from_element(ValIterator::new(params).next().unwrap()).to_val());
                 }
             }
@@ -2033,7 +2232,7 @@ mod function {
                 return None;
             }
             if params.len() == 1 {
-                if params[0].get_size() == BaseTypeSize::Scalar {
+                if params[0].get_size() == BaseTypeShape::Scalar {
                     return Some(AMatrix::<R, C, T>::from_diagonal_element(ValIterator::new(params).next().unwrap()).to_val());
                 } else {
                     let converted = match params[0] {
@@ -2137,6 +2336,8 @@ mod function {
             assert_eq!(OP_BINARY_ADD.eval(&[&a]), None);
             assert_eq!(OP_BINARY_ADD.eval(&[&b, &c]), Some(d.clone()));
             assert_eq!(OP_BINARY_ADD.eval(&[&c, &b]), Some(d));
+
+            assert_eq!(BUILTIN_CONST_FUNCTIONS.lookup(Identifier::new("vec3").unwrap()).unwrap().eval(&[&b, &a]), Some(ConstBaseVal::Float(ConstSVMVal::SV(ConstSVVal::Vec3(Vector3::new(4f32, 9f32, 1f32))))));
         }
 
         #[test]
