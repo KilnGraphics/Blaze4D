@@ -1,19 +1,25 @@
 use std::collections::HashMap;
-use std::hash::{Hash, Hasher};
+use std::hash::Hash;
 
 use glsl::syntax::{ArraySpecifier, BinaryOp, Expr, Identifier, StructSpecifier, TypeSpecifier, TypeSpecifierNonArray, UnaryOp};
-use nalgebra::{Const, DMatrix, Matrix2, Matrix2x3, Matrix2x4, Matrix3, Matrix3x2, Matrix3x4, Matrix4, Matrix4x2, Matrix4x3, Scalar, Vector2, Vector3, Vector4};
+use nalgebra::{Matrix2, Matrix2x3, Matrix2x4, Matrix3, Matrix3x2, Matrix3x4, Matrix4, Matrix4x2, Matrix4x3, Scalar, Vector2, Vector3, Vector4};
 
-use crate::prelude::*;
-use crate::renderer::emulator::glsl::const_eval::function::{ParameterBaseType, ParameterSize, ParameterType};
+//use crate::renderer::emulator::glsl::const_eval::function::{ParameterBaseType, ParameterSize, ParameterType};
 
+pub use function::{ConstEvalFunctionBuilder, ConstEvalFunction};
 
+/// Allows lookup of constant values
 pub trait ConstLookup {
     fn lookup_const(&self, ident: &Identifier) -> Option<&ConstVal>;
 
     fn is_const(&self, ident: &Identifier) -> bool {
         self.lookup_const(ident).is_some()
     }
+}
+
+/// Allows lookup of const evaluable functions
+pub trait ConstEvalFunctionLookup {
+    fn lookup(&self, ident: Identifier) -> Option<&ConstEvalFunction>;
 }
 
 #[derive(Copy, Clone, Eq, PartialEq, Ord, PartialOrd, Hash, Debug)]
@@ -503,131 +509,630 @@ impl<T: Scalar> TryFrom<ConstMVal<T>> for Matrix4<T> {
     }
 }
 
-/// Constant scalar or vector type
+/// Constant generic shaped scalar or vector value
 #[derive(Clone, PartialEq, Hash, Debug)]
 pub enum ConstSVVal<T: Scalar> {
     Scalar(T),
-    Vec2(Vector2<T>),
-    Vec3(Vector3<T>),
-    Vec4(Vector4<T>),
+    Vector(ConstVVal<T>),
 }
 
 impl<T: Scalar> ConstSVVal<T> {
-    fn get_size(&self) -> BaseTypeShape {
+    pub fn new_scalar<S: Into<T>>(val: S) -> Self {
+        Self::Scalar(val.into())
+    }
+
+    pub fn new_vec2<S: Into<Vector2<T>>>(val: S) -> Self {
+        Self::Vector(ConstVVal::Vec2(val.into()))
+    }
+
+    pub fn new_vec3<S: Into<Vector3<T>>>(val: S) -> Self {
+        Self::Vector(ConstVVal::Vec3(val.into()))
+    }
+
+    pub fn new_vec4<S: Into<Vector4<T>>>(val: S) -> Self {
+        Self::Vector(ConstVVal::Vec4(val.into()))
+    }
+}
+
+impl<'a, T: Scalar> ConstGenericValue<'a, T> for ConstSVVal<T> {
+    fn get_shape(&'a self) -> BaseTypeShape {
         match self {
             ConstSVVal::Scalar(_) => BaseTypeShape::Scalar,
-            ConstSVVal::Vec2(_) => BaseTypeShape::Vec2,
-            ConstSVVal::Vec3(_) => BaseTypeShape::Vec3,
-            ConstSVVal::Vec4(_) => BaseTypeShape::Vec4,
+            ConstSVVal::Vector(v) => v.get_shape(),
         }
     }
 
-    /// Iterates over components in column major order
-    fn component_iter(&self) -> std::slice::Iter<T> {
+    type ColumnIterator = std::slice::Iter<'a, T>;
+
+    fn column_iter(&'a self) -> Self::ColumnIterator {
         match self {
             ConstSVVal::Scalar(v) => std::slice::from_ref(v).iter(),
-            ConstSVVal::Vec2(v) => v.as_slice().iter(),
-            ConstSVVal::Vec3(v) => v.as_slice().iter(),
-            ConstSVVal::Vec4(v) => v.as_slice().iter(),
+            ConstSVVal::Vector(v) => v.column_iter(),
         }
     }
+}
 
-    fn first(&self) -> T {
-        match self {
-            ConstSVVal::Scalar(v) => v.clone(),
-            ConstSVVal::Vec2(v) => v[0].clone(),
-            ConstSVVal::Vec3(v) => v[0].clone(),
-            ConstSVVal::Vec4(v) => v[0].clone(),
-        }
-    }
+impl<'a, 'b, T: Scalar, R: Scalar> ConstGenericMappable<'a, 'b, T, R> for ConstSVVal<T> {
+    type Result = ConstSVVal<R>;
 
-    fn map<R: Scalar, F: FnMut(T) -> R>(&self, mut f: F) -> ConstSVVal<R> {
+    fn map<F: FnMut(T) -> R>(&'a self, mut f: F) -> Self::Result {
         match self {
             ConstSVVal::Scalar(v) => ConstSVVal::Scalar(f(v.clone())),
-            ConstSVVal::Vec2(v) => ConstSVVal::Vec2(v.map(f)),
-            ConstSVVal::Vec3(v) => ConstSVVal::Vec3(v.map(f)),
-            ConstSVVal::Vec4(v) => ConstSVVal::Vec4(v.map(f)),
-        }
-    }
-
-    fn zip_map<T2: Scalar, R: Scalar, F: FnMut(T, T2) -> R>(&self, other: &ConstSVVal<T2>, mut f: F) -> Option<ConstSVVal<R>> {
-        match (self, other) {
-            (ConstSVVal::Scalar(a), ConstSVVal::Scalar(b)) => Some(ConstSVVal::Scalar(f(a.clone(), b.clone()))),
-            (ConstSVVal::Vec2(a), ConstSVVal::Vec2(b)) => Some(ConstSVVal::Vec2(a.zip_map(b, f))),
-            (ConstSVVal::Vec3(a), ConstSVVal::Vec3(b)) => Some(ConstSVVal::Vec3(a.zip_map(b, f))),
-            (ConstSVVal::Vec4(a), ConstSVVal::Vec4(b)) => Some(ConstSVVal::Vec4(a.zip_map(b, f))),
-            _ => None
-        }
-    }
-
-    fn fold<R, F: FnMut(R, T) -> R>(&self, initial: R, mut f: F) -> R {
-        match self {
-            ConstSVVal::Scalar(v) => f(initial, v.clone()),
-            ConstSVVal::Vec2(v) => v.fold(initial, f),
-            ConstSVVal::Vec3(v) => v.fold(initial, f),
-            ConstSVVal::Vec4(v) => v.fold(initial, f),
+            ConstSVVal::Vector(v) => ConstSVVal::Vector(v.map(f)),
         }
     }
 }
 
-/// Constant scalar, vector or matrix type
-#[derive(Clone, PartialEq, Hash, Debug)]
-pub enum ConstSVMVal<T: Scalar> {
-    SV(ConstSVVal<T>),
-    M(ConstMVal<T>),
-}
+impl<'a, 'b, 'c, T1: Scalar, T2: Scalar, R: Scalar> ConstGenericZipMappable<'a, 'b, 'c, T1, T2, ConstSVVal<T2>, R> for ConstSVVal<T1> {
+    type Result = ConstSVVal<R>;
 
-impl<T: Scalar> ConstSVMVal<T> {
-    fn get_size(&self) -> BaseTypeShape {
-        match self {
-            ConstSVMVal::SV(v) => v.get_size(),
-            ConstSVMVal::M(v) => v.get_shape(),
-        }
-    }
-
-    /// Iterates over components in column major order
-    fn component_iter(&self) -> std::slice::Iter<T> {
-        match self {
-            ConstSVMVal::SV(v) => v.component_iter(),
-            ConstSVMVal::M(v) => v.column_iter(),
-        }
-    }
-
-    fn map<R: Scalar, F: FnMut(T) -> R>(self, mut f: F) -> ConstSVMVal<R> {
-        match self {
-            ConstSVMVal::SV(v) => v.map(f).into(),
-            ConstSVMVal::M(v) => v.map(f).into(),
-        }
-    }
-
-    fn zip_map<T2: Scalar, R: Scalar, F: FnMut(T, T2) -> R>(&self, other: &ConstSVMVal<T2>, mut f: F) -> Option<ConstSVMVal<R>> {
+    fn zip_map<F: FnMut(T1, T2) -> R>(&'a self, other: &'b ConstSVVal<T2>, mut f: F) -> Option<Self::Result> {
         match (self, other) {
-            (ConstSVMVal::SV(a), ConstSVMVal::SV(b)) => a.zip_map(b, f).map(ConstSVMVal::from),
-            (ConstSVMVal::M(a), ConstSVMVal::M(b)) => a.zip_map(b, f).map(ConstSVMVal::from),
+            (ConstSVVal::Scalar(v1), ConstSVVal::Scalar(v2)) => Some(ConstSVVal::Scalar(f(v1.clone(), v2.clone()))),
+            (ConstSVVal::Vector(v1), ConstSVVal::Vector(v2)) => v1.zip_map(v2, f).map(ConstSVVal::Vector),
             _ => None,
         }
     }
+}
 
-    fn fold<R, F: FnMut(R, T) -> R>(&self, initial: R, mut f: F) -> R {
+impl<T: Scalar> From<T> for ConstSVVal<T> {
+    fn from(v: T) -> Self {
+        ConstSVVal::Scalar(v)
+    }
+}
+
+impl<T: Scalar> From<Vector2<T>> for ConstSVVal<T> {
+    fn from(v: Vector2<T>) -> Self {
+        ConstSVVal::Vector(v.into())
+    }
+}
+
+impl<T: Scalar> TryFrom<ConstSVVal<T>> for Vector2<T> {
+    type Error = ();
+
+    fn try_from(value: ConstSVVal<T>) -> Result<Self, Self::Error> {
+        match value {
+            ConstSVVal::Vector(v) => v.try_into(),
+            _ => Err(()),
+        }
+    }
+}
+
+impl<T: Scalar> From<Vector3<T>> for ConstSVVal<T> {
+    fn from(v: Vector3<T>) -> Self {
+        ConstSVVal::Vector(v.into())
+    }
+}
+
+impl<T: Scalar> TryFrom<ConstSVVal<T>> for Vector3<T> {
+    type Error = ();
+
+    fn try_from(value: ConstSVVal<T>) -> Result<Self, Self::Error> {
+        match value {
+            ConstSVVal::Vector(v) => v.try_into(),
+            _ => Err(()),
+        }
+    }
+}
+
+impl<T: Scalar> From<Vector4<T>> for ConstSVVal<T> {
+    fn from(v: Vector4<T>) -> Self {
+        ConstSVVal::Vector(v.into())
+    }
+}
+
+impl<T: Scalar> TryFrom<ConstSVVal<T>> for Vector4<T> {
+    type Error = ();
+
+    fn try_from(value: ConstSVVal<T>) -> Result<Self, Self::Error> {
+        match value {
+            ConstSVVal::Vector(v) => v.try_into(),
+            _ => Err(()),
+        }
+    }
+}
+
+impl<T: Scalar> From<ConstVVal<T>> for ConstSVVal<T> {
+    fn from(v: ConstVVal<T>) -> Self {
+        ConstSVVal::Vector(v)
+    }
+}
+
+impl<T: Scalar> TryFrom<ConstSVVal<T>> for ConstVVal<T> {
+    type Error = ();
+
+    fn try_from(value: ConstSVVal<T>) -> Result<Self, Self::Error> {
+        match value {
+            ConstSVVal::Vector(v) => Ok(v),
+            _ => Err(()),
+        }
+    }
+}
+
+/// Constant generic shaped scalar, vector or matrix value
+#[derive(Clone, PartialEq, Hash, Debug)]
+pub enum ConstSVMVal<T: Scalar> {
+    Scalar(T),
+    Vector(ConstVVal<T>),
+    Matrix(ConstMVal<T>),
+}
+
+impl<T: Scalar> ConstSVMVal<T> {
+    pub fn new_scalar<S: Into<T>>(val: S) -> Self {
+        Self::Scalar(val.into())
+    }
+
+    pub fn new_vec2<S: Into<Vector2<T>>>(val: S) -> Self {
+        Self::Vector(ConstVVal::Vec2(val.into()))
+    }
+
+    pub fn new_vec3<S: Into<Vector3<T>>>(val: S) -> Self {
+        Self::Vector(ConstVVal::Vec3(val.into()))
+    }
+
+    pub fn new_vec4<S: Into<Vector4<T>>>(val: S) -> Self {
+        Self::Vector(ConstVVal::Vec4(val.into()))
+    }
+
+    pub fn new_mat2<S: Into<Matrix2<T>>>(val: S) -> Self {
+        Self::Matrix(ConstMVal::Mat2(val.into()))
+    }
+
+    pub fn new_mat23<S: Into<Matrix2x3<T>>>(val: S) -> Self {
+        Self::Matrix(ConstMVal::Mat23(val.into()))
+    }
+
+    pub fn new_mat24<S: Into<Matrix2x4<T>>>(val: S) -> Self {
+        Self::Matrix(ConstMVal::Mat24(val.into()))
+    }
+
+    pub fn new_mat32<S: Into<Matrix3x2<T>>>(val: S) -> Self {
+        Self::Matrix(ConstMVal::Mat32(val.into()))
+    }
+
+    pub fn new_mat3<S: Into<Matrix3<T>>>(val: S) -> Self {
+        Self::Matrix(ConstMVal::Mat3(val.into()))
+    }
+
+    pub fn new_mat34<S: Into<Matrix3x4<T>>>(val: S) -> Self {
+        Self::Matrix(ConstMVal::Mat34(val.into()))
+    }
+
+    pub fn new_mat42<S: Into<Matrix4x2<T>>>(val: S) -> Self {
+        Self::Matrix(ConstMVal::Mat42(val.into()))
+    }
+
+    pub fn new_mat43<S: Into<Matrix4x3<T>>>(val: S) -> Self {
+        Self::Matrix(ConstMVal::Mat43(val.into()))
+    }
+
+    pub fn new_mat4<S: Into<Matrix4<T>>>(val: S) -> Self {
+        Self::Matrix(ConstMVal::Mat4(val.into()))
+    }
+}
+
+impl<'a, T: Scalar> ConstGenericValue<'a, T> for ConstSVMVal<T> {
+    fn get_shape(&'a self) -> BaseTypeShape {
         match self {
-            ConstSVMVal::SV(v) => v.fold(initial, f),
-            ConstSVMVal::M(v) => v.fold(initial, f),
+            ConstSVMVal::Scalar(_) => BaseTypeShape::Scalar,
+            ConstSVMVal::Vector(v) => v.get_shape(),
+            ConstSVMVal::Matrix(v) => v.get_shape(),
+        }
+    }
+
+    type ColumnIterator = std::slice::Iter<'a, T>;
+
+    fn column_iter(&'a self) -> Self::ColumnIterator {
+        match self {
+            ConstSVMVal::Scalar(v) => std::slice::from_ref(v).iter(),
+            ConstSVMVal::Vector(v) => v.column_iter(),
+            ConstSVMVal::Matrix(v) => v.column_iter(),
+        }
+    }
+}
+
+impl<'a, 'b, T: Scalar, R: Scalar> ConstGenericMappable<'a, 'b, T, R> for ConstSVMVal<T> {
+    type Result = ConstSVMVal<R>;
+
+    fn map<F: FnMut(T) -> R>(&'a self, mut f: F) -> Self::Result {
+        match self {
+            ConstSVMVal::Scalar(v) => ConstSVMVal::Scalar(f(v.clone())),
+            ConstSVMVal::Vector(v) => ConstSVMVal::Vector(v.map(f)),
+            ConstSVMVal::Matrix(v) => ConstSVMVal::Matrix(v.map(f)),
+        }
+    }
+}
+
+impl<'a, 'b, 'c, T1: Scalar, T2: Scalar, R: Scalar> ConstGenericZipMappable<'a, 'b, 'c, T1, T2, ConstSVMVal<T2>, R> for ConstSVMVal<T1> {
+    type Result = ConstSVMVal<R>;
+
+    fn zip_map<F: FnMut(T1, T2) -> R>(&'a self, other: &'b ConstSVMVal<T2>, mut f: F) -> Option<Self::Result> {
+        match (self, other) {
+            (ConstSVMVal::Scalar(v1), ConstSVMVal::Scalar(v2)) => Some(ConstSVMVal::Scalar(f(v1.clone(), v2.clone()))),
+            (ConstSVMVal::Vector(v1), ConstSVMVal::Vector(v2)) => v1.zip_map(v2, f).map(ConstSVMVal::Vector),
+            (ConstSVMVal::Matrix(v1), ConstSVMVal::Matrix(v2)) => v1.zip_map(v2, f).map(ConstSVMVal::Matrix),
+            _ => None,
+        }
+    }
+}
+
+impl<T: Scalar> From<T> for ConstSVMVal<T> {
+    fn from(v: T) -> Self {
+        ConstSVMVal::Scalar(v)
+    }
+}
+
+impl<T: Scalar> From<Vector2<T>> for ConstSVMVal<T> {
+    fn from(v: Vector2<T>) -> Self {
+        ConstSVMVal::Vector(v.into())
+    }
+}
+
+impl<T: Scalar> TryFrom<ConstSVMVal<T>> for Vector2<T> {
+    type Error = ();
+
+    fn try_from(value: ConstSVMVal<T>) -> Result<Self, Self::Error> {
+        match value {
+            ConstSVMVal::Vector(v) => v.try_into(),
+            _ => Err(()),
+        }
+    }
+}
+
+impl<T: Scalar> From<Vector3<T>> for ConstSVMVal<T> {
+    fn from(v: Vector3<T>) -> Self {
+        ConstSVMVal::Vector(v.into())
+    }
+}
+
+impl<T: Scalar> TryFrom<ConstSVMVal<T>> for Vector3<T> {
+    type Error = ();
+
+    fn try_from(value: ConstSVMVal<T>) -> Result<Self, Self::Error> {
+        match value {
+            ConstSVMVal::Vector(v) => v.try_into(),
+            _ => Err(()),
+        }
+    }
+}
+
+impl<T: Scalar> From<Vector4<T>> for ConstSVMVal<T> {
+    fn from(v: Vector4<T>) -> Self {
+        ConstSVMVal::Vector(v.into())
+    }
+}
+
+impl<T: Scalar> TryFrom<ConstSVMVal<T>> for Vector4<T> {
+    type Error = ();
+
+    fn try_from(value: ConstSVMVal<T>) -> Result<Self, Self::Error> {
+        match value {
+            ConstSVMVal::Vector(v) => v.try_into(),
+            _ => Err(()),
+        }
+    }
+}
+
+impl<T: Scalar> From<Matrix2<T>> for ConstSVMVal<T> {
+    fn from(v: Matrix2<T>) -> Self {
+        ConstSVMVal::Matrix(v.into())
+    }
+}
+
+impl<T: Scalar> TryFrom<ConstSVMVal<T>> for Matrix2<T> {
+    type Error = ();
+
+    fn try_from(value: ConstSVMVal<T>) -> Result<Self, Self::Error> {
+        match value {
+            ConstSVMVal::Matrix(v) => v.try_into(),
+            _ => Err(()),
+        }
+    }
+}
+
+impl<T: Scalar> From<Matrix2x3<T>> for ConstSVMVal<T> {
+    fn from(v: Matrix2x3<T>) -> Self {
+        ConstSVMVal::Matrix(v.into())
+    }
+}
+
+impl<T: Scalar> TryFrom<ConstSVMVal<T>> for Matrix2x3<T> {
+    type Error = ();
+
+    fn try_from(value: ConstSVMVal<T>) -> Result<Self, Self::Error> {
+        match value {
+            ConstSVMVal::Matrix(v) => v.try_into(),
+            _ => Err(()),
+        }
+    }
+}
+
+impl<T: Scalar> From<Matrix2x4<T>> for ConstSVMVal<T> {
+    fn from(v: Matrix2x4<T>) -> Self {
+        ConstSVMVal::Matrix(v.into())
+    }
+}
+
+impl<T: Scalar> TryFrom<ConstSVMVal<T>> for Matrix2x4<T> {
+    type Error = ();
+
+    fn try_from(value: ConstSVMVal<T>) -> Result<Self, Self::Error> {
+        match value {
+            ConstSVMVal::Matrix(v) => v.try_into(),
+            _ => Err(()),
+        }
+    }
+}
+
+impl<T: Scalar> From<Matrix3x2<T>> for ConstSVMVal<T> {
+    fn from(v: Matrix3x2<T>) -> Self {
+        ConstSVMVal::Matrix(v.into())
+    }
+}
+
+impl<T: Scalar> TryFrom<ConstSVMVal<T>> for Matrix3x2<T> {
+    type Error = ();
+
+    fn try_from(value: ConstSVMVal<T>) -> Result<Self, Self::Error> {
+        match value {
+            ConstSVMVal::Matrix(v) => v.try_into(),
+            _ => Err(()),
+        }
+    }
+}
+
+impl<T: Scalar> From<Matrix3<T>> for ConstSVMVal<T> {
+    fn from(v: Matrix3<T>) -> Self {
+        ConstSVMVal::Matrix(v.into())
+    }
+}
+
+impl<T: Scalar> TryFrom<ConstSVMVal<T>> for Matrix3<T> {
+    type Error = ();
+
+    fn try_from(value: ConstSVMVal<T>) -> Result<Self, Self::Error> {
+        match value {
+            ConstSVMVal::Matrix(v) => v.try_into(),
+            _ => Err(()),
+        }
+    }
+}
+
+impl<T: Scalar> From<Matrix3x4<T>> for ConstSVMVal<T> {
+    fn from(v: Matrix3x4<T>) -> Self {
+        ConstSVMVal::Matrix(v.into())
+    }
+}
+
+impl<T: Scalar> TryFrom<ConstSVMVal<T>> for Matrix3x4<T> {
+    type Error = ();
+
+    fn try_from(value: ConstSVMVal<T>) -> Result<Self, Self::Error> {
+        match value {
+            ConstSVMVal::Matrix(v) => v.try_into(),
+            _ => Err(()),
+        }
+    }
+}
+
+impl<T: Scalar> From<Matrix4x2<T>> for ConstSVMVal<T> {
+    fn from(v: Matrix4x2<T>) -> Self {
+        ConstSVMVal::Matrix(v.into())
+    }
+}
+
+impl<T: Scalar> TryFrom<ConstSVMVal<T>> for Matrix4x2<T> {
+    type Error = ();
+
+    fn try_from(value: ConstSVMVal<T>) -> Result<Self, Self::Error> {
+        match value {
+            ConstSVMVal::Matrix(v) => v.try_into(),
+            _ => Err(()),
+        }
+    }
+}
+
+impl<T: Scalar> From<Matrix4x3<T>> for ConstSVMVal<T> {
+    fn from(v: Matrix4x3<T>) -> Self {
+        ConstSVMVal::Matrix(v.into())
+    }
+}
+
+impl<T: Scalar> TryFrom<ConstSVMVal<T>> for Matrix4x3<T> {
+    type Error = ();
+
+    fn try_from(value: ConstSVMVal<T>) -> Result<Self, Self::Error> {
+        match value {
+            ConstSVMVal::Matrix(v) => v.try_into(),
+            _ => Err(()),
+        }
+    }
+}
+
+impl<T: Scalar> From<Matrix4<T>> for ConstSVMVal<T> {
+    fn from(v: Matrix4<T>) -> Self {
+        ConstSVMVal::Matrix(v.into())
+    }
+}
+
+impl<T: Scalar> TryFrom<ConstSVMVal<T>> for Matrix4<T> {
+    type Error = ();
+
+    fn try_from(value: ConstSVMVal<T>) -> Result<Self, Self::Error> {
+        match value {
+            ConstSVMVal::Matrix(v) => v.try_into(),
+            _ => Err(()),
+        }
+    }
+}
+
+impl<T: Scalar> From<ConstVVal<T>> for ConstSVMVal<T> {
+    fn from(v: ConstVVal<T>) -> Self {
+        ConstSVMVal::Vector(v)
+    }
+}
+
+impl<T: Scalar> TryFrom<ConstSVMVal<T>> for ConstVVal<T> {
+    type Error = ();
+
+    fn try_from(value: ConstSVMVal<T>) -> Result<Self, Self::Error> {
+        match value {
+            ConstSVMVal::Vector(v) => Ok(v),
+            _ => Err(()),
+        }
+    }
+}
+
+impl<T: Scalar> From<ConstMVal<T>> for ConstSVMVal<T> {
+    fn from(v: ConstMVal<T>) -> Self {
+        ConstSVMVal::Matrix(v)
+    }
+}
+
+impl<T: Scalar> TryFrom<ConstSVMVal<T>> for ConstMVal<T> {
+    type Error = ();
+
+    fn try_from(value: ConstSVMVal<T>) -> Result<Self, Self::Error> {
+        match value {
+            ConstSVMVal::Matrix(v) => Ok(v),
+            _ => Err(()),
         }
     }
 }
 
 impl<T: Scalar> From<ConstSVVal<T>> for ConstSVMVal<T> {
-    fn from(sv: ConstSVVal<T>) -> Self {
-        Self::SV(sv)
+    fn from(v: ConstSVVal<T>) -> Self {
+        match v {
+            ConstSVVal::Scalar(v) => ConstSVMVal::Scalar(v),
+            ConstSVVal::Vector(v) => ConstSVMVal::Vector(v),
+        }
     }
 }
 
-impl<T: Scalar> From<ConstMVal<T>> for ConstSVMVal<T> {
-    fn from(m: ConstMVal<T>) -> Self {
-        Self::M(m)
+impl<T: Scalar> TryFrom<ConstSVMVal<T>> for ConstSVVal<T> {
+    type Error = ();
+
+    fn try_from(value: ConstSVMVal<T>) -> Result<Self, Self::Error> {
+        match value {
+            ConstSVMVal::Scalar(v) => Ok(ConstSVVal::Scalar(v)),
+            ConstSVMVal::Vector(v) => Ok(ConstSVVal::Vector(v)),
+            _ => Err(()),
+        }
     }
 }
 
+// Since we cant add the try_into impls generically we have to do it for specific types here
+impl TryFrom<ConstSVVal<bool>> for bool {
+    type Error = ();
+
+    fn try_from(value: ConstSVVal<bool>) -> Result<Self, Self::Error> {
+        match value {
+            ConstSVVal::Scalar(v) => Ok(v),
+            _ => Err(()),
+        }
+    }
+}
+
+impl TryFrom<ConstSVMVal<bool>> for bool {
+    type Error = ();
+
+    fn try_from(value: ConstSVMVal<bool>) -> Result<Self, Self::Error> {
+        match value {
+            ConstSVMVal::Scalar(v) => Ok(v),
+            _ => Err(()),
+        }
+    }
+}
+
+impl TryFrom<ConstSVVal<i32>> for i32 {
+    type Error = ();
+
+    fn try_from(value: ConstSVVal<i32>) -> Result<Self, Self::Error> {
+        match value {
+            ConstSVVal::Scalar(v) => Ok(v),
+            _ => Err(()),
+        }
+    }
+}
+
+impl TryFrom<ConstSVMVal<i32>> for i32 {
+    type Error = ();
+
+    fn try_from(value: ConstSVMVal<i32>) -> Result<Self, Self::Error> {
+        match value {
+            ConstSVMVal::Scalar(v) => Ok(v),
+            _ => Err(()),
+        }
+    }
+}
+
+impl TryFrom<ConstSVVal<u32>> for u32 {
+    type Error = ();
+
+    fn try_from(value: ConstSVVal<u32>) -> Result<Self, Self::Error> {
+        match value {
+            ConstSVVal::Scalar(v) => Ok(v),
+            _ => Err(()),
+        }
+    }
+}
+
+impl TryFrom<ConstSVMVal<u32>> for u32 {
+    type Error = ();
+
+    fn try_from(value: ConstSVMVal<u32>) -> Result<Self, Self::Error> {
+        match value {
+            ConstSVMVal::Scalar(v) => Ok(v),
+            _ => Err(()),
+        }
+    }
+}
+
+impl TryFrom<ConstSVVal<f32>> for f32 {
+    type Error = ();
+
+    fn try_from(value: ConstSVVal<f32>) -> Result<Self, Self::Error> {
+        match value {
+            ConstSVVal::Scalar(v) => Ok(v),
+            _ => Err(()),
+        }
+    }
+}
+
+impl TryFrom<ConstSVMVal<f32>> for f32 {
+    type Error = ();
+
+    fn try_from(value: ConstSVMVal<f32>) -> Result<Self, Self::Error> {
+        match value {
+            ConstSVMVal::Scalar(v) => Ok(v),
+            _ => Err(()),
+        }
+    }
+}
+
+impl TryFrom<ConstSVVal<f64>> for f64 {
+    type Error = ();
+
+    fn try_from(value: ConstSVVal<f64>) -> Result<Self, Self::Error> {
+        match value {
+            ConstSVVal::Scalar(v) => Ok(v),
+            _ => Err(()),
+        }
+    }
+}
+
+impl TryFrom<ConstSVMVal<f64>> for f64 {
+    type Error = ();
+
+    fn try_from(value: ConstSVMVal<f64>) -> Result<Self, Self::Error> {
+        match value {
+            ConstSVMVal::Scalar(v) => Ok(v),
+            _ => Err(()),
+        }
+    }
+}
+
+/// A generic constant basic value.
 #[derive(Clone, PartialEq, Debug)]
 pub enum ConstBaseVal {
     Bool(ConstSVVal<bool>),
@@ -638,13 +1143,13 @@ pub enum ConstBaseVal {
 }
 
 impl ConstBaseVal {
-    pub fn get_size(&self) -> BaseTypeShape {
+    pub fn get_shape(&self) -> BaseTypeShape {
         match self {
-            Self::Bool(v) => v.get_size(),
-            Self::Int(v) => v.get_size(),
-            Self::UInt(v) => v.get_size(),
-            Self::Float(v) => v.get_size(),
-            Self::Double(v) => v.get_size(),
+            ConstBaseVal::Bool(v) => v.get_shape(),
+            ConstBaseVal::Int(v) => v.get_shape(),
+            ConstBaseVal::UInt(v) => v.get_shape(),
+            ConstBaseVal::Float(v) => v.get_shape(),
+            ConstBaseVal::Double(v) => v.get_shape(),
         }
     }
 
@@ -655,43 +1160,43 @@ impl ConstBaseVal {
     pub fn type_specifier_non_array(&self) -> TypeSpecifierNonArray {
         match self {
             Self::Bool(ConstSVVal::Scalar(_)) => TypeSpecifierNonArray::Bool,
-            Self::Bool(ConstSVVal::Vec2(_)) => TypeSpecifierNonArray::BVec2,
-            Self::Bool(ConstSVVal::Vec3(_)) => TypeSpecifierNonArray::BVec3,
-            Self::Bool(ConstSVVal::Vec4(_)) => TypeSpecifierNonArray::BVec4,
+            Self::Bool(ConstSVVal::Vector(ConstVVal::Vec2(_))) => TypeSpecifierNonArray::BVec2,
+            Self::Bool(ConstSVVal::Vector(ConstVVal::Vec3(_))) => TypeSpecifierNonArray::BVec3,
+            Self::Bool(ConstSVVal::Vector(ConstVVal::Vec4(_))) => TypeSpecifierNonArray::BVec4,
             Self::Int(ConstSVVal::Scalar(_)) => TypeSpecifierNonArray::Int,
-            Self::Int(ConstSVVal::Vec2(_)) => TypeSpecifierNonArray::IVec2,
-            Self::Int(ConstSVVal::Vec3(_)) => TypeSpecifierNonArray::IVec3,
-            Self::Int(ConstSVVal::Vec4(_)) => TypeSpecifierNonArray::IVec4,
+            Self::Int(ConstSVVal::Vector(ConstVVal::Vec2(_))) => TypeSpecifierNonArray::IVec2,
+            Self::Int(ConstSVVal::Vector(ConstVVal::Vec3(_))) => TypeSpecifierNonArray::IVec3,
+            Self::Int(ConstSVVal::Vector(ConstVVal::Vec4(_))) => TypeSpecifierNonArray::IVec4,
             Self::UInt(ConstSVVal::Scalar(_)) => TypeSpecifierNonArray::UInt,
-            Self::UInt(ConstSVVal::Vec2(_)) => TypeSpecifierNonArray::UVec2,
-            Self::UInt(ConstSVVal::Vec3(_)) => TypeSpecifierNonArray::UVec3,
-            Self::UInt(ConstSVVal::Vec4(_)) => TypeSpecifierNonArray::UVec4,
-            Self::Float(ConstSVMVal::SV(ConstSVVal::Scalar(_))) => TypeSpecifierNonArray::Float,
-            Self::Float(ConstSVMVal::SV(ConstSVVal::Vec2(_))) => TypeSpecifierNonArray::Vec2,
-            Self::Float(ConstSVMVal::SV(ConstSVVal::Vec3(_))) => TypeSpecifierNonArray::Vec3,
-            Self::Float(ConstSVMVal::SV(ConstSVVal::Vec4(_))) => TypeSpecifierNonArray::Vec4,
-            Self::Float(ConstSVMVal::M(ConstMVal::Mat2(_))) => TypeSpecifierNonArray::Mat2,
-            Self::Float(ConstSVMVal::M(ConstMVal::Mat23(_))) => TypeSpecifierNonArray::Mat23,
-            Self::Float(ConstSVMVal::M(ConstMVal::Mat24(_))) => TypeSpecifierNonArray::Mat24,
-            Self::Float(ConstSVMVal::M(ConstMVal::Mat32(_))) => TypeSpecifierNonArray::Mat32,
-            Self::Float(ConstSVMVal::M(ConstMVal::Mat3(_))) => TypeSpecifierNonArray::Mat3,
-            Self::Float(ConstSVMVal::M(ConstMVal::Mat34(_))) => TypeSpecifierNonArray::Mat34,
-            Self::Float(ConstSVMVal::M(ConstMVal::Mat42(_))) => TypeSpecifierNonArray::Mat42,
-            Self::Float(ConstSVMVal::M(ConstMVal::Mat43(_))) => TypeSpecifierNonArray::Mat43,
-            Self::Float(ConstSVMVal::M(ConstMVal::Mat4(_))) => TypeSpecifierNonArray::Mat4,
-            Self::Double(ConstSVMVal::SV(ConstSVVal::Scalar(_))) => TypeSpecifierNonArray::Double,
-            Self::Double(ConstSVMVal::SV(ConstSVVal::Vec2(_))) => TypeSpecifierNonArray::DVec2,
-            Self::Double(ConstSVMVal::SV(ConstSVVal::Vec3(_))) => TypeSpecifierNonArray::DVec3,
-            Self::Double(ConstSVMVal::SV(ConstSVVal::Vec4(_))) => TypeSpecifierNonArray::DVec4,
-            Self::Double(ConstSVMVal::M(ConstMVal::Mat2(_))) => TypeSpecifierNonArray::DMat2,
-            Self::Double(ConstSVMVal::M(ConstMVal::Mat23(_))) => TypeSpecifierNonArray::DMat23,
-            Self::Double(ConstSVMVal::M(ConstMVal::Mat24(_))) => TypeSpecifierNonArray::DMat24,
-            Self::Double(ConstSVMVal::M(ConstMVal::Mat32(_))) => TypeSpecifierNonArray::DMat32,
-            Self::Double(ConstSVMVal::M(ConstMVal::Mat3(_))) => TypeSpecifierNonArray::DMat3,
-            Self::Double(ConstSVMVal::M(ConstMVal::Mat34(_))) => TypeSpecifierNonArray::DMat34,
-            Self::Double(ConstSVMVal::M(ConstMVal::Mat42(_))) => TypeSpecifierNonArray::DMat42,
-            Self::Double(ConstSVMVal::M(ConstMVal::Mat43(_))) => TypeSpecifierNonArray::DMat43,
-            Self::Double(ConstSVMVal::M(ConstMVal::Mat4(_))) => TypeSpecifierNonArray::DMat4,
+            Self::UInt(ConstSVVal::Vector(ConstVVal::Vec2(_))) => TypeSpecifierNonArray::UVec2,
+            Self::UInt(ConstSVVal::Vector(ConstVVal::Vec3(_))) => TypeSpecifierNonArray::UVec3,
+            Self::UInt(ConstSVVal::Vector(ConstVVal::Vec4(_))) => TypeSpecifierNonArray::UVec4,
+            Self::Float(ConstSVMVal::Scalar(_)) => TypeSpecifierNonArray::Float,
+            Self::Float(ConstSVMVal::Vector(ConstVVal::Vec2(_))) => TypeSpecifierNonArray::Vec2,
+            Self::Float(ConstSVMVal::Vector(ConstVVal::Vec3(_))) => TypeSpecifierNonArray::Vec3,
+            Self::Float(ConstSVMVal::Vector(ConstVVal::Vec4(_))) => TypeSpecifierNonArray::Vec4,
+            Self::Float(ConstSVMVal::Matrix(ConstMVal::Mat2(_))) => TypeSpecifierNonArray::Mat2,
+            Self::Float(ConstSVMVal::Matrix(ConstMVal::Mat23(_))) => TypeSpecifierNonArray::Mat23,
+            Self::Float(ConstSVMVal::Matrix(ConstMVal::Mat24(_))) => TypeSpecifierNonArray::Mat24,
+            Self::Float(ConstSVMVal::Matrix(ConstMVal::Mat32(_))) => TypeSpecifierNonArray::Mat32,
+            Self::Float(ConstSVMVal::Matrix(ConstMVal::Mat3(_))) => TypeSpecifierNonArray::Mat3,
+            Self::Float(ConstSVMVal::Matrix(ConstMVal::Mat34(_))) => TypeSpecifierNonArray::Mat34,
+            Self::Float(ConstSVMVal::Matrix(ConstMVal::Mat42(_))) => TypeSpecifierNonArray::Mat42,
+            Self::Float(ConstSVMVal::Matrix(ConstMVal::Mat43(_))) => TypeSpecifierNonArray::Mat43,
+            Self::Float(ConstSVMVal::Matrix(ConstMVal::Mat4(_))) => TypeSpecifierNonArray::Mat4,
+            Self::Double(ConstSVMVal::Scalar(_)) => TypeSpecifierNonArray::Double,
+            Self::Double(ConstSVMVal::Vector(ConstVVal::Vec2(_))) => TypeSpecifierNonArray::DVec2,
+            Self::Double(ConstSVMVal::Vector(ConstVVal::Vec3(_))) => TypeSpecifierNonArray::DVec3,
+            Self::Double(ConstSVMVal::Vector(ConstVVal::Vec4(_))) => TypeSpecifierNonArray::DVec4,
+            Self::Double(ConstSVMVal::Matrix(ConstMVal::Mat2(_))) => TypeSpecifierNonArray::DMat2,
+            Self::Double(ConstSVMVal::Matrix(ConstMVal::Mat23(_))) => TypeSpecifierNonArray::DMat23,
+            Self::Double(ConstSVMVal::Matrix(ConstMVal::Mat24(_))) => TypeSpecifierNonArray::DMat24,
+            Self::Double(ConstSVMVal::Matrix(ConstMVal::Mat32(_))) => TypeSpecifierNonArray::DMat32,
+            Self::Double(ConstSVMVal::Matrix(ConstMVal::Mat3(_))) => TypeSpecifierNonArray::DMat3,
+            Self::Double(ConstSVMVal::Matrix(ConstMVal::Mat34(_))) => TypeSpecifierNonArray::DMat34,
+            Self::Double(ConstSVMVal::Matrix(ConstMVal::Mat42(_))) => TypeSpecifierNonArray::DMat42,
+            Self::Double(ConstSVMVal::Matrix(ConstMVal::Mat43(_))) => TypeSpecifierNonArray::DMat43,
+            Self::Double(ConstSVMVal::Matrix(ConstMVal::Mat4(_))) => TypeSpecifierNonArray::DMat4,
         }
     }
 }
@@ -751,7 +1256,7 @@ mod function {
     use nalgebra::{ArrayStorage, Const, DimName, Matrix, Matrix2, Matrix2x3, Matrix2x4, Matrix3, Matrix3x2, Matrix3x4, Matrix4, Matrix4x2, Matrix4x3, Scalar, U1, Vector, Vector2, Vector3, Vector4};
     use num_traits::{One, Zero};
 
-    use super::{ConstGenericValue, ConstGenericMappable, ConstGenericZipMappable};
+    use super::{ConstEvalFunctionLookup, ConstGenericValue, ConstGenericMappable, ConstGenericZipMappable};
     use super::{BaseTypeShape, ConstBaseVal, ConstMVal, ConstSVMVal, ConstSVVal};
 
     #[derive(Copy, Clone, Eq, PartialEq, Ord, PartialOrd, Debug)]
@@ -807,12 +1312,12 @@ mod function {
     }
 
     #[derive(Copy, Clone, Eq, PartialEq, Ord, PartialOrd, Debug)]
-    pub enum ParameterSize {
+    pub enum ParameterShape {
         Scalar,
         Vec2,
         Vec3,
         Vec4,
-        GenSVec,
+        GenericSV,
         Mat2,
         Mat23,
         Mat24,
@@ -822,39 +1327,29 @@ mod function {
         Mat42,
         Mat43,
         Mat4,
-        GenMat,
+        GenericM,
+        GenericSVM,
     }
 
-    impl ParameterSize {
+    impl ParameterShape {
         pub fn matches(&self, val: BaseTypeShape) -> bool {
-            match (val, self) {
-                (BaseTypeShape::Scalar, Self::Scalar) |
-                (BaseTypeShape::Vec2, Self::Vec2) |
-                (BaseTypeShape::Vec3, Self::Vec3) |
-                (BaseTypeShape::Vec4, Self::Vec4) |
-                (BaseTypeShape::Mat2, Self::Mat2) |
-                (BaseTypeShape::Mat23, Self::Mat23) |
-                (BaseTypeShape::Mat24, Self::Mat24) |
-                (BaseTypeShape::Mat32, Self::Mat32) |
-                (BaseTypeShape::Mat3, Self::Mat3) |
-                (BaseTypeShape::Mat34, Self::Mat34) |
-                (BaseTypeShape::Mat42, Self::Mat42) |
-                (BaseTypeShape::Mat43, Self::Mat43) |
-                (BaseTypeShape::Mat4, Self::Mat4) |
-                (BaseTypeShape::Scalar, Self::GenSVec) |
-                (BaseTypeShape::Vec2, Self::GenSVec) |
-                (BaseTypeShape::Vec3, Self::GenSVec) |
-                (BaseTypeShape::Vec4, Self::GenSVec) |
-                (BaseTypeShape::Mat2, Self::GenMat) |
-                (BaseTypeShape::Mat23, Self::GenMat) |
-                (BaseTypeShape::Mat24, Self::GenMat) |
-                (BaseTypeShape::Mat32, Self::GenMat) |
-                (BaseTypeShape::Mat3, Self::GenMat) |
-                (BaseTypeShape::Mat34, Self::GenMat) |
-                (BaseTypeShape::Mat42, Self::GenMat) |
-                (BaseTypeShape::Mat43, Self::GenMat) |
-                (BaseTypeShape::Mat4, Self::GenMat) => true,
-                _ => false,
+            match self {
+                ParameterShape::Scalar => val.is_scalar(),
+                ParameterShape::Vec2 => val == BaseTypeShape::Vec2,
+                ParameterShape::Vec3 => val == BaseTypeShape::Vec3,
+                ParameterShape::Vec4 => val == BaseTypeShape::Vec4,
+                ParameterShape::GenericSV => val.is_scalar() || val.is_vector(),
+                ParameterShape::Mat2 => val == BaseTypeShape::Mat2,
+                ParameterShape::Mat23 => val == BaseTypeShape::Mat23,
+                ParameterShape::Mat24 => val == BaseTypeShape::Mat24,
+                ParameterShape::Mat32 => val == BaseTypeShape::Mat32,
+                ParameterShape::Mat3 => val == BaseTypeShape::Mat3,
+                ParameterShape::Mat34 => val == BaseTypeShape::Mat34,
+                ParameterShape::Mat42 => val == BaseTypeShape::Mat42,
+                ParameterShape::Mat43 => val == BaseTypeShape::Mat43,
+                ParameterShape::Mat4 => val == BaseTypeShape::Mat4,
+                ParameterShape::GenericM => val.is_vector(),
+                ParameterShape::GenericSVM => true,
             }
         }
     }
@@ -862,14 +1357,14 @@ mod function {
     #[derive(Copy, Clone, Eq, PartialEq, Debug)]
     pub struct ParameterType {
         base_type: ParameterBaseType,
-        size: ParameterSize,
+        shape: ParameterShape,
     }
 
     impl ParameterType {
-        pub fn new(base_type: ParameterBaseType, size: ParameterSize) -> Self {
+        pub fn new(base_type: ParameterBaseType, shape: ParameterShape) -> Self {
             Self {
                 base_type,
-                size
+                shape,
             }
         }
 
@@ -881,24 +1376,26 @@ mod function {
         /// \[c, a, b], \[a, c, b] and \[a, b, c], since c cannot be cast to a or b and vice versa.
         /// It is only guaranteed that the order of c is consistent at runtime.
         pub fn cast_cmp(&self, other: &Self) -> Ordering {
-            let size_ord = self.size.cmp(&other.size);
-            if size_ord == Ordering::Equal {
+            let shape_ord = self.shape.cmp(&other.shape);
+            if shape_ord == Ordering::Equal {
                 self.base_type.partial_cmp(&other.base_type).unwrap_or_else(||
                     self.base_type.cmp(&other.base_type)
                 )
             } else {
-                size_ord
+                shape_ord
             }
         }
     }
 
-    struct Overload {
+    /// A instance of a const evaluable function. It has a fixed prototype and can be called to
+    /// evaluate some parameters matching the prototype.
+    pub struct ConstEvalFunctionInstance {
         prototype: Option<Box<[ParameterType]>>,
         function: Box<dyn Fn(&[&ConstBaseVal]) -> Option<ConstBaseVal> + Send + Sync>,
     }
 
-    impl Overload {
-        fn from_generic<F>(f: F) -> Self where F: Fn(&[&ConstBaseVal]) -> Option<ConstBaseVal> + Send + Sync + 'static {
+    impl ConstEvalFunctionInstance {
+        pub fn from_generic<F>(f: F) -> Self where F: Fn(&[&ConstBaseVal]) -> Option<ConstBaseVal> + Send + Sync + 'static {
             let function = Box::new(f);
 
             Self {
@@ -907,13 +1404,13 @@ mod function {
             }
         }
 
-        fn from_fn_0<R, F>(f: F) -> Self where R: ConstParameter, F: Fn() -> R + Send + Sync + 'static {
+        pub fn from_fn_0<R, F>(f: F) -> Self where R: ConstParameter, F: Fn() -> R + Send + Sync + 'static {
             let prototype = Some(Box::new([]) as Box<[ParameterType]>);
             let function = Box::new(move |params: &[&ConstBaseVal]| {
                 if params.len() != 0 {
                     panic!("Parameter list length mismatch. Expected 0 but got {:?}", params.len());
                 } else {
-                    Some(f().to_val())
+                    Some(f().into_const_base_val())
                 }
             });
 
@@ -923,14 +1420,14 @@ mod function {
             }
         }
 
-        fn from_fn_1<R, T0, F>(f: F) -> Self where R: ConstParameter, T0: ConstParameter + 'static, F: Fn(T0) -> Option<R> + Send + Sync + 'static {
+        pub fn from_fn_1<R, T0, F>(f: F) -> Self where R: ConstParameter, T0: ConstParameter + 'static, F: Fn(T0) -> Option<R> + Send + Sync + 'static {
             let prototype = Some(Box::new([T0::get_type()]) as Box<[ParameterType]>);
             let function = Box::new(move |params: &[&ConstBaseVal]| {
                 if params.len() != 1 {
                     panic!("Parameter list length mismatch. Expected 1 but got {:?}", params.len());
                 } else {
-                    let t0 = T0::from_val(params[0]).unwrap_or_else(|| panic!("Implicit cast failed: {:?} to {:?}", params[0].type_specifier(), TypeId::of::<T0>()));
-                    f(t0).map(R::to_val)
+                    let t0 = T0::try_cast_from(params[0]).unwrap_or_else(|| panic!("Implicit cast failed: {:?} to {:?}", params[0].type_specifier(), TypeId::of::<T0>()));
+                    f(t0).map(R::into_const_base_val)
                 }
             });
 
@@ -940,15 +1437,15 @@ mod function {
             }
         }
 
-        fn from_fn_2<R, T0, T1, F>(f: F) -> Self where R: ConstParameter, T0: ConstParameter + 'static, T1: ConstParameter + 'static, F: Fn(T0, T1) -> Option<R> + Send + Sync + 'static {
+        pub fn from_fn_2<R, T0, T1, F>(f: F) -> Self where R: ConstParameter, T0: ConstParameter + 'static, T1: ConstParameter + 'static, F: Fn(T0, T1) -> Option<R> + Send + Sync + 'static {
             let prototype = Some(Box::new([T0::get_type(), T1::get_type()]) as Box<[ParameterType]>);
             let function = Box::new(move |params: &[&ConstBaseVal]| {
                 if params.len() != 2 {
                     panic!("Parameter list length mismatch. Expected 2 but got {:?}", params.len());
                 } else {
-                    let t0 = T0::from_val(params[0]).unwrap_or_else(|| panic!("Implicit cast failed: {:?} to {:?}", params[0].type_specifier(), TypeId::of::<T0>()));
-                    let t1 = T1::from_val(params[1]).unwrap_or_else(|| panic!("Implicit cast failed: {:?} to {:?}", params[1].type_specifier(), TypeId::of::<T0>()));
-                    f(t0, t1).map(R::to_val)
+                    let t0 = T0::try_cast_from(params[0]).unwrap_or_else(|| panic!("Implicit cast failed: {:?} to {:?}", params[0].type_specifier(), TypeId::of::<T0>()));
+                    let t1 = T1::try_cast_from(params[1]).unwrap_or_else(|| panic!("Implicit cast failed: {:?} to {:?}", params[1].type_specifier(), TypeId::of::<T0>()));
+                    f(t0, t1).map(R::into_const_base_val)
                 }
             });
 
@@ -958,14 +1455,20 @@ mod function {
             }
         }
 
-        fn compatible_with(&self, params: &[(BaseTypeShape, ParameterBaseType)]) -> bool {
+        /// Checks if the provided parameter types are compatible with this function prototype.
+        /// This check includes implicit casting rules.
+        ///
+        /// For example if the prototype is \[(Vec2, UInt)] calling this function with
+        /// \[(Vec2, Int)] or \[(Vec2, UInt)] returns true while calling it with \[(Vec2, Bool)]
+        /// returns false.
+        pub fn compatible_with(&self, params: &[(BaseTypeShape, ParameterBaseType)]) -> bool {
             if let Some(prototype) = &self.prototype {
                 if params.len() != prototype.len() {
                     return false;
                 }
 
                 for ((size, base_type), proto) in params.iter().zip(prototype.iter()) {
-                    if !proto.size.matches(*size) {
+                    if !proto.shape.matches(*size) {
                         return false;
                     }
                     if !base_type.can_cast_into(&proto.base_type) {
@@ -978,17 +1481,22 @@ mod function {
             }
         }
 
-        /// Evaluates this overload on the provided parameters performing implicit casting if
+        /// Evaluates this function for the provided parameters performing implicit casting if
         /// necessary.
         ///
         /// # Panics
         /// If the provided parameters cannot be implicitly cast to the required type. Check
         /// compatibility with [Overload::compatible_with] first if needed.
-        fn eval(&self, params: &[&ConstBaseVal]) -> Option<ConstBaseVal> {
+        pub fn eval(&self, params: &[&ConstBaseVal]) -> Option<ConstBaseVal> {
             (self.function)(params)
         }
 
-        fn cast_cmp(&self, other: &Self) -> Ordering {
+        /// Provides a order sorting functions by prototype specificity and casting order.
+        ///
+        /// The practical goal is that if a list of functions is sorted by this order then one can
+        /// iterate this list in ascending order and the first function compatible with the provided
+        /// parameters will also be the best matching function.
+        pub fn cast_cmp(&self, other: &Self) -> Ordering {
             match (&self.prototype, &other.prototype) {
                 (Some(p1), Some(p2)) => {
                     let len_cmp = p1.len().cmp(&p2.len());
@@ -1012,7 +1520,7 @@ mod function {
     }
 
     pub struct ConstEvalFunctionBuilder {
-        overloads: Vec<Overload>,
+        overloads: Vec<ConstEvalFunctionInstance>,
     }
 
     impl ConstEvalFunctionBuilder {
@@ -1023,13 +1531,13 @@ mod function {
         }
 
         pub fn add_generic<F>(mut self, f: F) -> Self where F: Fn(&[&ConstBaseVal]) -> Option<ConstBaseVal> + Send + Sync + 'static {
-            self.overloads.push(Overload::from_generic(f));
+            self.overloads.push(ConstEvalFunctionInstance::from_generic(f));
             self
         }
 
         /// Adds an overload to this function taking no parameters.
         pub fn add_overload_0<R, F>(mut self, f: F) -> Self where R: ConstParameter, F: Fn() -> R + Send + Sync + 'static {
-            self.overloads.push(Overload::from_fn_0(f));
+            self.overloads.push(ConstEvalFunctionInstance::from_fn_0(f));
             self
         }
 
@@ -1041,7 +1549,7 @@ mod function {
         /// not immediately return but continue searching for a matching overload if a function
         /// returns [`None`].
         pub fn add_overload_1<R, T0, F>(mut self, f: F) -> Self where R: ConstParameter, T0: ConstParameter + 'static, F: Fn(T0) -> Option<R> + Send + Sync + 'static {
-            self.overloads.push(Overload::from_fn_1(f));
+            self.overloads.push(ConstEvalFunctionInstance::from_fn_1(f));
             self
         }
 
@@ -1053,12 +1561,12 @@ mod function {
         /// not immediately return but continue searching for a matching overload if a function
         /// returns [`None`].
         pub fn add_overload_2<R, T0, T1, F>(mut self, f: F) -> Self where R: ConstParameter, T0: ConstParameter + 'static, T1: ConstParameter + 'static, F: Fn(T0, T1) -> Option<R> + Send + Sync + 'static {
-            self.overloads.push(Overload::from_fn_2(f));
+            self.overloads.push(ConstEvalFunctionInstance::from_fn_2(f));
             self
         }
 
         pub fn build(mut self) -> ConstEvalFunction {
-            self.overloads.sort_by(Overload::cast_cmp);
+            self.overloads.sort_by(ConstEvalFunctionInstance::cast_cmp);
 
             ConstEvalFunction {
                 overloads: self.overloads.into_boxed_slice(),
@@ -1067,7 +1575,7 @@ mod function {
     }
 
     pub struct ConstEvalFunction {
-        overloads: Box<[Overload]>,
+        overloads: Box<[ConstEvalFunctionInstance]>,
     }
 
     impl ConstEvalFunction {
@@ -1076,7 +1584,7 @@ mod function {
         pub fn eval(&self, params: &[&ConstBaseVal]) -> Option<ConstBaseVal> {
             let mut types = Vec::with_capacity(params.len());
             for param in params {
-                types.push((param.get_size(), ParameterBaseType::from_const_val(param)));
+                types.push((param.get_shape(), ParameterBaseType::from_const_val(param)));
             }
 
             for func in self.overloads.iter() {
@@ -1090,10 +1598,6 @@ mod function {
         }
     }
 
-    pub trait ConstEvalFunctionLookup {
-        fn lookup(&self, ident: Identifier) -> Option<&ConstEvalFunction>;
-    }
-
     impl ConstEvalFunctionLookup for HashMap<String, ConstEvalFunction> {
         fn lookup(&self, ident: Identifier) -> Option<&ConstEvalFunction> {
             self.get(&ident.0)
@@ -1103,966 +1607,319 @@ mod function {
     pub trait ConstParameter: Sized {
         fn get_type() -> ParameterType;
 
-        fn from_val(val: &ConstBaseVal) -> Option<Self>;
+        fn try_cast_from(val: &ConstBaseVal) -> Option<Self>;
 
-        fn to_val(self) -> ConstBaseVal;
+        fn into_const_base_val(self) -> ConstBaseVal;
     }
 
-    impl ConstParameter for bool {
-        fn get_type() -> ParameterType {
-            ParameterType::new(ParameterBaseType::Bool, ParameterSize::Scalar)
-        }
+    macro_rules! const_param_bool {
+        ($ty:ty, $ps:expr) => {
+            impl ConstParameter for $ty {
+                fn get_type() -> ParameterType {
+                    ParameterType::new(ParameterBaseType::Bool, $ps)
+                }
 
-        fn from_val(val: &ConstBaseVal) -> Option<Self> {
-            match val {
-                ConstBaseVal::Bool(ConstSVVal::Scalar(v)) => Some(*v),
-                _ => None,
+                fn try_cast_from(val: &ConstBaseVal) -> Option<Self> {
+                    match val {
+                        ConstBaseVal::Bool(v) => v.clone().try_into().ok(),
+                        _ => None,
+                    }
+                }
+
+                fn into_const_base_val(self) -> ConstBaseVal {
+                    ConstBaseVal::Bool(self.into())
+                }
             }
-        }
-
-        fn to_val(self) -> ConstBaseVal {
-            ConstBaseVal::Bool(ConstSVVal::Scalar(self))
-        }
+        };
     }
+    const_param_bool!(bool, ParameterShape::Scalar);
+    const_param_bool!(Vector2<bool>, ParameterShape::Vec2);
+    const_param_bool!(Vector3<bool>, ParameterShape::Vec3);
+    const_param_bool!(Vector4<bool>, ParameterShape::Vec4);
+    const_param_bool!(ConstSVVal<bool>, ParameterShape::GenericSV);
 
-    impl ConstParameter for Vector2<bool> {
-        fn get_type() -> ParameterType {
-            ParameterType::new(ParameterBaseType::Bool, ParameterSize::Vec2)
-        }
+    macro_rules! const_param_int {
+        ($ty:ty, $ps:expr) => {
+            impl ConstParameter for $ty {
+                fn get_type() -> ParameterType {
+                    ParameterType::new(ParameterBaseType::Int, $ps)
+                }
 
-        fn from_val(val: &ConstBaseVal) -> Option<Self> {
-            match val {
-                ConstBaseVal::Bool(ConstSVVal::Vec2(v)) => Some(*v),
-                _ => None,
+                fn try_cast_from(val: &ConstBaseVal) -> Option<Self> {
+                    match val {
+                        ConstBaseVal::Int(v) => v.clone().try_into().ok(),
+                        _ => None,
+                    }
+                }
+
+                fn into_const_base_val(self) -> ConstBaseVal {
+                    ConstBaseVal::Int(self.into())
+                }
             }
-        }
-
-        fn to_val(self) -> ConstBaseVal {
-            ConstBaseVal::Bool(ConstSVVal::Vec2(self))
-        }
+        };
     }
+    const_param_int!(i32, ParameterShape::Scalar);
+    const_param_int!(Vector2<i32>, ParameterShape::Vec2);
+    const_param_int!(Vector3<i32>, ParameterShape::Vec3);
+    const_param_int!(Vector4<i32>, ParameterShape::Vec4);
+    const_param_int!(ConstSVVal<i32>, ParameterShape::GenericSV);
 
-    impl ConstParameter for Vector3<bool> {
-        fn get_type() -> ParameterType {
-            ParameterType::new(ParameterBaseType::Bool, ParameterSize::Vec3)
-        }
+    macro_rules! const_param_uint {
+        ($ty:ty, $ps:expr) => {
+            impl ConstParameter for $ty {
+                fn get_type() -> ParameterType {
+                    ParameterType::new(ParameterBaseType::UInt, $ps)
+                }
 
-        fn from_val(val: &ConstBaseVal) -> Option<Self> {
-            match val {
-                ConstBaseVal::Bool(ConstSVVal::Vec3(v)) => Some(*v),
-                _ => None,
+                fn try_cast_from(val: &ConstBaseVal) -> Option<Self> {
+                    match val {
+                        ConstBaseVal::Int(v) => v.map(|v| u32::construct_from(&v)).try_into().ok(),
+                        ConstBaseVal::UInt(v) => v.clone().try_into().ok(),
+                        _ => None,
+                    }
+                }
+
+                fn into_const_base_val(self) -> ConstBaseVal {
+                    ConstBaseVal::UInt(self.into())
+                }
             }
-        }
-
-        fn to_val(self) -> ConstBaseVal {
-            ConstBaseVal::Bool(ConstSVVal::Vec3(self))
-        }
+        };
     }
+    const_param_uint!(u32, ParameterShape::Scalar);
+    const_param_uint!(Vector2<u32>, ParameterShape::Vec2);
+    const_param_uint!(Vector3<u32>, ParameterShape::Vec3);
+    const_param_uint!(Vector4<u32>, ParameterShape::Vec4);
+    const_param_uint!(ConstSVVal<u32>, ParameterShape::GenericSV);
 
-    impl ConstParameter for Vector4<bool> {
-        fn get_type() -> ParameterType {
-            ParameterType::new(ParameterBaseType::Bool, ParameterSize::Vec4)
-        }
+    macro_rules! const_param_float {
+        ($ty:ty, $ps:expr) => {
+            impl ConstParameter for $ty {
+                fn get_type() -> ParameterType {
+                    ParameterType::new(ParameterBaseType::Float, $ps)
+                }
 
-        fn from_val(val: &ConstBaseVal) -> Option<Self> {
-            match val {
-                ConstBaseVal::Bool(ConstSVVal::Vec4(v)) => Some(*v),
-                _ => None,
+                fn try_cast_from(val: &ConstBaseVal) -> Option<Self> {
+                    match val {
+                        ConstBaseVal::Int(v) => ConstSVMVal::from(v.map(|v| f32::construct_from(&v))).try_into().ok(),
+                        ConstBaseVal::UInt(v) => ConstSVMVal::from(v.map(|v| f32::construct_from(&v))).try_into().ok(),
+                        ConstBaseVal::Float(v) => v.clone().try_into().ok(),
+                        _ => None,
+                    }
+                }
+
+                fn into_const_base_val(self) -> ConstBaseVal {
+                    ConstBaseVal::Float(self.into())
+                }
             }
-        }
-
-        fn to_val(self) -> ConstBaseVal {
-            ConstBaseVal::Bool(ConstSVVal::Vec4(self))
-        }
+        };
     }
+    const_param_float!(f32, ParameterShape::Scalar);
+    const_param_float!(Vector2<f32>, ParameterShape::Vec2);
+    const_param_float!(Vector3<f32>, ParameterShape::Vec3);
+    const_param_float!(Vector4<f32>, ParameterShape::Vec4);
+    const_param_float!(Matrix2<f32>, ParameterShape::Mat2);
+    const_param_float!(Matrix2x3<f32>, ParameterShape::Mat23);
+    const_param_float!(Matrix2x4<f32>, ParameterShape::Mat24);
+    const_param_float!(Matrix3x2<f32>, ParameterShape::Mat32);
+    const_param_float!(Matrix3<f32>, ParameterShape::Mat3);
+    const_param_float!(Matrix3x4<f32>, ParameterShape::Mat34);
+    const_param_float!(Matrix4x2<f32>, ParameterShape::Mat42);
+    const_param_float!(Matrix4x3<f32>, ParameterShape::Mat43);
+    const_param_float!(Matrix4<f32>, ParameterShape::Mat4);
+    const_param_float!(ConstMVal<f32>, ParameterShape::GenericM);
+    const_param_float!(ConstSVVal<f32>, ParameterShape::GenericSV);
+    const_param_float!(ConstSVMVal<f32>, ParameterShape::GenericSVM);
 
-    impl ConstParameter for ConstSVVal<bool> {
-        fn get_type() -> ParameterType {
-            ParameterType::new(ParameterBaseType::Bool, ParameterSize::GenSVec)
-        }
+    macro_rules! const_param_double {
+        ($ty:ty, $ps:expr) => {
+            impl ConstParameter for $ty {
+                fn get_type() -> ParameterType {
+                    ParameterType::new(ParameterBaseType::Double, $ps)
+                }
 
-        fn from_val(val: &ConstBaseVal) -> Option<Self> {
-            match val {
-                ConstBaseVal::Bool(v) => Some(v.clone()),
-                _ => None,
+                fn try_cast_from(val: &ConstBaseVal) -> Option<Self> {
+                    match val {
+                        ConstBaseVal::Int(v) => ConstSVMVal::from(v.map(|v| f64::construct_from(&v))).try_into().ok(),
+                        ConstBaseVal::UInt(v) => ConstSVMVal::from(v.map(|v| f64::construct_from(&v))).try_into().ok(),
+                        ConstBaseVal::Float(v) => v.map(|v| f64::construct_from(&v)).try_into().ok(),
+                        ConstBaseVal::Double(v) => v.clone().try_into().ok(),
+                        _ => None,
+                    }
+                }
+
+                fn into_const_base_val(self) -> ConstBaseVal {
+                    ConstBaseVal::Double(self.into())
+                }
             }
-        }
-
-        fn to_val(self) -> ConstBaseVal {
-            ConstBaseVal::Bool(self)
-        }
+        };
     }
-
-    impl ConstParameter for i32 {
-        fn get_type() -> ParameterType {
-            ParameterType::new(ParameterBaseType::Int, ParameterSize::Scalar)
-        }
-
-        fn from_val(val: &ConstBaseVal) -> Option<Self> {
-            match val {
-                ConstBaseVal::Int(ConstSVVal::Scalar(v)) => Some(*v),
-                _ => None,
-            }
-        }
-
-        fn to_val(self) -> ConstBaseVal {
-            ConstBaseVal::Int(ConstSVVal::Scalar(self))
-        }
-    }
-
-    impl ConstParameter for Vector2<i32> {
-        fn get_type() -> ParameterType {
-            ParameterType::new(ParameterBaseType::Int, ParameterSize::Vec2)
-        }
-
-        fn from_val(val: &ConstBaseVal) -> Option<Self> {
-            match val {
-                ConstBaseVal::Int(ConstSVVal::Vec2(v)) => Some(*v),
-                _ => None,
-            }
-        }
-
-        fn to_val(self) -> ConstBaseVal {
-            ConstBaseVal::Int(ConstSVVal::Vec2(self))
-        }
-    }
-
-    impl ConstParameter for Vector3<i32> {
-        fn get_type() -> ParameterType {
-            ParameterType::new(ParameterBaseType::Int, ParameterSize::Vec3)
-        }
-
-        fn from_val(val: &ConstBaseVal) -> Option<Self> {
-            match val {
-                ConstBaseVal::Int(ConstSVVal::Vec3(v)) => Some(*v),
-                _ => None,
-            }
-        }
-
-        fn to_val(self) -> ConstBaseVal {
-            ConstBaseVal::Int(ConstSVVal::Vec3(self))
-        }
-    }
-
-    impl ConstParameter for Vector4<i32> {
-        fn get_type() -> ParameterType {
-            ParameterType::new(ParameterBaseType::Int, ParameterSize::Vec4)
-        }
-
-        fn from_val(val: &ConstBaseVal) -> Option<Self> {
-            match val {
-                ConstBaseVal::Int(ConstSVVal::Vec4(v)) => Some(*v),
-                _ => None,
-            }
-        }
-
-        fn to_val(self) -> ConstBaseVal {
-            ConstBaseVal::Int(ConstSVVal::Vec4(self))
-        }
-    }
-
-    impl ConstParameter for ConstSVVal<i32> {
-        fn get_type() -> ParameterType {
-            ParameterType::new(ParameterBaseType::Int, ParameterSize::GenSVec)
-        }
-
-        fn from_val(val: &ConstBaseVal) -> Option<Self> {
-            match val {
-                ConstBaseVal::Int(v) => Some(v.clone()),
-                _ => None,
-            }
-        }
-
-        fn to_val(self) -> ConstBaseVal {
-            ConstBaseVal::Int(self)
-        }
-    }
-
-    impl ConstParameter for u32 {
-        fn get_type() -> ParameterType {
-            ParameterType::new(ParameterBaseType::UInt, ParameterSize::Scalar)
-        }
-
-        fn from_val(val: &ConstBaseVal) -> Option<Self> {
-            match val {
-                ConstBaseVal::Int(ConstSVVal::Scalar(v)) => Some(*v as u32),
-                ConstBaseVal::UInt(ConstSVVal::Scalar(v)) => Some(*v),
-                _ => None,
-            }
-        }
-
-        fn to_val(self) -> ConstBaseVal {
-            ConstBaseVal::UInt(ConstSVVal::Scalar(self))
-        }
-    }
-
-    impl ConstParameter for Vector2<u32> {
-        fn get_type() -> ParameterType {
-            ParameterType::new(ParameterBaseType::UInt, ParameterSize::Vec2)
-        }
-
-        fn from_val(val: &ConstBaseVal) -> Option<Self> {
-            match val {
-                ConstBaseVal::Int(ConstSVVal::Vec2(v)) => Some(v.map(|v| v as u32)),
-                ConstBaseVal::UInt(ConstSVVal::Vec2(v)) => Some(*v),
-                _ => None,
-            }
-        }
-
-        fn to_val(self) -> ConstBaseVal {
-            ConstBaseVal::UInt(ConstSVVal::Vec2(self))
-        }
-    }
-
-    impl ConstParameter for Vector3<u32> {
-        fn get_type() -> ParameterType {
-            ParameterType::new(ParameterBaseType::UInt, ParameterSize::Vec3)
-        }
-
-        fn from_val(val: &ConstBaseVal) -> Option<Self> {
-            match val {
-                ConstBaseVal::Int(ConstSVVal::Vec3(v)) => Some(v.map(|v| v as u32)),
-                ConstBaseVal::UInt(ConstSVVal::Vec3(v)) => Some(*v),
-                _ => None,
-            }
-        }
-
-        fn to_val(self) -> ConstBaseVal {
-            ConstBaseVal::UInt(ConstSVVal::Vec3(self))
-        }
-    }
-
-    impl ConstParameter for Vector4<u32> {
-        fn get_type() -> ParameterType {
-            ParameterType::new(ParameterBaseType::UInt, ParameterSize::Vec4)
-        }
-
-        fn from_val(val: &ConstBaseVal) -> Option<Self> {
-            match val {
-                ConstBaseVal::Int(ConstSVVal::Vec4(v)) => Some(v.map(|v| v as u32)),
-                ConstBaseVal::UInt(ConstSVVal::Vec4(v)) => Some(*v),
-                _ => None,
-            }
-        }
-
-        fn to_val(self) -> ConstBaseVal {
-            ConstBaseVal::UInt(ConstSVVal::Vec4(self))
-        }
-    }
-
-    impl ConstParameter for ConstSVVal<u32> {
-        fn get_type() -> ParameterType {
-            ParameterType::new(ParameterBaseType::UInt, ParameterSize::GenSVec)
-        }
-
-        fn from_val(val: &ConstBaseVal) -> Option<Self> {
-            match val {
-                ConstBaseVal::Int(v) => Some(v.map(|v| v as u32)),
-                ConstBaseVal::UInt(v) => Some(v.clone()),
-                _ => None,
-            }
-        }
-
-        fn to_val(self) -> ConstBaseVal {
-            ConstBaseVal::UInt(self)
-        }
-    }
-
-    impl ConstParameter for f32 {
-        fn get_type() -> ParameterType {
-            ParameterType::new(ParameterBaseType::Float, ParameterSize::Scalar)
-        }
-
-        fn from_val(val: &ConstBaseVal) -> Option<Self> {
-            match val {
-                ConstBaseVal::Int(ConstSVVal::Scalar(v)) => Some(*v as f32),
-                ConstBaseVal::UInt(ConstSVVal::Scalar(v)) => Some(*v as f32),
-                ConstBaseVal::Float(ConstSVMVal::SV(ConstSVVal::Scalar(v))) => Some(*v),
-                _ => None,
-            }
-        }
-
-        fn to_val(self) -> ConstBaseVal {
-            ConstBaseVal::Float(ConstSVMVal::SV(ConstSVVal::Scalar(self)))
-        }
-    }
-
-    impl ConstParameter for Vector2<f32> {
-        fn get_type() -> ParameterType {
-            ParameterType::new(ParameterBaseType::Float, ParameterSize::Vec2)
-        }
-
-        fn from_val(val: &ConstBaseVal) -> Option<Self> {
-            match val {
-                ConstBaseVal::Int(ConstSVVal::Vec2(v)) => Some(v.map(|v| v as f32)),
-                ConstBaseVal::UInt(ConstSVVal::Vec2(v)) => Some(v.map(|v| v as f32)),
-                ConstBaseVal::Float(ConstSVMVal::SV(ConstSVVal::Vec2(v))) => Some(*v),
-                _ => None,
-            }
-        }
-
-        fn to_val(self) -> ConstBaseVal {
-            ConstBaseVal::Float(ConstSVMVal::SV(ConstSVVal::Vec2(self)))
-        }
-    }
-
-    impl ConstParameter for Vector3<f32> {
-        fn get_type() -> ParameterType {
-            ParameterType::new(ParameterBaseType::Float, ParameterSize::Vec3)
-        }
-
-        fn from_val(val: &ConstBaseVal) -> Option<Self> {
-            match val {
-                ConstBaseVal::Int(ConstSVVal::Vec3(v)) => Some(v.map(|v| v as f32)),
-                ConstBaseVal::UInt(ConstSVVal::Vec3(v)) => Some(v.map(|v| v as f32)),
-                ConstBaseVal::Float(ConstSVMVal::SV(ConstSVVal::Vec3(v))) => Some(*v),
-                _ => None,
-            }
-        }
-
-        fn to_val(self) -> ConstBaseVal {
-            ConstBaseVal::Float(ConstSVMVal::SV(ConstSVVal::Vec3(self)))
-        }
-    }
-
-    impl ConstParameter for Vector4<f32> {
-        fn get_type() -> ParameterType {
-            ParameterType::new(ParameterBaseType::Float, ParameterSize::Vec4)
-        }
-
-        fn from_val(val: &ConstBaseVal) -> Option<Self> {
-            match val {
-                ConstBaseVal::Int(ConstSVVal::Vec4(v)) => Some(v.map(|v| v as f32)),
-                ConstBaseVal::UInt(ConstSVVal::Vec4(v)) => Some(v.map(|v| v as f32)),
-                ConstBaseVal::Float(ConstSVMVal::SV(ConstSVVal::Vec4(v))) => Some(*v),
-                _ => None,
-            }
-        }
-
-        fn to_val(self) -> ConstBaseVal {
-            ConstBaseVal::Float(ConstSVMVal::SV(ConstSVVal::Vec4(self)))
-        }
-    }
-
-    impl ConstParameter for ConstSVVal<f32> {
-        fn get_type() -> ParameterType {
-            ParameterType::new(ParameterBaseType::Float, ParameterSize::GenSVec)
-        }
-
-        fn from_val(val: &ConstBaseVal) -> Option<Self> {
-            match val {
-                ConstBaseVal::Int(v) => Some(v.map(|v| v as f32)),
-                ConstBaseVal::UInt(v) => Some(v.map(|v| v as f32)),
-                ConstBaseVal::Float(ConstSVMVal::SV(v)) => Some(v.clone()),
-                _ => None,
-            }
-        }
-
-        fn to_val(self) -> ConstBaseVal {
-            ConstBaseVal::Float(ConstSVMVal::SV(self))
-        }
-    }
-
-    impl ConstParameter for Matrix2<f32> {
-        fn get_type() -> ParameterType {
-            ParameterType::new(ParameterBaseType::Float, ParameterSize::Mat2)
-        }
-
-        fn from_val(val: &ConstBaseVal) -> Option<Self> {
-            match val {
-                ConstBaseVal::Float(ConstSVMVal::M(ConstMVal::Mat2(v))) => Some(*v),
-                _ => None,
-            }
-        }
-
-        fn to_val(self) -> ConstBaseVal {
-            ConstBaseVal::Float(ConstSVMVal::M(ConstMVal::Mat2(self)))
-        }
-    }
-
-    impl ConstParameter for Matrix2x3<f32> {
-        fn get_type() -> ParameterType {
-            ParameterType::new(ParameterBaseType::Float, ParameterSize::Mat23)
-        }
-
-        fn from_val(val: &ConstBaseVal) -> Option<Self> {
-            match val {
-                ConstBaseVal::Float(ConstSVMVal::M(ConstMVal::Mat23(v))) => Some(*v),
-                _ => None,
-            }
-        }
-
-        fn to_val(self) -> ConstBaseVal {
-            ConstBaseVal::Float(ConstSVMVal::M(ConstMVal::Mat23(self)))
-        }
-    }
-
-    impl ConstParameter for Matrix2x4<f32> {
-        fn get_type() -> ParameterType {
-            ParameterType::new(ParameterBaseType::Float, ParameterSize::Mat24)
-        }
-
-        fn from_val(val: &ConstBaseVal) -> Option<Self> {
-            match val {
-                ConstBaseVal::Float(ConstSVMVal::M(ConstMVal::Mat24(v))) => Some(*v),
-                _ => None,
-            }
-        }
-
-        fn to_val(self) -> ConstBaseVal {
-            ConstBaseVal::Float(ConstSVMVal::M(ConstMVal::Mat24(self)))
-        }
-    }
-
-    impl ConstParameter for Matrix3x2<f32> {
-        fn get_type() -> ParameterType {
-            ParameterType::new(ParameterBaseType::Float, ParameterSize::Mat32)
-        }
-
-        fn from_val(val: &ConstBaseVal) -> Option<Self> {
-            match val {
-                ConstBaseVal::Float(ConstSVMVal::M(ConstMVal::Mat32(v))) => Some(*v),
-                _ => None,
-            }
-        }
-
-        fn to_val(self) -> ConstBaseVal {
-            ConstBaseVal::Float(ConstSVMVal::M(ConstMVal::Mat32(self)))
-        }
-    }
-
-    impl ConstParameter for Matrix3<f32> {
-        fn get_type() -> ParameterType {
-            ParameterType::new(ParameterBaseType::Float, ParameterSize::Mat3)
-        }
-
-        fn from_val(val: &ConstBaseVal) -> Option<Self> {
-            match val {
-                ConstBaseVal::Float(ConstSVMVal::M(ConstMVal::Mat3(v))) => Some(*v),
-                _ => None,
-            }
-        }
-
-        fn to_val(self) -> ConstBaseVal {
-            ConstBaseVal::Float(ConstSVMVal::M(ConstMVal::Mat3(self)))
-        }
-    }
-
-    impl ConstParameter for Matrix3x4<f32> {
-        fn get_type() -> ParameterType {
-            ParameterType::new(ParameterBaseType::Float, ParameterSize::Mat34)
-        }
-
-        fn from_val(val: &ConstBaseVal) -> Option<Self> {
-            match val {
-                ConstBaseVal::Float(ConstSVMVal::M(ConstMVal::Mat34(v))) => Some(*v),
-                _ => None,
-            }
-        }
-
-        fn to_val(self) -> ConstBaseVal {
-            ConstBaseVal::Float(ConstSVMVal::M(ConstMVal::Mat34(self)))
-        }
-    }
-
-    impl ConstParameter for Matrix4x2<f32> {
-        fn get_type() -> ParameterType {
-            ParameterType::new(ParameterBaseType::Float, ParameterSize::Mat42)
-        }
-
-        fn from_val(val: &ConstBaseVal) -> Option<Self> {
-            match val {
-                ConstBaseVal::Float(ConstSVMVal::M(ConstMVal::Mat42(v))) => Some(*v),
-                _ => None,
-            }
-        }
-
-        fn to_val(self) -> ConstBaseVal {
-            ConstBaseVal::Float(ConstSVMVal::M(ConstMVal::Mat42(self)))
-        }
-    }
-
-    impl ConstParameter for Matrix4x3<f32> {
-        fn get_type() -> ParameterType {
-            ParameterType::new(ParameterBaseType::Float, ParameterSize::Mat43)
-        }
-
-        fn from_val(val: &ConstBaseVal) -> Option<Self> {
-            match val {
-                ConstBaseVal::Float(ConstSVMVal::M(ConstMVal::Mat43(v))) => Some(*v),
-                _ => None,
-            }
-        }
-
-        fn to_val(self) -> ConstBaseVal {
-            ConstBaseVal::Float(ConstSVMVal::M(ConstMVal::Mat43(self)))
-        }
-    }
-
-    impl ConstParameter for Matrix4<f32> {
-        fn get_type() -> ParameterType {
-            ParameterType::new(ParameterBaseType::Float, ParameterSize::Mat4)
-        }
-
-        fn from_val(val: &ConstBaseVal) -> Option<Self> {
-            match val {
-                ConstBaseVal::Float(ConstSVMVal::M(ConstMVal::Mat4(v))) => Some(*v),
-                _ => None,
-            }
-        }
-
-        fn to_val(self) -> ConstBaseVal {
-            ConstBaseVal::Float(ConstSVMVal::M(ConstMVal::Mat4(self)))
-        }
-    }
-
-    impl ConstParameter for ConstMVal<f32> {
-        fn get_type() -> ParameterType {
-            ParameterType::new(ParameterBaseType::Float, ParameterSize::GenMat)
-        }
-
-        fn from_val(val: &ConstBaseVal) -> Option<Self> {
-            match val {
-                ConstBaseVal::Float(ConstSVMVal::M(v)) => Some(v.clone()),
-                _ => None,
-            }
-        }
-
-        fn to_val(self) -> ConstBaseVal {
-            ConstBaseVal::Float(ConstSVMVal::M(self))
-        }
-    }
-
-    impl ConstParameter for f64 {
-        fn get_type() -> ParameterType {
-            ParameterType::new(ParameterBaseType::Double, ParameterSize::Scalar)
-        }
-
-        fn from_val(val: &ConstBaseVal) -> Option<Self> {
-            match val {
-                ConstBaseVal::Int(ConstSVVal::Scalar(v)) => Some(*v as f64),
-                ConstBaseVal::UInt(ConstSVVal::Scalar(v)) => Some(*v as f64),
-                ConstBaseVal::Float(ConstSVMVal::SV(ConstSVVal::Scalar(v))) => Some(*v as f64),
-                ConstBaseVal::Double(ConstSVMVal::SV(ConstSVVal::Scalar(v))) => Some(*v),
-                _ => None,
-            }
-        }
-
-        fn to_val(self) -> ConstBaseVal {
-            ConstBaseVal::Double(ConstSVMVal::SV(ConstSVVal::Scalar(self)))
-        }
-    }
-
-    impl ConstParameter for Vector2<f64> {
-        fn get_type() -> ParameterType {
-            ParameterType::new(ParameterBaseType::Double, ParameterSize::Vec2)
-        }
-
-        fn from_val(val: &ConstBaseVal) -> Option<Self> {
-            match val {
-                ConstBaseVal::Int(ConstSVVal::Vec2(v)) => Some(v.map(|v| v as f64)),
-                ConstBaseVal::UInt(ConstSVVal::Vec2(v)) => Some(v.map(|v| v as f64)),
-                ConstBaseVal::Float(ConstSVMVal::SV(ConstSVVal::Vec2(v))) => Some(v.map(|v| v as f64)),
-                ConstBaseVal::Double(ConstSVMVal::SV(ConstSVVal::Vec2(v))) => Some(*v),
-                _ => None,
-            }
-        }
-
-        fn to_val(self) -> ConstBaseVal {
-            ConstBaseVal::Double(ConstSVMVal::SV(ConstSVVal::Vec2(self)))
-        }
-    }
-
-    impl ConstParameter for Vector3<f64> {
-        fn get_type() -> ParameterType {
-            ParameterType::new(ParameterBaseType::Double, ParameterSize::Vec3)
-        }
-
-        fn from_val(val: &ConstBaseVal) -> Option<Self> {
-            match val {
-                ConstBaseVal::Int(ConstSVVal::Vec3(v)) => Some(v.map(|v| v as f64)),
-                ConstBaseVal::UInt(ConstSVVal::Vec3(v)) => Some(v.map(|v| v as f64)),
-                ConstBaseVal::Float(ConstSVMVal::SV(ConstSVVal::Vec3(v))) => Some(v.map(|v| v as f64)),
-                ConstBaseVal::Double(ConstSVMVal::SV(ConstSVVal::Vec3(v))) => Some(*v),
-                _ => None,
-            }
-        }
-
-        fn to_val(self) -> ConstBaseVal {
-            ConstBaseVal::Double(ConstSVMVal::SV(ConstSVVal::Vec3(self)))
-        }
-    }
-
-    impl ConstParameter for Vector4<f64> {
-        fn get_type() -> ParameterType {
-            ParameterType::new(ParameterBaseType::Double, ParameterSize::Vec4)
-        }
-
-        fn from_val(val: &ConstBaseVal) -> Option<Self> {
-            match val {
-                ConstBaseVal::Int(ConstSVVal::Vec4(v)) => Some(v.map(|v| v as f64)),
-                ConstBaseVal::UInt(ConstSVVal::Vec4(v)) => Some(v.map(|v| v as f64)),
-                ConstBaseVal::Float(ConstSVMVal::SV(ConstSVVal::Vec4(v))) => Some(v.map(|v| v as f64)),
-                ConstBaseVal::Double(ConstSVMVal::SV(ConstSVVal::Vec4(v))) => Some(*v),
-                _ => None,
-            }
-        }
-
-        fn to_val(self) -> ConstBaseVal {
-            ConstBaseVal::Double(ConstSVMVal::SV(ConstSVVal::Vec4(self)))
-        }
-    }
-
-    impl ConstParameter for ConstSVVal<f64> {
-        fn get_type() -> ParameterType {
-            ParameterType::new(ParameterBaseType::Double, ParameterSize::GenSVec)
-        }
-
-        fn from_val(val: &ConstBaseVal) -> Option<Self> {
-            match val {
-                ConstBaseVal::Int(v) => Some(v.map(|v| v as f64)),
-                ConstBaseVal::UInt(v) => Some(v.map(|v| v as f64)),
-                ConstBaseVal::Float(ConstSVMVal::SV(v)) => Some(v.map(|v| v as f64)),
-                ConstBaseVal::Double(ConstSVMVal::SV(v)) => Some(v.clone()),
-                _ => None,
-            }
-        }
-
-        fn to_val(self) -> ConstBaseVal {
-            ConstBaseVal::Double(ConstSVMVal::SV(self))
-        }
-    }
-
-    impl ConstParameter for Matrix2<f64> {
-        fn get_type() -> ParameterType {
-            ParameterType::new(ParameterBaseType::Double, ParameterSize::Mat2)
-        }
-
-        fn from_val(val: &ConstBaseVal) -> Option<Self> {
-            match val {
-                ConstBaseVal::Float(ConstSVMVal::M(ConstMVal::Mat2(v))) => Some(v.map(|v| v as f64)),
-                ConstBaseVal::Double(ConstSVMVal::M(ConstMVal::Mat2(v))) => Some(*v),
-                _ => None,
-            }
-        }
-
-        fn to_val(self) -> ConstBaseVal {
-            ConstBaseVal::Double(ConstSVMVal::M(ConstMVal::Mat2(self)))
-        }
-    }
-
-    impl ConstParameter for Matrix2x3<f64> {
-        fn get_type() -> ParameterType {
-            ParameterType::new(ParameterBaseType::Double, ParameterSize::Mat23)
-        }
-
-        fn from_val(val: &ConstBaseVal) -> Option<Self> {
-            match val {
-                ConstBaseVal::Float(ConstSVMVal::M(ConstMVal::Mat23(v))) => Some(v.map(|v| v as f64)),
-                ConstBaseVal::Double(ConstSVMVal::M(ConstMVal::Mat23(v))) => Some(*v),
-                _ => None,
-            }
-        }
-
-        fn to_val(self) -> ConstBaseVal {
-            ConstBaseVal::Double(ConstSVMVal::M(ConstMVal::Mat23(self)))
-        }
-    }
-
-    impl ConstParameter for Matrix2x4<f64> {
-        fn get_type() -> ParameterType {
-            ParameterType::new(ParameterBaseType::Double, ParameterSize::Mat24)
-        }
-
-        fn from_val(val: &ConstBaseVal) -> Option<Self> {
-            match val {
-                ConstBaseVal::Float(ConstSVMVal::M(ConstMVal::Mat24(v))) => Some(v.map(|v| v as f64)),
-                ConstBaseVal::Double(ConstSVMVal::M(ConstMVal::Mat24(v))) => Some(*v),
-                _ => None,
-            }
-        }
-
-        fn to_val(self) -> ConstBaseVal {
-            ConstBaseVal::Double(ConstSVMVal::M(ConstMVal::Mat24(self)))
-        }
-    }
-
-    impl ConstParameter for Matrix3x2<f64> {
-        fn get_type() -> ParameterType {
-            ParameterType::new(ParameterBaseType::Double, ParameterSize::Mat32)
-        }
-
-        fn from_val(val: &ConstBaseVal) -> Option<Self> {
-            match val {
-                ConstBaseVal::Float(ConstSVMVal::M(ConstMVal::Mat32(v))) => Some(v.map(|v| v as f64)),
-                ConstBaseVal::Double(ConstSVMVal::M(ConstMVal::Mat32(v))) => Some(*v),
-                _ => None,
-            }
-        }
-
-        fn to_val(self) -> ConstBaseVal {
-            ConstBaseVal::Double(ConstSVMVal::M(ConstMVal::Mat32(self)))
-        }
-    }
-
-    impl ConstParameter for Matrix3<f64> {
-        fn get_type() -> ParameterType {
-            ParameterType::new(ParameterBaseType::Double, ParameterSize::Mat3)
-        }
-
-        fn from_val(val: &ConstBaseVal) -> Option<Self> {
-            match val {
-                ConstBaseVal::Float(ConstSVMVal::M(ConstMVal::Mat3(v))) => Some(v.map(|v| v as f64)),
-                ConstBaseVal::Double(ConstSVMVal::M(ConstMVal::Mat3(v))) => Some(*v),
-                _ => None,
-            }
-        }
-
-        fn to_val(self) -> ConstBaseVal {
-            ConstBaseVal::Double(ConstSVMVal::M(ConstMVal::Mat3(self)))
-        }
-    }
-
-    impl ConstParameter for Matrix3x4<f64> {
-        fn get_type() -> ParameterType {
-            ParameterType::new(ParameterBaseType::Double, ParameterSize::Mat34)
-        }
-
-        fn from_val(val: &ConstBaseVal) -> Option<Self> {
-            match val {
-                ConstBaseVal::Float(ConstSVMVal::M(ConstMVal::Mat34(v))) => Some(v.map(|v| v as f64)),
-                ConstBaseVal::Double(ConstSVMVal::M(ConstMVal::Mat34(v))) => Some(*v),
-                _ => None,
-            }
-        }
-
-        fn to_val(self) -> ConstBaseVal {
-            ConstBaseVal::Double(ConstSVMVal::M(ConstMVal::Mat34(self)))
-        }
-    }
-
-    impl ConstParameter for Matrix4x2<f64> {
-        fn get_type() -> ParameterType {
-            ParameterType::new(ParameterBaseType::Double, ParameterSize::Mat42)
-        }
-
-        fn from_val(val: &ConstBaseVal) -> Option<Self> {
-            match val {
-                ConstBaseVal::Float(ConstSVMVal::M(ConstMVal::Mat42(v))) => Some(v.map(|v| v as f64)),
-                ConstBaseVal::Double(ConstSVMVal::M(ConstMVal::Mat42(v))) => Some(*v),
-                _ => None,
-            }
-        }
-
-        fn to_val(self) -> ConstBaseVal {
-            ConstBaseVal::Double(ConstSVMVal::M(ConstMVal::Mat42(self)))
-        }
-    }
-
-    impl ConstParameter for Matrix4x3<f64> {
-        fn get_type() -> ParameterType {
-            ParameterType::new(ParameterBaseType::Double, ParameterSize::Mat43)
-        }
-
-        fn from_val(val: &ConstBaseVal) -> Option<Self> {
-            match val {
-                ConstBaseVal::Float(ConstSVMVal::M(ConstMVal::Mat43(v))) => Some(v.map(|v| v as f64)),
-                ConstBaseVal::Double(ConstSVMVal::M(ConstMVal::Mat43(v))) => Some(*v),
-                _ => None,
-            }
-        }
-
-        fn to_val(self) -> ConstBaseVal {
-            ConstBaseVal::Double(ConstSVMVal::M(ConstMVal::Mat43(self)))
-        }
-    }
-
-    impl ConstParameter for Matrix4<f64> {
-        fn get_type() -> ParameterType {
-            ParameterType::new(ParameterBaseType::Double, ParameterSize::Mat4)
-        }
-
-        fn from_val(val: &ConstBaseVal) -> Option<Self> {
-            match val {
-                ConstBaseVal::Float(ConstSVMVal::M(ConstMVal::Mat4(v))) => Some(v.map(|v| v as f64)),
-                ConstBaseVal::Double(ConstSVMVal::M(ConstMVal::Mat4(v))) => Some(*v),
-                _ => None,
-            }
-        }
-
-        fn to_val(self) -> ConstBaseVal {
-            ConstBaseVal::Double(ConstSVMVal::M(ConstMVal::Mat4(self)))
-        }
-    }
-
-    impl ConstParameter for ConstMVal<f64> {
-        fn get_type() -> ParameterType {
-            ParameterType::new(ParameterBaseType::Double, ParameterSize::GenMat)
-        }
-
-        fn from_val(val: &ConstBaseVal) -> Option<Self> {
-            match val {
-                ConstBaseVal::Float(ConstSVMVal::M(v)) => Some(v.map(|v| v as f64)),
-                ConstBaseVal::Double(ConstSVMVal::M(v)) => Some(v.clone()),
-                _ => None,
-            }
-        }
-
-        fn to_val(self) -> ConstBaseVal {
-            ConstBaseVal::Double(ConstSVMVal::M(self))
-        }
-    }
+    const_param_double!(f64, ParameterShape::Scalar);
+    const_param_double!(Vector2<f64>, ParameterShape::Vec2);
+    const_param_double!(Vector3<f64>, ParameterShape::Vec3);
+    const_param_double!(Vector4<f64>, ParameterShape::Vec4);
+    const_param_double!(Matrix2<f64>, ParameterShape::Mat2);
+    const_param_double!(Matrix2x3<f64>, ParameterShape::Mat23);
+    const_param_double!(Matrix2x4<f64>, ParameterShape::Mat24);
+    const_param_double!(Matrix3x2<f64>, ParameterShape::Mat32);
+    const_param_double!(Matrix3<f64>, ParameterShape::Mat3);
+    const_param_double!(Matrix3x4<f64>, ParameterShape::Mat34);
+    const_param_double!(Matrix4x2<f64>, ParameterShape::Mat42);
+    const_param_double!(Matrix4x3<f64>, ParameterShape::Mat43);
+    const_param_double!(Matrix4<f64>, ParameterShape::Mat4);
+    const_param_double!(ConstMVal<f64>, ParameterShape::GenericM);
+    const_param_double!(ConstSVVal<f64>, ParameterShape::GenericSV);
+    const_param_double!(ConstSVMVal<f64>, ParameterShape::GenericSVM);
 
     trait ScalarConstructFrom<T> {
-        fn construct(from: &T) -> Self;
+        fn construct_from(from: &T) -> Self;
     }
 
     impl ScalarConstructFrom<bool> for bool {
-        fn construct(from: &bool) -> bool {
+        fn construct_from(from: &bool) -> bool {
             *from
         }
     }
 
     impl ScalarConstructFrom<i32> for bool {
-        fn construct(from: &i32) -> bool {
+        fn construct_from(from: &i32) -> bool {
             *from != 0i32
         }
     }
 
     impl ScalarConstructFrom<u32> for bool {
-        fn construct(from: &u32) -> bool {
+        fn construct_from(from: &u32) -> bool {
             *from != 0u32
         }
     }
 
     impl ScalarConstructFrom<f32> for bool {
-        fn construct(from: &f32) -> bool {
+        fn construct_from(from: &f32) -> bool {
             *from != 0f32
         }
     }
 
     impl ScalarConstructFrom<f64> for bool {
-        fn construct(from: &f64) -> bool {
+        fn construct_from(from: &f64) -> bool {
             *from != 0f64
         }
     }
 
     impl ScalarConstructFrom<bool> for i32 {
-        fn construct(from: &bool) -> i32 {
+        fn construct_from(from: &bool) -> i32 {
             if *from { 1i32 } else { 0i32 }
         }
     }
 
     impl ScalarConstructFrom<i32> for i32 {
-        fn construct(from: &i32) -> i32 {
+        fn construct_from(from: &i32) -> i32 {
             *from
         }
     }
 
     impl ScalarConstructFrom<u32> for i32 {
-        fn construct(from: &u32) -> i32 {
+        fn construct_from(from: &u32) -> i32 {
             *from as i32
         }
     }
 
     impl ScalarConstructFrom<f32> for i32 {
-        fn construct(from: &f32) -> i32 {
+        fn construct_from(from: &f32) -> i32 {
             *from as i32
         }
     }
 
     impl ScalarConstructFrom<f64> for i32 {
-        fn construct(from: &f64) -> i32 {
+        fn construct_from(from: &f64) -> i32 {
             *from as i32
         }
     }
 
     impl ScalarConstructFrom<bool> for u32 {
-        fn construct(from: &bool) -> u32 {
+        fn construct_from(from: &bool) -> u32 {
             if *from { 1u32 } else { 0u32 }
         }
     }
 
     impl ScalarConstructFrom<i32> for u32 {
-        fn construct(from: &i32) -> u32 {
+        fn construct_from(from: &i32) -> u32 {
             *from as u32
         }
     }
 
     impl ScalarConstructFrom<u32> for u32 {
-        fn construct(from: &u32) -> u32 {
+        fn construct_from(from: &u32) -> u32 {
             *from
         }
     }
 
     impl ScalarConstructFrom<f32> for u32 {
-        fn construct(from: &f32) -> u32 {
+        fn construct_from(from: &f32) -> u32 {
             *from as u32
         }
     }
 
     impl ScalarConstructFrom<f64> for u32 {
-        fn construct(from: &f64) -> u32 {
+        fn construct_from(from: &f64) -> u32 {
             *from as u32
         }
     }
 
     impl ScalarConstructFrom<bool> for f32 {
-        fn construct(from: &bool) -> f32 {
+        fn construct_from(from: &bool) -> f32 {
             if *from { 1f32 } else { 0f32 }
         }
     }
 
     impl ScalarConstructFrom<i32> for f32 {
-        fn construct(from: &i32) -> f32 {
+        fn construct_from(from: &i32) -> f32 {
             *from as f32
         }
     }
 
     impl ScalarConstructFrom<u32> for f32 {
-        fn construct(from: &u32) -> f32 {
+        fn construct_from(from: &u32) -> f32 {
             *from as f32
         }
     }
 
     impl ScalarConstructFrom<f32> for f32 {
-        fn construct(from: &f32) -> f32 {
+        fn construct_from(from: &f32) -> f32 {
             *from
         }
     }
 
     impl ScalarConstructFrom<f64> for f32 {
-        fn construct(from: &f64) -> f32 {
+        fn construct_from(from: &f64) -> f32 {
             *from as f32
         }
     }
 
     impl ScalarConstructFrom<bool> for f64 {
-        fn construct(from: &bool) -> f64 {
+        fn construct_from(from: &bool) -> f64 {
             if *from { 1f64 } else { 0f64 }
         }
     }
 
     impl ScalarConstructFrom<i32> for f64 {
-        fn construct(from: &i32) -> f64 {
+        fn construct_from(from: &i32) -> f64 {
             *from as f64
         }
     }
 
     impl ScalarConstructFrom<u32> for f64 {
-        fn construct(from: &u32) -> f64 {
+        fn construct_from(from: &u32) -> f64 {
             *from as f64
         }
     }
 
     impl ScalarConstructFrom<f32> for f64 {
-        fn construct(from: &f32) -> f64 {
+        fn construct_from(from: &f32) -> f64 {
             *from as f64
         }
     }
 
     impl ScalarConstructFrom<f64> for f64 {
-        fn construct(from: &f64) -> f64 {
+        fn construct_from(from: &f64) -> f64 {
             *from
         }
     }
@@ -2298,12 +2155,12 @@ mod function {
         };
     }
 
-    fn add_scalar_constructor<T>(mut f: ConstEvalFunctionBuilder) -> ConstEvalFunctionBuilder where T: Scalar + ConstParameter + ScalarConstructFrom<bool> + ScalarConstructFrom<i32> + ScalarConstructFrom<u32> + ScalarConstructFrom<f32> + ScalarConstructFrom<f64> {
-        f.add_overload_1(|v: ConstSVVal<bool>| Some(T::construct(&v.first())))
-            .add_overload_1(|v: ConstSVVal<i32>| Some(T::construct(&v.first())))
-            .add_overload_1(|v: ConstSVVal<u32>| Some(T::construct(&v.first())))
-            .add_overload_1(|v: ConstSVVal<f32>| Some(T::construct(&v.first())))
-            .add_overload_1(|v: ConstSVVal<f64>| Some(T::construct(&v.first())))
+    fn add_scalar_constructor<T>(f: ConstEvalFunctionBuilder) -> ConstEvalFunctionBuilder where T: Scalar + ConstParameter + ScalarConstructFrom<bool> + ScalarConstructFrom<i32> + ScalarConstructFrom<u32> + ScalarConstructFrom<f32> + ScalarConstructFrom<f64> {
+        f.add_overload_1(|v: ConstSVVal<bool>| Some(T::construct_from(v.column_iter().next().unwrap())))
+            .add_overload_1(|v: ConstSVVal<i32>| Some(T::construct_from(v.column_iter().next().unwrap())))
+            .add_overload_1(|v: ConstSVVal<u32>| Some(T::construct_from(v.column_iter().next().unwrap())))
+            .add_overload_1(|v: ConstSVVal<f32>| Some(T::construct_from(v.column_iter().next().unwrap())))
+            .add_overload_1(|v: ConstSVVal<f64>| Some(T::construct_from(v.column_iter().next().unwrap())))
     }
 
     enum ScalarIterWrapper<'a, T: ScalarConstructFrom<bool> + ScalarConstructFrom<i32> + ScalarConstructFrom<u32> + ScalarConstructFrom<f32> + ScalarConstructFrom<f64>> {
@@ -2317,11 +2174,11 @@ mod function {
     impl<'a, T> ScalarIterWrapper<'a, T> where T: ScalarConstructFrom<bool> + ScalarConstructFrom<i32> + ScalarConstructFrom<u32> + ScalarConstructFrom<f32> + ScalarConstructFrom<f64> {
         fn from_base_val(val: &'a ConstBaseVal) -> Self {
             match val {
-                ConstBaseVal::Bool(v) => Self::Bool(v.component_iter(), PhantomData),
-                ConstBaseVal::Int(v) => Self::Int(v.component_iter()),
-                ConstBaseVal::UInt(v) => Self::UInt(v.component_iter()),
-                ConstBaseVal::Float(v) => Self::Float(v.component_iter()),
-                ConstBaseVal::Double(v) => Self::Double(v.component_iter()),
+                ConstBaseVal::Bool(v) => Self::Bool(v.column_iter(), PhantomData),
+                ConstBaseVal::Int(v) => Self::Int(v.column_iter()),
+                ConstBaseVal::UInt(v) => Self::UInt(v.column_iter()),
+                ConstBaseVal::Float(v) => Self::Float(v.column_iter()),
+                ConstBaseVal::Double(v) => Self::Double(v.column_iter()),
             }
         }
     }
@@ -2331,11 +2188,11 @@ mod function {
 
         fn next(&mut self) -> Option<Self::Item> {
             match self {
-                ScalarIterWrapper::Bool(i, _) => i.next().map(T::construct),
-                ScalarIterWrapper::Int(i) => i.next().map(T::construct),
-                ScalarIterWrapper::UInt(i) => i.next().map(T::construct),
-                ScalarIterWrapper::Float(i) => i.next().map(T::construct),
-                ScalarIterWrapper::Double(i) => i.next().map(T::construct),
+                ScalarIterWrapper::Bool(i, _) => i.next().map(T::construct_from),
+                ScalarIterWrapper::Int(i) => i.next().map(T::construct_from),
+                ScalarIterWrapper::UInt(i) => i.next().map(T::construct_from),
+                ScalarIterWrapper::Float(i) => i.next().map(T::construct_from),
+                ScalarIterWrapper::Double(i) => i.next().map(T::construct_from),
             }
         }
     }
@@ -2384,19 +2241,19 @@ mod function {
     }
 
     type AVector<const R: usize, T> = Matrix<T, Const<R>, U1, ArrayStorage<T, R, 1>>;
-    fn add_vec_constructor<const R: usize, T>(mut f: ConstEvalFunctionBuilder) -> ConstEvalFunctionBuilder where T: Scalar + ScalarConstructFrom<bool> + ScalarConstructFrom<i32> + ScalarConstructFrom<u32> + ScalarConstructFrom<f32> + ScalarConstructFrom<f64>, AVector<R, T>: ConstParameter {
+    fn add_vec_constructor<const R: usize, T>(f: ConstEvalFunctionBuilder) -> ConstEvalFunctionBuilder where T: Scalar + ScalarConstructFrom<bool> + ScalarConstructFrom<i32> + ScalarConstructFrom<u32> + ScalarConstructFrom<f32> + ScalarConstructFrom<f64>, AVector<R, T>: ConstParameter {
         f.add_generic(|params| {
             if params.len() == 0 {
                 return None;
             }
             if params.len() == 1 {
-                if params[0].get_size() == BaseTypeShape::Scalar {
-                    return Some(AVector::<R, T>::from_element(ValIterator::new(params).next().unwrap()).to_val());
+                if params[0].get_shape() == BaseTypeShape::Scalar {
+                    return Some(AVector::<R, T>::from_element(ValIterator::new(params).next().unwrap()).into_const_base_val());
                 }
             }
 
             if ValIterator::<T>::new(params).count() >= R {
-                Some(AVector::<R, T>::from_iterator(ValIterator::new(params)).to_val())
+                Some(AVector::<R, T>::from_iterator(ValIterator::new(params)).into_const_base_val())
             } else {
                 None
             }
@@ -2412,18 +2269,18 @@ mod function {
     }
 
     type AMatrix<const R: usize, const C: usize, T> = Matrix<T, Const<R>, Const<C>, ArrayStorage<T, R, C>>;
-    fn add_mat_constructor<const R: usize, const C: usize, T>(mut f: ConstEvalFunctionBuilder) -> ConstEvalFunctionBuilder where T: Scalar + Zero + One + ScalarConstructFrom<bool> + ScalarConstructFrom<i32> + ScalarConstructFrom<u32> + ScalarConstructFrom<f32> + ScalarConstructFrom<f64>, AMatrix<R, C, T>: ConstParameter {
+    fn add_mat_constructor<const R: usize, const C: usize, T>(f: ConstEvalFunctionBuilder) -> ConstEvalFunctionBuilder where T: Scalar + Zero + One + ScalarConstructFrom<bool> + ScalarConstructFrom<i32> + ScalarConstructFrom<u32> + ScalarConstructFrom<f32> + ScalarConstructFrom<f64>, AMatrix<R, C, T>: ConstParameter {
         f.add_generic(|params| {
             if params.len() == 0 {
                 return None;
             }
             if params.len() == 1 {
-                if params[0].get_size() == BaseTypeShape::Scalar {
-                    return Some(AMatrix::<R, C, T>::from_diagonal_element(ValIterator::new(params).next().unwrap()).to_val());
+                if params[0].get_shape() == BaseTypeShape::Scalar {
+                    return Some(AMatrix::<R, C, T>::from_diagonal_element(ValIterator::new(params).next().unwrap()).into_const_base_val());
                 } else {
                     let converted = match params[0] {
-                        ConstBaseVal::Float(ConstSVMVal::M(v)) => Some(v.map(|v| T::construct(&v))),
-                        ConstBaseVal::Double(ConstSVMVal::M(v)) => Some(v.map(|v| T::construct(&v))),
+                        ConstBaseVal::Float(ConstSVMVal::Matrix(v)) => Some(v.map(|v| T::construct_from(&v))),
+                        ConstBaseVal::Double(ConstSVMVal::Matrix(v)) => Some(v.map(|v| T::construct_from(&v))),
                         _ => None,
                     };
                     if let Some(converted) = converted {
@@ -2439,13 +2296,13 @@ mod function {
                             ConstMVal::Mat43(v) => copy_to_mat(&v, &mut result),
                             ConstMVal::Mat4(v) => copy_to_mat(&v, &mut result),
                         };
-                        return Some(result.to_val());
+                        return Some(result.into_const_base_val());
                     }
                 }
             }
 
             if ValIterator::<T>::new(params).count() >= R * C {
-                Some(AMatrix::<R, C, T>::from_iterator(ValIterator::new(params)).to_val())
+                Some(AMatrix::<R, C, T>::from_iterator(ValIterator::new(params)).into_const_base_val())
             } else {
                 None
             }
@@ -2494,7 +2351,7 @@ mod function {
         f(Identifier::new("dmat4").unwrap(), add_mat_constructor::<4, 4, f32>(ConstEvalFunctionBuilder::new()).build());
     }
 
-    pub fn register_builtin_const_functions<F: FnMut(Identifier, ConstEvalFunction)>(mut f: F) {
+    pub fn register_builtin_const_functions<F: FnMut(Identifier, ConstEvalFunction)>(f: F) {
         register_constructor_const_functions(f);
     }
 
@@ -2511,19 +2368,19 @@ mod function {
         use super::*;
 
         const BASE_TYPE_VALUES: &[ParameterBaseType] = &[ParameterBaseType::Bool, ParameterBaseType::Int, ParameterBaseType::UInt, ParameterBaseType::Float, ParameterBaseType::Double];
-        const SIZE_VALUES: &[ParameterSize] = &[ParameterSize::Scalar, ParameterSize::Vec2, ParameterSize::Vec3, ParameterSize::Vec4, ParameterSize::GenSVec, ParameterSize::Mat2, ParameterSize::Mat23, ParameterSize::Mat24, ParameterSize::Mat32, ParameterSize::Mat3, ParameterSize::Mat34, ParameterSize::Mat42, ParameterSize::Mat43, ParameterSize::Mat4, ParameterSize::GenMat];
+        const SHAPE_VALUES: &[ParameterShape] = &[ParameterShape::Scalar, ParameterShape::Vec2, ParameterShape::Vec3, ParameterShape::Vec4, ParameterShape::Mat2, ParameterShape::Mat23, ParameterShape::Mat24, ParameterShape::Mat32, ParameterShape::Mat3, ParameterShape::Mat34, ParameterShape::Mat42, ParameterShape::Mat43, ParameterShape::Mat4, ParameterShape::GenericM, ParameterShape::GenericSV, ParameterShape::GenericSVM];
 
         #[test]
         fn test_add() {
-            let a = ConstBaseVal::Bool(ConstSVVal::Scalar(true));
-            let b = ConstBaseVal::Int(ConstSVVal::Vec2(Vector2::new(4, 9)));
-            let c = ConstBaseVal::UInt(ConstSVVal::Vec2(Vector2::new(2, 5)));
-            let d = ConstBaseVal::UInt(ConstSVVal::Vec2(Vector2::new(6, 14)));
+            let a = ConstBaseVal::Bool(ConstSVVal::new_scalar(true));
+            let b = ConstBaseVal::Int(ConstSVVal::new_vec2(Vector2::new(4, 9)));
+            let c = ConstBaseVal::UInt(ConstSVVal::new_vec2(Vector2::new(2, 5)));
+            let d = ConstBaseVal::UInt(ConstSVVal::new_vec2(Vector2::new(6, 14)));
             assert_eq!(OP_BINARY_ADD.eval(&[&a]), None);
             assert_eq!(OP_BINARY_ADD.eval(&[&b, &c]), Some(d.clone()));
             assert_eq!(OP_BINARY_ADD.eval(&[&c, &b]), Some(d));
 
-            assert_eq!(BUILTIN_CONST_FUNCTIONS.lookup(Identifier::new("vec3").unwrap()).unwrap().eval(&[&b, &a]), Some(ConstBaseVal::Float(ConstSVMVal::SV(ConstSVVal::Vec3(Vector3::new(4f32, 9f32, 1f32))))));
+            assert_eq!(BUILTIN_CONST_FUNCTIONS.lookup(Identifier::new("vec3").unwrap()).unwrap().eval(&[&b, &a]), Some(ConstBaseVal::Float(ConstSVMVal::new_vec3(Vector3::new(4f32, 9f32, 1f32)))));
         }
 
         #[test]
@@ -2546,9 +2403,9 @@ mod function {
 
         #[test]
         fn parameter_type_order_consistency() {
-            let mut types = Vec::with_capacity(BASE_TYPE_VALUES.len() * SIZE_VALUES.len());
+            let mut types = Vec::with_capacity(BASE_TYPE_VALUES.len() * SHAPE_VALUES.len());
             for base_type in BASE_TYPE_VALUES {
-                for size in SIZE_VALUES {
+                for size in SHAPE_VALUES {
                     types.push(ParameterType::new(*base_type, *size));
                 }
             }
