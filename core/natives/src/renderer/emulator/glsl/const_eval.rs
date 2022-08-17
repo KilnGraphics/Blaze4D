@@ -184,15 +184,48 @@ impl<T: Scalar> From<Vector2<T>> for ConstVVal<T> {
     }
 }
 
+impl<T: Scalar> TryFrom<ConstVVal<T>> for Vector2<T> {
+    type Error = ();
+
+    fn try_from(value: ConstVVal<T>) -> Result<Self, Self::Error> {
+        match value {
+            ConstVVal::Vec2(v) => Ok(v),
+            _ => Err(()),
+        }
+    }
+}
+
 impl<T: Scalar> From<Vector3<T>> for ConstVVal<T> {
     fn from(v: Vector3<T>) -> Self {
         ConstVVal::Vec3(v)
     }
 }
 
+impl<T: Scalar> TryFrom<ConstVVal<T>> for Vector3<T> {
+    type Error = ();
+
+    fn try_from(value: ConstVVal<T>) -> Result<Self, Self::Error> {
+        match value {
+            ConstVVal::Vec3(v) => Ok(v),
+            _ => Err(()),
+        }
+    }
+}
+
 impl<T: Scalar> From<Vector4<T>> for ConstVVal<T> {
     fn from(v: Vector4<T>) -> Self {
         ConstVVal::Vec4(v)
+    }
+}
+
+impl<T: Scalar> TryFrom<ConstVVal<T>> for Vector4<T> {
+    type Error = ();
+
+    fn try_from(value: ConstVVal<T>) -> Result<Self, Self::Error> {
+        match value {
+            ConstVVal::Vec4(v) => Ok(v),
+            _ => Err(()),
+        }
     }
 }
 
@@ -313,6 +346,159 @@ impl<'a, 'b, 'c, T1: Scalar, T2: Scalar, R: Scalar> ConstGenericZipMappable<'a, 
             (ConstMVal::Mat43(a), ConstMVal::Mat43(b)) => Some(ConstMVal::Mat43(a.zip_map(b, f))),
             (ConstMVal::Mat4(a), ConstMVal::Mat4(b)) => Some(ConstMVal::Mat4(a.zip_map(b, f))),
             _ => None
+        }
+    }
+}
+
+impl<T: Scalar> From<Matrix2<T>> for ConstMVal<T> {
+    fn from(v: Matrix2<T>) -> Self {
+        ConstMVal::Mat2(v)
+    }
+}
+
+impl<T: Scalar> TryFrom<ConstMVal<T>> for Matrix2<T> {
+    type Error = ();
+
+    fn try_from(value: ConstMVal<T>) -> Result<Self, Self::Error> {
+        match value {
+            ConstMVal::Mat2(v) => Ok(v),
+            _ => Err(()),
+        }
+    }
+}
+
+impl<T: Scalar> From<Matrix2x3<T>> for ConstMVal<T> {
+    fn from(v: Matrix2x3<T>) -> Self {
+        ConstMVal::Mat23(v)
+    }
+}
+
+impl<T: Scalar> TryFrom<ConstMVal<T>> for Matrix2x3<T> {
+    type Error = ();
+
+    fn try_from(value: ConstMVal<T>) -> Result<Self, Self::Error> {
+        match value {
+            ConstMVal::Mat23(v) => Ok(v),
+            _ => Err(()),
+        }
+    }
+}
+
+impl<T: Scalar> From<Matrix2x4<T>> for ConstMVal<T> {
+    fn from(v: Matrix2x4<T>) -> Self {
+        ConstMVal::Mat24(v)
+    }
+}
+
+impl<T: Scalar> TryFrom<ConstMVal<T>> for Matrix2x4<T> {
+    type Error = ();
+
+    fn try_from(value: ConstMVal<T>) -> Result<Self, Self::Error> {
+        match value {
+            ConstMVal::Mat24(v) => Ok(v),
+            _ => Err(()),
+        }
+    }
+}
+
+impl<T: Scalar> From<Matrix3x2<T>> for ConstMVal<T> {
+    fn from(v: Matrix3x2<T>) -> Self {
+        ConstMVal::Mat32(v)
+    }
+}
+
+impl<T: Scalar> TryFrom<ConstMVal<T>> for Matrix3x2<T> {
+    type Error = ();
+
+    fn try_from(value: ConstMVal<T>) -> Result<Self, Self::Error> {
+        match value {
+            ConstMVal::Mat32(v) => Ok(v),
+            _ => Err(()),
+        }
+    }
+}
+
+impl<T: Scalar> From<Matrix3<T>> for ConstMVal<T> {
+    fn from(v: Matrix3<T>) -> Self {
+        ConstMVal::Mat3(v)
+    }
+}
+
+impl<T: Scalar> TryFrom<ConstMVal<T>> for Matrix3<T> {
+    type Error = ();
+
+    fn try_from(value: ConstMVal<T>) -> Result<Self, Self::Error> {
+        match value {
+            ConstMVal::Mat3(v) => Ok(v),
+            _ => Err(()),
+        }
+    }
+}
+
+impl<T: Scalar> From<Matrix3x4<T>> for ConstMVal<T> {
+    fn from(v: Matrix3x4<T>) -> Self {
+        ConstMVal::Mat34(v)
+    }
+}
+
+impl<T: Scalar> TryFrom<ConstMVal<T>> for Matrix3x4<T> {
+    type Error = ();
+
+    fn try_from(value: ConstMVal<T>) -> Result<Self, Self::Error> {
+        match value {
+            ConstMVal::Mat34(v) => Ok(v),
+            _ => Err(()),
+        }
+    }
+}
+
+impl<T: Scalar> From<Matrix4x2<T>> for ConstMVal<T> {
+    fn from(v: Matrix4x2<T>) -> Self {
+        ConstMVal::Mat42(v)
+    }
+}
+
+impl<T: Scalar> TryFrom<ConstMVal<T>> for Matrix4x2<T> {
+    type Error = ();
+
+    fn try_from(value: ConstMVal<T>) -> Result<Self, Self::Error> {
+        match value {
+            ConstMVal::Mat42(v) => Ok(v),
+            _ => Err(()),
+        }
+    }
+}
+
+impl<T: Scalar> From<Matrix4x3<T>> for ConstMVal<T> {
+    fn from(v: Matrix4x3<T>) -> Self {
+        ConstMVal::Mat43(v)
+    }
+}
+
+impl<T: Scalar> TryFrom<ConstMVal<T>> for Matrix4x3<T> {
+    type Error = ();
+
+    fn try_from(value: ConstMVal<T>) -> Result<Self, Self::Error> {
+        match value {
+            ConstMVal::Mat43(v) => Ok(v),
+            _ => Err(()),
+        }
+    }
+}
+
+impl<T: Scalar> From<Matrix4<T>> for ConstMVal<T> {
+    fn from(v: Matrix4<T>) -> Self {
+        ConstMVal::Mat4(v)
+    }
+}
+
+impl<T: Scalar> TryFrom<ConstMVal<T>> for Matrix4<T> {
+    type Error = ();
+
+    fn try_from(value: ConstMVal<T>) -> Result<Self, Self::Error> {
+        match value {
+            ConstMVal::Mat4(v) => Ok(v),
+            _ => Err(()),
         }
     }
 }
