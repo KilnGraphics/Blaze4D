@@ -4,9 +4,46 @@ use std::hash::Hash;
 use glsl::syntax::{ArraySpecifier, BinaryOp, Expr, FunIdentifier, Identifier, StructSpecifier, TypeSpecifier, TypeSpecifierNonArray, UnaryOp};
 use nalgebra::{Matrix2, Matrix2x3, Matrix2x4, Matrix3, Matrix3x2, Matrix3x4, Matrix4, Matrix4x2, Matrix4x3, Scalar, Vector2, Vector3, Vector4};
 
-//use crate::renderer::emulator::glsl::const_eval::function::{ParameterBaseType, ParameterSize, ParameterType};
+use paste::paste;
 
 pub use function::{ConstEvalFunctionBuilder, ConstEvalFunction};
+
+/// Utility macro for from/try_from impls on ConstXVal types. Avoids a few thousand lines of code
+macro_rules! impl_from_to_const_val {
+    ($target:ident, $from:ident, $variant:ident) => {
+        impl<T: Scalar> From<$from <T>> for $target <T> {
+            fn from(v: $from <T>) -> Self {
+                $target::$variant(v.into())
+            }
+        }
+        impl<T: Scalar> TryFrom<$target <T>> for $from <T> {
+            type Error = ();
+
+            fn try_from(value: $target <T>) -> Result<Self, Self::Error> {
+                match value {
+                    $target::$variant(v) => v.try_into().ok().ok_or(()),
+                    _ => Err(()),
+                }
+            }
+        }
+    };
+}
+
+/// Utility macro for try_from impls on explicit typed ConstXVal types. Avoids a few thousand lines of code
+macro_rules! impl_try_from_const_val_explicit {
+    ($target:ident, $gen:ty, $from:ty, $variant:ident) => {
+        impl TryFrom<$target <$gen>> for $from {
+            type Error = ();
+
+            fn try_from(value: $target <$gen>) -> Result<Self, Self::Error> {
+                match value {
+                    $target::$variant(v) => v.try_into().ok().ok_or(()),
+                    _ => Err(()),
+                }
+            }
+        }
+    };
+}
 
 /// Allows lookup of constant values
 pub trait ConstLookup {
@@ -184,56 +221,9 @@ impl<'a, 'b, 'c, T1: Scalar, T2: Scalar, R: Scalar> ConstGenericZipMappable<'a, 
     }
 }
 
-impl<T: Scalar> From<Vector2<T>> for ConstVVal<T> {
-    fn from(v: Vector2<T>) -> Self {
-        ConstVVal::Vec2(v)
-    }
-}
-
-impl<T: Scalar> TryFrom<ConstVVal<T>> for Vector2<T> {
-    type Error = ();
-
-    fn try_from(value: ConstVVal<T>) -> Result<Self, Self::Error> {
-        match value {
-            ConstVVal::Vec2(v) => Ok(v),
-            _ => Err(()),
-        }
-    }
-}
-
-impl<T: Scalar> From<Vector3<T>> for ConstVVal<T> {
-    fn from(v: Vector3<T>) -> Self {
-        ConstVVal::Vec3(v)
-    }
-}
-
-impl<T: Scalar> TryFrom<ConstVVal<T>> for Vector3<T> {
-    type Error = ();
-
-    fn try_from(value: ConstVVal<T>) -> Result<Self, Self::Error> {
-        match value {
-            ConstVVal::Vec3(v) => Ok(v),
-            _ => Err(()),
-        }
-    }
-}
-
-impl<T: Scalar> From<Vector4<T>> for ConstVVal<T> {
-    fn from(v: Vector4<T>) -> Self {
-        ConstVVal::Vec4(v)
-    }
-}
-
-impl<T: Scalar> TryFrom<ConstVVal<T>> for Vector4<T> {
-    type Error = ();
-
-    fn try_from(value: ConstVVal<T>) -> Result<Self, Self::Error> {
-        match value {
-            ConstVVal::Vec4(v) => Ok(v),
-            _ => Err(()),
-        }
-    }
-}
+impl_from_to_const_val!(ConstVVal, Vector2, Vec2);
+impl_from_to_const_val!(ConstVVal, Vector3, Vec3);
+impl_from_to_const_val!(ConstVVal, Vector4, Vec4);
 
 /// Constant generic shaped matrix value.
 #[derive(Clone, PartialEq, Hash, Debug)]
@@ -356,158 +346,15 @@ impl<'a, 'b, 'c, T1: Scalar, T2: Scalar, R: Scalar> ConstGenericZipMappable<'a, 
     }
 }
 
-impl<T: Scalar> From<Matrix2<T>> for ConstMVal<T> {
-    fn from(v: Matrix2<T>) -> Self {
-        ConstMVal::Mat2(v)
-    }
-}
-
-impl<T: Scalar> TryFrom<ConstMVal<T>> for Matrix2<T> {
-    type Error = ();
-
-    fn try_from(value: ConstMVal<T>) -> Result<Self, Self::Error> {
-        match value {
-            ConstMVal::Mat2(v) => Ok(v),
-            _ => Err(()),
-        }
-    }
-}
-
-impl<T: Scalar> From<Matrix2x3<T>> for ConstMVal<T> {
-    fn from(v: Matrix2x3<T>) -> Self {
-        ConstMVal::Mat23(v)
-    }
-}
-
-impl<T: Scalar> TryFrom<ConstMVal<T>> for Matrix2x3<T> {
-    type Error = ();
-
-    fn try_from(value: ConstMVal<T>) -> Result<Self, Self::Error> {
-        match value {
-            ConstMVal::Mat23(v) => Ok(v),
-            _ => Err(()),
-        }
-    }
-}
-
-impl<T: Scalar> From<Matrix2x4<T>> for ConstMVal<T> {
-    fn from(v: Matrix2x4<T>) -> Self {
-        ConstMVal::Mat24(v)
-    }
-}
-
-impl<T: Scalar> TryFrom<ConstMVal<T>> for Matrix2x4<T> {
-    type Error = ();
-
-    fn try_from(value: ConstMVal<T>) -> Result<Self, Self::Error> {
-        match value {
-            ConstMVal::Mat24(v) => Ok(v),
-            _ => Err(()),
-        }
-    }
-}
-
-impl<T: Scalar> From<Matrix3x2<T>> for ConstMVal<T> {
-    fn from(v: Matrix3x2<T>) -> Self {
-        ConstMVal::Mat32(v)
-    }
-}
-
-impl<T: Scalar> TryFrom<ConstMVal<T>> for Matrix3x2<T> {
-    type Error = ();
-
-    fn try_from(value: ConstMVal<T>) -> Result<Self, Self::Error> {
-        match value {
-            ConstMVal::Mat32(v) => Ok(v),
-            _ => Err(()),
-        }
-    }
-}
-
-impl<T: Scalar> From<Matrix3<T>> for ConstMVal<T> {
-    fn from(v: Matrix3<T>) -> Self {
-        ConstMVal::Mat3(v)
-    }
-}
-
-impl<T: Scalar> TryFrom<ConstMVal<T>> for Matrix3<T> {
-    type Error = ();
-
-    fn try_from(value: ConstMVal<T>) -> Result<Self, Self::Error> {
-        match value {
-            ConstMVal::Mat3(v) => Ok(v),
-            _ => Err(()),
-        }
-    }
-}
-
-impl<T: Scalar> From<Matrix3x4<T>> for ConstMVal<T> {
-    fn from(v: Matrix3x4<T>) -> Self {
-        ConstMVal::Mat34(v)
-    }
-}
-
-impl<T: Scalar> TryFrom<ConstMVal<T>> for Matrix3x4<T> {
-    type Error = ();
-
-    fn try_from(value: ConstMVal<T>) -> Result<Self, Self::Error> {
-        match value {
-            ConstMVal::Mat34(v) => Ok(v),
-            _ => Err(()),
-        }
-    }
-}
-
-impl<T: Scalar> From<Matrix4x2<T>> for ConstMVal<T> {
-    fn from(v: Matrix4x2<T>) -> Self {
-        ConstMVal::Mat42(v)
-    }
-}
-
-impl<T: Scalar> TryFrom<ConstMVal<T>> for Matrix4x2<T> {
-    type Error = ();
-
-    fn try_from(value: ConstMVal<T>) -> Result<Self, Self::Error> {
-        match value {
-            ConstMVal::Mat42(v) => Ok(v),
-            _ => Err(()),
-        }
-    }
-}
-
-impl<T: Scalar> From<Matrix4x3<T>> for ConstMVal<T> {
-    fn from(v: Matrix4x3<T>) -> Self {
-        ConstMVal::Mat43(v)
-    }
-}
-
-impl<T: Scalar> TryFrom<ConstMVal<T>> for Matrix4x3<T> {
-    type Error = ();
-
-    fn try_from(value: ConstMVal<T>) -> Result<Self, Self::Error> {
-        match value {
-            ConstMVal::Mat43(v) => Ok(v),
-            _ => Err(()),
-        }
-    }
-}
-
-impl<T: Scalar> From<Matrix4<T>> for ConstMVal<T> {
-    fn from(v: Matrix4<T>) -> Self {
-        ConstMVal::Mat4(v)
-    }
-}
-
-impl<T: Scalar> TryFrom<ConstMVal<T>> for Matrix4<T> {
-    type Error = ();
-
-    fn try_from(value: ConstMVal<T>) -> Result<Self, Self::Error> {
-        match value {
-            ConstMVal::Mat4(v) => Ok(v),
-            _ => Err(()),
-        }
-    }
-}
+impl_from_to_const_val!(ConstMVal, Matrix2, Mat2);
+impl_from_to_const_val!(ConstMVal, Matrix2x3, Mat23);
+impl_from_to_const_val!(ConstMVal, Matrix2x4, Mat24);
+impl_from_to_const_val!(ConstMVal, Matrix3x2, Mat32);
+impl_from_to_const_val!(ConstMVal, Matrix3, Mat3);
+impl_from_to_const_val!(ConstMVal, Matrix3x4, Mat34);
+impl_from_to_const_val!(ConstMVal, Matrix4x2, Mat42);
+impl_from_to_const_val!(ConstMVal, Matrix4x3, Mat43);
+impl_from_to_const_val!(ConstMVal, Matrix4, Mat4);
 
 /// Constant generic shaped scalar or vector value
 #[derive(Clone, PartialEq, Hash, Debug)]
@@ -581,73 +428,16 @@ impl<T: Scalar> From<T> for ConstSVVal<T> {
     }
 }
 
-impl<T: Scalar> From<Vector2<T>> for ConstSVVal<T> {
-    fn from(v: Vector2<T>) -> Self {
-        ConstSVVal::Vector(v.into())
-    }
-}
+impl_from_to_const_val!(ConstSVVal, Vector2, Vector);
+impl_from_to_const_val!(ConstSVVal, Vector3, Vector);
+impl_from_to_const_val!(ConstSVVal, Vector4, Vector);
+impl_from_to_const_val!(ConstSVVal, ConstVVal, Vector);
 
-impl<T: Scalar> TryFrom<ConstSVVal<T>> for Vector2<T> {
-    type Error = ();
-
-    fn try_from(value: ConstSVVal<T>) -> Result<Self, Self::Error> {
-        match value {
-            ConstSVVal::Vector(v) => v.try_into(),
-            _ => Err(()),
-        }
-    }
-}
-
-impl<T: Scalar> From<Vector3<T>> for ConstSVVal<T> {
-    fn from(v: Vector3<T>) -> Self {
-        ConstSVVal::Vector(v.into())
-    }
-}
-
-impl<T: Scalar> TryFrom<ConstSVVal<T>> for Vector3<T> {
-    type Error = ();
-
-    fn try_from(value: ConstSVVal<T>) -> Result<Self, Self::Error> {
-        match value {
-            ConstSVVal::Vector(v) => v.try_into(),
-            _ => Err(()),
-        }
-    }
-}
-
-impl<T: Scalar> From<Vector4<T>> for ConstSVVal<T> {
-    fn from(v: Vector4<T>) -> Self {
-        ConstSVVal::Vector(v.into())
-    }
-}
-
-impl<T: Scalar> TryFrom<ConstSVVal<T>> for Vector4<T> {
-    type Error = ();
-
-    fn try_from(value: ConstSVVal<T>) -> Result<Self, Self::Error> {
-        match value {
-            ConstSVVal::Vector(v) => v.try_into(),
-            _ => Err(()),
-        }
-    }
-}
-
-impl<T: Scalar> From<ConstVVal<T>> for ConstSVVal<T> {
-    fn from(v: ConstVVal<T>) -> Self {
-        ConstSVVal::Vector(v)
-    }
-}
-
-impl<T: Scalar> TryFrom<ConstSVVal<T>> for ConstVVal<T> {
-    type Error = ();
-
-    fn try_from(value: ConstSVVal<T>) -> Result<Self, Self::Error> {
-        match value {
-            ConstSVVal::Vector(v) => Ok(v),
-            _ => Err(()),
-        }
-    }
-}
+impl_try_from_const_val_explicit!(ConstSVVal, bool, bool, Scalar);
+impl_try_from_const_val_explicit!(ConstSVVal, i32, i32, Scalar);
+impl_try_from_const_val_explicit!(ConstSVVal, u32, u32, Scalar);
+impl_try_from_const_val_explicit!(ConstSVVal, f32, f32, Scalar);
+impl_try_from_const_val_explicit!(ConstSVVal, f64, f64, Scalar);
 
 /// Constant generic shaped scalar, vector or matrix value
 #[derive(Clone, PartialEq, Hash, Debug)]
@@ -762,243 +552,20 @@ impl<T: Scalar> From<T> for ConstSVMVal<T> {
     }
 }
 
-impl<T: Scalar> From<Vector2<T>> for ConstSVMVal<T> {
-    fn from(v: Vector2<T>) -> Self {
-        ConstSVMVal::Vector(v.into())
-    }
-}
-
-impl<T: Scalar> TryFrom<ConstSVMVal<T>> for Vector2<T> {
-    type Error = ();
-
-    fn try_from(value: ConstSVMVal<T>) -> Result<Self, Self::Error> {
-        match value {
-            ConstSVMVal::Vector(v) => v.try_into(),
-            _ => Err(()),
-        }
-    }
-}
-
-impl<T: Scalar> From<Vector3<T>> for ConstSVMVal<T> {
-    fn from(v: Vector3<T>) -> Self {
-        ConstSVMVal::Vector(v.into())
-    }
-}
-
-impl<T: Scalar> TryFrom<ConstSVMVal<T>> for Vector3<T> {
-    type Error = ();
-
-    fn try_from(value: ConstSVMVal<T>) -> Result<Self, Self::Error> {
-        match value {
-            ConstSVMVal::Vector(v) => v.try_into(),
-            _ => Err(()),
-        }
-    }
-}
-
-impl<T: Scalar> From<Vector4<T>> for ConstSVMVal<T> {
-    fn from(v: Vector4<T>) -> Self {
-        ConstSVMVal::Vector(v.into())
-    }
-}
-
-impl<T: Scalar> TryFrom<ConstSVMVal<T>> for Vector4<T> {
-    type Error = ();
-
-    fn try_from(value: ConstSVMVal<T>) -> Result<Self, Self::Error> {
-        match value {
-            ConstSVMVal::Vector(v) => v.try_into(),
-            _ => Err(()),
-        }
-    }
-}
-
-impl<T: Scalar> From<Matrix2<T>> for ConstSVMVal<T> {
-    fn from(v: Matrix2<T>) -> Self {
-        ConstSVMVal::Matrix(v.into())
-    }
-}
-
-impl<T: Scalar> TryFrom<ConstSVMVal<T>> for Matrix2<T> {
-    type Error = ();
-
-    fn try_from(value: ConstSVMVal<T>) -> Result<Self, Self::Error> {
-        match value {
-            ConstSVMVal::Matrix(v) => v.try_into(),
-            _ => Err(()),
-        }
-    }
-}
-
-impl<T: Scalar> From<Matrix2x3<T>> for ConstSVMVal<T> {
-    fn from(v: Matrix2x3<T>) -> Self {
-        ConstSVMVal::Matrix(v.into())
-    }
-}
-
-impl<T: Scalar> TryFrom<ConstSVMVal<T>> for Matrix2x3<T> {
-    type Error = ();
-
-    fn try_from(value: ConstSVMVal<T>) -> Result<Self, Self::Error> {
-        match value {
-            ConstSVMVal::Matrix(v) => v.try_into(),
-            _ => Err(()),
-        }
-    }
-}
-
-impl<T: Scalar> From<Matrix2x4<T>> for ConstSVMVal<T> {
-    fn from(v: Matrix2x4<T>) -> Self {
-        ConstSVMVal::Matrix(v.into())
-    }
-}
-
-impl<T: Scalar> TryFrom<ConstSVMVal<T>> for Matrix2x4<T> {
-    type Error = ();
-
-    fn try_from(value: ConstSVMVal<T>) -> Result<Self, Self::Error> {
-        match value {
-            ConstSVMVal::Matrix(v) => v.try_into(),
-            _ => Err(()),
-        }
-    }
-}
-
-impl<T: Scalar> From<Matrix3x2<T>> for ConstSVMVal<T> {
-    fn from(v: Matrix3x2<T>) -> Self {
-        ConstSVMVal::Matrix(v.into())
-    }
-}
-
-impl<T: Scalar> TryFrom<ConstSVMVal<T>> for Matrix3x2<T> {
-    type Error = ();
-
-    fn try_from(value: ConstSVMVal<T>) -> Result<Self, Self::Error> {
-        match value {
-            ConstSVMVal::Matrix(v) => v.try_into(),
-            _ => Err(()),
-        }
-    }
-}
-
-impl<T: Scalar> From<Matrix3<T>> for ConstSVMVal<T> {
-    fn from(v: Matrix3<T>) -> Self {
-        ConstSVMVal::Matrix(v.into())
-    }
-}
-
-impl<T: Scalar> TryFrom<ConstSVMVal<T>> for Matrix3<T> {
-    type Error = ();
-
-    fn try_from(value: ConstSVMVal<T>) -> Result<Self, Self::Error> {
-        match value {
-            ConstSVMVal::Matrix(v) => v.try_into(),
-            _ => Err(()),
-        }
-    }
-}
-
-impl<T: Scalar> From<Matrix3x4<T>> for ConstSVMVal<T> {
-    fn from(v: Matrix3x4<T>) -> Self {
-        ConstSVMVal::Matrix(v.into())
-    }
-}
-
-impl<T: Scalar> TryFrom<ConstSVMVal<T>> for Matrix3x4<T> {
-    type Error = ();
-
-    fn try_from(value: ConstSVMVal<T>) -> Result<Self, Self::Error> {
-        match value {
-            ConstSVMVal::Matrix(v) => v.try_into(),
-            _ => Err(()),
-        }
-    }
-}
-
-impl<T: Scalar> From<Matrix4x2<T>> for ConstSVMVal<T> {
-    fn from(v: Matrix4x2<T>) -> Self {
-        ConstSVMVal::Matrix(v.into())
-    }
-}
-
-impl<T: Scalar> TryFrom<ConstSVMVal<T>> for Matrix4x2<T> {
-    type Error = ();
-
-    fn try_from(value: ConstSVMVal<T>) -> Result<Self, Self::Error> {
-        match value {
-            ConstSVMVal::Matrix(v) => v.try_into(),
-            _ => Err(()),
-        }
-    }
-}
-
-impl<T: Scalar> From<Matrix4x3<T>> for ConstSVMVal<T> {
-    fn from(v: Matrix4x3<T>) -> Self {
-        ConstSVMVal::Matrix(v.into())
-    }
-}
-
-impl<T: Scalar> TryFrom<ConstSVMVal<T>> for Matrix4x3<T> {
-    type Error = ();
-
-    fn try_from(value: ConstSVMVal<T>) -> Result<Self, Self::Error> {
-        match value {
-            ConstSVMVal::Matrix(v) => v.try_into(),
-            _ => Err(()),
-        }
-    }
-}
-
-impl<T: Scalar> From<Matrix4<T>> for ConstSVMVal<T> {
-    fn from(v: Matrix4<T>) -> Self {
-        ConstSVMVal::Matrix(v.into())
-    }
-}
-
-impl<T: Scalar> TryFrom<ConstSVMVal<T>> for Matrix4<T> {
-    type Error = ();
-
-    fn try_from(value: ConstSVMVal<T>) -> Result<Self, Self::Error> {
-        match value {
-            ConstSVMVal::Matrix(v) => v.try_into(),
-            _ => Err(()),
-        }
-    }
-}
-
-impl<T: Scalar> From<ConstVVal<T>> for ConstSVMVal<T> {
-    fn from(v: ConstVVal<T>) -> Self {
-        ConstSVMVal::Vector(v)
-    }
-}
-
-impl<T: Scalar> TryFrom<ConstSVMVal<T>> for ConstVVal<T> {
-    type Error = ();
-
-    fn try_from(value: ConstSVMVal<T>) -> Result<Self, Self::Error> {
-        match value {
-            ConstSVMVal::Vector(v) => Ok(v),
-            _ => Err(()),
-        }
-    }
-}
-
-impl<T: Scalar> From<ConstMVal<T>> for ConstSVMVal<T> {
-    fn from(v: ConstMVal<T>) -> Self {
-        ConstSVMVal::Matrix(v)
-    }
-}
-
-impl<T: Scalar> TryFrom<ConstSVMVal<T>> for ConstMVal<T> {
-    type Error = ();
-
-    fn try_from(value: ConstSVMVal<T>) -> Result<Self, Self::Error> {
-        match value {
-            ConstSVMVal::Matrix(v) => Ok(v),
-            _ => Err(()),
-        }
-    }
-}
+impl_from_to_const_val!(ConstSVMVal, Vector2, Vector);
+impl_from_to_const_val!(ConstSVMVal, Vector3, Vector);
+impl_from_to_const_val!(ConstSVMVal, Vector4, Vector);
+impl_from_to_const_val!(ConstSVMVal, Matrix2, Matrix);
+impl_from_to_const_val!(ConstSVMVal, Matrix2x3, Matrix);
+impl_from_to_const_val!(ConstSVMVal, Matrix2x4, Matrix);
+impl_from_to_const_val!(ConstSVMVal, Matrix3x2, Matrix);
+impl_from_to_const_val!(ConstSVMVal, Matrix3, Matrix);
+impl_from_to_const_val!(ConstSVMVal, Matrix3x4, Matrix);
+impl_from_to_const_val!(ConstSVMVal, Matrix4x2, Matrix);
+impl_from_to_const_val!(ConstSVMVal, Matrix4x3, Matrix);
+impl_from_to_const_val!(ConstSVMVal, Matrix4, Matrix);
+impl_from_to_const_val!(ConstSVMVal, ConstVVal, Vector);
+impl_from_to_const_val!(ConstSVMVal, ConstMVal, Matrix);
 
 impl<T: Scalar> From<ConstSVVal<T>> for ConstSVMVal<T> {
     fn from(v: ConstSVVal<T>) -> Self {
@@ -1021,115 +588,88 @@ impl<T: Scalar> TryFrom<ConstSVMVal<T>> for ConstSVVal<T> {
     }
 }
 
-// Since we cant add the try_into impls generically we have to do it for specific types here
-impl TryFrom<ConstSVVal<bool>> for bool {
-    type Error = ();
+impl_try_from_const_val_explicit!(ConstSVMVal, bool, bool, Scalar);
+impl_try_from_const_val_explicit!(ConstSVMVal, i32, i32, Scalar);
+impl_try_from_const_val_explicit!(ConstSVMVal, u32, u32, Scalar);
+impl_try_from_const_val_explicit!(ConstSVMVal, f32, f32, Scalar);
+impl_try_from_const_val_explicit!(ConstSVMVal, f64, f64, Scalar);
 
-    fn try_from(value: ConstSVVal<bool>) -> Result<Self, Self::Error> {
-        match value {
-            ConstSVVal::Scalar(v) => Ok(v),
-            _ => Err(()),
+macro_rules! impl_const_base_val_internal {
+    ($variant:ident, $gen:ty, $name:ident) => {
+        fn $name<S: Into<$gen>>(val: S) -> Self {
+            Self::$variant (val.into().into())
         }
-    }
+    };
 }
 
-impl TryFrom<ConstSVMVal<bool>> for bool {
-    type Error = ();
-
-    fn try_from(value: ConstSVMVal<bool>) -> Result<Self, Self::Error> {
-        match value {
-            ConstSVMVal::Scalar(v) => Ok(v),
-            _ => Err(()),
+macro_rules! impl_const_base_val_new_sv {
+    ($variant:ident, $gen:ty, $scalar:ident $(, $prefix:ident)?) => {
+        paste! {
+            impl_const_base_val_internal!($variant, $gen, [<new_ $scalar>]);
+            impl_const_base_val_internal!($variant, Vector2<$gen>, [<new_ $($prefix)? vec2>]);
+            impl_const_base_val_internal!($variant, Vector3<$gen>, [<new_ $($prefix)? vec3>]);
+            impl_const_base_val_internal!($variant, Vector4<$gen>, [<new_ $($prefix)? vec4>]);
         }
-    }
+    };
 }
 
-impl TryFrom<ConstSVVal<i32>> for i32 {
-    type Error = ();
-
-    fn try_from(value: ConstSVVal<i32>) -> Result<Self, Self::Error> {
-        match value {
-            ConstSVVal::Scalar(v) => Ok(v),
-            _ => Err(()),
+macro_rules! impl_const_base_val_new_m {
+    ($variant:ident, $gen:ty $(, $prefix:ident)?) => {
+        paste! {
+            impl_const_base_val_internal!($variant, Matrix2<$gen>, [<new_ $($prefix)? mat2>]);
+            impl_const_base_val_internal!($variant, Matrix2x3<$gen>, [<new_ $($prefix)? mat23>]);
+            impl_const_base_val_internal!($variant, Matrix2x4<$gen>, [<new_ $($prefix)? mat24>]);
+            impl_const_base_val_internal!($variant, Matrix3x2<$gen>, [<new_ $($prefix)? mat32>]);
+            impl_const_base_val_internal!($variant, Matrix3<$gen>, [<new_ $($prefix)? mat3>]);
+            impl_const_base_val_internal!($variant, Matrix3x4<$gen>, [<new_ $($prefix)? mat34>]);
+            impl_const_base_val_internal!($variant, Matrix4x2<$gen>, [<new_ $($prefix)? mat42>]);
+            impl_const_base_val_internal!($variant, Matrix4x3<$gen>, [<new_ $($prefix)? mat43>]);
+            impl_const_base_val_internal!($variant, Matrix4<$gen>, [<new_ $($prefix)? mat4>]);
         }
-    }
+    };
 }
 
-impl TryFrom<ConstSVMVal<i32>> for i32 {
-    type Error = ();
-
-    fn try_from(value: ConstSVMVal<i32>) -> Result<Self, Self::Error> {
-        match value {
-            ConstSVMVal::Scalar(v) => Ok(v),
-            _ => Err(()),
+macro_rules! impl_from_to_const_base_val_internal {
+    ($to:ty, $variant:ident) => {
+        impl From<$to> for ConstBaseVal {
+            fn from(v: $to) -> Self {
+                ConstBaseVal::$variant(v.into())
+            }
         }
-    }
+        impl TryFrom<ConstBaseVal> for $to {
+            type Error = ();
+
+            fn try_from(value: ConstBaseVal) -> Result<Self, Self::Error> {
+                match value {
+                    ConstBaseVal::$variant(v) => v.try_into().ok().ok_or(()),
+                    _ => Err(()),
+                }
+            }
+        }
+    };
 }
 
-impl TryFrom<ConstSVVal<u32>> for u32 {
-    type Error = ();
-
-    fn try_from(value: ConstSVVal<u32>) -> Result<Self, Self::Error> {
-        match value {
-            ConstSVVal::Scalar(v) => Ok(v),
-            _ => Err(()),
-        }
-    }
+macro_rules! impl_from_to_const_base_val_sv {
+    ($gen:ty, $variant:ident) => {
+        impl_from_to_const_base_val_internal!($gen, $variant);
+        impl_from_to_const_base_val_internal!(Vector2<$gen>, $variant);
+        impl_from_to_const_base_val_internal!(Vector3<$gen>, $variant);
+        impl_from_to_const_base_val_internal!(Vector4<$gen>, $variant);
+    };
 }
 
-impl TryFrom<ConstSVMVal<u32>> for u32 {
-    type Error = ();
-
-    fn try_from(value: ConstSVMVal<u32>) -> Result<Self, Self::Error> {
-        match value {
-            ConstSVMVal::Scalar(v) => Ok(v),
-            _ => Err(()),
-        }
-    }
-}
-
-impl TryFrom<ConstSVVal<f32>> for f32 {
-    type Error = ();
-
-    fn try_from(value: ConstSVVal<f32>) -> Result<Self, Self::Error> {
-        match value {
-            ConstSVVal::Scalar(v) => Ok(v),
-            _ => Err(()),
-        }
-    }
-}
-
-impl TryFrom<ConstSVMVal<f32>> for f32 {
-    type Error = ();
-
-    fn try_from(value: ConstSVMVal<f32>) -> Result<Self, Self::Error> {
-        match value {
-            ConstSVMVal::Scalar(v) => Ok(v),
-            _ => Err(()),
-        }
-    }
-}
-
-impl TryFrom<ConstSVVal<f64>> for f64 {
-    type Error = ();
-
-    fn try_from(value: ConstSVVal<f64>) -> Result<Self, Self::Error> {
-        match value {
-            ConstSVVal::Scalar(v) => Ok(v),
-            _ => Err(()),
-        }
-    }
-}
-
-impl TryFrom<ConstSVMVal<f64>> for f64 {
-    type Error = ();
-
-    fn try_from(value: ConstSVMVal<f64>) -> Result<Self, Self::Error> {
-        match value {
-            ConstSVMVal::Scalar(v) => Ok(v),
-            _ => Err(()),
-        }
-    }
+macro_rules! impl_from_to_const_base_val_m {
+    ($gen:ty, $variant:ident) => {
+        impl_from_to_const_base_val_internal!(Matrix2<$gen>, $variant);
+        impl_from_to_const_base_val_internal!(Matrix2x3<$gen>, $variant);
+        impl_from_to_const_base_val_internal!(Matrix2x4<$gen>, $variant);
+        impl_from_to_const_base_val_internal!(Matrix3x2<$gen>, $variant);
+        impl_from_to_const_base_val_internal!(Matrix3<$gen>, $variant);
+        impl_from_to_const_base_val_internal!(Matrix3x4<$gen>, $variant);
+        impl_from_to_const_base_val_internal!(Matrix4x2<$gen>, $variant);
+        impl_from_to_const_base_val_internal!(Matrix4x3<$gen>, $variant);
+        impl_from_to_const_base_val_internal!(Matrix4<$gen>, $variant);
+    };
 }
 
 /// A generic constant basic value.
@@ -1143,6 +683,19 @@ pub enum ConstBaseVal {
 }
 
 impl ConstBaseVal {
+    impl_const_base_val_new_sv!(Bool, bool, bool, b);
+    impl_const_base_val_new_sv!(Int, i32, int, i);
+    impl_const_base_val_new_sv!(UInt, u32, uint, u);
+    impl_const_base_val_new_sv!(Float, f32, float);
+    impl_const_base_val_new_m!(Float, f32);
+    impl_const_base_val_new_sv!(Double, f64, double, d);
+    impl_const_base_val_new_m!(Double, f64, d);
+
+    fn test() {
+        Self::new_bool(true);
+        Self::new_bvec2(Vector2::from_element(true));
+    }
+
     pub fn get_shape(&self) -> BaseTypeShape {
         match self {
             ConstBaseVal::Bool(v) => v.get_shape(),
@@ -1200,6 +753,14 @@ impl ConstBaseVal {
         }
     }
 }
+
+impl_from_to_const_base_val_sv!(bool, Bool);
+impl_from_to_const_base_val_sv!(i32, Int);
+impl_from_to_const_base_val_sv!(u32, UInt);
+impl_from_to_const_base_val_sv!(f32, Float);
+impl_from_to_const_base_val_m!(f32, Float);
+impl_from_to_const_base_val_sv!(f64, Double);
+impl_from_to_const_base_val_m!(f64, Double);
 
 #[derive(Clone, PartialEq, Debug)]
 pub struct ConstStruct {
@@ -1291,7 +852,7 @@ pub fn const_eval<CL: ConstLookup, FL: ConstEvalFunctionLookup>(expr: &Expr, cl:
         },
         Expr::Ternary(_, _, _) => todo!(),
         Expr::Assignment(_, _, _) => Err(ConstEvalError::IllegalExpression),
-        Expr::Bracket(_, _) => Err(ConstEvalError::IllegalExpression),
+        Expr::Bracket(_, _) => todo!(),
         Expr::FunCall(ident, params) => {
             let func = match ident {
                 FunIdentifier::Identifier(ident) => fl.lookup(ident).ok_or_else(|| ConstEvalError::UnknownIdentifier(ident.0.clone()))?,
