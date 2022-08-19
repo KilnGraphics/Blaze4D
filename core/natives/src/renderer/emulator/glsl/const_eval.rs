@@ -1,7 +1,7 @@
 use std::collections::HashMap;
 use std::hash::Hash;
 
-use glsl::syntax::{ArraySpecifier, BinaryOp, Expr, FunIdentifier, Identifier, StructSpecifier, TypeSpecifier, TypeSpecifierNonArray, UnaryOp};
+use glsl::syntax::{ArraySpecifier, ArraySpecifierDimension, BinaryOp, Expr, FunIdentifier, Identifier, NonEmpty, StructSpecifier, TypeSpecifier, TypeSpecifierNonArray, UnaryOp};
 use nalgebra::{Matrix2, Matrix2x3, Matrix2x4, Matrix3, Matrix3x2, Matrix3x4, Matrix4, Matrix4x2, Matrix4x3, Scalar, Vector2, Vector3, Vector4};
 
 use paste::paste;
@@ -752,6 +752,82 @@ impl ConstBaseVal {
             Self::Double(ConstSVMVal::Matrix(ConstMVal::Mat4(_))) => TypeSpecifierNonArray::DMat4,
         }
     }
+
+    pub fn as_expr(&self) -> Expr {
+        match self {
+            Self::Bool(ConstSVVal::Scalar(v)) => Expr::BoolConst(*v),
+            Self::Bool(ConstSVVal::Vector(ConstVVal::Vec2(v))) =>
+                Expr::FunCall(FunIdentifier::Identifier(Identifier::from("bvec2")), v.iter().cloned().map(Expr::BoolConst).collect()),
+            Self::Bool(ConstSVVal::Vector(ConstVVal::Vec3(v))) =>
+                Expr::FunCall(FunIdentifier::Identifier(Identifier::from("bvec3")), v.iter().cloned().map(Expr::BoolConst).collect()),
+            Self::Bool(ConstSVVal::Vector(ConstVVal::Vec4(v))) =>
+                Expr::FunCall(FunIdentifier::Identifier(Identifier::from("bvec4")), v.iter().cloned().map(Expr::BoolConst).collect()),
+            Self::Int(ConstSVVal::Scalar(v)) => Expr::IntConst(*v),
+            Self::Int(ConstSVVal::Vector(ConstVVal::Vec2(v))) =>
+                Expr::FunCall(FunIdentifier::Identifier(Identifier::from("ivec2")), v.iter().cloned().map(Expr::IntConst).collect()),
+            Self::Int(ConstSVVal::Vector(ConstVVal::Vec3(v))) =>
+                Expr::FunCall(FunIdentifier::Identifier(Identifier::from("ivec3")), v.iter().cloned().map(Expr::IntConst).collect()),
+            Self::Int(ConstSVVal::Vector(ConstVVal::Vec4(v))) =>
+                Expr::FunCall(FunIdentifier::Identifier(Identifier::from("ivec4")), v.iter().cloned().map(Expr::IntConst).collect()),
+            Self::UInt(ConstSVVal::Scalar(v)) => Expr::UIntConst(*v),
+            Self::UInt(ConstSVVal::Vector(ConstVVal::Vec2(v))) =>
+                Expr::FunCall(FunIdentifier::Identifier(Identifier::from("uvec2")), v.iter().cloned().map(Expr::UIntConst).collect()),
+            Self::UInt(ConstSVVal::Vector(ConstVVal::Vec3(v))) =>
+                Expr::FunCall(FunIdentifier::Identifier(Identifier::from("uvec3")), v.iter().cloned().map(Expr::UIntConst).collect()),
+            Self::UInt(ConstSVVal::Vector(ConstVVal::Vec4(v))) =>
+                Expr::FunCall(FunIdentifier::Identifier(Identifier::from("uvec4")), v.iter().cloned().map(Expr::UIntConst).collect()),
+            Self::Float(ConstSVMVal::Scalar(v)) => Expr::FloatConst(*v),
+            Self::Float(ConstSVMVal::Vector(ConstVVal::Vec2(v))) =>
+                Expr::FunCall(FunIdentifier::Identifier(Identifier::from("vec2")), v.iter().cloned().map(Expr::FloatConst).collect()),
+            Self::Float(ConstSVMVal::Vector(ConstVVal::Vec3(v))) =>
+                Expr::FunCall(FunIdentifier::Identifier(Identifier::from("vec3")), v.iter().cloned().map(Expr::FloatConst).collect()),
+            Self::Float(ConstSVMVal::Vector(ConstVVal::Vec4(v))) =>
+                Expr::FunCall(FunIdentifier::Identifier(Identifier::from("vec4")), v.iter().cloned().map(Expr::FloatConst).collect()),
+            Self::Float(ConstSVMVal::Matrix(ConstMVal::Mat2(v))) =>
+                Expr::FunCall(FunIdentifier::Identifier(Identifier::from("mat2")), v.iter().cloned().map(Expr::FloatConst).collect()),
+            Self::Float(ConstSVMVal::Matrix(ConstMVal::Mat23(v))) =>
+                Expr::FunCall(FunIdentifier::Identifier(Identifier::from("mat23")), v.iter().cloned().map(Expr::FloatConst).collect()),
+            Self::Float(ConstSVMVal::Matrix(ConstMVal::Mat24(v))) =>
+                Expr::FunCall(FunIdentifier::Identifier(Identifier::from("mat24")), v.iter().cloned().map(Expr::FloatConst).collect()),
+            Self::Float(ConstSVMVal::Matrix(ConstMVal::Mat32(v))) =>
+                Expr::FunCall(FunIdentifier::Identifier(Identifier::from("mat32")), v.iter().cloned().map(Expr::FloatConst).collect()),
+            Self::Float(ConstSVMVal::Matrix(ConstMVal::Mat3(v))) =>
+                Expr::FunCall(FunIdentifier::Identifier(Identifier::from("mat3")), v.iter().cloned().map(Expr::FloatConst).collect()),
+            Self::Float(ConstSVMVal::Matrix(ConstMVal::Mat34(v))) =>
+                Expr::FunCall(FunIdentifier::Identifier(Identifier::from("mat34")), v.iter().cloned().map(Expr::FloatConst).collect()),
+            Self::Float(ConstSVMVal::Matrix(ConstMVal::Mat42(v))) =>
+                Expr::FunCall(FunIdentifier::Identifier(Identifier::from("mat42")), v.iter().cloned().map(Expr::FloatConst).collect()),
+            Self::Float(ConstSVMVal::Matrix(ConstMVal::Mat43(v))) =>
+                Expr::FunCall(FunIdentifier::Identifier(Identifier::from("mat43")), v.iter().cloned().map(Expr::FloatConst).collect()),
+            Self::Float(ConstSVMVal::Matrix(ConstMVal::Mat4(v))) =>
+                Expr::FunCall(FunIdentifier::Identifier(Identifier::from("mat4")), v.iter().cloned().map(Expr::FloatConst).collect()),
+            Self::Double(ConstSVMVal::Scalar(v)) => Expr::DoubleConst(*v),
+            Self::Double(ConstSVMVal::Vector(ConstVVal::Vec2(v))) =>
+                Expr::FunCall(FunIdentifier::Identifier(Identifier::from("dvec4")), v.iter().cloned().map(Expr::DoubleConst).collect()),
+            Self::Double(ConstSVMVal::Vector(ConstVVal::Vec3(v))) =>
+                Expr::FunCall(FunIdentifier::Identifier(Identifier::from("dvec4")), v.iter().cloned().map(Expr::DoubleConst).collect()),
+            Self::Double(ConstSVMVal::Vector(ConstVVal::Vec4(v))) =>
+                Expr::FunCall(FunIdentifier::Identifier(Identifier::from("dvec4")), v.iter().cloned().map(Expr::DoubleConst).collect()),
+            Self::Double(ConstSVMVal::Matrix(ConstMVal::Mat2(v))) =>
+                Expr::FunCall(FunIdentifier::Identifier(Identifier::from("dmat2")), v.iter().cloned().map(Expr::DoubleConst).collect()),
+            Self::Double(ConstSVMVal::Matrix(ConstMVal::Mat23(v))) =>
+                Expr::FunCall(FunIdentifier::Identifier(Identifier::from("dmat23")), v.iter().cloned().map(Expr::DoubleConst).collect()),
+            Self::Double(ConstSVMVal::Matrix(ConstMVal::Mat24(v))) =>
+                Expr::FunCall(FunIdentifier::Identifier(Identifier::from("dmat24")), v.iter().cloned().map(Expr::DoubleConst).collect()),
+            Self::Double(ConstSVMVal::Matrix(ConstMVal::Mat32(v))) =>
+                Expr::FunCall(FunIdentifier::Identifier(Identifier::from("dmat32")), v.iter().cloned().map(Expr::DoubleConst).collect()),
+            Self::Double(ConstSVMVal::Matrix(ConstMVal::Mat3(v))) =>
+                Expr::FunCall(FunIdentifier::Identifier(Identifier::from("dmat3")), v.iter().cloned().map(Expr::DoubleConst).collect()),
+            Self::Double(ConstSVMVal::Matrix(ConstMVal::Mat34(v))) =>
+                Expr::FunCall(FunIdentifier::Identifier(Identifier::from("dmat34")), v.iter().cloned().map(Expr::DoubleConst).collect()),
+            Self::Double(ConstSVMVal::Matrix(ConstMVal::Mat42(v))) =>
+                Expr::FunCall(FunIdentifier::Identifier(Identifier::from("dmat42")), v.iter().cloned().map(Expr::DoubleConst).collect()),
+            Self::Double(ConstSVMVal::Matrix(ConstMVal::Mat43(v))) =>
+                Expr::FunCall(FunIdentifier::Identifier(Identifier::from("dmat43")), v.iter().cloned().map(Expr::DoubleConst).collect()),
+            Self::Double(ConstSVMVal::Matrix(ConstMVal::Mat4(v))) =>
+                Expr::FunCall(FunIdentifier::Identifier(Identifier::from("dmat4")), v.iter().cloned().map(Expr::DoubleConst).collect()),
+        }
+    }
 }
 
 impl_from_to_const_base_val_sv!(bool, Bool);
@@ -763,12 +839,55 @@ impl_from_to_const_base_val_sv!(f64, Double);
 impl_from_to_const_base_val_m!(f64, Double);
 
 #[derive(Clone, PartialEq, Debug)]
+pub struct ConstArray {
+    type_specifier: TypeSpecifierNonArray,
+    dims: Box<[u32]>,
+    data: Box<[ConstVal]>,
+}
+
+impl ConstArray {
+    pub fn type_specifier(&self) -> TypeSpecifier {
+        let array_specifier = ArraySpecifier {
+            dimensions: NonEmpty::from_non_empty_iter(self.dims.iter().cloned().map(Expr::UIntConst).map(Box::new).map(ArraySpecifierDimension::ExplicitlySized)).unwrap(),
+        };
+
+        TypeSpecifier {
+            ty: self.type_specifier.clone(),
+            array_specifier: Some(array_specifier),
+        }
+    }
+
+    pub fn get(&self, indices: &[u32]) -> Option<&ConstVal> {
+        if self.dims.len() != indices.len() {
+            None
+        } else {
+            let mut index = 0usize;
+            let mut cumulative = 1usize;
+
+            for i in 0..self.dims.len() {
+                if indices[i] > self.dims[i] {
+                    return None;
+                }
+
+                index += cumulative * (indices[i] as usize);
+                cumulative *= (self.dims[i] as usize);
+            }
+
+            self.data.get(index)
+        }
+    }
+}
+
+#[derive(Clone, PartialEq, Debug)]
 pub struct ConstStruct {
     type_specifier: StructSpecifier,
     entries: HashMap<String, ConstVal>,
 }
 
 impl ConstStruct {
+    pub fn type_specifier(&self) -> TypeSpecifier {
+        TypeSpecifier::new(TypeSpecifierNonArray::Struct(self.type_specifier.clone()))
+    }
 }
 
 impl ConstLookup for ConstStruct {
@@ -780,7 +899,7 @@ impl ConstLookup for ConstStruct {
 #[derive(Clone, PartialEq, Debug)]
 pub enum ConstVal {
     Base(ConstBaseVal),
-    Array(TypeSpecifierNonArray, Box<[ConstVal]>),
+    Array(ConstArray),
     Struct(ConstStruct),
 }
 
@@ -794,9 +913,9 @@ impl ConstVal {
 
     pub fn type_specifier(&self) -> TypeSpecifier {
         match self {
-            ConstVal::Base(b) => b.type_specifier(),
-            ConstVal::Array(_, _) => todo!(),
-            ConstVal::Struct(_) => todo!(),
+            ConstVal::Base(v) => v.type_specifier(),
+            ConstVal::Array(v) => v.type_specifier(),
+            ConstVal::Struct(v) => v.type_specifier(),
         }
     }
 }
@@ -824,6 +943,7 @@ pub fn const_eval<CL: ConstLookup, FL: ConstEvalFunctionLookup>(expr: &Expr, cl:
             }
         },
         Expr::Binary(op, a, b) => {
+            // TODO eq and neq on arrays and structs
             let (a, b) = (const_eval(a, cl, fl)?, const_eval(b, cl, fl)?);
             let (a_ty, b_ty) = (a.type_specifier(), b.type_specifier());
             let err = || ConstEvalError::IllegalBinaryOperand(op.clone(), a_ty.clone(), b_ty.clone());
@@ -836,7 +956,12 @@ pub fn const_eval<CL: ConstLookup, FL: ConstEvalFunctionLookup>(expr: &Expr, cl:
                 BinaryOp::BitXor => function::OP_BINARY_BIT_XOR.eval(&[a, b]).map(ConstVal::Base).ok_or_else(err),
                 BinaryOp::BitAnd => function::OP_BINARY_BIT_AND.eval(&[a, b]).map(ConstVal::Base).ok_or_else(err),
                 BinaryOp::Equal => function::OP_BINARY_EQUAL.eval(&[a, b]).map(ConstVal::Base).ok_or_else(err),
-                BinaryOp::NonEqual => todo!(),
+                BinaryOp::NonEqual => {
+                    function::OP_BINARY_EQUAL.eval(&[a, b]).map(|v| {
+                        let val: bool = v.try_into().ok()?;
+                        Some(ConstBaseVal::new_bool(!val))
+                    }).flatten().map(ConstVal::Base).ok_or_else(err)
+                },
                 BinaryOp::LT => function::OP_BINARY_LT.eval(&[a, b]).map(ConstVal::Base).ok_or_else(err),
                 BinaryOp::GT => function::OP_BINARY_GT.eval(&[a, b]).map(ConstVal::Base).ok_or_else(err),
                 BinaryOp::LTE => function::OP_BINARY_LTE.eval(&[a, b]).map(ConstVal::Base).ok_or_else(err),
