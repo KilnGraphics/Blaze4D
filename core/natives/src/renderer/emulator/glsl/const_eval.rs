@@ -1,7 +1,8 @@
 use std::collections::HashMap;
 use std::hash::Hash;
 
-use glsl::syntax::{ArraySpecifier, ArraySpecifierDimension, BinaryOp, Expr, FunIdentifier, Identifier, NonEmpty, StructSpecifier, TypeSpecifier, TypeSpecifierNonArray, UnaryOp};
+use glsl::syntax::{ArraySpecifier, ArraySpecifierDimension, BinaryOp, Declaration, Expr, ExternalDeclaration, FunIdentifier, Identifier, Initializer, NonEmpty, ShaderStage, StructSpecifier, TranslationUnit, TypeSpecifier, TypeSpecifierNonArray, UnaryOp};
+use glsl::visitor::{Visit, VisitorMut};
 use nalgebra::{Matrix2, Matrix2x3, Matrix2x4, Matrix3, Matrix3x2, Matrix3x4, Matrix4, Matrix4x2, Matrix4x3, Scalar, Vector2, Vector3, Vector4};
 
 use paste::paste;
@@ -655,6 +656,7 @@ macro_rules! impl_from_to_const_base_val_sv {
         impl_from_to_const_base_val_internal!(Vector2<$gen>, $variant);
         impl_from_to_const_base_val_internal!(Vector3<$gen>, $variant);
         impl_from_to_const_base_val_internal!(Vector4<$gen>, $variant);
+        impl_from_to_const_base_val_internal!(ConstSVVal<$gen>, $variant);
     };
 }
 
@@ -669,6 +671,8 @@ macro_rules! impl_from_to_const_base_val_m {
         impl_from_to_const_base_val_internal!(Matrix4x2<$gen>, $variant);
         impl_from_to_const_base_val_internal!(Matrix4x3<$gen>, $variant);
         impl_from_to_const_base_val_internal!(Matrix4<$gen>, $variant);
+        impl_from_to_const_base_val_internal!(ConstMVal<$gen>, $variant);
+        impl_from_to_const_base_val_internal!(ConstSVMVal<$gen>, $variant);
     };
 }
 
@@ -918,85 +922,201 @@ impl ConstVal {
             ConstVal::Struct(v) => v.type_specifier(),
         }
     }
+
+    pub fn as_expr(&self) -> Expr {
+        todo!()
+    }
 }
 
-pub fn const_eval<CL: ConstLookup, FL: ConstEvalFunctionLookup>(expr: &Expr, cl: &CL, fl: &FL) -> Result<ConstVal, ConstEvalError> {
+impl<T: Into<ConstBaseVal>> From<T> for ConstVal {
+    fn from(v: T) -> Self {
+        ConstVal::Base(v.into())
+    }
+}
+
+pub enum ConstValOrExpr {
+    Const(ConstVal),
+    Expr(Expr),
+}
+
+impl<T: Into<ConstVal>> From<T> for ConstValOrExpr {
+    fn from(val: T) -> Self {
+        Self::Const(val.into())
+    }
+}
+
+impl From<Expr> for ConstValOrExpr {
+    fn from(expr: Expr) -> Self {
+        Self::Expr(expr)
+    }
+}
+
+impl From<ConstValOrExpr> for Expr {
+    fn from(v: ConstValOrExpr) -> Self {
+        match v {
+            ConstValOrExpr::Const(v) => v.as_expr(),
+            ConstValOrExpr::Expr(expr) => expr
+        }
+    }
+}
+
+/// Propagates const values in a expression creating a either a new expression or a constant value.
+///
+/// No other transformation besides constant evaluation will be applied.
+pub fn const_propagate_expr<CL: ConstLookup, FL: ConstEvalFunctionLookup>(expr: &Expr, cl: &CL, fl: &FL) -> Result<ConstValOrExpr, ConstEvalError> {
     match expr {
-        Expr::Variable(ident) => cl.lookup_const(ident).cloned().ok_or_else(|| ConstEvalError::UnknownIdentifier(ident.0.clone())),
-        Expr::IntConst(v) => Ok(ConstVal::Base(ConstBaseVal::Int(ConstSVVal::Scalar(*v)))),
-        Expr::UIntConst(v) => Ok(ConstVal::Base(ConstBaseVal::UInt(ConstSVVal::Scalar(*v)))),
-        Expr::BoolConst(v) => Ok(ConstVal::Base(ConstBaseVal::Bool(ConstSVVal::Scalar(*v)))),
-        Expr::FloatConst(v) => Ok(ConstVal::Base(ConstBaseVal::Float(ConstSVMVal::Scalar(*v)))),
-        Expr::DoubleConst(v) => Ok(ConstVal::Base(ConstBaseVal::Double(ConstSVMVal::Scalar(*v)))),
+        Expr::Variable(ident) => Ok(cl.lookup_const(ident).cloned().map(ConstValOrExpr::from).unwrap_or_else(|| Expr::Variable(ident.clone()).into())),
+        Expr::IntConst(v) => Ok(ConstBaseVal::new_int(*v).into()),
+        Expr::UIntConst(v) => Ok(ConstBaseVal::new_uint(*v).into()),
+        Expr::BoolConst(v) => Ok(ConstBaseVal::new_bool(*v).into()),
+        Expr::FloatConst(v) => Ok(ConstBaseVal::new_float(*v).into()),
+        Expr::DoubleConst(v) => Ok(ConstBaseVal::new_double(*v).into()),
         Expr::Unary(op, a) => {
-            let a = const_eval(a, cl, fl)?;
+            let a = const_propagate_expr(a, cl, fl)?;
+            let a = match a {
+                ConstValOrExpr::Const(v) => v,
+                ConstValOrExpr::Expr(expr) => return Ok(Expr::Unary(op.clone(), Box::new(expr)).into())
+            };
+
             let a_ty = a.type_specifier();
             let err = || ConstEvalError::IllegalUnaryOperand(op.clone(), a_ty.clone());
             let a = a.try_into_base().ok_or_else(err)?;
             match op {
-                UnaryOp::Inc => Err(ConstEvalError::IllegalUnaryOp(UnaryOp::Inc)),
-                UnaryOp::Dec => Err(ConstEvalError::IllegalUnaryOp(UnaryOp::Dec)),
-                UnaryOp::Add => function::OP_UNARY_ADD.eval(&[a]).map(ConstVal::Base).ok_or_else(err),
-                UnaryOp::Minus => function::OP_UNARY_MINUS.eval(&[a]).map(ConstVal::Base).ok_or_else(err),
-                UnaryOp::Not => function::OP_UNARY_NOT.eval(&[a]).map(ConstVal::Base).ok_or_else(err),
-                UnaryOp::Complement => function::OP_UNARY_COMPLEMENT.eval(&[a]).map(ConstVal::Base).ok_or_else(err),
+                UnaryOp::Inc => Err(ConstEvalError::UnaryOpExpectedLValue(UnaryOp::Inc)),
+                UnaryOp::Dec => Err(ConstEvalError::UnaryOpExpectedLValue(UnaryOp::Dec)),
+                UnaryOp::Add => function::OP_UNARY_ADD.eval(&[a]).map(ConstValOrExpr::from).ok_or_else(err),
+                UnaryOp::Minus => function::OP_UNARY_MINUS.eval(&[a]).map(ConstValOrExpr::from).ok_or_else(err),
+                UnaryOp::Not => function::OP_UNARY_NOT.eval(&[a]).map(ConstValOrExpr::from).ok_or_else(err),
+                UnaryOp::Complement => function::OP_UNARY_COMPLEMENT.eval(&[a]).map(ConstValOrExpr::from).ok_or_else(err),
             }
         },
         Expr::Binary(op, a, b) => {
+            let a = const_propagate_expr(a, cl, fl)?;
+            let b = const_propagate_expr(b, cl, fl)?;
+            let (a, b) = match (a, b) {
+                (ConstValOrExpr::Const(a), ConstValOrExpr::Const(b)) => (a, b),
+                (a, b) => return Ok(Expr::Binary(op.clone(), Box::new(a.into()), Box::new(b.into())).into()),
+            };
+
             // TODO eq and neq on arrays and structs
-            let (a, b) = (const_eval(a, cl, fl)?, const_eval(b, cl, fl)?);
             let (a_ty, b_ty) = (a.type_specifier(), b.type_specifier());
             let err = || ConstEvalError::IllegalBinaryOperand(op.clone(), a_ty.clone(), b_ty.clone());
             let (a, b) = (a.try_into_base().ok_or_else(err)?, b.try_into_base().ok_or_else(err)?);
             match op {
-                BinaryOp::Or => function::OP_BINARY_OR.eval(&[a, b]).map(ConstVal::Base).ok_or_else(err),
-                BinaryOp::Xor => function::OP_BINARY_XOR.eval(&[a, b]).map(ConstVal::Base).ok_or_else(err),
-                BinaryOp::And => function::OP_BINARY_AND.eval(&[a, b]).map(ConstVal::Base).ok_or_else(err),
-                BinaryOp::BitOr => function::OP_BINARY_BIT_OR.eval(&[a, b]).map(ConstVal::Base).ok_or_else(err),
-                BinaryOp::BitXor => function::OP_BINARY_BIT_XOR.eval(&[a, b]).map(ConstVal::Base).ok_or_else(err),
-                BinaryOp::BitAnd => function::OP_BINARY_BIT_AND.eval(&[a, b]).map(ConstVal::Base).ok_or_else(err),
-                BinaryOp::Equal => function::OP_BINARY_EQUAL.eval(&[a, b]).map(ConstVal::Base).ok_or_else(err),
+                BinaryOp::Or => function::OP_BINARY_OR.eval(&[a, b]).map(ConstValOrExpr::from).ok_or_else(err),
+                BinaryOp::Xor => function::OP_BINARY_XOR.eval(&[a, b]).map(ConstValOrExpr::from).ok_or_else(err),
+                BinaryOp::And => function::OP_BINARY_AND.eval(&[a, b]).map(ConstValOrExpr::from).ok_or_else(err),
+                BinaryOp::BitOr => function::OP_BINARY_BIT_OR.eval(&[a, b]).map(ConstValOrExpr::from).ok_or_else(err),
+                BinaryOp::BitXor => function::OP_BINARY_BIT_XOR.eval(&[a, b]).map(ConstValOrExpr::from).ok_or_else(err),
+                BinaryOp::BitAnd => function::OP_BINARY_BIT_AND.eval(&[a, b]).map(ConstValOrExpr::from).ok_or_else(err),
+                BinaryOp::Equal => function::OP_BINARY_EQUAL.eval(&[a, b]).map(ConstValOrExpr::from).ok_or_else(err),
                 BinaryOp::NonEqual => {
                     function::OP_BINARY_EQUAL.eval(&[a, b]).map(|v| {
-                        let val: bool = v.try_into().ok()?;
+                        let val: bool = v.try_into().expect("OP_BINARY_EQUAL did not return bool scalar");
                         Some(ConstBaseVal::new_bool(!val))
-                    }).flatten().map(ConstVal::Base).ok_or_else(err)
+                    }).flatten().map(ConstValOrExpr::from).ok_or_else(err)
                 },
-                BinaryOp::LT => function::OP_BINARY_LT.eval(&[a, b]).map(ConstVal::Base).ok_or_else(err),
-                BinaryOp::GT => function::OP_BINARY_GT.eval(&[a, b]).map(ConstVal::Base).ok_or_else(err),
-                BinaryOp::LTE => function::OP_BINARY_LTE.eval(&[a, b]).map(ConstVal::Base).ok_or_else(err),
-                BinaryOp::GTE => function::OP_BINARY_GTE.eval(&[a, b]).map(ConstVal::Base).ok_or_else(err),
-                BinaryOp::LShift => function::OP_BINARY_LSHIFT.eval(&[a, b]).map(ConstVal::Base).ok_or_else(err),
-                BinaryOp::RShift => function::OP_BINARY_RSHIFT.eval(&[a, b]).map(ConstVal::Base).ok_or_else(err),
-                BinaryOp::Add => function::OP_BINARY_ADD.eval(&[a, b]).map(ConstVal::Base).ok_or_else(err),
-                BinaryOp::Sub => function::OP_BINARY_SUB.eval(&[a, b]).map(ConstVal::Base).ok_or_else(err),
-                BinaryOp::Mult => function::OP_BINARY_MULT.eval(&[a, b]).map(ConstVal::Base).ok_or_else(err),
-                BinaryOp::Div => function::OP_BINARY_DIV.eval(&[a, b]).map(ConstVal::Base).ok_or_else(err),
-                BinaryOp::Mod => function::OP_BINARY_MOD.eval(&[a, b]).map(ConstVal::Base).ok_or_else(err),
+                BinaryOp::LT => function::OP_BINARY_LT.eval(&[a, b]).map(ConstValOrExpr::from).ok_or_else(err),
+                BinaryOp::GT => function::OP_BINARY_GT.eval(&[a, b]).map(ConstValOrExpr::from).ok_or_else(err),
+                BinaryOp::LTE => function::OP_BINARY_LTE.eval(&[a, b]).map(ConstValOrExpr::from).ok_or_else(err),
+                BinaryOp::GTE => function::OP_BINARY_GTE.eval(&[a, b]).map(ConstValOrExpr::from).ok_or_else(err),
+                BinaryOp::LShift => function::OP_BINARY_LSHIFT.eval(&[a, b]).map(ConstValOrExpr::from).ok_or_else(err),
+                BinaryOp::RShift => function::OP_BINARY_RSHIFT.eval(&[a, b]).map(ConstValOrExpr::from).ok_or_else(err),
+                BinaryOp::Add => function::OP_BINARY_ADD.eval(&[a, b]).map(ConstValOrExpr::from).ok_or_else(err),
+                BinaryOp::Sub => function::OP_BINARY_SUB.eval(&[a, b]).map(ConstValOrExpr::from).ok_or_else(err),
+                BinaryOp::Mult => function::OP_BINARY_MULT.eval(&[a, b]).map(ConstValOrExpr::from).ok_or_else(err),
+                BinaryOp::Div => function::OP_BINARY_DIV.eval(&[a, b]).map(ConstValOrExpr::from).ok_or_else(err),
+                BinaryOp::Mod => function::OP_BINARY_MOD.eval(&[a, b]).map(ConstValOrExpr::from).ok_or_else(err),
             }
         },
-        Expr::Ternary(_, _, _) => todo!(),
-        Expr::Assignment(_, _, _) => Err(ConstEvalError::IllegalExpression),
+        Expr::Ternary(a, b, c) => {
+            match const_propagate_expr(a, cl, fl)? {
+                ConstValOrExpr::Const(ConstVal::Base(ConstBaseVal::Bool(ConstSVVal::Scalar(v)))) => {
+                    let selected = if v { b } else { c };
+                    const_propagate_expr(selected, cl, fl)
+                }
+                ConstValOrExpr::Const(_) => Err(ConstEvalError::TernaryExpectedScalarBool),
+                ConstValOrExpr::Expr(expr) => {
+                    let b = const_propagate_expr(b, cl, fl)?;
+                    let c = const_propagate_expr(c, cl, fl)?;
+                    Ok(Expr::Ternary(Box::new(expr), Box::new(b.into()), Box::new(c.into())).into())
+                }
+            }
+        },
+        Expr::Assignment(a, op, b) => {
+            let a = match const_propagate_expr(a, cl, fl)? {
+                ConstValOrExpr::Const(_) => return Err(ConstEvalError::AssignmentExpectedLValue),
+                ConstValOrExpr::Expr(expr) => expr,
+            };
+            let b = const_propagate_expr(b, cl, fl)?;
+            Ok(Expr::Assignment(Box::new(a), op.clone(), Box::new(b.into())).into())
+        },
         Expr::Bracket(_, _) => todo!(),
         Expr::FunCall(ident, params) => {
-            let func = match ident {
-                FunIdentifier::Identifier(ident) => fl.lookup(ident).ok_or_else(|| ConstEvalError::UnknownIdentifier(ident.0.clone()))?,
-                FunIdentifier::Expr(_) => todo!(),
-            };
-            let params = params.iter().map(|e| const_eval(e, cl, fl)).collect::<Result<Vec<_>, ConstEvalError>>()?;
-            let param_ref = params.iter().map(ConstVal::try_into_base).collect::<Option<Vec<_>>>().ok_or(ConstEvalError::NoMatchingFunctionOverload)?;
+            // Generates the propagated expression when called
+            let ret = |p: Vec<ConstValOrExpr>| Ok(Expr::FunCall(ident.clone(), p.into_iter().map(Expr::from).collect()).into());
 
-            func.eval(&param_ref).map(ConstVal::Base).ok_or(ConstEvalError::NoMatchingFunctionOverload)
+            let params = params.iter().map(|e| const_propagate_expr(e, cl, fl)).collect::<Result<Vec<_>, ConstEvalError>>()?;
+            let param_ref = params.iter().map(|v| match v {
+                ConstValOrExpr::Const(ConstVal::Base(b)) => Some(b),
+                _ => None,
+            }).collect::<Option<Vec<_>>>();
+            let param_ref = match param_ref {
+                Some(v) => v,
+                None => return ret(params),
+            };
+
+            let func = match ident {
+                FunIdentifier::Identifier(ident) => match fl.lookup(ident) {
+                    Some(func) => func,
+                    None => return ret(params),
+                },
+                FunIdentifier::Expr(_) => return ret(params),
+            };
+            func.eval(&param_ref).map(ConstVal::Base).map(ConstValOrExpr::from).ok_or(ConstEvalError::NoMatchingFunctionOverload)
         },
-        Expr::Dot(_, _) => todo!(),
-        Expr::PostInc(_) => Err(ConstEvalError::IllegalExpression),
-        Expr::PostDec(_) => Err(ConstEvalError::IllegalExpression),
-        Expr::Comma(_, _) => Err(ConstEvalError::IllegalExpression),
+        Expr::Dot(a, ident) => {
+            let a = const_propagate_expr(a, cl, fl)?;
+            let a = match a {
+                ConstValOrExpr::Const(v) => v,
+                ConstValOrExpr::Expr(expr) => return Ok(Expr::Dot(Box::new(expr), ident.clone()).into()),
+            };
+
+            match a {
+                ConstVal::Struct(str) => str.lookup_const(ident).cloned().map(ConstValOrExpr::from).ok_or_else(|| ConstEvalError::UnknownStructureMember(ident.0.clone())),
+                ConstVal::Array(a) => todo!(),
+                _ => Err(ConstEvalError::DotStructureRequired),
+            }
+        },
+        Expr::PostInc(a) => {
+            match const_propagate_expr(a, cl, fl)? {
+                ConstValOrExpr::Const(_) => Err(ConstEvalError::PostOpExpectedLValue),
+                ConstValOrExpr::Expr(expr) => Ok(Expr::PostInc(Box::new(expr)).into()),
+            }
+        },
+        Expr::PostDec(a) => {
+            match const_propagate_expr(a, cl, fl)? {
+                ConstValOrExpr::Const(_) => Err(ConstEvalError::PostOpExpectedLValue),
+                ConstValOrExpr::Expr(expr) => Ok(Expr::PostDec(Box::new(expr)).into()),
+            }
+        },
+        Expr::Comma(a, b) => {
+            let a = const_propagate_expr(a, cl, fl)?;
+            let b = const_propagate_expr(b, cl, fl)?;
+            Ok(Expr::Comma(Box::new(a.into()), Box::new(b.into())).into())
+        },
     }
 }
 
 #[derive(Clone, PartialEq, Debug)]
+#[non_exhaustive]
 pub enum ConstEvalError {
+    UnaryOpExpectedLValue(UnaryOp),
+    UnknownStructureMember(String),
+    DotStructureRequired,
+    TernaryExpectedScalarBool,
+    AssignmentExpectedLValue,
+    PostOpExpectedLValue,
     UnknownIdentifier(String),
     IllegalExpression,
     IllegalUnaryOp(UnaryOp),
@@ -1004,6 +1124,67 @@ pub enum ConstEvalError {
     IllegalBinaryOp(BinaryOp),
     IllegalBinaryOperand(BinaryOp, TypeSpecifier, TypeSpecifier),
     NoMatchingFunctionOverload,
+}
+
+struct ScopedConstLookup {
+    scopes: Vec<HashMap<String, ConstVal>>,
+}
+
+impl ScopedConstLookup {
+    pub fn new() -> Self {
+        Self {
+            scopes: vec![HashMap::new()],
+        }
+    }
+
+    pub fn set_value(&mut self, name: &Identifier, value: ConstVal) {
+        self.scopes.last_mut().unwrap().insert(name.0.clone(), value);
+    }
+
+    pub fn push_scope(&mut self) {
+        self.scopes.push(HashMap::new());
+    }
+
+    pub fn pop_scope(&mut self) {
+        self.scopes.pop();
+    }
+}
+
+impl ConstLookup for ScopedConstLookup {
+    fn lookup_const(&self, ident: &Identifier) -> Option<&ConstVal> {
+        for scope in self.scopes.iter().rev() {
+            if let Some(val) = scope.get(&ident.0) {
+                return Some(val)
+            }
+        }
+        None
+    }
+}
+
+struct ConstPropagateVisitor {
+    value_lookup: ScopedConstLookup,
+}
+
+impl VisitorMut for ConstPropagateVisitor {
+    fn visit_external_declaration(&mut self, decl: &mut ExternalDeclaration) -> Visit {
+        if let ExternalDeclaration::Declaration(decl) = decl {
+            match decl {
+                Declaration::FunctionPrototype(_) => {}
+                Declaration::InitDeclaratorList(init) => {
+                    todo!()
+                }
+                Declaration::Block(_) => {}
+                Declaration::Global(_, _) => {}
+                _ => {}
+            }
+        }
+
+        todo!()
+    }
+}
+
+pub fn const_propagate_unit(shader: &mut TranslationUnit) {
+
 }
 
 mod function {
