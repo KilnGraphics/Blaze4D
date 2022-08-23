@@ -1909,20 +1909,16 @@ mod function {
             ConstEvalFunctionBuilder::new()
                 .add_overload_1(|v: ConstSVVal<i32>| Some(v))
                 .add_overload_1(|v: ConstSVVal<u32>| Some(v))
-                .add_overload_1(|v: ConstSVVal<f32>| Some(v))
-                .add_overload_1(|v: ConstSVVal<f64>| Some(v))
-                .add_overload_1(|v: ConstMVal<f32>| Some(v))
-                .add_overload_1(|v: ConstMVal<f64>| Some(v))
+                .add_overload_1(|v: ConstSVMVal<f32>| Some(v))
+                .add_overload_1(|v: ConstSVMVal<f64>| Some(v))
                 .build()
         };
         pub static ref OP_UNARY_MINUS: ConstEvalFunction = {
             ConstEvalFunctionBuilder::new()
                 .add_overload_1(|v: ConstSVVal<i32>| Some(v.map(i32::wrapping_neg)))
                 .add_overload_1(|v: ConstSVVal<u32>| Some(v.map(u32::wrapping_neg)))
-                .add_overload_1(|v: ConstSVVal<f32>| Some(v.map(f32::neg)))
-                .add_overload_1(|v: ConstSVVal<f64>| Some(v.map(f64::neg)))
-                .add_overload_1(|v: ConstMVal<f32>| Some(v.map(f32::neg)))
-                .add_overload_1(|v: ConstMVal<f64>| Some(v.map(f64::neg)))
+                .add_overload_1(|v: ConstSVMVal<f32>| Some(v.map(f32::neg)))
+                .add_overload_1(|v: ConstSVMVal<f64>| Some(v.map(f64::neg)))
                 .build()
         };
         pub static ref OP_UNARY_NOT: ConstEvalFunction = {
@@ -1974,10 +1970,8 @@ mod function {
                 .add_overload_2(|a: ConstSVVal<bool>, b: ConstSVVal<bool>| Some(a.zip_map(&b, |a, b| a == b)?.fold(true, bool::bitand)))
                 .add_overload_2(|a: ConstSVVal<i32>, b: ConstSVVal<i32>| Some(a.zip_map(&b, |a, b| a == b)?.fold(true, bool::bitand)))
                 .add_overload_2(|a: ConstSVVal<u32>, b: ConstSVVal<u32>| Some(a.zip_map(&b, |a, b| a == b)?.fold(true, bool::bitand)))
-                .add_overload_2(|a: ConstSVVal<f32>, b: ConstSVVal<f32>| Some(a.zip_map(&b, |a, b| a == b)?.fold(true, bool::bitand)))
-                .add_overload_2(|a: ConstSVVal<f64>, b: ConstSVVal<f64>| Some(a.zip_map(&b, |a, b| a == b)?.fold(true, bool::bitand)))
-                .add_overload_2(|a: ConstMVal<f32>, b: ConstMVal<f32>| Some(a.zip_map(&b, |a, b| a == b)?.fold(true, bool::bitand)))
-                .add_overload_2(|a: ConstMVal<f64>, b: ConstMVal<f64>| Some(a.zip_map(&b, |a, b| a == b)?.fold(true, bool::bitand)))
+                .add_overload_2(|a: ConstSVMVal<f32>, b: ConstSVMVal<f32>| Some(a.zip_map(&b, |a, b| a == b)?.fold(true, bool::bitand)))
+                .add_overload_2(|a: ConstSVMVal<f64>, b: ConstSVMVal<f64>| Some(a.zip_map(&b, |a, b| a == b)?.fold(true, bool::bitand)))
                 .build()
         };
         pub static ref OP_BINARY_LT: ConstEvalFunction = {
@@ -2328,19 +2322,6 @@ mod function {
         const SHAPE_VALUES: &[ParameterShape] = &[ParameterShape::Scalar, ParameterShape::Vec2, ParameterShape::Vec3, ParameterShape::Vec4, ParameterShape::Mat2, ParameterShape::Mat23, ParameterShape::Mat24, ParameterShape::Mat32, ParameterShape::Mat3, ParameterShape::Mat34, ParameterShape::Mat42, ParameterShape::Mat43, ParameterShape::Mat4, ParameterShape::GenericM, ParameterShape::GenericSV, ParameterShape::GenericSVM];
 
         #[test]
-        fn test_add() {
-            let a = ConstBaseVal::Bool(ConstSVVal::new_scalar(true));
-            let b = ConstBaseVal::Int(ConstSVVal::new_vec2(Vector2::new(4, 9)));
-            let c = ConstBaseVal::UInt(ConstSVVal::new_vec2(Vector2::new(2, 5)));
-            let d = ConstBaseVal::UInt(ConstSVVal::new_vec2(Vector2::new(6, 14)));
-            assert_eq!(OP_BINARY_ADD.eval(&[&a]), None);
-            assert_eq!(OP_BINARY_ADD.eval(&[&b, &c]), Some(d.clone()));
-            assert_eq!(OP_BINARY_ADD.eval(&[&c, &b]), Some(d));
-
-            assert_eq!(BUILTIN_CONST_FUNCTIONS.lookup(&Identifier::new("vec3").unwrap()).unwrap().eval(&[&b, &a]), Some(ConstBaseVal::Float(ConstSVMVal::new_vec3(Vector3::new(4f32, 9f32, 1f32)))));
-        }
-
-        #[test]
         fn base_type_order_samples() {
             assert_eq!(ParameterBaseType::Bool.cast_cmp(&ParameterBaseType::Bool), Some(Ordering::Equal));
             assert_eq!(ParameterBaseType::Bool.cast_cmp(&ParameterBaseType::Float), None);
@@ -2373,10 +2354,98 @@ mod function {
                 }
             }
         }
+
+        #[test]
+        fn parameter_type_order_samples() {
+            let assert = |ty1: ParameterType, ty2: ParameterType| {
+                // We only need less since we exhaustively verify consistency in the parameter_type_order_consistency test
+                assert_eq!(ty1.cast_cmp(&ty2), Ordering::Less);
+            };
+
+            type T = ParameterType;
+            type B = ParameterBaseType;
+            type S = ParameterShape;
+            assert(T::new(B::Int, S::Scalar), T::new(B::UInt, S::Scalar));
+            assert(T::new(B::Int, S::Scalar), T::new(B::Float, S::Scalar));
+            assert(T::new(B::Int, S::Scalar), T::new(B::Double, S::Scalar));
+
+            assert(T::new(B::Bool, S::Mat3), T::new(B::Bool, S::GenericSVM));
+            assert(T::new(B::UInt, S::Mat3), T::new(B::UInt, S::GenericSVM));
+            assert(T::new(B::Double, S::Mat3), T::new(B::Double, S::GenericSVM));
+        }
+
+        #[test]
+        fn const_eval_function_instance_compatibility() {
+            type S = BaseTypeShape;
+            type T = ParameterBaseType;
+
+            let func = ConstEvalFunctionInstance::from_fn_0(|| 5u32);
+            assert!(func.compatible_with(&[]));
+            assert!(!func.compatible_with(&[(S::Scalar, T::Bool)]));
+            assert!(!func.compatible_with(&[(S::Mat4, T::Float), (S::Mat4, T::Float), (S::Mat4, T::Float), (S::Mat4, T::Float), (S::Mat4, T::Float)]));
+
+            let func = ConstEvalFunctionInstance::from_fn_1(|v: Matrix4<f64>| Some(v));
+            assert!(!func.compatible_with(&[]));
+            assert!(func.compatible_with(&[(S::Mat4, T::Float)]));
+            assert!(func.compatible_with(&[(S::Mat4, T::Double)]));
+            assert!(!func.compatible_with(&[(S::Mat4, T::Float), (S::Mat4, T::Float)]));
+        }
+
+        #[test]
+        fn op_unary_add() {
+            let v = ConstBaseVal::from(true);
+            assert_eq!(OP_UNARY_ADD.eval(&[&v]), None);
+            let v = ConstBaseVal::from(-3i32);
+            assert_eq!(OP_UNARY_ADD.eval(&[&v]), Some(v));
+            let v = ConstBaseVal::from(Vector2::from_element(4u32));
+            assert_eq!(OP_UNARY_ADD.eval(&[&v]), Some(v));
+            let v = ConstBaseVal::from(Matrix4::from_diagonal_element(-34f32));
+            assert_eq!(OP_UNARY_ADD.eval(&[&v]), Some(v));
+            let v = ConstBaseVal::from(Vector4::new(-9f64, 0f64, 3.78342979823f64, 1f64));
+            assert_eq!(OP_UNARY_ADD.eval(&[&v]), Some(v));
+        }
+
+        #[test]
+        fn op_unary_minus() {
+            assert_eq!(OP_UNARY_MINUS.eval(&[&ConstBaseVal::from(true)]), None);
+            assert_eq!(OP_UNARY_MINUS.eval(&[&ConstBaseVal::from(-3i32)]), Some(ConstBaseVal::from(3i32)));
+            assert_eq!(OP_UNARY_MINUS.eval(&[&ConstBaseVal::from(Vector2::from_element(4u32))]), Some(ConstBaseVal::from(Vector2::from_element(4294967292u32))));
+            assert_eq!(OP_UNARY_MINUS.eval(&[&ConstBaseVal::from(Matrix4::from_diagonal_element(-34f32))]), Some(ConstBaseVal::from(Matrix4::from_diagonal_element(34f32))));
+            assert_eq!(OP_UNARY_MINUS.eval(&[&ConstBaseVal::from(Vector4::new(-9f64, 0f64, 3.78342979823f64, 1f64))]), Some(ConstBaseVal::from(Vector4::new(9f64, 0f64, -3.78342979823f64, -1f64))));
+        }
+
+        #[test]
+        fn op_unary_not() {
+            assert_eq!(OP_UNARY_NOT.eval(&[&ConstBaseVal::from(true)]), Some(ConstBaseVal::from(false)));
+            assert_eq!(OP_UNARY_NOT.eval(&[&ConstBaseVal::from(Vector3::from_element(false))]), None);
+            assert_eq!(OP_UNARY_NOT.eval(&[&ConstBaseVal::from(-3i32)]), None);
+            assert_eq!(OP_UNARY_NOT.eval(&[&ConstBaseVal::from(Vector2::from_element(4u32))]), None);
+            assert_eq!(OP_UNARY_NOT.eval(&[&ConstBaseVal::from(Matrix4::from_diagonal_element(-34f32))]), None);
+            assert_eq!(OP_UNARY_NOT.eval(&[&ConstBaseVal::from(Vector4::new(-9f64, 0f64, 3.78342979823f64, 1f64))]), None);
+        }
     }
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    struct EmptyConstLookup();
+
+    impl ConstLookup for EmptyConstLookup {
+        fn lookup_const(&self, ident: &Identifier) -> Option<&ConstVal> {
+            todo!()
+        }
+    }
+
+    #[test]
+    fn const_propagate_expr_base_construct() {
+        const TEST_DATA: &[(Expr, Result<ConstValOrExpr, ConstEvalError>)] = &[
+            (Expr::IntConst(-43i32), Ok(ConstBaseVal::new_int(-43i32).into())),
+
+        ];
+        for (case, expected) in TEST_DATA {
+            assert_eq!(const_propagate_expr(case, &EmptyConstLookup(), &super::function::BUILTIN_CONST_FUNCTIONS), expected);
+        }
+    }
 }
