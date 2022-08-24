@@ -23,6 +23,7 @@ pub mod mc_shaders;
 mod descriptors;
 mod share;
 mod staging;
+mod program;
 
 use std::fmt::{Debug, Formatter};
 use std::panic::RefUnwindSafe;
