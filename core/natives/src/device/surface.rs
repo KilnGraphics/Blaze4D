@@ -320,9 +320,6 @@ impl From<vk::Result> for SwapchainCreateError {
 ///
 /// The swpachain will be destroyed when this struct is dropped.
 ///
-/// This struct implements [`ObjectSetProvider`] for access to swapchain images. The swapchain itself
-/// can only be accessed by calling [`SurfaceSwapchain::get_swapchain`].
-///
 /// Holds an internal reference to the owning device surface keeping it alive.
 pub struct SurfaceSwapchain {
     surface: Arc<DeviceSurface>,
@@ -374,7 +371,11 @@ impl SurfaceSwapchain {
     }
 
     /// Returns all swpachain images.
-    pub fn get_images(&self) -> &[ImageObjects] {
+    ///
+    /// # Safety
+    /// The returned images must not be used after this struct is dropped. All submitted command
+    /// buffers using the images must have finished execution before this struct is dropped.
+    pub unsafe fn get_images(&self) -> &[ImageObjects] {
         self.image_objects.as_ref()
     }
 
@@ -393,7 +394,24 @@ impl SurfaceSwapchain {
         self.usage
     }
 
-    pub fn acquire_next_image(&self, timeout: u64, fence: Option<vk::Fence>) -> VkResult<(AcquiredImageInfo, bool)> {
+    /// Attempts to acquire the next image from the swapchain.
+    ///
+    /// Returns [`Ok`] if a swapchain image was successfully acquired. If the internal call to
+    /// [vkAcquireNextImageKHR] returned [VK_SUBOPTIMAL_KHR] then the returned bool is set to true.
+    ///
+    /// # Safety
+    /// The returned objects must not be used after this struct is dropped. All submitted command
+    /// buffers using any of the objects must have finished execution before this struct is dropped.
+    ///
+    /// If [`Ok`] is returned then the returned ready semaphore must only be signaled after the
+    /// acquire semaphore is no longer in use.
+    ///
+    /// If [`Ok`] is returned then the returned ready semaphore must be signalled at some point or
+    /// any subsequent call to [`SurfaceSwapchain::acquire_next_image`] may not succeed.
+    ///
+    /// If [`Ok`] is returned then the returned image must be presented at some point or any
+    /// subsequent call to [`SurfaceSwapchain::acquire_next_image`] may not succeed.
+    pub unsafe fn acquire_next_image(&self, timeout: u64) -> VkResult<(AcquiredImageInfo, bool)> {
         let acquire = self.acquire_objects.get(self.get_next_acquire()).unwrap();
         let (ready_op, acquire_semaphore) = match acquire.wait_and_get(&self.surface.device, timeout) {
             None => {
@@ -405,9 +423,7 @@ impl SurfaceSwapchain {
         let swapchain_khr = self.surface.device.swapchain_khr.as_ref().unwrap();
 
         let guard = self.swapchain.lock().unwrap();
-        let (image_index, suboptimal) = unsafe {
-            swapchain_khr.acquire_next_image(*guard, timeout, acquire_semaphore.get_handle(), fence.unwrap_or(vk::Fence::null()))
-        }?;
+        let (image_index, suboptimal) = swapchain_khr.acquire_next_image(*guard, timeout, acquire_semaphore.get_handle(), vk::Fence::null())?;
         drop(guard);
 
         Ok((AcquiredImageInfo {
@@ -442,7 +458,7 @@ impl Drop for SurfaceSwapchain {
     fn drop(&mut self) {
         let device = &self.surface.device;
         for acquire in self.acquire_objects.iter_mut() {
-            acquire.destroy(device);
+            unsafe { acquire.destroy(device) };
         }
         for image in self.image_objects.iter_mut() {
             image.destroy(device);
@@ -464,6 +480,20 @@ impl Drop for SurfaceSwapchain {
     }
 }
 
+/// Collection of objects used to synchronize acquire operations for swapchain images.
+///
+/// The struct provides 2 semaphores. A binary semaphore used for the image acquire operation and a
+/// timeline semaphore which needs to be signaled after the binary semaphore can be safely reused.
+///
+/// Typical use case is as follows:
+/// 1. Call [`AcquireObjects::wait_and_get`] to retrieve the 2 semaphores.
+/// 2. Call vkAcquireNextImageKHR with the acquire semaphore returned in step 1
+/// 3. Create a submission waiting on the acquire semaphore and signaling the ready semaphore
+/// returned in step 1.
+///
+/// # Cleanup
+/// This struct does not destroy its objects on drop. [`AcquireObjects::destroy`] must be explicitly
+/// called to prevent object leakage.
 struct AcquireObjects {
     ready_semaphore: Semaphore,
     ready_wait_value: AtomicU64,
@@ -496,6 +526,8 @@ impl AcquireObjects {
         }
     }
 
+    /// Waits for the ready semaphore to be signaled and returns the acquire and ready semaphore for
+    /// the next acquire operation.
     fn wait_and_get(&self, device: &DeviceFunctions, timeout: u64) -> Option<(SemaphoreOp, Semaphore)> {
         let semaphore = self.ready_semaphore.get_handle();
         loop {
@@ -523,7 +555,12 @@ impl AcquireObjects {
         }
     }
 
-    fn destroy(&mut self, device: &DeviceFunctions) {
+    /// Destroys all vulkan objects managed by this struct.
+    ///
+    /// # Safety
+    /// This function must only be called once and no other function of this struct except for drop
+    /// may be called after this function is called. Failing to do so is undefined behaviour.
+    unsafe fn destroy(&mut self, device: &DeviceFunctions) {
         unsafe {
             device.vk.destroy_semaphore(self.acquire_semaphore.get_handle(), None);
             device.vk.destroy_semaphore(self.ready_semaphore.get_handle(), None);
