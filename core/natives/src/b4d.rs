@@ -48,7 +48,7 @@ impl Blaze4D {
 
         let instance = create_instance(instance_config).unwrap();
 
-        let window_surface = main_window.init(instance.get_entry(), instance.vk()).unwrap();
+        let window_surface = unsafe { main_window.init(instance.get_entry(), instance.vk()) }.unwrap();
 
         let mut device_config = DeviceCreateConfig::new();
         device_config.require_swapchain();

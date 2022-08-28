@@ -35,7 +35,7 @@ impl SurfaceProvider for WinitWindow {
         }).collect()
     }
 
-    fn init(&mut self, entry: &Entry, instance: &Instance) -> Result<vk::SurfaceKHR, SurfaceInitError> {
+    unsafe fn init(&mut self, entry: &Entry, instance: &Instance) -> Result<vk::SurfaceKHR, SurfaceInitError> {
         let surface = unsafe { ash_window::create_surface(entry, instance, &self.handle, None)? };
 
         self.khr_surface = Some(surface);
@@ -44,16 +44,14 @@ impl SurfaceProvider for WinitWindow {
         Ok(surface)
     }
 
-    fn get_handle(&self) -> Option<vk::SurfaceKHR> {
-        self.khr_surface
-    }
-}
-
-impl Drop for WinitWindow {
-    fn drop(&mut self) {
+    unsafe fn destroy(&mut self) {
         if let Some(surface) = self.khr_surface.take() {
             let khr = self.ash_surface.take().unwrap();
             unsafe { khr.destroy_surface(surface, None) };
         }
+    }
+
+    unsafe fn get_handle(&self) -> vk::SurfaceKHR {
+        self.khr_surface.unwrap()
     }
 }

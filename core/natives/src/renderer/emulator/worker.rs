@@ -21,6 +21,26 @@ use crate::renderer::emulator::mc_shaders::ShaderId;
 use crate::renderer::emulator::share::{NextTaskResult, Share};
 use crate::renderer::emulator::staging::StagingAllocationId;
 
+
+pub(super) struct Worker2 {
+
+}
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 pub(super) enum WorkerTask {
     StartPass(PassId, Arc<dyn EmulatorPipeline>, Box<dyn EmulatorPipelinePass + Send>, Arc<GlobalImage>, vk::Sampler),
     EndPass(Box<ImmediateBuffer>),

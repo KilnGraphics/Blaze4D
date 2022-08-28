@@ -32,7 +32,7 @@ impl DeviceSurface {
         Arc::new_cyclic(|weak| Self {
             device,
             weak: weak.clone(),
-            surface: surface.get_handle().unwrap(),
+            surface: unsafe { surface.get_handle() },
             surface_provider: surface,
             current_swapchain: Mutex::new(SurfaceSwapchainInfo::new())
         })

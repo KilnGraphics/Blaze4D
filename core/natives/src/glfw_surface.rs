@@ -53,7 +53,7 @@ impl SurfaceProvider for GLFWSurfaceProvider {
         self.required_extension.clone()
     }
 
-    fn init(&mut self, entry: &ash::Entry, instance: &ash::Instance) -> Result<vk::SurfaceKHR, SurfaceInitError> {
+    unsafe fn init(&mut self, entry: &ash::Entry, instance: &ash::Instance) -> Result<vk::SurfaceKHR, SurfaceInitError> {
         let surface_khr = ash::extensions::khr::Surface::new(entry, instance);
 
         let mut surface = vk::SurfaceKHR::null();
@@ -63,8 +63,14 @@ impl SurfaceProvider for GLFWSurfaceProvider {
         Ok(surface)
     }
 
-    fn get_handle(&self) -> Option<vk::SurfaceKHR> {
-        self.surface.as_ref().map(|s| s.0)
+    unsafe fn destroy(&mut self) {
+        self.surface.take().map(|s| {
+            unsafe { s.1.destroy_surface(s.0, None) };
+        });
+    }
+
+    unsafe fn get_handle(&self) -> vk::SurfaceKHR {
+        self.surface.as_ref().unwrap().0
     }
 }
 
@@ -72,14 +78,6 @@ impl SurfaceProvider for GLFWSurfaceProvider {
 unsafe impl Send for GLFWSurfaceProvider {
 }
 unsafe impl Sync for GLFWSurfaceProvider {
-}
-
-impl Drop for GLFWSurfaceProvider {
-    fn drop(&mut self) {
-        self.surface.take().map(|s| {
-            unsafe { s.1.destroy_surface(s.0, None) };
-        });
-    }
 }
 
 #[no_mangle]

@@ -13,6 +13,35 @@ use crate::prelude::*;
 use crate::renderer::emulator::immediate::{ImmediateBuffer, ImmediatePool};
 use crate::renderer::emulator::staging::StagingMemoryPool;
 
+
+
+pub(super) struct Share2 {
+    device: Arc<DeviceContext>,
+
+    channel: Mutex<Channel2>,
+    signal: Condvar,
+}
+
+struct Channel2 {
+    queue: VecDeque<()>,
+}
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 pub(super) struct Share {
     id: UUID,
     device: Arc<DeviceContext>,

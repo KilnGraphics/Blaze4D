@@ -44,6 +44,7 @@ impl Debug for SurfaceId {
 }
 
 #[derive(Debug)]
+#[non_exhaustive]
 pub enum SurfaceInitError {
     /// A vulkan error
     Vulkan(vk::Result),
@@ -60,11 +61,36 @@ impl From<vk::Result> for SurfaceInitError {
 }
 
 pub trait SurfaceProvider: Send + Sync {
+    /// Returns a list of all required instance extensions for this surface.
     fn get_required_instance_extensions(&self) -> Vec<CString>;
 
-    fn init(&mut self, entry: &ash::Entry, instance: &ash::Instance) -> Result<vk::SurfaceKHR, SurfaceInitError>;
+    /// Called to create the surface. This function must never be called more than once.
+    ///
+    /// # Safety
+    /// The returned surface must not be used after the [`SurfaceProvider::destroy`] function has
+    /// been called.
+    ///
+    /// If this function returns [`Ok`] the [`SurfaceProvider::destroy`] function must be called
+    /// before the used vulkan instance is destroyed or the surface provider is dropped. Failing to
+    /// do so is undefined behaviour.
+    unsafe fn init(&mut self, entry: &ash::Entry, instance: &ash::Instance) -> Result<vk::SurfaceKHR, SurfaceInitError>;
 
-    fn get_handle(&self) -> Option<vk::SurfaceKHR>;
+    /// Destroys any vulkan objects created by the surface provider.
+    ///
+    /// # Safety
+    /// This function must only be called after a successful call to [`SurfaceProvider::init`] and
+    /// before the used vulkan instance is destroyed.
+    ///
+    /// Any vulkan objects created by this struct must not be in use when and after this function is
+    /// called.
+    unsafe fn destroy(&mut self);
+
+    /// Returns the handle of the surface managed by this surface provider.
+    ///
+    /// # Safety
+    /// This function must only be called after a successful call to [`SurfaceProvider::init`]. The
+    /// returned surface handle must not be used after a call to [`SurfaceProvider::destroy`].
+    unsafe fn get_handle(&self) -> vk::SurfaceKHR;
 }
 
 pub struct SurfaceCapabilities {

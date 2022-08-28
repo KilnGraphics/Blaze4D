@@ -232,7 +232,7 @@ impl SwapchainOutput {
     pub fn new(device: &DeviceContext, pipeline: Arc<dyn EmulatorPipeline>, swapchain: Arc<SurfaceSwapchain>) -> Arc<Self> {
         let util = OutputUtil::new(device, pipeline, swapchain.get_image_format().format, vk::ImageLayout::PRESENT_SRC_KHR);
 
-        let framebuffers = swapchain.get_images().iter().map(|image| {
+        let framebuffers = unsafe { swapchain.get_images() }.iter().map(|image| {
             util.create_framebuffer(image.get_framebuffer_view(), swapchain.get_image_size()).unwrap()
         }).collect();
 
@@ -253,7 +253,7 @@ impl SwapchainOutput {
     pub fn next_image(&self) -> Option<(Box<dyn EmulatorOutput + Send>, bool)> {
         loop {
             let arc = self.weak.upgrade().unwrap();
-            match self.swapchain.acquire_next_image(1000000000, None) {
+            match unsafe { self.swapchain.acquire_next_image(1000000000) } {
                 Ok((info, suboptimal)) =>
                     return Some((Box::new(SwapchainOutputInstance::new(arc, info)), suboptimal)),
                 Err(vk::Result::TIMEOUT) =>
@@ -321,7 +321,7 @@ impl EmulatorOutput for SwapchainOutputInstance {
                 .value(self.image_info.acquire_ready_semaphore.value.unwrap_or(0))
                 .build(),
             vk::SemaphoreSubmitInfo::builder()
-                .semaphore(self.output.swapchain.get_images()[self.image_info.image_index as usize].get_present_semaphore().get_handle())
+                .semaphore(unsafe { self.output.swapchain.get_images() }[self.image_info.image_index as usize].get_present_semaphore().get_handle())
                 .build()
         ]);
 
@@ -339,7 +339,7 @@ impl EmulatorOutput for SwapchainOutputInstance {
     }
 
     fn on_post_submit(&mut self, queue: &Queue) {
-        let present_semaphore = self.output.swapchain.get_images()[self.image_info.image_index as usize].get_present_semaphore().get_handle();
+        let present_semaphore = unsafe { self.output.swapchain.get_images() }[self.image_info.image_index as usize].get_present_semaphore().get_handle();
 
         let guard = self.output.swapchain.get_swapchain().lock().unwrap();
 

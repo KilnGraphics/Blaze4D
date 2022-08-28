@@ -24,10 +24,11 @@ mod descriptors;
 mod share;
 mod staging;
 mod program;
+mod c_api;
 
 use std::fmt::{Debug, Formatter};
 use std::panic::RefUnwindSafe;
-use std::sync::Arc;
+use std::sync::{Arc, Weak};
 use ash::vk;
 use bytemuck::cast_slice;
 
@@ -43,8 +44,185 @@ pub use pass::PassRecorder;
 pub use pass::ImmediateMeshId;
 
 use share::Share;
+use crate::allocator::Allocation;
+use crate::define_uuid_type;
+use crate::objects::sync::SemaphoreOp;
 use crate::renderer::emulator::mc_shaders::{McUniform, Shader, ShaderId, VertexFormat};
 use crate::util::format::Format;
+
+
+pub struct Emulator2 {
+    weak: Weak<Emulator2>,
+}
+
+impl Emulator2 {
+    pub fn new(device: Arc<DeviceContext>) -> Arc<Self> {
+        todo!()
+    }
+
+    pub fn create_persistent_buffer(&self, size: u64) -> BufferId {
+        todo!()
+    }
+
+    pub fn create_ephemeral_buffer(&self, data: &[u8]) -> BufferId {
+        todo!()
+    }
+
+    pub fn create_persistent_image(&self) -> ImageId {
+        todo!()
+    }
+
+    pub fn create_pipeline(&self, info: &PipelineCreateInfo) -> PipelineId {
+        todo!()
+    }
+
+    pub fn cmd_write_buffer(&self, buffer: BufferId, offset: u64, data: &[u8]) {
+        todo!()
+    }
+
+    pub fn cmd_write_sub_image(&self, image: ImageId) {
+        todo!()
+    }
+
+    pub fn cmd_draw(&self, pipeline: PipelineId, input_attributes: &[PipelineInputAttribute], draw_state: &DrawState) {
+        todo!()
+    }
+
+    pub fn create_export_set(&self) -> ExportSet {
+        todo!()
+    }
+
+    pub fn flush(&self) {
+        todo!()
+    }
+}
+
+/// Description of a emulator pipeline.
+pub struct PipelineCreateInfo<'a> {
+    /// A list of shader module code used to create shaders.
+    pub shader_modules: &'a [&'a [u32]],
+
+    /// Description of the vertex shader stage.
+    pub vertex_shader: PipelineShaderInfo<'a>,
+
+    /// Description of the fragment shader stage.
+    pub fragment_shader: PipelineShaderInfo<'a>,
+
+    /// A list of all input attribute locations used by the pipeline.
+    pub input_attributes: &'a [u32],
+}
+
+/// Description of a emulator pipeline shader stage.
+pub struct PipelineShaderInfo<'a> {
+    /// The index of the module in [`PipelineCreateInfo::shader_modules`] used for this stage.
+    pub index: usize,
+
+    /// The name of the entry point for this stage.
+    pub entry: &'a str,
+
+    /// Optional specialization info used when creating the shader stage.
+    pub specialization_info: Option<&'a vk::SpecializationInfo>,
+}
+
+pub struct DrawState<'a> {
+    input_attributes: &'a [PipelineInputAttribute],
+    primitive_topology: vk::PrimitiveTopology,
+    polygon_mode: vk::PolygonMode,
+    cull_mode: vk::CullModeFlags,
+    front_face: vk::FrontFace,
+    viewport: (Vec2f32, Vec2f32),
+    scissor: (Vec2u32, Vec2u32),
+}
+
+pub struct PipelineInputAttribute {
+    location: u32,
+    format: vk::Format,
+    stride: u32,
+    offset: u32,
+}
+
+define_uuid_type!(pub, BufferId);
+define_uuid_type!(pub, ImageId);
+define_uuid_type!(pub, PipelineId);
+
+pub struct ExportSet {
+    emulator: Arc<Emulator2>,
+    images: Box<[Arc<PersistentImage>]>,
+    image_infos: Box<[ExportImageInfo]>
+}
+
+impl ExportSet {
+    pub fn get_images(&self) -> &[ExportImageInfo] {
+        &self.image_infos
+    }
+
+    pub fn export(&self) -> ExportHandle {
+        todo!()
+    }
+}
+
+pub struct ExportImageInfo {
+    image: vk::Image,
+    size: ImageSize,
+    format: vk::Format,
+}
+
+impl ExportImageInfo {
+    pub unsafe fn get_image(&self) -> vk::Image {
+        self.image
+    }
+
+    pub fn get_size(&self) -> ImageSize {
+        self.size
+    }
+
+    pub fn get_format(&self) -> vk::Format {
+        self.format
+    }
+}
+
+pub struct ExportHandle {
+    emulator: Arc<Emulator2>,
+    wait_op: SemaphoreOp,
+}
+
+impl ExportHandle {
+    pub unsafe fn get_wait_op(&self) -> SemaphoreOp {
+        self.wait_op
+    }
+}
+
+impl Drop for ExportHandle {
+    fn drop(&mut self) {
+        todo!()
+    }
+}
+
+#[derive(Copy, Clone, Eq, PartialEq, Hash, Debug)]
+pub enum ImageSize {
+    Type1D(u32),
+    Type2D(Vec2u32),
+    Type3D(Vec3u32),
+}
+
+struct PersistentImage {
+    device: Arc<DeviceContext>,
+    image: vk::Image,
+    allocation: Allocation,
+    size: ImageSize,
+    format: vk::Format,
+}
+
+impl Drop for PersistentImage {
+    fn drop(&mut self) {
+        unsafe { self.device.get_allocator().destroy_image(self.image, self.allocation) };
+    }
+}
+
+
+
+
+
 
 pub struct EmulatorRenderer {
     share: Arc<Share>,

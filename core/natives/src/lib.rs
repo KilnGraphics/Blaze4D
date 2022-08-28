@@ -1,5 +1,6 @@
 #[macro_use]
 extern crate static_assertions;
+extern crate core;
 
 use std::fmt::{Debug, Display, Formatter};
 
@@ -17,6 +18,9 @@ pub mod window;
 mod c_api;
 mod c_log;
 mod allocator;
+
+#[cfg(any(test, feature = "test_utils"))]
+pub mod test;
 
 pub struct BuildInfo {
     pub version_major: u32,
