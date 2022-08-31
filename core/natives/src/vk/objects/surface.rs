@@ -43,7 +43,7 @@ impl Debug for SurfaceId {
     }
 }
 
-#[derive(Debug)]
+#[derive(Clone, Debug)]
 #[non_exhaustive]
 pub enum SurfaceInitError {
     /// A vulkan error

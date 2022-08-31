@@ -1,9 +1,9 @@
 use std::cell::RefCell;
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 use std::marker::PhantomData;
 use std::rc::Rc;
 use std::sync::Arc;
-use std::time::Duration;
+use std::time::{Duration, Instant};
 
 use ash::prelude::VkResult;
 use ash::vk;
@@ -15,20 +15,461 @@ use crate::renderer::emulator::pass::PassId;
 use crate::renderer::emulator::immediate::ImmediateBuffer;
 use crate::renderer::emulator::pipeline::{EmulatorOutput, EmulatorPipeline, EmulatorPipelinePass, PipelineTask};
 
+use super::share::{Buffer, NextTaskResult, PersistentBuffer, Share, Share2};
+
 use crate::prelude::*;
 use crate::renderer::emulator::global_objects::{GlobalImage, GlobalMesh};
 use crate::renderer::emulator::mc_shaders::ShaderId;
-use crate::renderer::emulator::share::{NextTaskResult, Share};
-use crate::renderer::emulator::staging::StagingAllocationId;
+use crate::renderer::emulator::staging::{StagingAllocationId2, StagingAllocationId};
 
-
-pub(super) struct Worker2 {
-
+pub(super) enum WorkerTask2 {
+    CopyStagingToBuffer(CopyStagingToBufferTask),
+    CopyBufferToStaging(CopyBufferToStagingTask),
+    Flush(u64),
+    Shutdown,
 }
 
+pub(super) struct CopyStagingToBufferTask {
+    staging_allocation: StagingAllocationId2,
+    staging_buffer: vk::Buffer,
+    staging_buffer_offset: vk::DeviceSize,
+    dst_buffer: Buffer,
+    dst_offset: vk::DeviceSize,
+    copy_size: vk::DeviceSize,
+}
 
+pub(super) struct CopyBufferToStagingTask {
+    staging_buffer: vk::Buffer,
+    staging_buffer_offset: vk::DeviceSize,
+    src_buffer: Buffer,
+    src_offset: vk::DeviceSize,
+    copy_size: vk::DeviceSize,
+}
 
+pub(super) fn run_worker2(share: Arc<Share2>) {
+    let mut object_pool = RefCell::new(ObjectPool2::new(share.clone()).unwrap());
+    let mut record_state = None;
+    let mut bump = Bump::new();
 
+    let mut current_sync = 0u64;
+    let mut last_update = Instant::now();
+    loop {
+        if let Some(task) = share.pop_task(Duration::from_millis(33)) {
+            match task {
+                (_, WorkerTask2::CopyStagingToBuffer(copy)) => {
+                    get_or_start_record(&mut record_state, &object_pool, &bump).task_copy_staging_to_buffer(copy);
+                }
+                (_, WorkerTask2::CopyBufferToStaging(copy)) => {
+                    get_or_start_record(&mut record_state, &object_pool, &bump).task_copy_buffer_to_staging(copy);
+                }
+                (id, WorkerTask2::Flush(signal_value)) =>  {
+                    if let Some(record_state) = record_state.take() {
+                        if let Some(artifact) = submit_record(record_state, &mut current_sync, id).unwrap() {
+                            todo!()
+                        }
+                    }
+                    todo!()
+                }
+                (id, WorkerTask2::Shutdown) => {
+                    if let Some(record_state) = record_state.take() {
+                        if let Some(artifact) = submit_record(record_state, &mut current_sync, id).unwrap() {
+                            todo!()
+                        }
+                    }
+                    break;
+                }
+            }
+        }
+
+        let now = Instant::now();
+        if now.duration_since(last_update) >= Duration::from_secs(10) {
+            share.update();
+            last_update = now;
+        }
+    }
+}
+
+fn get_or_start_record<'a, 'b, 'c>(record_state: &'a mut Option<RecordState2<'b, 'c>>, object_pool: &'c RefCell<ObjectPool2>, bump: &'b Bump) -> &'a mut RecordState2<'b, 'c> {
+    if record_state.is_none() {
+        *record_state = Some(RecordState2::new(object_pool, bump));
+    }
+    record_state.as_mut().unwrap()
+}
+
+fn submit_record<'a, 'b>(record_state: RecordState2<'a, 'b>, old_sync: &mut u64, new_sync: u64) -> Result<Option<SubmissionArtifact<'b>>, vk::Result> {
+    match record_state.submit(*old_sync, new_sync) {
+        Ok(Some(artifact)) => {
+            *old_sync = new_sync;
+            Ok(Some(artifact))
+        },
+        Ok(None) => {
+            // Nothing was submitted but we still need to make sure the new sync value gets signaled eventually
+            todo!()
+        },
+        Err(err) => {
+            Err(err)
+        }
+    }
+}
+
+struct ObjectPool2 {
+    share: Arc<Share2>,
+    device: Arc<DeviceContext>,
+
+    command_pool: vk::CommandPool,
+    available_buffers: Vec<vk::CommandBuffer>,
+}
+
+impl ObjectPool2 {
+    fn new(share: Arc<Share2>) -> Result<Self, vk::Result> {
+        let device = share.get_device().clone();
+
+        let info = vk::CommandPoolCreateInfo::builder()
+            .flags(vk::CommandPoolCreateFlags::RESET_COMMAND_BUFFER | vk::CommandPoolCreateFlags::TRANSIENT)
+            .queue_family_index(share.get_queue().get_queue_family_index());
+
+        let command_pool = unsafe {
+            device.vk().create_command_pool(&info, None)
+        }?;
+
+        Ok(Self {
+            share,
+            device,
+            command_pool,
+            available_buffers: Vec::new(),
+        })
+    }
+
+    fn get_command_buffer(&mut self) -> Result<vk::CommandBuffer, vk::Result> {
+        if let Some(cmd) = self.available_buffers.pop() {
+            Ok(cmd)
+        } else {
+            let info = vk::CommandBufferAllocateInfo::builder()
+                .command_pool(self.command_pool)
+                .level(vk::CommandBufferLevel::PRIMARY)
+                .command_buffer_count(8);
+
+            let mut buffers = unsafe {
+                self.device.vk().allocate_command_buffers(&info)
+            }?;
+
+            let cmd = buffers.pop().unwrap();
+            self.available_buffers.extend(buffers);
+
+            Ok(cmd)
+        }
+    }
+
+    fn get_begin_command_buffer(&mut self) -> Result<vk::CommandBuffer, vk::Result> {
+        let cmd = self.get_command_buffer()?;
+
+        let info = vk::CommandBufferBeginInfo::builder()
+            .flags(vk::CommandBufferUsageFlags::ONE_TIME_SUBMIT);
+
+        unsafe {
+            self.device.vk().begin_command_buffer(cmd, &info)
+        }?;
+
+        Ok(cmd)
+    }
+
+    fn return_command_buffers<I: IntoIterator<Item=vk::CommandBuffer>>(&mut self, iter: I) {
+        for cmd in iter.into_iter() {
+            unsafe {
+                self.device.vk().reset_command_buffer(cmd, vk::CommandBufferResetFlags::empty())
+            }.expect("Failed to reset command buffers"); // Only valid error is out of device memory which we handle as a critical error
+
+            self.available_buffers.push(cmd);
+        }
+    }
+}
+
+impl Drop for ObjectPool2 {
+    fn drop(&mut self) {
+        unsafe {
+            self.device.vk().destroy_command_pool(self.command_pool, None);
+        }
+    }
+}
+
+struct RecordState2<'a, 'b> {
+    share: Arc<Share2>,
+    device: Arc<DeviceContext>,
+    object_pool: &'b RefCell<ObjectPool2>,
+
+    pre_cmd: Option<vk::CommandBuffer>,
+    pre_buffer_state: HashMap<vk::Buffer, (vk::PipelineStageFlags2, vk::AccessFlags2)>,
+
+    draw_cmd: Option<vk::CommandBuffer>,
+    draw_buffer_state: HashMap<vk::Buffer, (vk::PipelineStageFlags2, vk::AccessFlags2)>,
+
+    submit_alloc: &'a Bump,
+    command_buffer_infos: Vec<vk::CommandBufferSubmitInfoBuilder<'a>>,
+
+    artifact: SubmissionArtifact<'b>,
+}
+
+impl<'a, 'b> RecordState2<'a, 'b> {
+    fn new(object_pool: &'b RefCell<ObjectPool2>, submit_alloc: &'a Bump) -> Self {
+        let share = object_pool.borrow().share.clone();
+        let device = share.get_device().clone();
+
+        let artifact = SubmissionArtifact::new(share.clone(), object_pool);
+
+        Self {
+            share,
+            device,
+            object_pool,
+            pre_cmd: None,
+            pre_buffer_state: HashMap::new(),
+            draw_cmd: None,
+            draw_buffer_state: HashMap::new(),
+            submit_alloc,
+            command_buffer_infos: Vec::new(),
+            artifact
+        }
+    }
+
+    fn task_copy_staging_to_buffer(&mut self, task: CopyStagingToBufferTask) {
+        let mut barriers = Vec::new();
+        let buffer = task.dst_buffer.get_handle();
+
+        self.artifact.used_staging_memory.push(task.staging_allocation);
+        match task.dst_buffer {
+            Buffer::Persistent(buffer) => self.artifact.used_persistent_buffers.push(buffer),
+        }
+
+        let cmd = self.get_or_begin_pre_cmd().expect("Failed to get pre cmd");
+
+        self.sync_buffer_pre(&mut barriers, buffer, vk::PipelineStageFlags2::TRANSFER, vk::AccessFlags2::TRANSFER_WRITE)
+            .expect("Failed to sync buffer in staging to buffer copy");
+
+        if !barriers.is_empty() {
+            todo!()
+        }
+
+        let copy = vk::BufferCopy::builder()
+            .src_offset(task.staging_buffer_offset)
+            .dst_offset(task.dst_offset)
+            .size(task.copy_size);
+
+        unsafe {
+            self.device.vk().cmd_copy_buffer(cmd, task.staging_buffer, buffer, std::slice::from_ref(&copy))
+        };
+    }
+
+    fn task_copy_buffer_to_staging(&mut self, task: CopyBufferToStagingTask) {
+        let mut barriers = Vec::new();
+        let buffer = task.src_buffer.get_handle();
+
+        match task.src_buffer {
+            Buffer::Persistent(buffer) => self.artifact.used_persistent_buffers.push(buffer),
+        }
+
+        let cmd = self.get_or_begin_pre_cmd().expect("Failed to get pre cmd");
+
+        self.sync_buffer_pre(&mut barriers, buffer, vk::PipelineStageFlags2::TRANSFER, vk::AccessFlags2::TRANSFER_READ)
+            .expect("Failed to sync buffer in buffer to staging copy");
+
+        if !barriers.is_empty() {
+            todo!()
+        }
+
+        let copy = vk::BufferCopy::builder()
+            .src_offset(task.src_offset)
+            .dst_offset(task.staging_buffer_offset)
+            .size(task.copy_size);
+
+        unsafe {
+            self.device.vk().cmd_copy_buffer(cmd, buffer, task.staging_buffer, std::slice::from_ref(&copy))
+        };
+    }
+
+    fn submit(mut self, wait_value: u64, signal_value: u64) -> Result<Option<SubmissionArtifact<'b>>, vk::Result> {
+        self.end_cmd_set()?;
+
+        if !self.command_buffer_infos.is_empty() {
+            let wait = vk::SemaphoreSubmitInfo::builder()
+                .semaphore(self.share.get_semaphore())
+                .value(wait_value)
+                .stage_mask(vk::PipelineStageFlags2::ALL_COMMANDS);
+
+            let signal = vk::SemaphoreSubmitInfo::builder()
+                .semaphore(self.share.get_semaphore())
+                .value(signal_value)
+                .stage_mask(vk::PipelineStageFlags2::ALL_COMMANDS);
+
+            let info = vk::SubmitInfo2::builder()
+                .wait_semaphore_infos(std::slice::from_ref(&wait))
+                // Safe because builders are repr(transparent)
+                .command_buffer_infos(unsafe { std::mem::transmute(self.command_buffer_infos.as_slice()) })
+                .signal_semaphore_infos(std::slice::from_ref(&signal));
+
+            unsafe {
+                self.share.get_queue().submit_2(std::slice::from_ref(&info), None)
+            }?;
+
+            self.artifact.wait_value = signal_value;
+            Ok(Some(self.artifact))
+        } else {
+            Ok(None)
+        }
+    }
+
+    fn get_or_begin_pre_cmd(&mut self) -> Result<vk::CommandBuffer, vk::Result> {
+        if let Some(cmd) = &self.pre_cmd {
+            Ok(*cmd)
+        } else {
+            let cmd = self.object_pool.borrow_mut().get_begin_command_buffer()?;
+            self.artifact.used_command_buffers.push(cmd);
+            self.pre_cmd = Some(cmd);
+            Ok(cmd)
+        }
+    }
+
+    fn get_or_begin_draw_cmd(&mut self) -> Result<vk::CommandBuffer, vk::Result> {
+        if let Some(cmd) = &self.draw_cmd {
+            Ok(*cmd)
+        } else {
+            let cmd = self.object_pool.borrow_mut().get_begin_command_buffer()?;
+            self.artifact.used_command_buffers.push(cmd);
+            self.draw_cmd = Some(cmd);
+            Ok(cmd)
+        }
+    }
+
+    fn end_cmd_set(&mut self) -> Result<(), vk::Result> {
+        let pre_buffer_state = std::mem::replace(&mut self.pre_buffer_state, HashMap::new());
+        let mut draw_buffer_state = std::mem::replace(&mut self.draw_buffer_state, HashMap::new());
+
+        let mut barriers = Vec::new();
+        for (buffer, (src_stage_mask, src_access_mask)) in pre_buffer_state {
+            if let Some((dst_stage_mask, dst_access_mask)) = draw_buffer_state.remove(&buffer) {
+                barriers.push(vk::BufferMemoryBarrier2::builder()
+                    .src_stage_mask(src_stage_mask)
+                    .src_access_mask(src_access_mask)
+                    .dst_stage_mask(dst_stage_mask)
+                    .dst_access_mask(dst_access_mask)
+                    .buffer(buffer)
+                    .offset(0)
+                    .size(vk::WHOLE_SIZE)
+                    .build()
+                );
+
+                self.pre_buffer_state.insert(buffer, (dst_stage_mask, dst_access_mask));
+            } else {
+                self.pre_buffer_state.insert(buffer, (src_stage_mask, src_access_mask));
+            }
+        }
+        self.pre_buffer_state.extend(draw_buffer_state.into_iter());
+
+        if barriers.len() != 0 {
+            // TODO deal with MCs multi thousand barriers
+            let cmd = self.get_or_begin_pre_cmd()?;
+
+            let info = vk::DependencyInfo::builder()
+                .buffer_memory_barriers(&barriers);
+
+            unsafe {
+                self.device.vk().cmd_pipeline_barrier2(cmd, &info)
+            };
+        }
+
+        if let Some(cmd) = self.pre_cmd.take() {
+            self.end_push_cmd(cmd)?;
+        }
+
+        if let Some(cmd) = self.draw_cmd.take() {
+            self.end_push_cmd(cmd)?;
+        }
+
+        Ok(())
+    }
+
+    fn end_push_cmd(&mut self, cmd: vk::CommandBuffer) -> Result<(), vk::Result> {
+        unsafe {
+            self.device.vk().end_command_buffer(cmd)
+        }?;
+
+        let info = vk::CommandBufferSubmitInfo::builder()
+            .command_buffer(cmd);
+
+        self.command_buffer_infos.push(info);
+        Ok(())
+    }
+
+    fn sync_buffer_pre(&mut self, barriers: &mut Vec<vk::BufferMemoryBarrier2>, buffer: vk::Buffer, dst_stage_mask: vk::PipelineStageFlags2, dst_access_mask: vk::AccessFlags2) -> Result<(), vk::Result> {
+        if self.draw_buffer_state.contains_key(&buffer) {
+            self.end_cmd_set()?;
+        }
+
+        let old = self.pre_buffer_state.insert(buffer, (dst_stage_mask, dst_access_mask));
+        if let Some((src_stage_mask, src_access_mask)) = old {
+            barriers.push(vk::BufferMemoryBarrier2::builder()
+                .src_stage_mask(src_stage_mask)
+                .src_access_mask(src_access_mask)
+                .dst_stage_mask(dst_stage_mask)
+                .dst_access_mask(dst_access_mask)
+                .buffer(buffer)
+                .offset(0)
+                .size(vk::WHOLE_SIZE)
+                .build()
+            );
+        }
+
+        Ok(())
+    }
+
+    fn sync_buffer_draw(&mut self, buffer: vk::Buffer, dst_stage_mask: vk::PipelineStageFlags2, dst_access_mask: vk::AccessFlags2) {
+        // We can do this because we only allow read access to buffers during a draw
+        if let Some((stage_mask, access_mask)) = self.draw_buffer_state.get_mut(&buffer) {
+            *stage_mask |= dst_stage_mask;
+            *access_mask |= dst_access_mask;
+        } else {
+            self.draw_buffer_state.insert(buffer, (dst_stage_mask, dst_access_mask));
+        }
+    }
+}
+
+struct SubmissionArtifact<'a> {
+    share: Arc<Share2>,
+    object_pool: &'a RefCell<ObjectPool2>,
+    wait_value: u64,
+
+    used_command_buffers: Vec<vk::CommandBuffer>,
+
+    #[allow(unused)] // Only needed to keep the objects alive
+    used_persistent_buffers: Vec<Arc<PersistentBuffer>>,
+    used_staging_memory: Vec<StagingAllocationId2>,
+}
+
+impl<'a> SubmissionArtifact<'a> {
+    fn new(share: Arc<Share2>, object_pool: &'a RefCell<ObjectPool2>) -> Self {
+        Self {
+            share,
+            object_pool,
+            wait_value: 0,
+            used_command_buffers: Vec::new(),
+            used_persistent_buffers: Vec::new(),
+            used_staging_memory: Vec::new(),
+        }
+    }
+
+    fn is_done(&self) -> bool {
+        let val = unsafe {
+            self.share.get_device().vk().get_semaphore_counter_value(self.share.get_semaphore())
+        }.expect("Failed to query semaphore for emulator worker");
+
+        val >= self.wait_value
+    }
+}
+
+impl<'a> Drop for SubmissionArtifact<'a> {
+    fn drop(&mut self) {
+        unsafe { self.share.free_staging(std::mem::replace(&mut self.used_staging_memory, Vec::new())) };
+        self.object_pool.borrow_mut().return_command_buffers(std::mem::replace(&mut self.used_command_buffers, Vec::new()));
+    }
+}
 
 
 

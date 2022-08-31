@@ -53,7 +53,7 @@ impl InstanceCreateConfig {
     }
 }
 
-#[derive(Debug)]
+#[derive(Clone, Debug)]
 pub enum InstanceCreateError {
     Vulkan(vk::Result),
     ProfileNotSupported,

@@ -45,7 +45,7 @@ impl DeviceCreateConfig {
     }
 }
 
-#[derive(Debug)]
+#[derive(Clone, Debug)]
 pub enum DeviceCreateError {
     Vulkan(vk::Result),
     NoSupportedDevice,

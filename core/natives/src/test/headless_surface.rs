@@ -18,7 +18,9 @@ impl HeadlessSurfaceProvider {
 
 impl SurfaceProvider for HeadlessSurfaceProvider {
     fn get_required_instance_extensions(&self) -> Vec<CString> {
-        HeadlessSurfaceProvider::REQUIRED_INSTANCE_EXTENSIONS.iter().map(CString::new).collect::<Result<_, _>>().unwrap()
+        HeadlessSurfaceProvider::REQUIRED_INSTANCE_EXTENSIONS.iter().map(|s|
+            CString::new(String::from(*s))
+        ).collect::<Result<_, _>>().unwrap()
     }
 
     unsafe fn init(&mut self, entry: &Entry, instance: &Instance) -> Result<vk::SurfaceKHR, SurfaceInitError> {
@@ -42,7 +44,7 @@ impl SurfaceProvider for HeadlessSurfaceProvider {
     }
 
     unsafe fn get_handle(&self) -> vk::SurfaceKHR {
-        *self.surface.as_ref().expect("Called HeadlessSurfaceProvider::get_handle on uninitialized instance").0
+        self.surface.as_ref().expect("Called HeadlessSurfaceProvider::get_handle on uninitialized instance").0
     }
 }
 

@@ -43,6 +43,7 @@ pub fn create_test_device(instance: Arc<InstanceContext>, surface: Option<vk::Su
     create_device(config, instance)
 }
 
+#[derive(Clone, Debug)]
 pub enum InstanceDeviceCreateError {
     InstanceCreateError(InstanceCreateError),
     DeviceCreateError(DeviceCreateError),
@@ -67,21 +68,24 @@ impl From<SurfaceInitError> for InstanceDeviceCreateError {
     }
 }
 
-pub fn create_test_instance_device(surface: Option<&mut dyn SurfaceProvider>) -> Result<(Arc<InstanceContext>, Arc<DeviceContext>), InstanceDeviceCreateError> {
-    let instance = create_test_instance(surface.into())?;
+pub fn create_test_instance_device(mut surface: Option<&mut dyn SurfaceProvider>) -> Result<(Arc<InstanceContext>, Arc<DeviceContext>), InstanceDeviceCreateError> {
+    let instance = create_test_instance(surface.as_deref())?;
 
-    let surface_instance = if let Some(surface) = surface {
+    let surface_instance = if let Some(surface) = surface.as_mut() {
         Some(unsafe { surface.init(instance.get_entry(), instance.vk())? })
     } else {
         None
     };
 
-    let device = create_test_device(instance.clone(), surface_instance).map_err(|err| {
-        if let Some(surface) = surface {
-            unsafe { surface.destroy() };
+    let device = match create_test_device(instance.clone(), surface_instance) {
+        Ok(v) => v,
+        Err(err) => {
+            if let Some(surface) = surface.as_mut() {
+                unsafe { surface.destroy() };
+            }
+            return Err(err.into())
         }
-        err
-    })?;
+    };
 
     Ok((instance, device))
 }
