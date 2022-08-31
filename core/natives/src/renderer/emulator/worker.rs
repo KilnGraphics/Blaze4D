@@ -1,6 +1,7 @@
 use std::cell::RefCell;
 use std::collections::{HashMap, HashSet};
 use std::marker::PhantomData;
+use std::process::exit;
 use std::rc::Rc;
 use std::sync::Arc;
 use std::time::{Duration, Instant};
@@ -64,7 +65,7 @@ pub(super) fn run_worker2(share: Arc<Share2>) {
                 }
                 (id, WorkerTask2::Flush(signal_value)) =>  {
                     if let Some(record_state) = record_state.take() {
-                        if let Some(artifact) = submit_record(record_state, &mut current_sync, id).unwrap() {
+                        if let Some(artifact) = submit_record(record_state, &mut current_sync, id) {
                             todo!()
                         }
                     }
@@ -72,7 +73,7 @@ pub(super) fn run_worker2(share: Arc<Share2>) {
                 }
                 (id, WorkerTask2::Shutdown) => {
                     if let Some(record_state) = record_state.take() {
-                        if let Some(artifact) = submit_record(record_state, &mut current_sync, id).unwrap() {
+                        if let Some(artifact) = submit_record(record_state, &mut current_sync, id) {
                             todo!()
                         }
                     }
@@ -96,22 +97,20 @@ fn get_or_start_record<'a, 'b, 'c>(record_state: &'a mut Option<RecordState2<'b,
     record_state.as_mut().unwrap()
 }
 
-fn submit_record<'a, 'b>(record_state: RecordState2<'a, 'b>, old_sync: &mut u64, new_sync: u64) -> Result<Option<SubmissionArtifact<'b>>, vk::Result> {
+fn submit_record<'a, 'b>(record_state: RecordState2<'a, 'b>, old_sync: &mut u64, new_sync: u64) -> Option<SubmissionArtifact<'b>> {
     match record_state.submit(*old_sync, new_sync) {
-        Ok(Some(artifact)) => {
+        Some(artifact) => {
             *old_sync = new_sync;
-            Ok(Some(artifact))
+            Some(artifact)
         },
-        Ok(None) => {
+        None => {
             // Nothing was submitted but we still need to make sure the new sync value gets signaled eventually
             todo!()
-        },
-        Err(err) => {
-            Err(err)
         }
     }
 }
 
+/// Provides a pool of vulkan objects to allow for object reuse.
 struct ObjectPool2 {
     share: Arc<Share2>,
     device: Arc<DeviceContext>,
@@ -140,9 +139,12 @@ impl ObjectPool2 {
         })
     }
 
-    fn get_command_buffer(&mut self) -> Result<vk::CommandBuffer, vk::Result> {
+    /// Retrieves a new command buffer from the pool, creating a new one if necessary.
+    ///
+    /// The returned command buffer is guaranteed to be in the initial state.
+    fn get_command_buffer(&mut self) -> vk::CommandBuffer {
         if let Some(cmd) = self.available_buffers.pop() {
-            Ok(cmd)
+            cmd
         } else {
             let info = vk::CommandBufferAllocateInfo::builder()
                 .command_pool(self.command_pool)
@@ -151,33 +153,41 @@ impl ObjectPool2 {
 
             let mut buffers = unsafe {
                 self.device.vk().allocate_command_buffers(&info)
-            }?;
+            }.expect("Failed to allocate command buffers"); // Maybe recover from out of device memory?
 
             let cmd = buffers.pop().unwrap();
             self.available_buffers.extend(buffers);
 
-            Ok(cmd)
+            cmd
         }
     }
 
-    fn get_begin_command_buffer(&mut self) -> Result<vk::CommandBuffer, vk::Result> {
-        let cmd = self.get_command_buffer()?;
+    /// Retrieves a command buffer from the pool, creating a new one if necessary and begins
+    /// recording for a one time submission.
+    fn get_begin_command_buffer(&mut self) -> vk::CommandBuffer {
+        let cmd = self.get_command_buffer();
 
         let info = vk::CommandBufferBeginInfo::builder()
             .flags(vk::CommandBufferUsageFlags::ONE_TIME_SUBMIT);
 
         unsafe {
             self.device.vk().begin_command_buffer(cmd, &info)
-        }?;
+        }.expect("Failed to begin command buffer recording"); // Maybe recover from out of device memory?
 
-        Ok(cmd)
+        cmd
     }
 
-    fn return_command_buffers<I: IntoIterator<Item=vk::CommandBuffer>>(&mut self, iter: I) {
+    /// Returns a set of command buffer to the pool. The command buffers will be reset by this
+    /// function.
+    ///
+    /// # Safety
+    /// The command buffers must be safe to be reset or destroyed and must have previously been
+    /// retrieved from a call to this instance.
+    unsafe fn return_command_buffers<I: IntoIterator<Item=vk::CommandBuffer>>(&mut self, iter: I) {
         for cmd in iter.into_iter() {
             unsafe {
                 self.device.vk().reset_command_buffer(cmd, vk::CommandBufferResetFlags::empty())
-            }.expect("Failed to reset command buffers"); // Only valid error is out of device memory which we handle as a critical error
+            }.expect("Failed to reset command buffers"); // Maybe recover from out of device memory?
 
             self.available_buffers.push(cmd);
         }
@@ -239,10 +249,9 @@ impl<'a, 'b> RecordState2<'a, 'b> {
             Buffer::Persistent(buffer) => self.artifact.used_persistent_buffers.push(buffer),
         }
 
-        let cmd = self.get_or_begin_pre_cmd().expect("Failed to get pre cmd");
+        let cmd = self.get_or_begin_pre_cmd();
 
-        self.sync_buffer_pre(&mut barriers, buffer, vk::PipelineStageFlags2::TRANSFER, vk::AccessFlags2::TRANSFER_WRITE)
-            .expect("Failed to sync buffer in staging to buffer copy");
+        self.sync_buffer_pre(&mut barriers, buffer, vk::PipelineStageFlags2::TRANSFER, vk::AccessFlags2::TRANSFER_WRITE);
 
         if !barriers.is_empty() {
             todo!()
@@ -266,10 +275,9 @@ impl<'a, 'b> RecordState2<'a, 'b> {
             Buffer::Persistent(buffer) => self.artifact.used_persistent_buffers.push(buffer),
         }
 
-        let cmd = self.get_or_begin_pre_cmd().expect("Failed to get pre cmd");
+        let cmd = self.get_or_begin_pre_cmd();
 
-        self.sync_buffer_pre(&mut barriers, buffer, vk::PipelineStageFlags2::TRANSFER, vk::AccessFlags2::TRANSFER_READ)
-            .expect("Failed to sync buffer in buffer to staging copy");
+        self.sync_buffer_pre(&mut barriers, buffer, vk::PipelineStageFlags2::TRANSFER, vk::AccessFlags2::TRANSFER_READ);
 
         if !barriers.is_empty() {
             todo!()
@@ -285,8 +293,13 @@ impl<'a, 'b> RecordState2<'a, 'b> {
         };
     }
 
-    fn submit(mut self, wait_value: u64, signal_value: u64) -> Result<Option<SubmissionArtifact<'b>>, vk::Result> {
-        self.end_cmd_set()?;
+    /// Submits all recorded work to the queue and returns an artifact containing any objects used
+    /// for submission. The artifact must not be dropped until after the submission has finished
+    /// execution.
+    ///
+    /// If no work has been submitted [`None`] is returned.
+    fn submit(mut self, wait_value: u64, signal_value: u64) -> Option<SubmissionArtifact<'b>> {
+        self.end_cmd_set();
 
         if !self.command_buffer_infos.is_empty() {
             let wait = vk::SemaphoreSubmitInfo::builder()
@@ -307,38 +320,42 @@ impl<'a, 'b> RecordState2<'a, 'b> {
 
             unsafe {
                 self.share.get_queue().submit_2(std::slice::from_ref(&info), None)
-            }?;
+            }.expect("Failed to submit to queue");
 
             self.artifact.wait_value = signal_value;
-            Ok(Some(self.artifact))
+            Some(self.artifact)
         } else {
-            Ok(None)
+            None
         }
     }
 
-    fn get_or_begin_pre_cmd(&mut self) -> Result<vk::CommandBuffer, vk::Result> {
+    /// Returns the pre command buffer for the current set or begins a new one if none exists.
+    fn get_or_begin_pre_cmd(&mut self) -> vk::CommandBuffer {
         if let Some(cmd) = &self.pre_cmd {
-            Ok(*cmd)
+            *cmd
         } else {
-            let cmd = self.object_pool.borrow_mut().get_begin_command_buffer()?;
+            let cmd = self.object_pool.borrow_mut().get_begin_command_buffer();
             self.artifact.used_command_buffers.push(cmd);
             self.pre_cmd = Some(cmd);
-            Ok(cmd)
+            cmd
         }
     }
 
-    fn get_or_begin_draw_cmd(&mut self) -> Result<vk::CommandBuffer, vk::Result> {
+    /// Returns the draw command buffer for the current set or begins a new one if none exists.
+    fn get_or_begin_draw_cmd(&mut self) -> vk::CommandBuffer {
         if let Some(cmd) = &self.draw_cmd {
-            Ok(*cmd)
+            *cmd
         } else {
-            let cmd = self.object_pool.borrow_mut().get_begin_command_buffer()?;
+            let cmd = self.object_pool.borrow_mut().get_begin_command_buffer();
             self.artifact.used_command_buffers.push(cmd);
             self.draw_cmd = Some(cmd);
-            Ok(cmd)
+            cmd
         }
     }
 
-    fn end_cmd_set(&mut self) -> Result<(), vk::Result> {
+    /// Ends the current pre, draw command buffer set and pushes it onto the pending submission
+    /// list. Handles all memory barriers and prepares the initial sync state for the next set.
+    fn end_cmd_set(&mut self) {
         let pre_buffer_state = std::mem::replace(&mut self.pre_buffer_state, HashMap::new());
         let mut draw_buffer_state = std::mem::replace(&mut self.draw_buffer_state, HashMap::new());
 
@@ -365,7 +382,7 @@ impl<'a, 'b> RecordState2<'a, 'b> {
 
         if barriers.len() != 0 {
             // TODO deal with MCs multi thousand barriers
-            let cmd = self.get_or_begin_pre_cmd()?;
+            let cmd = self.get_or_begin_pre_cmd();
 
             let info = vk::DependencyInfo::builder()
                 .buffer_memory_barriers(&barriers);
@@ -376,31 +393,32 @@ impl<'a, 'b> RecordState2<'a, 'b> {
         }
 
         if let Some(cmd) = self.pre_cmd.take() {
-            self.end_push_cmd(cmd)?;
+            self.end_push_cmd(cmd);
         }
 
         if let Some(cmd) = self.draw_cmd.take() {
-            self.end_push_cmd(cmd)?;
+            self.end_push_cmd(cmd);
         }
-
-        Ok(())
     }
 
-    fn end_push_cmd(&mut self, cmd: vk::CommandBuffer) -> Result<(), vk::Result> {
+    /// Ends recording for the command buffer and pushes it onto the current list of pending
+    /// submissions.
+    fn end_push_cmd(&mut self, cmd: vk::CommandBuffer) {
         unsafe {
             self.device.vk().end_command_buffer(cmd)
-        }?;
+        }.expect("Failed to end command buffer recording");
 
         let info = vk::CommandBufferSubmitInfo::builder()
             .command_buffer(cmd);
 
         self.command_buffer_infos.push(info);
-        Ok(())
     }
 
-    fn sync_buffer_pre(&mut self, barriers: &mut Vec<vk::BufferMemoryBarrier2>, buffer: vk::Buffer, dst_stage_mask: vk::PipelineStageFlags2, dst_access_mask: vk::AccessFlags2) -> Result<(), vk::Result> {
+    /// Updates the sync state for a buffer used during a pre pass and generates potential memory
+    /// barriers.
+    fn sync_buffer_pre(&mut self, barriers: &mut Vec<vk::BufferMemoryBarrier2>, buffer: vk::Buffer, dst_stage_mask: vk::PipelineStageFlags2, dst_access_mask: vk::AccessFlags2) {
         if self.draw_buffer_state.contains_key(&buffer) {
-            self.end_cmd_set()?;
+            self.end_cmd_set();
         }
 
         let old = self.pre_buffer_state.insert(buffer, (dst_stage_mask, dst_access_mask));
@@ -416,10 +434,11 @@ impl<'a, 'b> RecordState2<'a, 'b> {
                 .build()
             );
         }
-
-        Ok(())
     }
 
+    /// Updates the sync state for a buffer used during a draw pass.
+    ///
+    /// The buffer must only be used for read access.
     fn sync_buffer_draw(&mut self, buffer: vk::Buffer, dst_stage_mask: vk::PipelineStageFlags2, dst_access_mask: vk::AccessFlags2) {
         // We can do this because we only allow read access to buffers during a draw
         if let Some((stage_mask, access_mask)) = self.draw_buffer_state.get_mut(&buffer) {
@@ -467,7 +486,7 @@ impl<'a> SubmissionArtifact<'a> {
 impl<'a> Drop for SubmissionArtifact<'a> {
     fn drop(&mut self) {
         unsafe { self.share.free_staging(std::mem::replace(&mut self.used_staging_memory, Vec::new())) };
-        self.object_pool.borrow_mut().return_command_buffers(std::mem::replace(&mut self.used_command_buffers, Vec::new()));
+        unsafe { self.object_pool.borrow_mut().return_command_buffers(std::mem::replace(&mut self.used_command_buffers, Vec::new())) };
     }
 }
 
