@@ -4,6 +4,7 @@ use std::os::raw::c_char;
 use std::sync::Arc;
 
 use ash::vk;
+use ash::vk::{DeviceCreateFlags, PhysicalDeviceFeatures2, PhysicalDevicePortabilitySubsetFeaturesKHR};
 use bumpalo::Bump;
 use vk_profiles_rs::{vp, VulkanProfiles};
 
@@ -97,8 +98,13 @@ pub fn create_device(config: DeviceCreateConfig, instance: Arc<InstanceContext>)
         );
     }
 
-    let device_create_info = device_create_info.queue_create_infos(queue_create_infos.as_slice());
-
+    let mut portability_subset_features = PhysicalDevicePortabilitySubsetFeaturesKHR::default();
+    #[cfg(target_os = "macos")] {
+        let mut dummy_features = PhysicalDeviceFeatures2::builder().push_next(&mut portability_subset_features);
+        unsafe {instance.vk().get_physical_device_features2(physical_device, &mut dummy_features);}
+    }
+    let device_create_info = device_create_info.queue_create_infos(queue_create_infos.as_slice())
+        .push_next(&mut portability_subset_features);
     let mut flags = vp::DeviceCreateFlagBits::MERGE_EXTENSIONS | vp::DeviceCreateFlagBits::OVERRIDE_FEATURES;
     if config.disable_robustness {
         flags |= vp::DeviceCreateFlagBits::DISABLE_ROBUST_ACCESS;
@@ -374,6 +380,15 @@ fn configure_device(device: &mut DeviceConfigurator) -> Result<Option<DeviceConf
     }
     device.add_extension(&push_descriptor_name);
 
+    let request_portability = cfg!(target_os="macos");
+    if request_portability {
+        let portability_subset_name = CString::new("VK_KHR_portability_subset").unwrap();
+        if !device.is_extension_supported(&portability_subset_name) {
+            log::info!("Physical device (moltenVK) {:?} does not support VK_KHR_portability_subset", device.get_name());
+            return Ok(None);
+        }
+        device.add_extension(&portability_subset_name);
+    }
     let maintenance_4_name = CString::new("VK_KHR_maintenance4").unwrap();
     let mut maintenance4;
     if !device.is_extension_supported(&maintenance_4_name) {

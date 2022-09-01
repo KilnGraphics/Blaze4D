@@ -5,6 +5,7 @@ use std::str::Utf8Error;
 use std::sync::Arc;
 
 use ash::vk;
+use ash::vk::InstanceCreateFlags;
 
 use vk_profiles_rs::vp;
 use crate::{BUILD_INFO, CRATE_NAME};
@@ -134,10 +135,23 @@ pub fn create_instance(config: InstanceCreateConfig) -> Result<Arc<InstanceConte
         .engine_version(vk::make_api_version(0, BUILD_INFO.version_major, BUILD_INFO.version_minor, BUILD_INFO.version_patch))
         .api_version(max_api_version.into());
 
+    // this has to be outside of the if statement because it is prematurely dropped otherwise
+    let portability_name = CString::new("VK_KHR_portability_enumeration").unwrap();
+    let request_portability = cfg!(target_os="macos");
+    // Request portability extensions/portability enumeration bit for moltenVK
+    let instance_create_flags = if request_portability {
+        required_extensions_str.push(portability_name.as_c_str().as_ptr());
+        InstanceCreateFlags::ENUMERATE_PORTABILITY_KHR
+    } else {
+        InstanceCreateFlags::default()
+    };
+
     let mut instance_create_info = vk::InstanceCreateInfo::builder()
         .application_info(&application_info)
         .enabled_layer_names(required_layers.as_slice())
-        .enabled_extension_names(required_extensions_str.as_slice());
+        .enabled_extension_names(required_extensions_str.as_slice())
+        .flags(instance_create_flags);
+
 
     let debug_messengers = config.debug_messengers.into_boxed_slice();
     let mut debug_messenger_create_infos: Vec<_> = debug_messengers.iter().map(|messenger| {
