@@ -1,5 +1,5 @@
 use std::cell::RefCell;
-use std::collections::{HashMap, HashSet};
+use std::collections::{HashMap, HashSet, VecDeque};
 use std::marker::PhantomData;
 use std::process::exit;
 use std::rc::Rc;
@@ -26,31 +26,33 @@ use crate::renderer::emulator::staging::{StagingAllocationId2, StagingAllocation
 pub(super) enum WorkerTask2 {
     CopyStagingToBuffer(CopyStagingToBufferTask),
     CopyBufferToStaging(CopyBufferToStagingTask),
-    Flush(u64),
+    Flush,
     Shutdown,
 }
 
 pub(super) struct CopyStagingToBufferTask {
-    staging_allocation: StagingAllocationId2,
-    staging_buffer: vk::Buffer,
-    staging_buffer_offset: vk::DeviceSize,
-    dst_buffer: Buffer,
-    dst_offset: vk::DeviceSize,
-    copy_size: vk::DeviceSize,
+    pub staging_allocation: StagingAllocationId2,
+    pub staging_buffer: vk::Buffer,
+    pub staging_buffer_offset: vk::DeviceSize,
+    pub dst_buffer: Buffer,
+    pub dst_offset: vk::DeviceSize,
+    pub copy_size: vk::DeviceSize,
 }
 
 pub(super) struct CopyBufferToStagingTask {
-    staging_buffer: vk::Buffer,
-    staging_buffer_offset: vk::DeviceSize,
-    src_buffer: Buffer,
-    src_offset: vk::DeviceSize,
-    copy_size: vk::DeviceSize,
+    pub staging_buffer: vk::Buffer,
+    pub staging_buffer_offset: vk::DeviceSize,
+    pub src_buffer: Buffer,
+    pub src_offset: vk::DeviceSize,
+    pub copy_size: vk::DeviceSize,
 }
 
 pub(super) fn run_worker2(share: Arc<Share2>) {
     let mut object_pool = RefCell::new(ObjectPool2::new(share.clone()).unwrap());
     let mut record_state = None;
     let mut bump = Bump::new();
+
+    let mut artifacts = VecDeque::with_capacity(3);
 
     let mut current_sync = 0u64;
     let mut last_update = Instant::now();
@@ -63,22 +65,25 @@ pub(super) fn run_worker2(share: Arc<Share2>) {
                 (_, WorkerTask2::CopyBufferToStaging(copy)) => {
                     get_or_start_record(&mut record_state, &object_pool, &bump).task_copy_buffer_to_staging(copy);
                 }
-                (id, WorkerTask2::Flush(signal_value)) =>  {
-                    if let Some(record_state) = record_state.take() {
-                        if let Some(artifact) = submit_record(record_state, &mut current_sync, id) {
-                            todo!()
-                        }
+                (id, WorkerTask2::Flush) =>  {
+                    if let Some(artifact) = submit_record(&mut record_state, &mut current_sync, id) {
+                        artifacts.push_back(artifact);
                     }
-                    todo!()
                 }
                 (id, WorkerTask2::Shutdown) => {
-                    if let Some(record_state) = record_state.take() {
-                        if let Some(artifact) = submit_record(record_state, &mut current_sync, id) {
-                            todo!()
-                        }
+                    if let Some(artifact) = submit_record(&mut record_state, &mut current_sync, id) {
+                        artifacts.push_back(artifact);
                     }
                     break;
                 }
+            }
+        }
+
+        while let Some(artifact) = artifacts.front() {
+            if artifact.is_done() {
+                artifacts.pop_front();
+            } else {
+                break;
             }
         }
 
@@ -86,6 +91,21 @@ pub(super) fn run_worker2(share: Arc<Share2>) {
         if now.duration_since(last_update) >= Duration::from_secs(10) {
             share.update();
             last_update = now;
+        }
+    }
+
+    let semaphore = share.get_semaphore();
+    loop {
+        let info = vk::SemaphoreWaitInfo::builder()
+            .semaphores(std::slice::from_ref(&semaphore))
+            .values(std::slice::from_ref(&current_sync));
+
+        match unsafe {
+            share.get_device().timeline_semaphore_khr().wait_semaphores(&info, 1000000000)
+        } {
+            Ok(()) => break,
+            Err(vk::Result::TIMEOUT) => log::warn!("Hit timeout while waiting for vkWaitSemaphores"),
+            Err(err) => panic!("vkWaitSemaphores returned {:?}", err),
         }
     }
 }
@@ -97,16 +117,20 @@ fn get_or_start_record<'a, 'b, 'c>(record_state: &'a mut Option<RecordState2<'b,
     record_state.as_mut().unwrap()
 }
 
-fn submit_record<'a, 'b>(record_state: RecordState2<'a, 'b>, old_sync: &mut u64, new_sync: u64) -> Option<SubmissionArtifact<'b>> {
-    match record_state.submit(*old_sync, new_sync) {
-        Some(artifact) => {
-            *old_sync = new_sync;
-            Some(artifact)
-        },
-        None => {
-            // Nothing was submitted but we still need to make sure the new sync value gets signaled eventually
-            todo!()
+fn submit_record<'a, 'b>(record_state: &mut Option<RecordState2<'a, 'b>>, old_sync: &mut u64, new_sync: u64) -> Option<SubmissionArtifact<'b>> {
+    if let Some(record_state) = record_state.take() {
+        match record_state.submit(*old_sync, new_sync) {
+            Some(artifact) => {
+                *old_sync = new_sync;
+                Some(artifact)
+            },
+            None => {
+                // Nothing was submitted but we still need to make sure the new sync value gets signaled eventually
+                todo!()
+            }
         }
+    } else {
+        None
     }
 }
 
@@ -254,7 +278,7 @@ impl<'a, 'b> RecordState2<'a, 'b> {
         self.sync_buffer_pre(&mut barriers, buffer, vk::PipelineStageFlags2::TRANSFER, vk::AccessFlags2::TRANSFER_WRITE);
 
         if !barriers.is_empty() {
-            todo!()
+            Self::record_barriers(&self.device, cmd, Some(barriers.as_slice()), None);
         }
 
         let copy = vk::BufferCopy::builder()
@@ -280,7 +304,7 @@ impl<'a, 'b> RecordState2<'a, 'b> {
         self.sync_buffer_pre(&mut barriers, buffer, vk::PipelineStageFlags2::TRANSFER, vk::AccessFlags2::TRANSFER_READ);
 
         if !barriers.is_empty() {
-            todo!()
+            Self::record_barriers(&self.device, cmd, Some(barriers.as_slice()), None);
         }
 
         let copy = vk::BufferCopy::builder()
@@ -326,6 +350,20 @@ impl<'a, 'b> RecordState2<'a, 'b> {
             Some(self.artifact)
         } else {
             None
+        }
+    }
+
+    fn record_barriers(device: &DeviceContext, cmd: vk::CommandBuffer, buffer_barriers: Option<&[vk::BufferMemoryBarrier2]>, image_barriers: Option<&[vk::ImageMemoryBarrier2]>) {
+        let mut info = vk::DependencyInfo::builder();
+        if let Some(buffer_barriers) = buffer_barriers {
+            info = info.buffer_memory_barriers(buffer_barriers);
+        }
+        if let Some(image_barriers) = image_barriers {
+            info = info.image_memory_barriers(image_barriers);
+        }
+
+        unsafe {
+            device.synchronization_2_khr().cmd_pipeline_barrier2(cmd, &info)
         }
     }
 
@@ -388,7 +426,7 @@ impl<'a, 'b> RecordState2<'a, 'b> {
                 .buffer_memory_barriers(&barriers);
 
             unsafe {
-                self.device.vk().cmd_pipeline_barrier2(cmd, &info)
+                self.device.synchronization_2_khr().cmd_pipeline_barrier2(cmd, &info)
             };
         }
 
@@ -476,7 +514,7 @@ impl<'a> SubmissionArtifact<'a> {
 
     fn is_done(&self) -> bool {
         let val = unsafe {
-            self.share.get_device().vk().get_semaphore_counter_value(self.share.get_semaphore())
+            self.share.get_device().timeline_semaphore_khr().get_semaphore_counter_value(self.share.get_semaphore())
         }.expect("Failed to query semaphore for emulator worker");
 
         val >= self.wait_value

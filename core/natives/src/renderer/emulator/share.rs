@@ -26,6 +26,9 @@ use crate::prelude::*;
 pub(super) struct Share2 {
     device: Arc<DeviceContext>,
     queue: Arc<Queue>,
+
+    id: UUID,
+
     staging: Mutex<StagingMemory2>,
     objects: Mutex<Objects>,
     channel: Mutex<Channel2>,
@@ -52,6 +55,7 @@ impl Share2 {
         let share = Arc::new(Self {
             device,
             queue,
+            id: UUID::new(),
             staging: Mutex::new(staging),
             objects: Mutex::new(objects),
             channel: Mutex::new(Channel2::new()),
@@ -96,8 +100,30 @@ impl Share2 {
         self.semaphore
     }
 
+    pub(super) fn wait_for_task(&self, task_id: u64) {
+        let info = vk::SemaphoreWaitInfo::builder()
+            .semaphores(std::slice::from_ref(&self.semaphore))
+            .values(std::slice::from_ref(&task_id));
+
+        loop {
+            match unsafe {
+                self.device.timeline_semaphore_khr().wait_semaphores(&info, 1000000000)
+            } {
+                Ok(()) => break,
+                Err(vk::Result::TIMEOUT) => {
+                    log::warn!("Timeout while waiting on emulator semaphore");
+                    if self.channel.lock().unwrap().failed {
+                        panic!("Emulator worker has failed");
+                    }
+                },
+                Err(err) => panic!("VkWaitSemaphores returned {:?}", err),
+            }
+        }
+    }
+
     pub(super) fn get_buffer(&self, id: BufferId) -> Option<Buffer> {
-        todo!()
+        let guard = self.objects.lock().unwrap();
+        guard.buffers.get(&id).cloned()
     }
 
     pub(super) fn create_persistent_buffer(&self, size: u64) -> Option<BufferId> {
@@ -135,6 +161,21 @@ impl Share2 {
         }
     }
 
+    pub(super) fn flush(&self) -> u64 {
+        let mut guard = self.channel.lock().unwrap();
+        let id = guard.next_task_id;
+        if guard.last_flush == id - 1 {
+            return guard.last_flush;
+        }
+
+        guard.next_task_id += 1;
+        guard.last_flush = id;
+        guard.queue.push_back((id, WorkerTask2::Flush));
+        drop(guard);
+        self.signal.notify_one();
+        id
+    }
+
     pub(super) fn push_task(&self, task: WorkerTask2) -> u64 {
         let mut guard = self.channel.lock().unwrap();
         let id = guard.next_task_id;
@@ -168,12 +209,22 @@ impl Drop for Share2 {
     }
 }
 
+impl PartialEq for Share2 {
+    fn eq(&self, other: &Self) -> bool {
+        self.id == other.id
+    }
+}
+
+impl Eq for Share2 {
+}
+
 // Condvar issues
 impl RefUnwindSafe for Share2 {
 }
 
 struct Channel2 {
     queue: VecDeque<(u64, WorkerTask2)>,
+    last_flush: u64,
     next_task_id: u64,
     failed: bool,
 }
@@ -182,6 +233,7 @@ impl Channel2 {
     pub fn new() -> Self {
         Self {
             queue: VecDeque::new(),
+            last_flush: 0,
             next_task_id: 1,
             failed: false,
         }

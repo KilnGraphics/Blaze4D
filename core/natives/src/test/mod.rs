@@ -16,6 +16,14 @@ use crate::prelude::*;
 pub mod headless_surface;
 pub mod emulator;
 
+static LOG_INIT: std::sync::Once = std::sync::Once::new();
+/// Universal initialization code. Should be run at the start of every test case.
+pub fn init_test_env() {
+    LOG_INIT.call_once(|| {
+        env_logger::Builder::from_env(env_logger::Env::default().default_filter_or("debug")).init();
+    })
+}
+
 pub fn create_test_instance(surface: Option<&dyn SurfaceProvider>) -> Result<Arc<InstanceContext>, InstanceCreateError> {
     let mut config = InstanceCreateConfig::new(
         CString::new("Blaze4D Test").unwrap(),

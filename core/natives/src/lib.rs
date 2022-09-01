@@ -21,6 +21,8 @@ mod allocator;
 
 #[cfg(any(test, feature = "test_utils"))]
 pub mod test;
+#[cfg(any(test, feature = "test_utils"))]
+pub use test::init_test_env;
 
 pub struct BuildInfo {
     pub version_major: u32,

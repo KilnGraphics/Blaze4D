@@ -29,12 +29,13 @@ mod c_api;
 use std::fmt::{Debug, Formatter};
 use std::marker::PhantomData;
 use std::panic::RefUnwindSafe;
+use std::ptr::NonNull;
 use std::sync::{Arc, Weak};
 use std::thread::JoinHandle;
 use ash::vk;
 use bytemuck::cast_slice;
 
-use crate::renderer::emulator::worker::{run_worker, WorkerTask2};
+use crate::renderer::emulator::worker::{CopyBufferToStagingTask, CopyStagingToBufferTask, run_worker, WorkerTask2};
 use crate::renderer::emulator::pipeline::EmulatorPipeline;
 
 use crate::prelude::*;
@@ -51,6 +52,7 @@ use crate::define_uuid_type;
 use crate::objects::sync::SemaphoreOp;
 use crate::renderer::emulator::mc_shaders::{McUniform, Shader, ShaderId, VertexFormat};
 use crate::renderer::emulator::share::Share2;
+use crate::renderer::emulator::staging::StagingAllocationId2;
 use crate::util::format::Format;
 
 
@@ -71,11 +73,15 @@ impl Emulator2 {
     }
 
     pub fn create_persistent_buffer(&self, size: u64) -> BufferId {
-        todo!()
+        self.share.create_persistent_buffer(size).unwrap()
     }
 
     pub fn create_ephemeral_buffer(&self, data: &[u8]) -> BufferId {
         todo!()
+    }
+
+    pub fn drop_buffer(&self, id: BufferId) {
+        self.share.drop_buffer(id);
     }
 
     pub fn create_persistent_image(&self) -> ImageId {
@@ -87,17 +93,47 @@ impl Emulator2 {
     }
 
     pub fn cmd_write_buffer(&self, buffer: BufferId, offset: u64, data: &[u8]) {
+        let buffer = self.share.get_buffer(buffer).unwrap();
+
         // TODO usize to u64 cast may not be safe
         let (memory, alloc) = self.share.allocate_staging(data.len() as u64, 1);
         unsafe {
             std::slice::from_raw_parts_mut(memory.mapped_memory.as_ptr(), data.len()).copy_from_slice(data)
         };
 
-        todo!()
+        self.share.push_task(WorkerTask2::CopyStagingToBuffer(CopyStagingToBufferTask {
+            staging_allocation: alloc,
+            staging_buffer: memory.buffer,
+            staging_buffer_offset: memory.buffer_offset,
+            dst_buffer: buffer,
+            dst_offset: offset,
+            copy_size: data.len() as u64,
+        }));
     }
 
     pub fn cmd_read_buffer<'a>(&self, buffer: BufferId, offset: u64, dst: &'a mut [u8]) -> ReadToken<'a> {
-        todo!()
+        let buffer = self.share.get_buffer(buffer).unwrap();
+
+        // TODO usize to u64 cast may not be safe
+        let (memory, alloc) = self.share.allocate_staging(dst.len() as u64, 1);
+
+        let id = self.share.push_task(WorkerTask2::CopyBufferToStaging(CopyBufferToStagingTask {
+            staging_buffer: memory.buffer,
+            staging_buffer_offset: memory.buffer_offset,
+            src_buffer: buffer,
+            src_offset: offset,
+            copy_size: dst.len() as u64,
+        }));
+
+        ReadToken {
+            share: Some(self.share.clone()),
+            wait_value: id,
+            copies: vec![ReadCopy {
+                dst,
+                staging_memory: memory.mapped_memory,
+                staging_allocation: alloc
+            }]
+        }
     }
 
     pub fn cmd_write_sub_image(&self, image: ImageId) {
@@ -235,11 +271,43 @@ impl Drop for ExportHandle {
     }
 }
 
-pub struct ReadToken<'a>(PhantomData<&'a ()>);
+pub struct ReadToken<'a> {
+    share: Option<Arc<Share2>>,
+    wait_value: u64,
+    copies: Vec<ReadCopy<'a>>,
+}
 
 impl<'a> ReadToken<'a> {
-    pub fn await_ready(self) {
-        todo!()
+    pub fn await_ready(&mut self) {
+        if let Some(share) = self.share.take() {
+            share.flush();
+            share.wait_for_task(self.wait_value);
+
+            for copy in &mut self.copies {
+                unsafe { copy.exec_copy() };
+            }
+            unsafe {
+                share.free_staging(std::mem::replace(&mut self.copies, Vec::new()).into_iter().map(|c| c.staging_allocation));
+            }
+        }
+    }
+}
+
+impl<'a> Drop for ReadToken<'a> {
+    fn drop(&mut self) {
+        self.await_ready()
+    }
+}
+
+struct ReadCopy<'a> {
+    dst: &'a mut [u8],
+    staging_memory: NonNull<u8>,
+    staging_allocation: StagingAllocationId2,
+}
+
+impl<'a> ReadCopy<'a> {
+    unsafe fn exec_copy(&mut self) {
+        self.dst.copy_from_slice(std::slice::from_raw_parts(self.staging_memory.as_ptr(), self.dst.len()));
     }
 }
 
@@ -419,10 +487,12 @@ impl<'a> Debug for MeshData<'a> {
 
 #[cfg(test)]
 mod test {
+    use rand::{RngCore, SeedableRng};
     use crate::renderer::emulator::Emulator2;
 
     #[test]
     fn startup_shutdown() {
+        crate::init_test_env();
         let (_, device) = crate::test::create_test_instance_device(None).unwrap();
 
         let emulator = Emulator2::new(device.clone());
@@ -430,5 +500,52 @@ mod test {
 
         let emulator = Emulator2::new(device);
         drop(emulator);
+    }
+
+    #[test]
+    fn buffer_copies() {
+        crate::init_test_env();
+        let (_, device) = crate::test::create_test_instance_device(None).unwrap();
+        let emulator = Emulator2::new(device);
+
+        let buffer = emulator.create_persistent_buffer(1024*1024);
+
+        let sizes_offsets = &[
+            (1usize, 0usize),
+            (1, 242),
+            (1, (1024*1024) - 1),
+            (2, 0),
+            (2, 234389),
+            (2, (1024*1024) - 2),
+            (16, 0),
+            (16, 34893),
+            (16, (1024*1024) - 16),
+            (242, 0),
+            (242, 898222),
+            (242, (1024*1024) - 242),
+            (3489, 0),
+            (3489, 2329),
+            (3489, (1024*1024) - 3489),
+            (324892, 0),
+            (324892, 1),
+            (324892, (1024*1024) - 324892),
+            (1024*1024, 0)
+        ];
+        let mut rand = rand::rngs::StdRng::seed_from_u64(0x55C18F5FA3B21BF6u64);
+        for (size, offset) in sizes_offsets {
+            let mut data = Vec::new();
+            data.resize(*size, 0u8);
+            rand.fill_bytes(&mut data);
+
+            let mut dst = Vec::new();
+            dst.resize(*size, 0u8);
+
+            emulator.cmd_write_buffer(buffer, *offset as u64, &data);
+            emulator.cmd_read_buffer(buffer, *offset as u64, &mut dst).await_ready();
+
+            assert_eq!(data, dst);
+        }
+
+        emulator.shutdown_wait();
     }
 }
