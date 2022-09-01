@@ -26,7 +26,9 @@ mod staging;
 mod program;
 mod c_api;
 
+use std::cmp::Ordering;
 use std::fmt::{Debug, Formatter};
+use std::hash::{Hash, Hasher};
 use std::marker::PhantomData;
 use std::panic::RefUnwindSafe;
 use std::ptr::NonNull;
@@ -51,7 +53,7 @@ use crate::allocator::Allocation;
 use crate::define_uuid_type;
 use crate::objects::sync::SemaphoreOp;
 use crate::renderer::emulator::mc_shaders::{McUniform, Shader, ShaderId, VertexFormat};
-use crate::renderer::emulator::share::Share2;
+use crate::renderer::emulator::share::{BufferType, Share2};
 use crate::renderer::emulator::staging::StagingAllocationId2;
 use crate::util::format::Format;
 
@@ -72,16 +74,12 @@ impl Emulator2 {
         }
     }
 
-    pub fn create_persistent_buffer(&self, size: u64) -> BufferId {
-        self.share.create_persistent_buffer(size).unwrap()
+    pub fn create_persistent_buffer(&self, size: u64) -> Buffer {
+        self.share.create_persistent_buffer(size)
     }
 
     pub fn create_ephemeral_buffer(&self, data: &[u8]) -> BufferId {
         todo!()
-    }
-
-    pub fn drop_buffer(&self, id: BufferId) {
-        self.share.drop_buffer(id);
     }
 
     pub fn create_persistent_image(&self) -> ImageId {
@@ -92,9 +90,7 @@ impl Emulator2 {
         todo!()
     }
 
-    pub fn cmd_write_buffer(&self, buffer: BufferId, offset: u64, data: &[u8]) {
-        let buffer = self.share.get_buffer(buffer).unwrap();
-
+    pub fn cmd_write_buffer(&self, buffer: Buffer, offset: u64, data: &[u8]) {
         // TODO usize to u64 cast may not be safe
         let (memory, alloc) = self.share.allocate_staging(data.len() as u64, 1);
         unsafe {
@@ -111,9 +107,7 @@ impl Emulator2 {
         }));
     }
 
-    pub fn cmd_read_buffer<'a>(&self, buffer: BufferId, offset: u64, dst: &'a mut [u8]) -> ReadToken<'a> {
-        let buffer = self.share.get_buffer(buffer).unwrap();
-
+    pub fn cmd_read_buffer<'a>(&self, buffer: Buffer, offset: u64, dst: &'a mut [u8]) -> ReadToken<'a> {
         // TODO usize to u64 cast may not be safe
         let (memory, alloc) = self.share.allocate_staging(dst.len() as u64, 1);
 
@@ -215,6 +209,43 @@ pub struct PipelineInputAttribute {
 }
 
 define_uuid_type!(pub, BufferId);
+
+#[derive(Clone, Debug)]
+pub struct Buffer(BufferId, BufferType);
+
+impl Buffer {
+    pub fn get_id(&self) -> BufferId {
+        self.0
+    }
+}
+
+impl PartialEq for Buffer {
+    fn eq(&self, other: &Self) -> bool {
+        self.0 == other.0
+    }
+}
+
+impl Eq for Buffer {
+}
+
+impl PartialOrd for Buffer {
+    fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
+        self.0.partial_cmp(&other.0)
+    }
+}
+
+impl Ord for Buffer {
+    fn cmp(&self, other: &Self) -> Ordering {
+        self.0.cmp(&other.0)
+    }
+}
+
+impl Hash for Buffer {
+    fn hash<H: Hasher>(&self, state: &mut H) {
+        self.0.hash(state)
+    }
+}
+
 define_uuid_type!(pub, ImageId);
 define_uuid_type!(pub, PipelineId);
 
@@ -540,8 +571,8 @@ mod test {
             let mut dst = Vec::new();
             dst.resize(*size, 0u8);
 
-            emulator.cmd_write_buffer(buffer, *offset as u64, &data);
-            emulator.cmd_read_buffer(buffer, *offset as u64, &mut dst).await_ready();
+            emulator.cmd_write_buffer(buffer.clone(), *offset as u64, &data);
+            emulator.cmd_read_buffer(buffer.clone(), *offset as u64, &mut dst).await_ready();
 
             assert_eq!(data, dst);
         }

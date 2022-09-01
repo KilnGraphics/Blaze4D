@@ -16,9 +16,10 @@ use crate::renderer::emulator::pass::PassId;
 use crate::renderer::emulator::immediate::ImmediateBuffer;
 use crate::renderer::emulator::pipeline::{EmulatorOutput, EmulatorPipeline, EmulatorPipelinePass, PipelineTask};
 
-use super::share::{Buffer, NextTaskResult, PersistentBuffer, Share, Share2};
+use super::share::{BufferType, NextTaskResult, PersistentBuffer, Share, Share2};
 
 use crate::prelude::*;
+use crate::renderer::emulator::{Buffer, BufferId};
 use crate::renderer::emulator::global_objects::{GlobalImage, GlobalMesh};
 use crate::renderer::emulator::mc_shaders::ShaderId;
 use crate::renderer::emulator::staging::{StagingAllocationId2, StagingAllocationId};
@@ -232,10 +233,10 @@ struct RecordState2<'a, 'b> {
     object_pool: &'b RefCell<ObjectPool2>,
 
     pre_cmd: Option<vk::CommandBuffer>,
-    pre_buffer_state: HashMap<vk::Buffer, (vk::PipelineStageFlags2, vk::AccessFlags2)>,
+    pre_buffer_state: HashMap<BufferId, (vk::Buffer, vk::PipelineStageFlags2, vk::AccessFlags2)>,
 
     draw_cmd: Option<vk::CommandBuffer>,
-    draw_buffer_state: HashMap<vk::Buffer, (vk::PipelineStageFlags2, vk::AccessFlags2)>,
+    draw_buffer_state: HashMap<BufferId, (vk::Buffer, vk::PipelineStageFlags2, vk::AccessFlags2)>,
 
     submit_alloc: &'a Bump,
     command_buffer_infos: Vec<vk::CommandBufferSubmitInfoBuilder<'a>>,
@@ -266,16 +267,17 @@ impl<'a, 'b> RecordState2<'a, 'b> {
 
     fn task_copy_staging_to_buffer(&mut self, task: CopyStagingToBufferTask) {
         let mut barriers = Vec::new();
-        let buffer = task.dst_buffer.get_handle();
+        let id = task.dst_buffer.0;
+        let buffer = task.dst_buffer.1.get_handle();
 
         self.artifact.used_staging_memory.push(task.staging_allocation);
-        match task.dst_buffer {
-            Buffer::Persistent(buffer) => self.artifact.used_persistent_buffers.push(buffer),
+        match task.dst_buffer.1 {
+            BufferType::Persistent(buffer) => self.artifact.used_persistent_buffers.push(buffer),
         }
 
         let cmd = self.get_or_begin_pre_cmd();
 
-        self.sync_buffer_pre(&mut barriers, buffer, vk::PipelineStageFlags2::TRANSFER, vk::AccessFlags2::TRANSFER_WRITE);
+        self.sync_buffer_pre(&mut barriers, id, buffer, vk::PipelineStageFlags2::TRANSFER, vk::AccessFlags2::TRANSFER_WRITE);
 
         if !barriers.is_empty() {
             Self::record_barriers(&self.device, cmd, Some(barriers.as_slice()), None);
@@ -293,15 +295,16 @@ impl<'a, 'b> RecordState2<'a, 'b> {
 
     fn task_copy_buffer_to_staging(&mut self, task: CopyBufferToStagingTask) {
         let mut barriers = Vec::new();
-        let buffer = task.src_buffer.get_handle();
+        let id = task.src_buffer.0;
+        let buffer = task.src_buffer.1.get_handle();
 
-        match task.src_buffer {
-            Buffer::Persistent(buffer) => self.artifact.used_persistent_buffers.push(buffer),
+        match task.src_buffer.1 {
+            BufferType::Persistent(buffer) => self.artifact.used_persistent_buffers.push(buffer),
         }
 
         let cmd = self.get_or_begin_pre_cmd();
 
-        self.sync_buffer_pre(&mut barriers, buffer, vk::PipelineStageFlags2::TRANSFER, vk::AccessFlags2::TRANSFER_READ);
+        self.sync_buffer_pre(&mut barriers, id, buffer, vk::PipelineStageFlags2::TRANSFER, vk::AccessFlags2::TRANSFER_READ);
 
         if !barriers.is_empty() {
             Self::record_barriers(&self.device, cmd, Some(barriers.as_slice()), None);
@@ -398,8 +401,10 @@ impl<'a, 'b> RecordState2<'a, 'b> {
         let mut draw_buffer_state = std::mem::replace(&mut self.draw_buffer_state, HashMap::new());
 
         let mut barriers = Vec::new();
-        for (buffer, (src_stage_mask, src_access_mask)) in pre_buffer_state {
-            if let Some((dst_stage_mask, dst_access_mask)) = draw_buffer_state.remove(&buffer) {
+        for (id, (buffer, src_stage_mask, src_access_mask)) in pre_buffer_state {
+            if let Some((buffer2, dst_stage_mask, dst_access_mask)) = draw_buffer_state.remove(&id) {
+                debug_assert_eq!(buffer, buffer2);
+
                 barriers.push(vk::BufferMemoryBarrier2::builder()
                     .src_stage_mask(src_stage_mask)
                     .src_access_mask(src_access_mask)
@@ -411,9 +416,9 @@ impl<'a, 'b> RecordState2<'a, 'b> {
                     .build()
                 );
 
-                self.pre_buffer_state.insert(buffer, (dst_stage_mask, dst_access_mask));
+                self.pre_buffer_state.insert(id, (buffer, dst_stage_mask, dst_access_mask));
             } else {
-                self.pre_buffer_state.insert(buffer, (src_stage_mask, src_access_mask));
+                self.pre_buffer_state.insert(id, (buffer, src_stage_mask, src_access_mask));
             }
         }
         self.pre_buffer_state.extend(draw_buffer_state.into_iter());
@@ -454,13 +459,15 @@ impl<'a, 'b> RecordState2<'a, 'b> {
 
     /// Updates the sync state for a buffer used during a pre pass and generates potential memory
     /// barriers.
-    fn sync_buffer_pre(&mut self, barriers: &mut Vec<vk::BufferMemoryBarrier2>, buffer: vk::Buffer, dst_stage_mask: vk::PipelineStageFlags2, dst_access_mask: vk::AccessFlags2) {
-        if self.draw_buffer_state.contains_key(&buffer) {
+    fn sync_buffer_pre(&mut self, barriers: &mut Vec<vk::BufferMemoryBarrier2>, id: BufferId, buffer: vk::Buffer, dst_stage_mask: vk::PipelineStageFlags2, dst_access_mask: vk::AccessFlags2) {
+        if self.draw_buffer_state.contains_key(&id) {
             self.end_cmd_set();
         }
 
-        let old = self.pre_buffer_state.insert(buffer, (dst_stage_mask, dst_access_mask));
-        if let Some((src_stage_mask, src_access_mask)) = old {
+        let old = self.pre_buffer_state.insert(id, (buffer, dst_stage_mask, dst_access_mask));
+        if let Some((buffer2, src_stage_mask, src_access_mask)) = old {
+            debug_assert_eq!(buffer2, buffer);
+
             barriers.push(vk::BufferMemoryBarrier2::builder()
                 .src_stage_mask(src_stage_mask)
                 .src_access_mask(src_access_mask)
@@ -477,13 +484,15 @@ impl<'a, 'b> RecordState2<'a, 'b> {
     /// Updates the sync state for a buffer used during a draw pass.
     ///
     /// The buffer must only be used for read access.
-    fn sync_buffer_draw(&mut self, buffer: vk::Buffer, dst_stage_mask: vk::PipelineStageFlags2, dst_access_mask: vk::AccessFlags2) {
+    fn sync_buffer_draw(&mut self, id: BufferId, buffer: vk::Buffer, dst_stage_mask: vk::PipelineStageFlags2, dst_access_mask: vk::AccessFlags2) {
         // We can do this because we only allow read access to buffers during a draw
-        if let Some((stage_mask, access_mask)) = self.draw_buffer_state.get_mut(&buffer) {
+        if let Some((buffer2, stage_mask, access_mask)) = self.draw_buffer_state.get_mut(&id) {
+            debug_assert_eq!(buffer, *buffer2);
+
             *stage_mask |= dst_stage_mask;
             *access_mask |= dst_access_mask;
         } else {
-            self.draw_buffer_state.insert(buffer, (dst_stage_mask, dst_access_mask));
+            self.draw_buffer_state.insert(id, (buffer, dst_stage_mask, dst_access_mask));
         }
     }
 }

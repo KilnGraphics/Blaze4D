@@ -3,7 +3,7 @@ use std::sync::{Arc, Condvar, Mutex, MutexGuard};
 use std::time::{Duration, Instant};
 use std::panic::RefUnwindSafe;
 use std::collections::{HashMap, VecDeque};
-use std::fmt::{Debug, Display};
+use std::fmt::{Debug, Display, Formatter};
 use std::ops::Add;
 use std::ptr::NonNull;
 use std::sync::atomic::AtomicU64;
@@ -20,7 +20,7 @@ use crate::renderer::emulator::staging::{StagingAllocationId2, StagingAllocation
 use super::{BufferId, ImageId};
 
 use crate::prelude::*;
-
+use crate::renderer::emulator::Buffer;
 
 
 pub(super) struct Share2 {
@@ -30,7 +30,6 @@ pub(super) struct Share2 {
     id: UUID,
 
     staging: Mutex<StagingMemory2>,
-    objects: Mutex<Objects>,
     channel: Mutex<Channel2>,
     semaphore: vk::Semaphore,
     signal: Condvar,
@@ -39,7 +38,6 @@ pub(super) struct Share2 {
 impl Share2 {
     pub(super) fn new(device: Arc<DeviceContext>, queue: Arc<Queue>) -> (Arc<Self>, JoinHandle<()>) {
         let staging = StagingMemory2::new(device.clone());
-        let objects = Objects::new();
 
         let mut type_info = vk::SemaphoreTypeCreateInfo::builder()
             .semaphore_type(vk::SemaphoreType::TIMELINE_KHR)
@@ -57,7 +55,6 @@ impl Share2 {
             queue,
             id: UUID::new(),
             staging: Mutex::new(staging),
-            objects: Mutex::new(objects),
             channel: Mutex::new(Channel2::new()),
             semaphore,
             signal: Condvar::new(),
@@ -121,33 +118,10 @@ impl Share2 {
         }
     }
 
-    pub(super) fn get_buffer(&self, id: BufferId) -> Option<Buffer> {
-        let guard = self.objects.lock().unwrap();
-        guard.buffers.get(&id).cloned()
-    }
-
-    pub(super) fn create_persistent_buffer(&self, size: u64) -> Option<BufferId> {
-        let buffer = PersistentBuffer::new(self.device.clone(), size)?;
-
-        let mut guard = self.objects.lock().unwrap();
-        loop {
-            let id = BufferId::new();
-            if !guard.buffers.contains_key(&id) {
-                guard.buffers.insert(id, Buffer::Persistent(Arc::new(buffer)));
-                return Some(id);
-            }
-        }
-    }
-
-    pub(super) fn drop_buffer(&self, buffer: BufferId) {
-        let mut guard = self.objects.lock().unwrap();
-        let valid = guard.buffers.remove(&buffer).is_some();
-        drop(guard);
-
-        // Make sure we dont panic inside the guard
-        if !valid {
-            panic!("Called Share::drop_buffer with invalid id");
-        }
+    pub(super) fn create_persistent_buffer(&self, size: u64) -> Buffer {
+        let buffer = PersistentBuffer::new(self.device.clone(), size).expect("Failed to create persistent buffer");
+        let buffer = BufferType::Persistent(Arc::new(buffer));
+        Buffer(BufferId::new(), buffer)
     }
 
     pub(super) fn allocate_staging(&self, size: u64, alignment: u64) -> (StagingAllocation2, StagingAllocationId2) {
@@ -240,29 +214,15 @@ impl Channel2 {
     }
 }
 
-struct Objects {
-    buffers: HashMap<BufferId, Buffer>,
-    images: HashMap<ImageId, ()>,
-}
-
-impl Objects {
-    fn new() -> Self {
-        Self {
-            buffers: HashMap::new(),
-            images: HashMap::new(),
-        }
-    }
-}
-
-#[derive(Clone)]
-pub(super) enum Buffer {
+#[derive(Clone, Debug)]
+pub(super) enum BufferType {
     Persistent(Arc<PersistentBuffer>),
 }
 
-impl Buffer {
+impl BufferType {
     pub(super) fn get_handle(&self) -> vk::Buffer {
         match self {
-            Buffer::Persistent(buffer) => buffer.handle,
+            BufferType::Persistent(buffer) => buffer.handle,
         }
     }
 }
@@ -300,6 +260,11 @@ impl Drop for PersistentBuffer {
     }
 }
 
+impl Debug for PersistentBuffer {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        todo!()
+    }
+}
 
 
 
