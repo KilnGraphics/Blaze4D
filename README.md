@@ -22,7 +22,10 @@ To build the project with natives for your platform run
 ./gradlew build
 ```
 in the project root directory.
-
+### macOS
+Blaze4D now (mostly) works on macOS! Building and running follows the same steps as on Windows or Linux.
+The only difference is that you need to set the `VK_INSTANCE_LAYERS` environment variable to `VK_LAYER_KHRONOS_synchronization2` because moltenVK doesn't natively support it.
+### Running
 To run the game with the mod use any of the 3 run targets:
 - `./gradlew runClient`
 - `./gradlew runClientWithValidation` - Enables validation layers
