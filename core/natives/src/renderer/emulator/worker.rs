@@ -59,7 +59,6 @@ pub(super) struct CopyStagingToImageTask {
 }
 
 pub(super) struct CopyImageToStagingTask {
-    pub staging_allocation: StagingAllocationId2,
     pub staging_buffer: vk::Buffer,
     pub src_image: Arc<Image>,
     pub copy_regions: Box<[vk::BufferImageCopy]>,
@@ -338,11 +337,38 @@ impl<'a, 'b> RecordState2<'a, 'b> {
     }
 
     fn task_copy_staging_to_image(&mut self, task: CopyStagingToImageTask) {
-        todo!()
+        let mut barriers = Vec::new();
+        self.sync_image_pre(&mut barriers, &task.dst_image, vk::PipelineStageFlags2::TRANSFER, vk::AccessFlags2::TRANSFER_WRITE);
+
+        let cmd = self.get_or_begin_pre_cmd();
+
+        if !barriers.is_empty() {
+            Self::record_barriers(&self.device, cmd, None, Some(barriers.as_slice()));
+        }
+
+        unsafe {
+            self.device.vk().cmd_copy_buffer_to_image(cmd, task.staging_buffer, task.dst_image.get_handle(), vk::ImageLayout::GENERAL, task.copy_regions.as_ref())
+        };
+
+        self.artifact.used_staging_memory.push(task.staging_allocation);
+        self.artifact.used_images.push(task.dst_image);
     }
 
-    fn task_copy_image_to_staging(&self, task: CopyImageToStagingTask) {
-        todo!()
+    fn task_copy_image_to_staging(&mut self, task: CopyImageToStagingTask) {
+        let mut barriers = Vec::new();
+        self.sync_image_pre(&mut barriers, &task.src_image, vk::PipelineStageFlags2::TRANSFER, vk::AccessFlags2::TRANSFER_READ);
+
+        let cmd = self.get_or_begin_pre_cmd();
+
+        if !barriers.is_empty() {
+            Self::record_barriers(&self.device, cmd, None, Some(barriers.as_slice()));
+        }
+
+        unsafe {
+            self.device.vk().cmd_copy_image_to_buffer(cmd, task.src_image.get_handle(), vk::ImageLayout::GENERAL, task.staging_buffer, task.copy_regions.as_ref())
+        };
+
+        self.artifact.used_images.push(task.src_image);
     }
 
     /// Submits all recorded work to the queue and returns an artifact containing any objects used
@@ -537,6 +563,44 @@ impl<'a, 'b> RecordState2<'a, 'b> {
             self.draw_buffer_state.insert(buffer.clone(), (dst_stage_mask, dst_access_mask));
         }
     }
+
+    fn sync_image_pre(&mut self, barriers: &mut Vec<vk::ImageMemoryBarrier2>, image: &Arc<Image>, dst_stage_mask: vk::PipelineStageFlags2, dst_access_mask: vk::AccessFlags2) {
+        if self.draw_image_state.contains_key(image) {
+            self.end_cmd_set();
+        }
+
+        let old = self.pre_image_state.insert(image.clone(), (dst_stage_mask, dst_access_mask));
+
+        // The initialized value should only be written to by the worker so this is safe
+        if !image.get_initialized().load(std::sync::atomic::Ordering::Acquire) {
+            image.get_initialized().store(true, std::sync::atomic::Ordering::Release);
+
+            debug_assert!(old.is_none());
+
+            barriers.push(vk::ImageMemoryBarrier2::builder()
+                .dst_stage_mask(dst_stage_mask)
+                .dst_access_mask(dst_access_mask)
+                .old_layout(vk::ImageLayout::UNDEFINED)
+                .new_layout(vk::ImageLayout::GENERAL)
+                .image(image.get_handle())
+                .subresource_range(image.get_info().get_full_subresource_range())
+                .build()
+            );
+
+        } else {
+            if let Some((src_stage_mask, src_access_mask)) = old {
+                barriers.push(vk::ImageMemoryBarrier2::builder()
+                    .src_stage_mask(src_stage_mask)
+                    .src_access_mask(src_access_mask)
+                    .dst_stage_mask(dst_stage_mask)
+                    .dst_access_mask(dst_access_mask)
+                    .image(image.get_handle())
+                    .subresource_range(image.get_info().get_full_subresource_range())
+                    .build()
+                );
+            }
+        }
+    }
 }
 
 struct SubmissionArtifact<'a> {
@@ -548,6 +612,9 @@ struct SubmissionArtifact<'a> {
 
     #[allow(unused)] // Only needed to keep the objects alive
     used_buffers: Vec<Arc<Buffer>>,
+    #[allow(unused)]
+    used_images: Vec<Arc<Image>>,
+    #[allow(unused)]
     used_staging_memory: Vec<StagingAllocationId2>,
 }
 
@@ -559,6 +626,7 @@ impl<'a> SubmissionArtifact<'a> {
             wait_value: 0,
             used_command_buffers: Vec::new(),
             used_buffers: Vec::new(),
+            used_images: Vec::new(),
             used_staging_memory: Vec::new(),
         }
     }

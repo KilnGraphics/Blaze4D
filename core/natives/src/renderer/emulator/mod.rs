@@ -38,7 +38,7 @@ use std::thread::JoinHandle;
 use ash::vk;
 use bytemuck::cast_slice;
 
-use crate::renderer::emulator::worker::{CopyBufferToStagingTask, CopyStagingToBufferTask, run_worker, WorkerTask2};
+use crate::renderer::emulator::worker::{CopyBufferToStagingTask, CopyImageToStagingTask, CopyStagingToBufferTask, CopyStagingToImageTask, run_worker, WorkerTask2};
 use crate::renderer::emulator::pipeline::EmulatorPipeline;
 
 use crate::prelude::*;
@@ -128,12 +128,54 @@ impl Emulator2 {
         }
     }
 
-    pub fn cmd_write_sub_image(&self, image: Arc<Image>) {
-        todo!()
+    pub fn cmd_write_sub_image(&self, image: Arc<Image>, data: &[u8], copy_regions: &[vk::BufferImageCopy]) {
+        let (memory, alloc) = self.share.allocate_staging(data.len() as u64, 1);
+        unsafe {
+            std::slice::from_raw_parts_mut(memory.mapped_memory.as_ptr(), data.len()).copy_from_slice(data)
+        };
+
+        let copy_regions: Box<[_]> = copy_regions.iter().map(|copy| {
+            let mut copy = copy.clone();
+            copy.buffer_offset += memory.buffer_offset;
+            copy
+        }).collect();
+
+        self.share.push_task(WorkerTask2::CopyStagingToImage(CopyStagingToImageTask {
+            staging_allocation: alloc,
+            staging_buffer: memory.buffer,
+            dst_image: image,
+            copy_regions,
+        }));
     }
 
-    pub fn cmd_read_sub_image<'a>(&self, image: Arc<Image>) -> ReadToken<'a> {
-        todo!()
+    pub fn cmd_read_sub_image<'a>(&self, image: Arc<Image>, dst: &'a mut [u8], copy_regions: &[vk::BufferImageCopy]) -> ReadToken<'a> {
+        let (memory, alloc) = self.share.allocate_staging(dst.len() as u64, 1);
+        unsafe {
+            // Need to do this because not all parts of the buffer are guaranteed to be written to by the copy regions
+            std::slice::from_raw_parts_mut(memory.mapped_memory.as_ptr(), dst.len()).copy_from_slice(dst)
+        };
+
+        let copy_regions: Box<[_]> = copy_regions.iter().map(|copy| {
+            let mut copy = copy.clone();
+            copy.buffer_offset += memory.buffer_offset;
+            copy
+        }).collect();
+
+        let id = self.share.push_task(WorkerTask2::CopyImageToStaging(CopyImageToStagingTask {
+            staging_buffer: memory.buffer,
+            src_image: image,
+            copy_regions,
+        }));
+
+        ReadToken {
+            share: Some(self.share.clone()),
+            wait_value: id,
+            copies: vec![ReadCopy {
+                dst,
+                staging_memory: memory.mapped_memory,
+                staging_allocation: alloc
+            }]
+        }
     }
 
     pub fn cmd_draw(&self, pipeline: PipelineId, input_attributes: &[PipelineInputAttribute], draw_state: &DrawState) {
@@ -465,8 +507,10 @@ impl<'a> Debug for MeshData<'a> {
 
 #[cfg(test)]
 mod test {
+    use ash::vk;
     use rand::{RngCore, SeedableRng};
-    use crate::renderer::emulator::Emulator2;
+    use crate::prelude::Vec2u32;
+    use crate::renderer::emulator::{Emulator2, ImageSize};
 
     #[test]
     fn startup_shutdown() {
@@ -520,6 +564,73 @@ mod test {
 
             emulator.cmd_write_buffer(buffer.clone(), *offset as u64, &data);
             emulator.cmd_read_buffer(buffer.clone(), *offset as u64, &mut dst).await_ready();
+
+            assert_eq!(data, dst);
+        }
+
+        emulator.shutdown_wait();
+    }
+
+    #[test]
+    fn image_copies() {
+        crate::init_test_env();
+        let (_, device) = crate::test::create_test_instance_device(None).unwrap();
+        let emulator = Emulator2::new(device);
+
+        let image = emulator.create_persistent_color_image(vk::Format::R8G8B8A8_SRGB, ImageSize::new_2d(Vec2u32::new(1024, 1024), 1, 1));
+
+        let subresource = vk::ImageSubresourceLayers {
+            aspect_mask: vk::ImageAspectFlags::COLOR,
+            mip_level: 0,
+            base_array_layer: 0,
+            layer_count: 1
+        };
+        let sizes = &[
+            vk::BufferImageCopy {
+                buffer_offset: 0,
+                buffer_row_length: 0,
+                buffer_image_height: 0,
+                image_subresource: subresource.clone(),
+                image_offset: vk::Offset3D { x: 0, y: 0, z: 0 },
+                image_extent: vk::Extent3D { width: 1, height: 1, depth: 1 },
+            },
+            vk::BufferImageCopy {
+                buffer_offset: 0,
+                buffer_row_length: 0,
+                buffer_image_height: 0,
+                image_subresource: subresource.clone(),
+                image_offset: vk::Offset3D { x: 0, y: 0, z: 0 },
+                image_extent: vk::Extent3D { width: 234, height: 34, depth: 1 },
+            },
+            vk::BufferImageCopy {
+                buffer_offset: 0,
+                buffer_row_length: 0,
+                buffer_image_height: 0,
+                image_subresource: subresource.clone(),
+                image_offset: vk::Offset3D { x: 236, y: 12, z: 0 },
+                image_extent: vk::Extent3D { width: 102, height: 936, depth: 1 },
+            },
+            vk::BufferImageCopy {
+                buffer_offset: 0,
+                buffer_row_length: 0,
+                buffer_image_height: 0,
+                image_subresource: subresource.clone(),
+                image_offset: vk::Offset3D { x: 0, y: 0, z: 0 },
+                image_extent: vk::Extent3D { width: 1024, height: 1024, depth: 1 },
+            },
+        ];
+        let mut rand = rand::rngs::StdRng::seed_from_u64(0x55C18F5FA3B21BF6u64);
+        for copy in sizes {
+            let bytes = (copy.image_extent.width as usize) * (copy.image_extent.height as usize) * 4;
+            let mut data = Vec::new();
+            data.resize(bytes, 0u8);
+            rand.fill_bytes(&mut data);
+
+            let mut dst = Vec::new();
+            dst.resize(bytes, 0u8);
+
+            emulator.cmd_write_sub_image(image.clone(), &data, std::slice::from_ref(copy));
+            emulator.cmd_read_sub_image(image.clone(), &mut dst, std::slice::from_ref(copy)).await_ready();
 
             assert_eq!(data, dst);
         }

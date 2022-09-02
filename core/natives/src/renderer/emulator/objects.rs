@@ -1,6 +1,7 @@
 use std::cmp::Ordering;
 use std::hash::{Hash, Hasher};
 use std::sync::Arc;
+use std::sync::atomic::AtomicBool;
 
 use ash::vk;
 use crate::allocator::{Allocation, HostAccess};
@@ -255,6 +256,7 @@ pub struct Image {
     handle: vk::Image,
     allocation: Allocation,
     view: vk::ImageView,
+    initialized: AtomicBool,
 }
 
 impl Image {
@@ -307,7 +309,8 @@ impl Image {
             info: image_info,
             handle,
             allocation,
-            view
+            view,
+            initialized: AtomicBool::from(false),
         }
     }
 
@@ -325,6 +328,10 @@ impl Image {
 
     pub(super) fn get_default_view_handle(&self) -> vk::ImageView {
         self.view
+    }
+
+    pub(super) fn get_initialized(&self) -> &AtomicBool {
+        &self.initialized
     }
 
     fn get_base_image_view_type(size: &ImageSize) -> vk::ImageViewType {

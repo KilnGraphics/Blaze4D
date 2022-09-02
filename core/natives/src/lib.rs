@@ -1,6 +1,5 @@
 #[macro_use]
 extern crate static_assertions;
-extern crate core;
 
 use std::fmt::{Debug, Display, Formatter};
 
