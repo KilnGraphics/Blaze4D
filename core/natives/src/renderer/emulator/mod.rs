@@ -189,20 +189,14 @@ impl Emulator2 {
     pub fn flush(&self) {
         self.share.flush();
     }
-
-    pub fn shutdown_wait(mut self) {
-        self.share.shutdown();
-        if let Some(worker) = self.worker.take() {
-            worker.join().unwrap();
-        }
-    }
 }
 
 impl Drop for Emulator2 {
     fn drop(&mut self) {
-        if self.worker.is_some() {
-            self.share.shutdown();
-        }
+        self.share.shutdown();
+        // The error state is already handled by the share and cleanup
+        let _ = self.worker.take().unwrap().join();
+        self.share.cleanup();
     }
 }
 
@@ -518,9 +512,6 @@ mod test {
         let (_, device) = crate::test::create_test_instance_device(None).unwrap();
 
         let emulator = Emulator2::new(device.clone());
-        emulator.shutdown_wait();
-
-        let emulator = Emulator2::new(device);
         drop(emulator);
     }
 
@@ -567,8 +558,6 @@ mod test {
 
             assert_eq!(data, dst);
         }
-
-        emulator.shutdown_wait();
     }
 
     #[test]
@@ -634,7 +623,5 @@ mod test {
 
             assert_eq!(data, dst);
         }
-
-        emulator.shutdown_wait();
     }
 }

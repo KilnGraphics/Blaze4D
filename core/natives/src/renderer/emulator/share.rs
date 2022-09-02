@@ -1,5 +1,5 @@
 use std::any::Any;
-use std::sync::{Arc, Condvar, Mutex, MutexGuard};
+use std::sync::{Arc, Condvar, LockResult, Mutex, MutexGuard};
 use std::time::{Duration, Instant};
 use std::panic::RefUnwindSafe;
 use std::collections::{HashMap, VecDeque};
@@ -197,6 +197,21 @@ impl Share2 {
 
     pub(super) fn update(&self) {
         self.staging.lock().unwrap().update();
+    }
+
+    /// Ensures all self references are destroyed. Should be be called by the emulator after waiting
+    /// for the worker to finish execution to ensure all resources are freed.
+    pub(super) fn cleanup(&self) {
+        match self.channel.lock() {
+            Ok(mut guard) => {
+                if guard.state == State::Running {
+                    drop(guard);
+                    panic!("Called cleanup on still running emulator");
+                }
+                guard.queue.clear()
+            },
+            Err(mut err) => err.get_mut().queue.clear(),
+        }
     }
 }
 
