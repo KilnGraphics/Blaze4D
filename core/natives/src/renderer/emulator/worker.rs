@@ -16,17 +16,20 @@ use crate::renderer::emulator::pass::PassId;
 use crate::renderer::emulator::immediate::ImmediateBuffer;
 use crate::renderer::emulator::pipeline::{EmulatorOutput, EmulatorPipeline, EmulatorPipelinePass, PipelineTask};
 
-use super::share::{BufferType, NextTaskResult, PersistentBuffer, Share, Share2};
+use super::share::{NextTaskResult, Share, Share2};
 
 use crate::prelude::*;
-use crate::renderer::emulator::{Buffer, BufferId};
 use crate::renderer::emulator::global_objects::{GlobalImage, GlobalMesh};
+use crate::renderer::emulator::Image;
 use crate::renderer::emulator::mc_shaders::ShaderId;
+use crate::renderer::emulator::objects::{Buffer, BufferId, BufferInfo};
 use crate::renderer::emulator::staging::{StagingAllocationId2, StagingAllocationId};
 
 pub(super) enum WorkerTask2 {
     CopyStagingToBuffer(CopyStagingToBufferTask),
     CopyBufferToStaging(CopyBufferToStagingTask),
+    CopyStagingToImage(CopyStagingToImageTask),
+    CopyImageToStaging(CopyImageToStagingTask),
     Flush,
     Shutdown,
 }
@@ -35,7 +38,7 @@ pub(super) struct CopyStagingToBufferTask {
     pub staging_allocation: StagingAllocationId2,
     pub staging_buffer: vk::Buffer,
     pub staging_buffer_offset: vk::DeviceSize,
-    pub dst_buffer: Buffer,
+    pub dst_buffer: Arc<Buffer>,
     pub dst_offset: vk::DeviceSize,
     pub copy_size: vk::DeviceSize,
 }
@@ -43,9 +46,23 @@ pub(super) struct CopyStagingToBufferTask {
 pub(super) struct CopyBufferToStagingTask {
     pub staging_buffer: vk::Buffer,
     pub staging_buffer_offset: vk::DeviceSize,
-    pub src_buffer: Buffer,
+    pub src_buffer: Arc<Buffer>,
     pub src_offset: vk::DeviceSize,
     pub copy_size: vk::DeviceSize,
+}
+
+pub(super) struct CopyStagingToImageTask {
+    pub staging_allocation: StagingAllocationId2,
+    pub staging_buffer: vk::Buffer,
+    pub dst_image: Arc<Image>,
+    pub copy_regions: Box<[vk::BufferImageCopy]>,
+}
+
+pub(super) struct CopyImageToStagingTask {
+    pub staging_allocation: StagingAllocationId2,
+    pub staging_buffer: vk::Buffer,
+    pub src_image: Arc<Image>,
+    pub copy_regions: Box<[vk::BufferImageCopy]>,
 }
 
 pub(super) fn run_worker2(share: Arc<Share2>) {
@@ -65,6 +82,12 @@ pub(super) fn run_worker2(share: Arc<Share2>) {
                 }
                 (_, WorkerTask2::CopyBufferToStaging(copy)) => {
                     get_or_start_record(&mut record_state, &object_pool, &bump).task_copy_buffer_to_staging(copy);
+                }
+                (_, WorkerTask2::CopyStagingToImage(copy)) => {
+                    get_or_start_record(&mut record_state, &object_pool, &bump).task_copy_staging_to_image(copy);
+                }
+                (_, WorkerTask2::CopyImageToStaging(copy)) => {
+                    get_or_start_record(&mut record_state, &object_pool, &bump).task_copy_image_to_staging(copy);
                 }
                 (id, WorkerTask2::Flush) =>  {
                     if let Some(artifact) = submit_record(&mut record_state, &mut current_sync, id) {
@@ -233,10 +256,12 @@ struct RecordState2<'a, 'b> {
     object_pool: &'b RefCell<ObjectPool2>,
 
     pre_cmd: Option<vk::CommandBuffer>,
-    pre_buffer_state: HashMap<BufferId, (vk::Buffer, vk::PipelineStageFlags2, vk::AccessFlags2)>,
+    pre_buffer_state: HashMap<Arc<Buffer>, (vk::PipelineStageFlags2, vk::AccessFlags2)>,
+    pre_image_state: HashMap<Arc<Image>, (vk::PipelineStageFlags2, vk::AccessFlags2)>,
 
     draw_cmd: Option<vk::CommandBuffer>,
-    draw_buffer_state: HashMap<BufferId, (vk::Buffer, vk::PipelineStageFlags2, vk::AccessFlags2)>,
+    draw_buffer_state: HashMap<Arc<Buffer>, (vk::PipelineStageFlags2, vk::AccessFlags2)>,
+    draw_image_state: HashMap<Arc<Image>, (vk::PipelineStageFlags2, vk::AccessFlags2)>,
 
     submit_alloc: &'a Bump,
     command_buffer_infos: Vec<vk::CommandBufferSubmitInfoBuilder<'a>>,
@@ -257,8 +282,10 @@ impl<'a, 'b> RecordState2<'a, 'b> {
             object_pool,
             pre_cmd: None,
             pre_buffer_state: HashMap::new(),
+            pre_image_state: HashMap::new(),
             draw_cmd: None,
             draw_buffer_state: HashMap::new(),
+            draw_image_state: HashMap::new(),
             submit_alloc,
             command_buffer_infos: Vec::new(),
             artifact
@@ -267,17 +294,9 @@ impl<'a, 'b> RecordState2<'a, 'b> {
 
     fn task_copy_staging_to_buffer(&mut self, task: CopyStagingToBufferTask) {
         let mut barriers = Vec::new();
-        let id = task.dst_buffer.0;
-        let buffer = task.dst_buffer.1.get_handle();
-
-        self.artifact.used_staging_memory.push(task.staging_allocation);
-        match task.dst_buffer.1 {
-            BufferType::Persistent(buffer) => self.artifact.used_persistent_buffers.push(buffer),
-        }
+        self.sync_buffer_pre(&mut barriers, &task.dst_buffer, vk::PipelineStageFlags2::TRANSFER, vk::AccessFlags2::TRANSFER_WRITE);
 
         let cmd = self.get_or_begin_pre_cmd();
-
-        self.sync_buffer_pre(&mut barriers, id, buffer, vk::PipelineStageFlags2::TRANSFER, vk::AccessFlags2::TRANSFER_WRITE);
 
         if !barriers.is_empty() {
             Self::record_barriers(&self.device, cmd, Some(barriers.as_slice()), None);
@@ -285,26 +304,22 @@ impl<'a, 'b> RecordState2<'a, 'b> {
 
         let copy = vk::BufferCopy::builder()
             .src_offset(task.staging_buffer_offset)
-            .dst_offset(task.dst_offset)
+            .dst_offset(task.dst_offset + task.dst_buffer.get_offset())
             .size(task.copy_size);
 
         unsafe {
-            self.device.vk().cmd_copy_buffer(cmd, task.staging_buffer, buffer, std::slice::from_ref(&copy))
+            self.device.vk().cmd_copy_buffer(cmd, task.staging_buffer, task.dst_buffer.get_handle(), std::slice::from_ref(&copy))
         };
+
+        self.artifact.used_buffers.push(task.dst_buffer);
+        self.artifact.used_staging_memory.push(task.staging_allocation);
     }
 
     fn task_copy_buffer_to_staging(&mut self, task: CopyBufferToStagingTask) {
         let mut barriers = Vec::new();
-        let id = task.src_buffer.0;
-        let buffer = task.src_buffer.1.get_handle();
-
-        match task.src_buffer.1 {
-            BufferType::Persistent(buffer) => self.artifact.used_persistent_buffers.push(buffer),
-        }
+        self.sync_buffer_pre(&mut barriers, &task.src_buffer, vk::PipelineStageFlags2::TRANSFER, vk::AccessFlags2::TRANSFER_READ);
 
         let cmd = self.get_or_begin_pre_cmd();
-
-        self.sync_buffer_pre(&mut barriers, id, buffer, vk::PipelineStageFlags2::TRANSFER, vk::AccessFlags2::TRANSFER_READ);
 
         if !barriers.is_empty() {
             Self::record_barriers(&self.device, cmd, Some(barriers.as_slice()), None);
@@ -312,12 +327,22 @@ impl<'a, 'b> RecordState2<'a, 'b> {
 
         let copy = vk::BufferCopy::builder()
             .src_offset(task.src_offset)
-            .dst_offset(task.staging_buffer_offset)
+            .dst_offset(task.staging_buffer_offset + task.src_buffer.get_offset())
             .size(task.copy_size);
 
         unsafe {
-            self.device.vk().cmd_copy_buffer(cmd, buffer, task.staging_buffer, std::slice::from_ref(&copy))
+            self.device.vk().cmd_copy_buffer(cmd, task.src_buffer.get_handle(), task.staging_buffer, std::slice::from_ref(&copy))
         };
+
+        self.artifact.used_buffers.push(task.src_buffer);
+    }
+
+    fn task_copy_staging_to_image(&mut self, task: CopyStagingToImageTask) {
+        todo!()
+    }
+
+    fn task_copy_image_to_staging(&self, task: CopyImageToStagingTask) {
+        todo!()
     }
 
     /// Submits all recorded work to the queue and returns an artifact containing any objects used
@@ -400,35 +425,56 @@ impl<'a, 'b> RecordState2<'a, 'b> {
         let pre_buffer_state = std::mem::replace(&mut self.pre_buffer_state, HashMap::new());
         let mut draw_buffer_state = std::mem::replace(&mut self.draw_buffer_state, HashMap::new());
 
-        let mut barriers = Vec::new();
-        for (id, (buffer, src_stage_mask, src_access_mask)) in pre_buffer_state {
-            if let Some((buffer2, dst_stage_mask, dst_access_mask)) = draw_buffer_state.remove(&id) {
-                debug_assert_eq!(buffer, buffer2);
-
-                barriers.push(vk::BufferMemoryBarrier2::builder()
+        let mut buffer_barriers = Vec::new();
+        for (buffer, (src_stage_mask, src_access_mask)) in pre_buffer_state {
+            if let Some((dst_stage_mask, dst_access_mask)) = draw_buffer_state.remove(&buffer) {
+                buffer_barriers.push(vk::BufferMemoryBarrier2::builder()
                     .src_stage_mask(src_stage_mask)
                     .src_access_mask(src_access_mask)
                     .dst_stage_mask(dst_stage_mask)
                     .dst_access_mask(dst_access_mask)
-                    .buffer(buffer)
-                    .offset(0)
-                    .size(vk::WHOLE_SIZE)
+                    .buffer(buffer.get_handle())
+                    .offset(buffer.get_offset())
+                    .size(buffer.get_info().size)
                     .build()
                 );
 
-                self.pre_buffer_state.insert(id, (buffer, dst_stage_mask, dst_access_mask));
+                self.pre_buffer_state.insert(buffer, (dst_stage_mask, dst_access_mask));
             } else {
-                self.pre_buffer_state.insert(id, (buffer, src_stage_mask, src_access_mask));
+                self.pre_buffer_state.insert(buffer, (src_stage_mask, src_access_mask));
             }
         }
         self.pre_buffer_state.extend(draw_buffer_state.into_iter());
 
-        if barriers.len() != 0 {
+        let pre_image_state = std::mem::replace(&mut self.pre_image_state, HashMap::new());
+        let mut draw_image_state = std::mem::replace(&mut self.draw_image_state, HashMap::new());
+
+        let mut image_barriers = Vec::new();
+        for (image, (src_stage_mask, src_access_mask)) in pre_image_state {
+            if let Some(( dst_stage_mask, dst_access_mask)) = draw_image_state.remove(&image) {
+                image_barriers.push(vk::ImageMemoryBarrier2::builder()
+                    .src_stage_mask(src_stage_mask)
+                    .src_access_mask(src_access_mask)
+                    .dst_stage_mask(dst_stage_mask)
+                    .dst_access_mask(dst_access_mask)
+                    .image(image.get_handle())
+                    .subresource_range(image.get_info().get_full_subresource_range())
+                    .build()
+                );
+
+                self.pre_image_state.insert(image, (dst_stage_mask, dst_access_mask));
+            } else {
+                self.pre_image_state.insert(image, (src_stage_mask, src_access_mask));
+            }
+        }
+
+        if buffer_barriers.len() != 0 || image_barriers.len() != 0 {
             // TODO deal with MCs multi thousand barriers
             let cmd = self.get_or_begin_pre_cmd();
 
             let info = vk::DependencyInfo::builder()
-                .buffer_memory_barriers(&barriers);
+                .buffer_memory_barriers(&buffer_barriers)
+                .image_memory_barriers(&image_barriers);
 
             unsafe {
                 self.device.synchronization_2_khr().cmd_pipeline_barrier2(cmd, &info)
@@ -459,23 +505,21 @@ impl<'a, 'b> RecordState2<'a, 'b> {
 
     /// Updates the sync state for a buffer used during a pre pass and generates potential memory
     /// barriers.
-    fn sync_buffer_pre(&mut self, barriers: &mut Vec<vk::BufferMemoryBarrier2>, id: BufferId, buffer: vk::Buffer, dst_stage_mask: vk::PipelineStageFlags2, dst_access_mask: vk::AccessFlags2) {
-        if self.draw_buffer_state.contains_key(&id) {
+    fn sync_buffer_pre(&mut self, barriers: &mut Vec<vk::BufferMemoryBarrier2>, buffer: &Arc<Buffer>, dst_stage_mask: vk::PipelineStageFlags2, dst_access_mask: vk::AccessFlags2) {
+        if self.draw_buffer_state.contains_key(buffer) {
             self.end_cmd_set();
         }
 
-        let old = self.pre_buffer_state.insert(id, (buffer, dst_stage_mask, dst_access_mask));
-        if let Some((buffer2, src_stage_mask, src_access_mask)) = old {
-            debug_assert_eq!(buffer2, buffer);
-
+        let old = self.pre_buffer_state.insert(buffer.clone(), (dst_stage_mask, dst_access_mask));
+        if let Some((src_stage_mask, src_access_mask)) = old {
             barriers.push(vk::BufferMemoryBarrier2::builder()
                 .src_stage_mask(src_stage_mask)
                 .src_access_mask(src_access_mask)
                 .dst_stage_mask(dst_stage_mask)
                 .dst_access_mask(dst_access_mask)
-                .buffer(buffer)
-                .offset(0)
-                .size(vk::WHOLE_SIZE)
+                .buffer(buffer.get_handle())
+                .offset(buffer.get_offset())
+                .size(buffer.get_info().size)
                 .build()
             );
         }
@@ -484,15 +528,13 @@ impl<'a, 'b> RecordState2<'a, 'b> {
     /// Updates the sync state for a buffer used during a draw pass.
     ///
     /// The buffer must only be used for read access.
-    fn sync_buffer_draw(&mut self, id: BufferId, buffer: vk::Buffer, dst_stage_mask: vk::PipelineStageFlags2, dst_access_mask: vk::AccessFlags2) {
+    fn sync_buffer_draw(&mut self, buffer: &Arc<Buffer>, dst_stage_mask: vk::PipelineStageFlags2, dst_access_mask: vk::AccessFlags2) {
         // We can do this because we only allow read access to buffers during a draw
-        if let Some((buffer2, stage_mask, access_mask)) = self.draw_buffer_state.get_mut(&id) {
-            debug_assert_eq!(buffer, *buffer2);
-
+        if let Some((stage_mask, access_mask)) = self.draw_buffer_state.get_mut(buffer) {
             *stage_mask |= dst_stage_mask;
             *access_mask |= dst_access_mask;
         } else {
-            self.draw_buffer_state.insert(id, (buffer, dst_stage_mask, dst_access_mask));
+            self.draw_buffer_state.insert(buffer.clone(), (dst_stage_mask, dst_access_mask));
         }
     }
 }
@@ -505,7 +547,7 @@ struct SubmissionArtifact<'a> {
     used_command_buffers: Vec<vk::CommandBuffer>,
 
     #[allow(unused)] // Only needed to keep the objects alive
-    used_persistent_buffers: Vec<Arc<PersistentBuffer>>,
+    used_buffers: Vec<Arc<Buffer>>,
     used_staging_memory: Vec<StagingAllocationId2>,
 }
 
@@ -516,7 +558,7 @@ impl<'a> SubmissionArtifact<'a> {
             object_pool,
             wait_value: 0,
             used_command_buffers: Vec::new(),
-            used_persistent_buffers: Vec::new(),
+            used_buffers: Vec::new(),
             used_staging_memory: Vec::new(),
         }
     }

@@ -6,7 +6,7 @@ use std::collections::{HashMap, VecDeque};
 use std::fmt::{Debug, Display, Formatter};
 use std::ops::Add;
 use std::ptr::NonNull;
-use std::sync::atomic::AtomicU64;
+use std::sync::atomic::{AtomicBool, AtomicU64};
 use std::thread::JoinHandle;
 use ash::vk;
 use crate::allocator::{Allocation, HostAccess};
@@ -17,10 +17,7 @@ use crate::renderer::emulator::mc_shaders::{McUniform, Shader, ShaderId, VertexF
 use crate::renderer::emulator::immediate::{ImmediateBuffer, ImmediatePool};
 use crate::renderer::emulator::staging::{StagingAllocationId2, StagingAllocation2, StagingMemory2, StagingMemoryPool};
 
-use super::{BufferId, ImageId};
-
 use crate::prelude::*;
-use crate::renderer::emulator::Buffer;
 
 
 pub(super) struct Share2 {
@@ -67,16 +64,17 @@ impl Share2 {
                 run_worker2(share);
                 log::debug!("Emulator worker thread finished");
             }) {
-                if let Ok(mut guard) = share_clone.channel.lock() {
-                    guard.failed = true;
-                } else {
-                    log::warn!("Failed to set failed flag after emulator worker thread panicked");
-                }
                 let err_ref: &dyn Any = &err;
                 if let Some(err) = err_ref.downcast_ref::<&dyn Debug>() {
                     log::error!("Emulator worker thread panicked: {:?}", err);
                 } else {
                     log::error!("Emulator worker thread panicked with non debug error");
+                }
+                if let Ok(mut guard) = share_clone.channel.lock() {
+                    guard.state = State::Failed;
+                    guard.queue.clear(); // Need to make sure we dont have any cyclic Arc's
+                } else {
+                    log::warn!("Failed to set failed flag after emulator worker thread panicked");
                 }
                 panic!("Emulator worker thread panicked");
             }
@@ -109,19 +107,13 @@ impl Share2 {
                 Ok(()) => break,
                 Err(vk::Result::TIMEOUT) => {
                     log::warn!("Timeout while waiting on emulator semaphore");
-                    if self.channel.lock().unwrap().failed {
+                    if self.channel.lock().unwrap().state == State::Failed {
                         panic!("Emulator worker has failed");
                     }
                 },
                 Err(err) => panic!("VkWaitSemaphores returned {:?}", err),
             }
         }
-    }
-
-    pub(super) fn create_persistent_buffer(&self, size: u64) -> Buffer {
-        let buffer = PersistentBuffer::new(self.device.clone(), size).expect("Failed to create persistent buffer");
-        let buffer = BufferType::Persistent(Arc::new(buffer));
-        Buffer(BufferId::new(), buffer)
     }
 
     pub(super) fn allocate_staging(&self, size: u64, alignment: u64) -> (StagingAllocation2, StagingAllocationId2) {
@@ -137,8 +129,13 @@ impl Share2 {
 
     pub(super) fn flush(&self) -> u64 {
         let mut guard = self.channel.lock().unwrap();
+        if guard.state != State::Running {
+            panic!("Called flush on {:?} share", guard.state);
+        }
+
         let id = guard.next_task_id;
         if guard.last_flush == id - 1 {
+            // No new tasks have been submitted since the last flush
             return guard.last_flush;
         }
 
@@ -150,8 +147,31 @@ impl Share2 {
         id
     }
 
-    pub(super) fn push_task(&self, task: WorkerTask2) -> u64 {
+    pub(super) fn shutdown(&self) {
         let mut guard = self.channel.lock().unwrap();
+        if guard.state != State::Running {
+            panic!("Called shutdown on {:?} share", guard.state);
+        }
+
+        let id = guard.next_task_id;
+        guard.queue.push_back((id, WorkerTask2::Shutdown));
+        guard.state = State::Shutdown;
+        drop(guard);
+        self.signal.notify_one();
+    }
+
+    pub(super) fn push_task(&self, task: WorkerTask2) -> u64 {
+        match &task {
+            WorkerTask2::Flush => panic!("Called push_task with flush task. Use flush() instead."),
+            WorkerTask2::Shutdown => panic!("Called push_task with shutdown task. Use shutdown() instead."),
+            _ => {}
+        }
+
+        let mut guard = self.channel.lock().unwrap();
+        if guard.state != State::Running {
+            panic!("Called push_task on {:?} share", guard.state);
+        }
+
         let id = guard.next_task_id;
         guard.next_task_id += 1;
         guard.queue.push_back((id, task));
@@ -162,6 +182,11 @@ impl Share2 {
 
     pub(super) fn pop_task(&self, timeout: Duration) -> Option<(u64, WorkerTask2)> {
         let mut guard = self.channel.lock().unwrap();
+        // On shutdown the worker first has to finish all pending tasks
+        if guard.state == State::Failed {
+            panic!("Share state is failed");
+        }
+
         if let Some(task) = guard.queue.pop_front() {
             Some(task)
         } else {
@@ -200,7 +225,7 @@ struct Channel2 {
     queue: VecDeque<(u64, WorkerTask2)>,
     last_flush: u64,
     next_task_id: u64,
-    failed: bool,
+    state: State,
 }
 
 impl Channel2 {
@@ -209,63 +234,17 @@ impl Channel2 {
             queue: VecDeque::new(),
             last_flush: 0,
             next_task_id: 1,
-            failed: false,
+            state: State::Running
         }
     }
 }
 
-#[derive(Clone, Debug)]
-pub(super) enum BufferType {
-    Persistent(Arc<PersistentBuffer>),
+#[derive(Copy, Clone, Eq, PartialEq, Hash, Debug)]
+enum State {
+    Running,
+    Failed,
+    Shutdown,
 }
-
-impl BufferType {
-    pub(super) fn get_handle(&self) -> vk::Buffer {
-        match self {
-            BufferType::Persistent(buffer) => buffer.handle,
-        }
-    }
-}
-
-pub(super) struct PersistentBuffer {
-    device: Arc<DeviceContext>,
-    handle: vk::Buffer,
-    allocation: Allocation,
-}
-
-impl PersistentBuffer {
-    fn new(device: Arc<DeviceContext>, size: u64) -> Option<Self> {
-        let info = vk::BufferCreateInfo::builder()
-            .size(size)
-            .usage(vk::BufferUsageFlags::TRANSFER_DST | vk::BufferUsageFlags::TRANSFER_SRC | vk::BufferUsageFlags::VERTEX_BUFFER | vk::BufferUsageFlags::INDEX_BUFFER)
-            .sharing_mode(vk::SharingMode::EXCLUSIVE);
-
-        let (handle, allocation, _) = unsafe {
-            device.get_allocator().create_buffer(&info, HostAccess::None, &format_args!("EmulatorPersistentBuffer"))
-        }?;
-
-        Some(Self {
-            device,
-            handle,
-            allocation
-        })
-    }
-}
-
-impl Drop for PersistentBuffer {
-    fn drop(&mut self) {
-        unsafe {
-            self.device.get_allocator().destroy_buffer(self.handle, self.allocation);
-        }
-    }
-}
-
-impl Debug for PersistentBuffer {
-    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        todo!()
-    }
-}
-
 
 
 

@@ -25,6 +25,7 @@ mod share;
 mod staging;
 mod program;
 mod c_api;
+mod objects;
 
 use std::cmp::Ordering;
 use std::fmt::{Debug, Formatter};
@@ -53,10 +54,11 @@ use crate::allocator::Allocation;
 use crate::define_uuid_type;
 use crate::objects::sync::SemaphoreOp;
 use crate::renderer::emulator::mc_shaders::{McUniform, Shader, ShaderId, VertexFormat};
-use crate::renderer::emulator::share::{BufferType, Share2};
+use crate::renderer::emulator::share::{Share2};
 use crate::renderer::emulator::staging::StagingAllocationId2;
 use crate::util::format::Format;
 
+pub use objects::{Buffer, BufferInfo, BufferId, Image, ImageInfo, ImageSize, ImageId};
 
 pub struct Emulator2 {
     share: Arc<Share2>,
@@ -74,23 +76,19 @@ impl Emulator2 {
         }
     }
 
-    pub fn create_persistent_buffer(&self, size: u64) -> Buffer {
-        self.share.create_persistent_buffer(size)
+    pub fn create_persistent_buffer(&self, size: u64) -> Arc<Buffer> {
+        Arc::new(Buffer::new_persistent(self.share.clone(), size))
     }
 
-    pub fn create_ephemeral_buffer(&self, data: &[u8]) -> BufferId {
-        todo!()
-    }
-
-    pub fn create_persistent_image(&self) -> ImageId {
-        todo!()
+    pub fn create_persistent_color_image(&self, format: vk::Format, size: ImageSize) -> Arc<Image> {
+        Arc::new(Image::new_persistent_color(self.share.clone(), format, size))
     }
 
     pub fn create_pipeline(&self, info: &PipelineCreateInfo) -> PipelineId {
         todo!()
     }
 
-    pub fn cmd_write_buffer(&self, buffer: Buffer, offset: u64, data: &[u8]) {
+    pub fn cmd_write_buffer(&self, buffer: Arc<Buffer>, offset: u64, data: &[u8]) {
         // TODO usize to u64 cast may not be safe
         let (memory, alloc) = self.share.allocate_staging(data.len() as u64, 1);
         unsafe {
@@ -107,7 +105,7 @@ impl Emulator2 {
         }));
     }
 
-    pub fn cmd_read_buffer<'a>(&self, buffer: Buffer, offset: u64, dst: &'a mut [u8]) -> ReadToken<'a> {
+    pub fn cmd_read_buffer<'a>(&self, buffer: Arc<Buffer>, offset: u64, dst: &'a mut [u8]) -> ReadToken<'a> {
         // TODO usize to u64 cast may not be safe
         let (memory, alloc) = self.share.allocate_staging(dst.len() as u64, 1);
 
@@ -130,11 +128,11 @@ impl Emulator2 {
         }
     }
 
-    pub fn cmd_write_sub_image(&self, image: ImageId) {
+    pub fn cmd_write_sub_image(&self, image: Arc<Image>) {
         todo!()
     }
 
-    pub fn cmd_read_sub_image<'a>(&self, image: ImageId) -> ReadToken<'a> {
+    pub fn cmd_read_sub_image<'a>(&self, image: Arc<Image>) -> ReadToken<'a> {
         todo!()
     }
 
@@ -147,11 +145,11 @@ impl Emulator2 {
     }
 
     pub fn flush(&self) {
-        todo!()
+        self.share.flush();
     }
 
     pub fn shutdown_wait(mut self) {
-        self.share.push_task(WorkerTask2::Shutdown);
+        self.share.shutdown();
         if let Some(worker) = self.worker.take() {
             worker.join().unwrap();
         }
@@ -160,7 +158,9 @@ impl Emulator2 {
 
 impl Drop for Emulator2 {
     fn drop(&mut self) {
-        self.share.push_task(WorkerTask2::Shutdown);
+        if self.worker.is_some() {
+            self.share.shutdown();
+        }
     }
 }
 
@@ -208,50 +208,11 @@ pub struct PipelineInputAttribute {
     offset: u32,
 }
 
-define_uuid_type!(pub, BufferId);
-
-#[derive(Clone, Debug)]
-pub struct Buffer(BufferId, BufferType);
-
-impl Buffer {
-    pub fn get_id(&self) -> BufferId {
-        self.0
-    }
-}
-
-impl PartialEq for Buffer {
-    fn eq(&self, other: &Self) -> bool {
-        self.0 == other.0
-    }
-}
-
-impl Eq for Buffer {
-}
-
-impl PartialOrd for Buffer {
-    fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
-        self.0.partial_cmp(&other.0)
-    }
-}
-
-impl Ord for Buffer {
-    fn cmp(&self, other: &Self) -> Ordering {
-        self.0.cmp(&other.0)
-    }
-}
-
-impl Hash for Buffer {
-    fn hash<H: Hasher>(&self, state: &mut H) {
-        self.0.hash(state)
-    }
-}
-
-define_uuid_type!(pub, ImageId);
 define_uuid_type!(pub, PipelineId);
 
 pub struct ExportSet {
     emulator: Arc<Share2>,
-    images: Box<[Arc<PersistentImage>]>,
+    images: Box<[Arc<Image>]>,
     image_infos: Box<[ExportImageInfo]>
 }
 
@@ -342,26 +303,12 @@ impl<'a> ReadCopy<'a> {
     }
 }
 
-#[derive(Copy, Clone, Eq, PartialEq, Hash, Debug)]
-pub enum ImageSize {
-    Type1D(u32),
-    Type2D(Vec2u32),
-    Type3D(Vec3u32),
-}
 
-struct PersistentImage {
-    device: Arc<DeviceContext>,
-    image: vk::Image,
-    allocation: Allocation,
-    size: ImageSize,
-    format: vk::Format,
-}
 
-impl Drop for PersistentImage {
-    fn drop(&mut self) {
-        unsafe { self.device.get_allocator().destroy_image(self.image, self.allocation) };
-    }
-}
+
+
+
+
 
 
 
