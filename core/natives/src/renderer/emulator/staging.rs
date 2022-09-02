@@ -40,8 +40,8 @@ impl StagingMemory2 {
         }
     }
 
-    pub(super) unsafe fn free(&mut self, allocation: StagingAllocationId2) {
-        match allocation.0 {
+    pub(super) unsafe fn free(&mut self, mut allocation: StagingAllocationId2) {
+        match allocation.consume() {
             AllocationInfo::Main(index) => {
                 let pool = &mut self.main_pools[index];
                 pool.free();
@@ -50,6 +50,7 @@ impl StagingMemory2 {
                     self.main_index = index;
                 }
             }
+            AllocationInfo::None => panic!("None allocation was passed to free"),
         }
     }
 
@@ -106,14 +107,24 @@ pub(super) struct StagingAllocation2 {
 
 pub(super) struct StagingAllocationId2(AllocationInfo);
 
+impl StagingAllocationId2 {
+    fn consume(&mut self) -> AllocationInfo {
+        std::mem::replace(&mut self.0, AllocationInfo::None)
+    }
+}
+
 impl Drop for StagingAllocationId2 {
     fn drop(&mut self) {
-        log::warn!("Emulator staging AllocationId has been dropped. Potential memory leak!");
+        match &self.0 {
+            AllocationInfo::None => {},
+            _ => log::warn!("Emulator staging AllocationId has been dropped. Potential memory leak!"),
+        }
     }
 }
 
 enum AllocationInfo {
     Main(usize),
+    None,
 }
 
 struct Pool2 {
