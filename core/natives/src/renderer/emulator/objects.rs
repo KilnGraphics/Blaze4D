@@ -1,4 +1,5 @@
 use std::cmp::Ordering;
+use std::ffi::CString;
 use std::hash::{Hash, Hasher};
 use std::sync::Arc;
 use std::sync::atomic::AtomicBool;
@@ -356,3 +357,40 @@ impl Drop for Image {
         }
     }
 }
+
+define_uuid_type!(pub, GraphicsPipelineId);
+
+pub struct GraphicsPipeline {
+    share: Arc<Share2>,
+    id: GraphicsPipelineId,
+}
+
+impl GraphicsPipeline {
+    pub fn get_id(&self) -> GraphicsPipelineId {
+        self.id
+    }
+
+    pub(super) fn get_input_attribute_count(&self) -> u32 {
+        todo!()
+    }
+
+    pub(super) fn get_color_attachment_count(&self) -> u32 {
+        todo!()
+    }
+
+    pub(super) fn get_shader_stages(&self) -> &[ShaderStageInfo] {
+        todo!()
+    }
+
+    pub(super) fn get_pipeline_layout(&self) -> vk::PipelineLayout {
+        todo!()
+    }
+}
+
+pub(super) struct ShaderStageInfo {
+    pub stage: vk::ShaderStageFlags,
+    pub module: vk::ShaderModule,
+    pub entry: CString,
+}
+
+id_type!(GraphicsPipeline, GraphicsPipeline::get_id);

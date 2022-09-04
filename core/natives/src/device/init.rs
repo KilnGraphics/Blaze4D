@@ -137,8 +137,11 @@ pub fn create_device(config: DeviceCreateConfig, instance: Arc<InstanceContext>)
         synchronization_2_khr,
         timeline_semaphore_khr,
         push_descriptor_khr,
+        dynamic_rendering_khr: None,
         swapchain_khr,
-        maintenance_4_khr
+        maintenance_4_khr,
+        extended_dynamic_state_ext: None,
+        extended_dynamic_state_2_ext: None,
     });
 
     let main_queue = Arc::new(Queue::new(functions.clone(), device_config.main_queue_family, 0));

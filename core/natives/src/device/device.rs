@@ -19,8 +19,11 @@ pub struct DeviceFunctions {
     pub synchronization_2_khr: ash::extensions::khr::Synchronization2,
     pub timeline_semaphore_khr: ash::extensions::khr::TimelineSemaphore,
     pub push_descriptor_khr: ash::extensions::khr::PushDescriptor,
+    pub dynamic_rendering_khr: Option<ash::extensions::khr::DynamicRendering>,
     pub swapchain_khr: Option<ash::extensions::khr::Swapchain>,
     pub maintenance_4_khr: Option<ash::extensions::khr::Maintenance4>,
+    pub extended_dynamic_state_ext: Option<ash::extensions::ext::ExtendedDynamicState>,
+    pub extended_dynamic_state_2_ext: Option<ash::extensions::ext::ExtendedDynamicState2>,
 }
 
 impl Drop for DeviceFunctions {
@@ -94,12 +97,24 @@ impl DeviceContext {
         &self.functions.push_descriptor_khr
     }
 
+    pub fn dynamic_rendering_khr(&self) -> Option<&ash::extensions::khr::DynamicRendering> {
+        self.functions.dynamic_rendering_khr.as_ref()
+    }
+
     pub fn swapchain_khr(&self) -> Option<&ash::extensions::khr::Swapchain> {
         self.functions.swapchain_khr.as_ref()
     }
 
-    pub fn maintenance_4(&self) -> Option<&ash::extensions::khr::Maintenance4> {
+    pub fn maintenance_4_khr(&self) -> Option<&ash::extensions::khr::Maintenance4> {
         self.functions.maintenance_4_khr.as_ref()
+    }
+
+    pub fn extended_dynamic_state_ext(&self) -> Option<&ash::extensions::ext::ExtendedDynamicState> {
+        self.functions.extended_dynamic_state_ext.as_ref()
+    }
+
+    pub fn extended_dynamic_state2_ext(&self) -> Option<&ash::extensions::ext::ExtendedDynamicState2> {
+        self.functions.extended_dynamic_state_2_ext.as_ref()
     }
 
     pub fn get_main_queue(&self) -> &Arc<Queue> {

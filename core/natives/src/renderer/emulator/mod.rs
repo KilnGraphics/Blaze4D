@@ -38,7 +38,7 @@ use std::thread::JoinHandle;
 use ash::vk;
 use bytemuck::cast_slice;
 
-use crate::renderer::emulator::worker::{CopyBufferToStagingTask, CopyImageToStagingTask, CopyStagingToBufferTask, CopyStagingToImageTask, run_worker, WorkerTask2};
+use crate::renderer::emulator::worker::{CopyBufferToStagingTask, CopyImageToStagingTask, CopyStagingToBufferTask, CopyStagingToImageTask, DrawTask, run_worker, WorkerTask2};
 use crate::renderer::emulator::pipeline::EmulatorPipeline;
 
 use crate::prelude::*;
@@ -58,7 +58,7 @@ use crate::renderer::emulator::share::{Share2};
 use crate::renderer::emulator::staging::StagingAllocationId2;
 use crate::util::format::Format;
 
-pub use objects::{Buffer, BufferInfo, BufferId, Image, ImageInfo, ImageSize, ImageId};
+pub use objects::{Buffer, BufferInfo, BufferId, Image, ImageInfo, ImageSize, ImageId, GraphicsPipeline};
 
 pub struct Emulator2 {
     share: Arc<Share2>,
@@ -82,10 +82,6 @@ impl Emulator2 {
 
     pub fn create_persistent_color_image(&self, format: vk::Format, size: ImageSize) -> Arc<Image> {
         Arc::new(Image::new_persistent_color(self.share.clone(), format, size))
-    }
-
-    pub fn create_pipeline(&self, info: &PipelineCreateInfo) -> PipelineId {
-        todo!()
     }
 
     pub fn cmd_write_buffer(&self, buffer: Arc<Buffer>, offset: u64, data: &[u8]) {
@@ -178,8 +174,18 @@ impl Emulator2 {
         }
     }
 
-    pub fn cmd_draw(&self, pipeline: PipelineId, input_attributes: &[PipelineInputAttribute], draw_state: &DrawState) {
-        todo!()
+    pub fn cmd_draw(&self, pipeline: Arc<GraphicsPipeline>, input_attributes: Box<[PipelineInputAttribute]>, pipeline_state: PipelineState, framebuffer_state: FramebufferState, draw_count: u32) {
+        if pipeline.get_input_attribute_count() != (input_attributes.len() as u32) {
+            panic!("Called cmd_draw with non matching input attributes");
+        }
+
+        self.share.push_task(WorkerTask2::Draw(DrawTask {
+            pipeline,
+            input_attributes,
+            pipeline_state,
+            framebuffer_state,
+            draw_count
+        }));
     }
 
     pub fn create_export_set(&self) -> ExportSet {
@@ -227,24 +233,47 @@ pub struct PipelineShaderInfo<'a> {
     pub specialization_info: Option<&'a vk::SpecializationInfo>,
 }
 
-pub struct DrawState<'a> {
-    input_attributes: &'a [PipelineInputAttribute],
+#[derive(Clone)]
+pub struct PipelineState {
     primitive_topology: vk::PrimitiveTopology,
     polygon_mode: vk::PolygonMode,
     cull_mode: vk::CullModeFlags,
     front_face: vk::FrontFace,
+    line_width: f32,
+    depth_test: Option<vk::CompareOp>,
+    depth_write_enable: bool,
+    stencil_test: Option<(vk::StencilOpState, vk::StencilOpState)>,
+    color_blend: Box<[Option<PipelineColorBlendState>]>,
     viewport: (Vec2f32, Vec2f32),
     scissor: (Vec2u32, Vec2u32),
 }
 
+#[derive(Clone)]
 pub struct PipelineInputAttribute {
-    location: u32,
-    format: vk::Format,
+    buffer: Arc<Buffer>,
     stride: u32,
-    offset: u32,
+    offset: vk::DeviceSize,
+    format: vk::Format,
+    input_rate: vk::VertexInputRate,
 }
 
-define_uuid_type!(pub, PipelineId);
+#[derive(Copy, Clone, PartialEq, Hash, Debug)]
+pub struct PipelineColorBlendState {
+    src_color_blend_factor: vk::BlendFactor,
+    dst_color_blend_factor: vk::BlendFactor,
+    color_blend_op: vk::BlendOp,
+    src_alpha_blend_factor: vk::BlendFactor,
+    dst_alpha_blend_factor: vk::BlendFactor,
+    alpha_blend_op: vk::BlendOp,
+}
+
+#[derive(Clone, Eq, PartialEq)]
+pub struct FramebufferState {
+    render_area: (Vec2u32, Vec2u32),
+    color_attachments: Box<[Arc<Image>]>,
+    depth_attachment: Option<Arc<Image>>,
+    stencil_attachment: Option<Arc<Image>>,
+}
 
 pub struct ExportSet {
     emulator: Arc<Share2>,
