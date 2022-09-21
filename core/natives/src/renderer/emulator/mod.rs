@@ -27,18 +27,23 @@ mod program;
 mod c_api;
 mod objects;
 
+use std::any::Any;
 use std::cmp::Ordering;
+use std::collections::{HashMap, HashSet};
 use std::fmt::{Debug, Formatter};
 use std::hash::{Hash, Hasher};
 use std::marker::PhantomData;
 use std::panic::RefUnwindSafe;
+use std::pin::Pin;
 use std::ptr::NonNull;
 use std::sync::{Arc, Weak};
 use std::thread::JoinHandle;
 use ash::vk;
+use bumpalo::Bump;
 use bytemuck::cast_slice;
+use higher_order_closure::higher_order_closure;
 
-use crate::renderer::emulator::worker::{CopyBufferToStagingTask, CopyImageToStagingTask, CopyStagingToBufferTask, CopyStagingToImageTask, DrawTask, run_worker, WorkerTask2};
+use crate::renderer::emulator::worker::{CopyBufferToStagingTask, CopyImageToStagingTask, CopyStagingToBufferTask, CopyStagingToImageTask, DrawTask, EmulatorTaskContainer, run_worker, WorkerTask2};
 use crate::renderer::emulator::pipeline::EmulatorPipeline;
 
 use crate::prelude::*;
@@ -60,6 +65,9 @@ use crate::util::format::Format;
 
 pub use objects::{Buffer, BufferInfo, BufferId, Image, ImageInfo, ImageSize, ImageId, GraphicsPipeline};
 
+pub type BufferArc = Arc<Buffer>;
+pub type ImageArc = Arc<Image>;
+
 pub struct Emulator2 {
     share: Arc<Share2>,
     worker: Option<JoinHandle<()>>,
@@ -76,116 +84,139 @@ impl Emulator2 {
         }
     }
 
-    pub fn create_persistent_buffer(&self, size: u64) -> Arc<Buffer> {
+    pub fn create_persistent_buffer(&self, size: u64) -> BufferArc {
         Arc::new(Buffer::new_persistent(self.share.clone(), size))
     }
 
-    pub fn create_persistent_color_image(&self, format: vk::Format, size: ImageSize) -> Arc<Image> {
+    pub fn create_persistent_color_image(&self, format: vk::Format, size: ImageSize) -> ImageArc {
         Arc::new(Image::new_persistent_color(self.share.clone(), format, size))
     }
 
-    pub fn cmd_write_buffer(&self, buffer: Arc<Buffer>, offset: u64, data: &[u8]) {
+    pub fn cmd_write_buffer(&self, buffer: BufferArc, offset: u64, data: &[u8]) {
         // TODO usize to u64 cast may not be safe
         let (memory, alloc) = self.share.allocate_staging(data.len() as u64, 1);
         unsafe {
             std::slice::from_raw_parts_mut(memory.mapped_memory.as_ptr(), data.len()).copy_from_slice(data)
         };
 
-        self.share.push_task(WorkerTask2::CopyStagingToBuffer(CopyStagingToBufferTask {
-            staging_allocation: alloc,
-            staging_buffer: memory.buffer,
-            staging_buffer_offset: memory.buffer_offset,
-            dst_buffer: buffer,
-            dst_offset: offset,
-            copy_size: data.len() as u64,
-        }));
+        self.submit_cmd(higher_order_closure!{ for<'a> |b: TaskBuilder<'a>| -> Result<CopyStagingToBuffer<'a>, ()> {
+            let mut b = b;
+
+            let region = vk::BufferCopy {
+                src_offset: memory.buffer_offset,
+                dst_offset: offset,
+                size: data.len() as vk::DeviceSize,
+            };
+
+            Ok(CopyStagingToBuffer {
+                staging_allocation: alloc,
+                staging_buffer: memory.buffer,
+                dst_buffer: buffer,
+                copy_regions: b.alloc([region]).into()
+            })
+        }}).unwrap();
     }
 
-    pub fn cmd_read_buffer<'a>(&self, buffer: Arc<Buffer>, offset: u64, dst: &'a mut [u8]) -> ReadToken<'a> {
+    pub fn cmd_read_buffer<'a>(&self, buffer: BufferArc, offset: u64, dst: &'a mut [u8]) -> ReadToken<'a> {
         // TODO usize to u64 cast may not be safe
         let (memory, alloc) = self.share.allocate_staging(dst.len() as u64, 1);
 
-        let id = self.share.push_task(WorkerTask2::CopyBufferToStaging(CopyBufferToStagingTask {
-            staging_buffer: memory.buffer,
-            staging_buffer_offset: memory.buffer_offset,
-            src_buffer: buffer,
-            src_offset: offset,
-            copy_size: dst.len() as u64,
-        }));
+        let id = self.submit_cmd(higher_order_closure!{ for<'a> |b: TaskBuilder<'a>| -> Result<CopyBufferToStaging<'a>, ()> {
+            let mut b = b;
 
-        ReadToken {
-            share: Some(self.share.clone()),
-            wait_value: id,
-            copies: vec![ReadCopy {
-                dst,
-                staging_memory: memory.mapped_memory,
-                staging_allocation: alloc
-            }]
-        }
+            let region = vk::BufferCopy {
+                src_offset: offset,
+                dst_offset: memory.buffer_offset,
+                size: dst.len() as vk::DeviceSize,
+            };
+
+            Ok(CopyBufferToStaging {
+                staging_buffer: memory.buffer,
+                src_buffer: buffer,
+                copy_regions: b.alloc([region]).into()
+            })
+        }}).unwrap();
+
+        ReadToken::new(self.share.clone(), id, vec![ReadCopy {
+            dst,
+            staging_memory: memory.mapped_memory,
+            staging_allocation: alloc
+        }])
     }
 
-    pub fn cmd_write_sub_image(&self, image: Arc<Image>, data: &[u8], copy_regions: &[vk::BufferImageCopy]) {
+    pub fn cmd_write_sub_image(&self, image: ImageArc, copy_region: &vk::BufferImageCopy, data: &[u8]) {
+        // TODO usize to u64 cast may not be safe
         let (memory, alloc) = self.share.allocate_staging(data.len() as u64, 1);
         unsafe {
             std::slice::from_raw_parts_mut(memory.mapped_memory.as_ptr(), data.len()).copy_from_slice(data)
         };
 
-        let copy_regions: Box<[_]> = copy_regions.iter().map(|copy| {
-            let mut copy = copy.clone();
-            copy.buffer_offset += memory.buffer_offset;
-            copy
-        }).collect();
+        self.submit_cmd(higher_order_closure!{ for<'a> |b: TaskBuilder<'a>| -> Result<CopyStagingToImage<'a>, ()> {
+            let mut b = b;
 
-        self.share.push_task(WorkerTask2::CopyStagingToImage(CopyStagingToImageTask {
-            staging_allocation: alloc,
-            staging_buffer: memory.buffer,
-            dst_image: image,
-            copy_regions,
-        }));
+            let mut copy_region = *copy_region;
+            copy_region.buffer_offset += memory.buffer_offset;
+
+            Ok(CopyStagingToImage {
+                staging_allocation: alloc,
+                staging_buffer: memory.buffer,
+                dst_image: image,
+                copy_regions: b.alloc([copy_region]).into()
+            })
+        }}).unwrap();
     }
 
-    pub fn cmd_read_sub_image<'a>(&self, image: Arc<Image>, dst: &'a mut [u8], copy_regions: &[vk::BufferImageCopy]) -> ReadToken<'a> {
+    pub fn cmd_read_sub_image<'a>(&self, image: ImageArc, copy_region: &vk::BufferImageCopy, dst: &'a mut [u8]) -> ReadToken<'a> {
         let (memory, alloc) = self.share.allocate_staging(dst.len() as u64, 1);
         unsafe {
             // Need to do this because not all parts of the buffer are guaranteed to be written to by the copy regions
             std::slice::from_raw_parts_mut(memory.mapped_memory.as_ptr(), dst.len()).copy_from_slice(dst)
         };
 
-        let copy_regions: Box<[_]> = copy_regions.iter().map(|copy| {
-            let mut copy = copy.clone();
-            copy.buffer_offset += memory.buffer_offset;
-            copy
-        }).collect();
+        let id = self.submit_cmd(higher_order_closure!{ for<'a> |b: TaskBuilder<'a>| -> Result<CopyImageToStaging<'a>, ()> {
+            let mut b = b;
 
-        let id = self.share.push_task(WorkerTask2::CopyImageToStaging(CopyImageToStagingTask {
-            staging_buffer: memory.buffer,
-            src_image: image,
-            copy_regions,
-        }));
+            let mut copy_region = *copy_region;
+            copy_region.buffer_offset += memory.buffer_offset;
 
-        ReadToken {
-            share: Some(self.share.clone()),
-            wait_value: id,
-            copies: vec![ReadCopy {
-                dst,
-                staging_memory: memory.mapped_memory,
-                staging_allocation: alloc
-            }]
-        }
+            Ok(CopyImageToStaging {
+                staging_buffer: memory.buffer,
+                src_image: image,
+                copy_regions: b.alloc([copy_region]).into()
+            })
+        }}).unwrap();
+
+        ReadToken::new(self.share.clone(), id, vec![ReadCopy {
+            dst,
+            staging_memory: memory.mapped_memory,
+            staging_allocation: alloc
+        }])
     }
 
-    pub fn cmd_draw(&self, pipeline: Arc<GraphicsPipeline>, input_attributes: Box<[PipelineInputAttribute]>, pipeline_state: PipelineState, framebuffer_state: FramebufferState, draw_count: u32) {
-        if pipeline.get_input_attribute_count() != (input_attributes.len() as u32) {
-            panic!("Called cmd_draw with non matching input attributes");
-        }
+    pub fn cmd<F, R>(&self, f: F) -> Result<(), R>
+        where F: for<'a> TaskBuilderFn<'a, Err=R> {
 
-        self.share.push_task(WorkerTask2::Draw(DrawTask {
-            pipeline,
-            input_attributes,
-            pipeline_state,
-            framebuffer_state,
-            draw_count
-        }));
+        self.submit_cmd(f)?;
+        Ok(())
+    }
+
+    fn submit_cmd<F, R>(&self, f: F) -> Result<u64, R>
+        where F: for<'a> TaskBuilderFn<'a, Err=R> {
+
+        let alloc = Bump::new();
+
+        let task = f(TaskBuilder {
+            alloc: &alloc,
+        })?;
+        let task = task.into_task(&alloc);
+
+        let task = unsafe {
+            // Need to transmute to allow moving to heap
+            let transmuted: EmulatorTask<'static> = std::mem::transmute(task);
+            EmulatorTaskContainer::new(alloc, transmuted)
+        };
+
+        Ok(self.share.push_task(task))
     }
 
     pub fn create_export_set(&self) -> ExportSet {
@@ -197,12 +228,178 @@ impl Emulator2 {
     }
 }
 
+pub trait TaskBuilderFn<'a> where Self: FnOnce(TaskBuilder<'a>) -> Result<Self::Ok, Self::Err> {
+    type Ok: IntoEmulatorTask<'a>;
+    type Err;
+}
+
+impl<'a, F, Ok, Err> TaskBuilderFn<'a> for F
+    where Self: FnOnce(TaskBuilder<'a>) -> Result<Ok, Err>, Ok: IntoEmulatorTask<'a> {
+
+    type Ok = Ok;
+    type Err = Err;
+}
+
 impl Drop for Emulator2 {
     fn drop(&mut self) {
         self.share.shutdown();
         // The error state is already handled by the share and cleanup
         let _ = self.worker.take().unwrap().join();
         self.share.cleanup();
+    }
+}
+
+pub type BBox<'a, T> = bumpalo::boxed::Box<'a, T>;
+
+pub struct TaskBuilder<'a> {
+    alloc: &'a Bump,
+}
+
+impl<'a> TaskBuilder<'a> {
+    pub fn allocator(&self) -> &'a Bump {
+        self.alloc
+    }
+
+    pub fn alloc<O: Sized>(&self, data: O) -> BBox<'a, O> {
+        BBox::new_in(data, self.alloc)
+    }
+}
+
+pub trait IntoEmulatorTask<'a> {
+    fn into_task(self, alloc: &'a Bump) -> EmulatorTask<'a>;
+}
+
+pub enum EmulatorTask<'a> {
+    CopyStagingToBuffer(BBox<'a, CopyStagingToBuffer<'a>>),
+    CopyBufferToStaging(BBox<'a, CopyBufferToStaging<'a>>),
+    CopyStagingToImage(BBox<'a, CopyStagingToImage<'a>>),
+    CopyImageToStaging(BBox<'a, CopyImageToStaging<'a>>),
+    CopyBuffer(BBox<'a, CopyBufferTask<'a>>),
+    CopyBufferToImage(BBox<'a, CopyBufferToImage<'a>>),
+    CopyImageToBuffer(BBox<'a, CopyImageToBuffer<'a>>),
+}
+
+impl<'a> EmulatorTask<'a> {
+    fn extract_objects(&self, objects: &mut Vec<Arc<dyn Any>>) {
+        match self {
+            EmulatorTask::CopyStagingToBuffer(task) => {
+                objects.reserve(1);
+                objects.push(task.dst_buffer.clone());
+            }
+            EmulatorTask::CopyBufferToStaging(task) => {
+                objects.reserve(1);
+                objects.push(task.src_buffer.clone());
+            }
+            EmulatorTask::CopyStagingToImage(task) => {
+                objects.reserve(1);
+                objects.push(task.dst_image.clone());
+            }
+            EmulatorTask::CopyImageToStaging(task) => {
+                objects.reserve(1);
+                objects.push(task.src_image.clone());
+            }
+            EmulatorTask::CopyBuffer(task) => {
+                objects.reserve(2);
+                objects.push(task.src_buffer.clone());
+                objects.push(task.dst_buffer.clone());
+            }
+            EmulatorTask::CopyBufferToImage(task) => {
+                objects.reserve(2);
+                objects.push(task.src_buffer.clone());
+                objects.push(task.dst_image.clone());
+            }
+            EmulatorTask::CopyImageToBuffer(task) => {
+                objects.reserve(2);
+                objects.push(task.src_image.clone());
+                objects.push(task.dst_buffer.clone());
+            }
+        }
+    }
+}
+
+pub struct CopyStagingToBuffer<'a> {
+    staging_allocation: StagingAllocationId2,
+    staging_buffer: vk::Buffer,
+    dst_buffer: BufferArc,
+    copy_regions: BBox<'a, [vk::BufferCopy]>,
+}
+
+impl<'a> IntoEmulatorTask<'a> for CopyStagingToBuffer<'a> {
+    fn into_task(self, alloc: &'a Bump) -> EmulatorTask<'a> {
+        EmulatorTask::CopyStagingToBuffer(BBox::new_in(self, alloc))
+    }
+}
+
+pub struct CopyBufferToStaging<'a> {
+    staging_buffer: vk::Buffer,
+    src_buffer: BufferArc,
+    copy_regions: BBox<'a, [vk::BufferCopy]>,
+}
+
+impl<'a> IntoEmulatorTask<'a> for CopyBufferToStaging<'a> {
+    fn into_task(self, alloc: &'a Bump) -> EmulatorTask<'a> {
+        EmulatorTask::CopyBufferToStaging(BBox::new_in(self, alloc))
+    }
+}
+
+pub struct CopyBufferTask<'a> {
+    pub src_buffer: BufferArc,
+    pub dst_buffer: BufferArc,
+    pub regions: bumpalo::boxed::Box<'a, [vk::BufferCopy]>,
+}
+
+impl<'a> IntoEmulatorTask<'a> for CopyBufferTask<'a> {
+    fn into_task(self, alloc: &'a Bump) -> EmulatorTask<'a> {
+        EmulatorTask::CopyBuffer(BBox::new_in(self, alloc))
+    }
+}
+
+pub struct CopyStagingToImage<'a> {
+    staging_allocation: StagingAllocationId2,
+    staging_buffer: vk::Buffer,
+    dst_image: ImageArc,
+    copy_regions: BBox<'a, [vk::BufferImageCopy]>,
+}
+
+impl<'a> IntoEmulatorTask<'a> for CopyStagingToImage<'a> {
+    fn into_task(self, alloc: &'a Bump) -> EmulatorTask<'a> {
+        EmulatorTask::CopyStagingToImage(BBox::new_in(self, alloc))
+    }
+}
+
+pub struct CopyImageToStaging<'a> {
+    staging_buffer: vk::Buffer,
+    src_image: ImageArc,
+    copy_regions: BBox<'a, [vk::BufferImageCopy]>,
+}
+
+impl<'a> IntoEmulatorTask<'a> for CopyImageToStaging<'a> {
+    fn into_task(self, alloc: &'a Bump) -> EmulatorTask<'a> {
+        EmulatorTask::CopyImageToStaging(BBox::new_in(self, alloc))
+    }
+}
+
+pub struct CopyBufferToImage<'a> {
+    pub src_buffer: BufferArc,
+    pub dst_image: ImageArc,
+    pub copy_regions: BBox<'a, [vk::BufferImageCopy]>,
+}
+
+impl<'a> IntoEmulatorTask<'a> for CopyBufferToImage<'a> {
+    fn into_task(self, alloc: &'a Bump) -> EmulatorTask<'a> {
+        EmulatorTask::CopyBufferToImage(BBox::new_in(self, alloc))
+    }
+}
+
+pub struct CopyImageToBuffer<'a> {
+    pub src_image: ImageArc,
+    pub dst_buffer: BufferArc,
+    pub copy_regions: BBox<'a, [vk::BufferImageCopy]>,
+}
+
+impl<'a> IntoEmulatorTask<'a> for CopyImageToBuffer<'a> {
+    fn into_task(self, alloc: &'a Bump) -> EmulatorTask<'a> {
+        EmulatorTask::CopyImageToBuffer(BBox::new_in(self, alloc))
     }
 }
 
@@ -248,15 +445,6 @@ pub struct PipelineState {
     scissor: (Vec2u32, Vec2u32),
 }
 
-#[derive(Clone)]
-pub struct PipelineInputAttribute {
-    buffer: Arc<Buffer>,
-    stride: u32,
-    offset: vk::DeviceSize,
-    format: vk::Format,
-    input_rate: vk::VertexInputRate,
-}
-
 #[derive(Copy, Clone, PartialEq, Hash, Debug)]
 pub struct PipelineColorBlendState {
     src_color_blend_factor: vk::BlendFactor,
@@ -265,6 +453,13 @@ pub struct PipelineColorBlendState {
     src_alpha_blend_factor: vk::BlendFactor,
     dst_alpha_blend_factor: vk::BlendFactor,
     alpha_blend_op: vk::BlendOp,
+}
+
+#[derive(Clone)]
+pub struct PipelineInputAttribute {
+    stride: u32,
+    format: vk::Format,
+    input_rate: vk::VertexInputRate,
 }
 
 #[derive(Clone, Eq, PartialEq)]
@@ -329,13 +524,52 @@ impl Drop for ExportHandle {
 }
 
 pub struct ReadToken<'a> {
+    payload: ReadTokenInternal<'a>,
+}
+
+impl<'a> ReadToken<'a> {
+    fn new(share: Arc<Share2>, wait_value: u64, copies: Vec<ReadCopy<'a>>) -> Self {
+        Self {
+            payload: ReadTokenInternal {
+                share: Some(share),
+                wait_value,
+                copies,
+            }
+        }
+    }
+
+    pub fn join(&mut self, mut other: ReadToken<'a>) {
+        self.payload.join(&mut other.payload);
+    }
+
+    pub fn await_ready(mut self) {
+        self.payload.await_ready();
+    }
+}
+
+/// Internal container for the [`ReadToken`]. Necessary because we cannot create functions that
+/// consume self if the struct implements drop.
+struct ReadTokenInternal<'a> {
     share: Option<Arc<Share2>>,
     wait_value: u64,
     copies: Vec<ReadCopy<'a>>,
 }
 
-impl<'a> ReadToken<'a> {
-    pub fn await_ready(&mut self) {
+impl<'a> ReadTokenInternal<'a> {
+    fn join(&mut self, other: &mut ReadTokenInternal<'a>) {
+        if self.share.is_none() {
+            panic!("Called join on already awaited read token");
+        }
+        if self.share != other.share {
+            panic!("Called join on read tokens with non equal share");
+        }
+
+        self.wait_value = std::cmp::max(self.wait_value, other.wait_value);
+        self.copies.extend(std::mem::replace(&mut other.copies, Vec::new()).into_iter());
+        other.share = None;
+    }
+
+    fn await_ready(&mut self) {
         if let Some(share) = self.share.take() {
             share.flush();
             share.wait_for_task(self.wait_value);
@@ -350,7 +584,7 @@ impl<'a> ReadToken<'a> {
     }
 }
 
-impl<'a> Drop for ReadToken<'a> {
+impl<'a> Drop for ReadTokenInternal<'a> {
     fn drop(&mut self) {
         self.await_ready()
     }
@@ -647,8 +881,8 @@ mod test {
             let mut dst = Vec::new();
             dst.resize(bytes, 0u8);
 
-            emulator.cmd_write_sub_image(image.clone(), &data, std::slice::from_ref(copy));
-            emulator.cmd_read_sub_image(image.clone(), &mut dst, std::slice::from_ref(copy)).await_ready();
+            emulator.cmd_write_sub_image(image.clone(), &copy, &data);
+            emulator.cmd_read_sub_image(image.clone(), &copy, &mut dst).await_ready();
 
             assert_eq!(data, dst);
         }

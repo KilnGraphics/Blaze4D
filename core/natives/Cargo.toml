@@ -21,6 +21,7 @@ bumpalo = { version="3.9.1", features=["boxed"] }
 bytemuck = "1.10.0"
 concurrent-queue = "1.2.2"
 glsl = "6.0.1"
+higher-order-closure = "0.0.5"
 include_bytes_aligned = "0.1.2"
 json = "0.12.4"
 lazy_static = "1.4.0"

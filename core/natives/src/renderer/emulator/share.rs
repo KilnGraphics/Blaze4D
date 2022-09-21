@@ -12,7 +12,7 @@ use ash::vk;
 use crate::allocator::{Allocation, HostAccess};
 
 use crate::renderer::emulator::descriptors::DescriptorPool;
-use crate::renderer::emulator::worker::{run_worker2, WorkerTask, WorkerTask2};
+use crate::renderer::emulator::worker::{EmulatorTaskContainer, run_worker2, WorkerTask, WorkerTask2, WorkerTask3};
 use crate::renderer::emulator::mc_shaders::{McUniform, Shader, ShaderId, VertexFormat};
 use crate::renderer::emulator::immediate::{ImmediateBuffer, ImmediatePool};
 use crate::renderer::emulator::staging::{StagingAllocationId2, StagingAllocation2, StagingMemory2, StagingMemoryPool};
@@ -127,21 +127,31 @@ impl Share2 {
         }
     }
 
+    pub(super) fn push_task(&self, task: EmulatorTaskContainer) -> u64 {
+        let mut guard = self.channel.lock().unwrap();
+        if guard.state != State::Running {
+            panic!("Called push_task on {:?} share", guard.state);
+        }
+
+        let id = guard.next_task_id;
+        guard.next_task_id += 1;
+
+        guard.queue.push_back(WorkerTask3::Emulator(id, task));
+
+        drop(guard);
+        self.signal.notify_one();
+        id
+    }
+
     pub(super) fn flush(&self) -> u64 {
         let mut guard = self.channel.lock().unwrap();
         if guard.state != State::Running {
             panic!("Called flush on {:?} share", guard.state);
         }
 
-        let id = guard.next_task_id;
-        if guard.last_flush == id - 1 {
-            // No new tasks have been submitted since the last flush
-            return guard.last_flush;
-        }
+        let id = guard.next_task_id - 1;
+        guard.queue.push_back(WorkerTask3::Flush);
 
-        guard.next_task_id += 1;
-        guard.last_flush = id;
-        guard.queue.push_back((id, WorkerTask2::Flush));
         drop(guard);
         self.signal.notify_one();
         id
@@ -153,34 +163,13 @@ impl Share2 {
             panic!("Called shutdown on {:?} share", guard.state);
         }
 
-        let id = guard.next_task_id;
-        guard.queue.push_back((id, WorkerTask2::Shutdown));
+        guard.queue.push_back(WorkerTask3::Shutdown);
         guard.state = State::Shutdown;
         drop(guard);
         self.signal.notify_one();
     }
 
-    pub(super) fn push_task(&self, task: WorkerTask2) -> u64 {
-        match &task {
-            WorkerTask2::Flush => panic!("Called push_task with flush task. Use flush() instead."),
-            WorkerTask2::Shutdown => panic!("Called push_task with shutdown task. Use shutdown() instead."),
-            _ => {}
-        }
-
-        let mut guard = self.channel.lock().unwrap();
-        if guard.state != State::Running {
-            panic!("Called push_task on {:?} share", guard.state);
-        }
-
-        let id = guard.next_task_id;
-        guard.next_task_id += 1;
-        guard.queue.push_back((id, task));
-        drop(guard);
-        self.signal.notify_one();
-        id
-    }
-
-    pub(super) fn pop_task(&self, timeout: Duration) -> Option<(u64, WorkerTask2)> {
+    pub(super) fn pop_task(&self, timeout: Duration) -> Option<WorkerTask3> {
         let mut guard = self.channel.lock().unwrap();
         // On shutdown the worker first has to finish all pending tasks
         if guard.state == State::Failed {
@@ -237,8 +226,7 @@ impl RefUnwindSafe for Share2 {
 }
 
 struct Channel2 {
-    queue: VecDeque<(u64, WorkerTask2)>,
-    last_flush: u64,
+    queue: VecDeque<WorkerTask3>,
     next_task_id: u64,
     state: State,
 }
@@ -247,7 +235,6 @@ impl Channel2 {
     pub fn new() -> Self {
         Self {
             queue: VecDeque::new(),
-            last_flush: 0,
             next_task_id: 1,
             state: State::Running
         }
