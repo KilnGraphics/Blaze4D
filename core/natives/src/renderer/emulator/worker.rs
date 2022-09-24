@@ -720,6 +720,7 @@ mod recorder {
                 EmulatorTask::CopyBuffer(_) => todo!(),
                 EmulatorTask::CopyBufferToImage(_) => todo!(),
                 EmulatorTask::CopyImageToBuffer(_) => todo!(),
+                EmulatorTask::Draw(_) => todo!()
             }
             Ok(())
         }

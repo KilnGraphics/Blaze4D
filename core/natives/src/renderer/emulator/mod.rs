@@ -64,9 +64,11 @@ use crate::renderer::emulator::staging::StagingAllocationId2;
 use crate::util::format::Format;
 
 pub use objects::{Buffer, BufferInfo, BufferId, Image, ImageInfo, ImageSize, ImageId, GraphicsPipeline};
+use crate::renderer::emulator::objects::{DescriptorBinding, PipelineDynamicState2, PipelineLayout, PipelineStaticState2, ShaderStageInfo};
 
 pub type BufferArc = Arc<Buffer>;
 pub type ImageArc = Arc<Image>;
+pub type PipelineArc = Arc<GraphicsPipeline>;
 
 pub struct Emulator2 {
     share: Arc<Share2>,
@@ -90,6 +92,14 @@ impl Emulator2 {
 
     pub fn create_persistent_color_image(&self, format: vk::Format, size: ImageSize) -> ImageArc {
         Arc::new(Image::new_persistent_color(self.share.clone(), format, size))
+    }
+
+    pub fn create_pipeline_layout(&self, descriptor_sets: Box<[Box<[DescriptorBinding]>]>) -> Arc<PipelineLayout> {
+        Arc::new(PipelineLayout::new(self.share.clone(), descriptor_sets))
+    }
+
+    pub fn create_graphics_pipeline<S: PipelineStaticState2>(&self, shader_stages: &[ShaderStageInfo], state: &S, layout: Arc<PipelineLayout>) -> PipelineArc {
+        Arc::new(GraphicsPipeline::new(self.share.clone(), state, shader_stages, layout))
     }
 
     pub fn cmd_write_buffer(&self, buffer: BufferArc, offset: u64, data: &[u8]) {
@@ -277,6 +287,7 @@ pub enum EmulatorTask<'a> {
     CopyBuffer(BBox<'a, CopyBufferTask<'a>>),
     CopyBufferToImage(BBox<'a, CopyBufferToImage<'a>>),
     CopyImageToBuffer(BBox<'a, CopyImageToBuffer<'a>>),
+    Draw(BBox<'a, Draw<'a>>),
 }
 
 impl<'a> EmulatorTask<'a> {
@@ -312,6 +323,14 @@ impl<'a> EmulatorTask<'a> {
                 objects.reserve(2);
                 objects.push(task.src_image.clone());
                 objects.push(task.dst_buffer.clone());
+            }
+            EmulatorTask::Draw(task) => {
+                objects.reserve(1 + task.vertex_buffers.len());
+                objects.push(task.pipeline.clone());
+                for (buffer, _) in task.vertex_buffers.iter() {
+                    objects.push(buffer.clone());
+                }
+                todo!()
             }
         }
     }
@@ -400,6 +419,19 @@ pub struct CopyImageToBuffer<'a> {
 impl<'a> IntoEmulatorTask<'a> for CopyImageToBuffer<'a> {
     fn into_task(self, alloc: &'a Bump) -> EmulatorTask<'a> {
         EmulatorTask::CopyImageToBuffer(BBox::new_in(self, alloc))
+    }
+}
+
+pub struct Draw<'a> {
+    pub pipeline: PipelineArc,
+    pub dynamic_state: BBox<'a, dyn PipelineDynamicState2 + Send>,
+    pub vertex_buffers: BBox<'a, [(BufferArc, vk::DeviceSize)]>,
+    pub draw_count: u32,
+}
+
+impl<'a> IntoEmulatorTask<'a> for Draw<'a> {
+    fn into_task(self, alloc: &'a Bump) -> EmulatorTask<'a> {
+        EmulatorTask::Draw(BBox::new_in(self, alloc))
     }
 }
 

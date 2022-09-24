@@ -439,6 +439,10 @@ impl PipelineLayout {
     pub(super) fn get_handle(&self) -> vk::PipelineLayout {
         self.handle
     }
+
+    pub(super) fn get_descriptor_sets(&self) -> &[Box<[DescriptorBinding]>] {
+        &self.descriptor_sets
+    }
 }
 
 impl Drop for PipelineLayout {
@@ -663,8 +667,8 @@ pub struct PipelineColorBlending {
 }
 
 pub struct DynamicStateTracker {
-    pub viewport: (Vec2f32, Vec2f32),
-    pub scissor: (Vec2u32, Vec2u32),
+    pub viewport: Option<(Vec2f32, Vec2f32)>,
+    pub scissor: Option<(Vec2u32, Vec2u32)>,
     pub primitive_topology: Option<vk::PrimitiveTopology>,
     pub primitive_restart_enable: Option<bool>,
     pub cull_mode: Option<vk::CullModeFlags>,
@@ -679,6 +683,29 @@ pub struct DynamicStateTracker {
     pub stencil_write_mask: Option<(u32, u32)>,
     pub stencil_reference: Option<(u32, u32)>,
     pub blend_constants: Option<[NotNan<f32>; 4]>,
+}
+
+impl DynamicStateTracker {
+    pub(super) fn new() -> Self {
+        Self {
+            viewport: None,
+            scissor: None,
+            primitive_topology: None,
+            primitive_restart_enable: None,
+            cull_mode: None,
+            front_face: None,
+            line_width: None,
+            depth_test_enable: None,
+            depth_write_enable: None,
+            depth_compare_op: None,
+            stencil_test_enable: None,
+            stencil_op: None,
+            stencil_compare_mask: None,
+            stencil_write_mask: None,
+            stencil_reference: None,
+            blend_constants: None
+        }
+    }
 }
 
 #[derive(Copy, Clone, PartialEq, Default, Hash, Debug)]
@@ -723,6 +750,8 @@ pub trait PipelineDynamicStateConfiguration {
 }
 
 pub struct ConstPipelineDynamicState<'a, C: PipelineDynamicStateConfiguration> {
+    viewport: (Vec2f32, Vec2f32),
+    scissor: (Vec2u32, Vec2u32),
     input_binding_stride: Option<&'a [u32]>,
     primitive_topology: vk::PrimitiveTopology,
     primitive_restart_enable: bool,
@@ -741,6 +770,9 @@ pub struct ConstPipelineDynamicState<'a, C: PipelineDynamicStateConfiguration> {
 impl<'a, C: PipelineDynamicStateConfiguration> ConstPipelineDynamicState<'a, C> {
     pub fn from_state_provider<P: PipelineStateProvider>(alloc: &'a Bump, provider: &P) -> Self {
         let mut state = Self {
+            viewport: provider.get_viewport(),
+            scissor: provider.get_scissor(),
+
             input_binding_stride: None,
             primitive_topology: Default::default(),
             primitive_restart_enable: false,
@@ -800,6 +832,92 @@ impl<'a, C: PipelineDynamicStateConfiguration> ConstPipelineDynamicState<'a, C> 
 
 impl<'a, C: PipelineDynamicStateConfiguration> PipelineDynamicState2 for ConstPipelineDynamicState<'a, C> {
     fn setup_pipeline(&self, device: &DeviceContext, cmd: CommandBuffer, tracker: &mut DynamicStateTracker) {
+        if tracker.viewport != Some(self.viewport) {
+            let viewport = vk::Viewport {
+                x: self.viewport.0.x,
+                y: self.viewport.0.y,
+                width: self.viewport.1.x,
+                height: self.viewport.1.y,
+                min_depth: 0.0,
+                max_depth: 1.0
+            };
+            unsafe { device.vk().cmd_set_viewport(cmd, 0, std::slice::from_ref(&viewport)) };
+            tracker.viewport = Some(self.viewport);
+        }
+
+        if tracker.scissor != Some(self.scissor) {
+            let scissor = vk::Rect2D {
+                offset: vk::Offset2D { x: self.scissor.0.x as i32, y: self.scissor.0.y as i32 },
+                extent: vk::Extent2D { width: self.scissor.1.x, height: self.scissor.1.y }
+            };
+            unsafe { device.vk().cmd_set_scissor(cmd, 0, std::slice::from_ref(&scissor)) };
+            tracker.scissor = Some(self.scissor);
+        }
+
+        if C::LINE_WIDTH {
+            let line_width = NotNan::new(self.line_width).unwrap();
+            if tracker.line_width != Some(line_width) {
+                unsafe { device.vk().cmd_set_line_width(cmd, self.line_width) };
+                tracker.line_width = Some(line_width);
+            }
+        } else {
+            tracker.line_width = None;
+        }
+
+        if C::BLEND_CONSTANTS {
+            let blend_constants = [
+                NotNan::new(self.blend_constants[0]).unwrap(),
+                NotNan::new(self.blend_constants[1]).unwrap(),
+                NotNan::new(self.blend_constants[2]).unwrap(),
+                NotNan::new(self.blend_constants[3]).unwrap(),
+            ];
+            if tracker.blend_constants != Some(blend_constants) {
+                unsafe { device.vk().cmd_set_blend_constants(cmd, &self.blend_constants) };
+                tracker.blend_constants = Some(blend_constants);
+            }
+        } else {
+            tracker.blend_constants = None;
+        }
+
+        if C::STENCIL_COMPARE_MASK {
+            let compare_mask = self.stencil_test.map(|(f, b)| (f.compare_mask, b.compare_mask)).unwrap_or_default();
+            if tracker.stencil_compare_mask != Some(compare_mask) {
+                unsafe {
+                    device.vk().cmd_set_stencil_compare_mask(cmd, vk::StencilFaceFlags::FRONT, compare_mask.0);
+                    device.vk().cmd_set_stencil_compare_mask(cmd, vk::StencilFaceFlags::BACK, compare_mask.1);
+                }
+                tracker.stencil_compare_mask = Some(compare_mask)
+            }
+        } else {
+            tracker.stencil_compare_mask = None;
+        }
+
+        if C::STENCIL_WRITE_MASK {
+            let write_mask = self.stencil_test.map(|(f, b)| (f.write_mask, b.write_mask)).unwrap_or_default();
+            if tracker.stencil_write_mask != Some(write_mask) {
+                unsafe {
+                    device.vk().cmd_set_stencil_write_mask(cmd, vk::StencilFaceFlags::FRONT, write_mask.0);
+                    device.vk().cmd_set_stencil_write_mask(cmd, vk::StencilFaceFlags::BACK, write_mask.1);
+                }
+                tracker.stencil_write_mask = Some(write_mask)
+            }
+        } else {
+            tracker.stencil_write_mask = None;
+        }
+
+        if C::STENCIL_REFERENCE {
+            let reference = self.stencil_test.map(|(f, b)| (f.reference, b.reference)).unwrap_or_default();
+            if tracker.stencil_reference != Some(reference) {
+                unsafe {
+                    device.vk().cmd_set_stencil_reference(cmd, vk::StencilFaceFlags::FRONT, reference.0);
+                    device.vk().cmd_set_stencil_reference(cmd, vk::StencilFaceFlags::BACK, reference.1);
+                }
+                tracker.stencil_reference = Some(reference)
+            }
+        } else {
+            tracker.stencil_reference = None;
+        }
+
         if let Some(vk) = device.extended_dynamic_state_ext() {
             if C::PRIMITIVE_TOPOLOGY {
                 if tracker.primitive_topology != Some(self.primitive_topology) {
@@ -885,7 +1003,7 @@ impl<'a, C: PipelineDynamicStateConfiguration> PipelineDynamicState2 for ConstPi
     }
 }
 
-pub(super) struct ShaderStageInfo {
+pub struct ShaderStageInfo {
     pub stage: vk::ShaderStageFlags,
     pub module: vk::ShaderModule,
     pub entry: CString,
