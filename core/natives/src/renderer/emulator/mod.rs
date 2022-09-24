@@ -43,7 +43,7 @@ use bumpalo::Bump;
 use bytemuck::cast_slice;
 use higher_order_closure::higher_order_closure;
 
-use crate::renderer::emulator::worker::{CopyBufferToStagingTask, CopyImageToStagingTask, CopyStagingToBufferTask, CopyStagingToImageTask, DrawTask, EmulatorTaskContainer, run_worker, WorkerTask2};
+use crate::renderer::emulator::worker::{EmulatorTaskContainer, run_worker};
 use crate::renderer::emulator::pipeline::EmulatorPipeline;
 
 use crate::prelude::*;
@@ -428,46 +428,6 @@ pub struct PipelineShaderInfo<'a> {
 
     /// Optional specialization info used when creating the shader stage.
     pub specialization_info: Option<&'a vk::SpecializationInfo>,
-}
-
-#[derive(Clone)]
-pub struct PipelineState {
-    primitive_topology: vk::PrimitiveTopology,
-    polygon_mode: vk::PolygonMode,
-    cull_mode: vk::CullModeFlags,
-    front_face: vk::FrontFace,
-    line_width: f32,
-    depth_test: Option<vk::CompareOp>,
-    depth_write_enable: bool,
-    stencil_test: Option<(vk::StencilOpState, vk::StencilOpState)>,
-    color_blend: Box<[Option<PipelineColorBlendState>]>,
-    viewport: (Vec2f32, Vec2f32),
-    scissor: (Vec2u32, Vec2u32),
-}
-
-#[derive(Copy, Clone, PartialEq, Hash, Debug)]
-pub struct PipelineColorBlendState {
-    src_color_blend_factor: vk::BlendFactor,
-    dst_color_blend_factor: vk::BlendFactor,
-    color_blend_op: vk::BlendOp,
-    src_alpha_blend_factor: vk::BlendFactor,
-    dst_alpha_blend_factor: vk::BlendFactor,
-    alpha_blend_op: vk::BlendOp,
-}
-
-#[derive(Clone)]
-pub struct PipelineInputAttribute {
-    stride: u32,
-    format: vk::Format,
-    input_rate: vk::VertexInputRate,
-}
-
-#[derive(Clone, Eq, PartialEq)]
-pub struct FramebufferState {
-    render_area: (Vec2u32, Vec2u32),
-    color_attachments: Box<[Arc<Image>]>,
-    depth_attachment: Option<Arc<Image>>,
-    stencil_attachment: Option<Arc<Image>>,
 }
 
 pub struct ExportSet {

@@ -4,10 +4,12 @@ use std::collections::hash_map::RandomState;
 use std::collections::HashMap;
 use std::ffi::CString;
 use std::hash::{BuildHasher, Hash, Hasher};
+use std::marker::PhantomData;
 use std::sync::Arc;
 use std::sync::atomic::AtomicBool;
 
 use ash::vk;
+use ash::vk::CommandBuffer;
 use bumpalo::Bump;
 use ordered_float::NotNan;
 use crate::allocator::{Allocation, HostAccess};
@@ -16,6 +18,7 @@ use super::share::Share2;
 use crate::define_uuid_type;
 
 use crate::prelude::*;
+use crate::renderer::emulator::BBox;
 
 macro_rules! id_type {
     ($name: ident, $id_func: expr) => {
@@ -380,67 +383,133 @@ unsafe impl Send for Image {
 unsafe impl Sync for Image {
 }
 
+pub struct PipelineLayout {
+    share: Arc<Share2>,
+    handle: vk::PipelineLayout,
+    descriptor_set_layouts: Box<[vk::DescriptorSetLayout]>,
+    descriptor_sets: Box<[Box<[DescriptorBinding]>]>,
+}
+
+impl PipelineLayout {
+    pub(super) fn new(share: Arc<Share2>, descriptor_sets: Box<[Box<[DescriptorBinding]>]>) -> Self {
+        let device = share.get_device();
+        let mut alloc = Bump::new();
+
+        let mut descriptor_set_layouts = Vec::with_capacity(descriptor_sets.len());
+        for bindings in descriptor_sets.iter() {
+            alloc.reset();
+            let set_bindings = alloc.alloc_slice_fill_iter(bindings.iter().map(DescriptorBinding::get_vk_descriptor_set_layout_binding));
+
+            let info = vk::DescriptorSetLayoutCreateInfo::builder()
+                .flags(vk::DescriptorSetLayoutCreateFlags::PUSH_DESCRIPTOR_KHR)
+                .bindings(set_bindings);
+
+            let set_layout =unsafe {
+                device.vk().create_descriptor_set_layout(&info, None)
+            }.map_err(|err| {
+                for layout in &descriptor_set_layouts {
+                    unsafe { device.vk().destroy_descriptor_set_layout(*layout, None) };
+                }
+                err
+            }).expect("Failed to create descriptor set layout in PipelineLayout::new");
+
+            descriptor_set_layouts.push(set_layout);
+        }
+
+        let info = vk::PipelineLayoutCreateInfo::builder()
+            .set_layouts(&descriptor_set_layouts);
+
+        let handle = unsafe {
+            device.vk().create_pipeline_layout(&info, None)
+        }.map_err(|err| {
+            for layout in &descriptor_set_layouts {
+                unsafe { device.vk().destroy_descriptor_set_layout(*layout, None) };
+            }
+            err
+        }).expect("Failed to create pipeline layout in PipelineLayout::new");
+
+        Self {
+            share,
+            handle,
+            descriptor_set_layouts: descriptor_set_layouts.into_boxed_slice(),
+            descriptor_sets,
+        }
+    }
+
+    pub(super) fn get_handle(&self) -> vk::PipelineLayout {
+        self.handle
+    }
+}
+
+impl Drop for PipelineLayout {
+    fn drop(&mut self) {
+        let device = self.share.get_device();
+        unsafe {
+            device.vk().destroy_pipeline_layout(self.handle, None);
+            for layout in self.descriptor_set_layouts.iter() {
+                device.vk().destroy_descriptor_set_layout(*layout, None);
+            }
+        }
+    }
+}
+
+#[derive(Copy, Clone, PartialEq, Hash, Debug)]
+pub struct DescriptorBinding {
+    binding: u32,
+    descriptor_type: DescriptorType,
+    stage_flags: vk::ShaderStageFlags,
+}
+
+impl DescriptorBinding {
+    pub fn get_vk_descriptor_set_layout_binding(&self) -> vk::DescriptorSetLayoutBinding {
+        vk::DescriptorSetLayoutBinding::builder()
+            .binding(self.binding)
+            .descriptor_type(self.descriptor_type.get_vk_descriptor_type())
+            .descriptor_count(self.descriptor_type.get_vk_descriptor_count())
+            .stage_flags(self.stage_flags)
+            .build()
+    }
+}
+
+#[derive(Copy, Clone, PartialEq, Hash, Debug)]
+pub enum DescriptorType {
+    CombinedImageSampler {
+        count: u32,
+    },
+    InlineUniformBlock {
+        size: u32,
+    }
+}
+
+impl DescriptorType {
+    pub fn get_vk_descriptor_type(&self) -> vk::DescriptorType {
+        match self {
+            DescriptorType::CombinedImageSampler { .. } => vk::DescriptorType::COMBINED_IMAGE_SAMPLER,
+            DescriptorType::InlineUniformBlock { .. } => vk::DescriptorType::INLINE_UNIFORM_BLOCK,
+        }
+    }
+
+    pub fn get_vk_descriptor_count(&self) -> u32 {
+        match self {
+            DescriptorType::CombinedImageSampler { count, .. } |
+            DescriptorType::InlineUniformBlock { size: count, .. } => *count,
+        }
+    }
+}
+
 define_uuid_type!(pub, GraphicsPipelineId);
 
 pub struct GraphicsPipeline {
     share: Arc<Share2>,
     id: GraphicsPipelineId,
+    handle: vk::Pipeline,
+    #[allow(unused)] // Only needed to keep the object alive
+    layout: Arc<PipelineLayout>,
 }
 
 impl GraphicsPipeline {
-    pub fn get_id(&self) -> GraphicsPipelineId {
-        self.id
-    }
-
-    pub(super) fn get_input_attribute_count(&self) -> u32 {
-        todo!()
-    }
-
-    pub(super) fn get_color_attachment_count(&self) -> u32 {
-        todo!()
-    }
-
-    pub(super) fn get_shader_stages(&self) -> &[ShaderStageInfo] {
-        todo!()
-    }
-
-    pub(super) fn get_pipeline_layout(&self) -> vk::PipelineLayout {
-        todo!()
-    }
-}
-
-struct PipelineInstanceCache {
-    device: Arc<DeviceContext>,
-    instances: HashMap<u64, vk::Pipeline>,
-}
-
-impl PipelineInstanceCache {
-    fn new(device: Arc<DeviceContext>) -> Self {
-        Self {
-            device,
-            instances: HashMap::new()
-        }
-    }
-
-    fn get_or_create_instance(&mut self, bump: &Bump, shader_stages: &[ShaderStageInfo], layout: vk::PipelineLayout, state: &PipelineStaticState, hasher: &mut RandomState) -> (u64, vk::Pipeline) {
-        let mut hasher = hasher.build_hasher();
-        state.hash(&mut hasher);
-        let hash = hasher.finish();
-
-        if let Some(handle) = self.instances.get(&hash) {
-            (hash, *handle)
-        } else {
-            let instance = self.create_instance(bump, shader_stages, layout, state);
-            self.instances.insert(hash, instance);
-
-            (hash, instance)
-        }
-    }
-
-    fn create_instance(&self, bump: &Bump, shader_stages: &[ShaderStageInfo], layout: vk::PipelineLayout, state: &PipelineStaticState) -> vk::Pipeline {
-        let mut dynamic_state = Vec::with_capacity(32);
-        dynamic_state.push(vk::DynamicState::VIEWPORT);
-        dynamic_state.push(vk::DynamicState::SCISSOR);
+    pub(super) fn new<S: PipelineStaticState2>(share: Arc<Share2>, state: &S, shader_stages: &[ShaderStageInfo], layout: Arc<PipelineLayout>) -> Self {
+        let bump = Bump::new();
 
         let shader_stages = bump.alloc_slice_fill_iter(shader_stages.iter().map(|stage| {
             vk::PipelineShaderStageCreateInfo::builder()
@@ -459,268 +528,361 @@ impl PipelineInstanceCache {
 
         let mut info = vk::GraphicsPipelineCreateInfo::builder()
             .stages(shader_stages)
-            .vertex_input_state(state.generate_vertex_input_state(bump, &mut dynamic_state))
-            .input_assembly_state(state.generate_input_assembly_state(bump, &mut dynamic_state))
+            .vertex_input_state(state.generate_vertex_input_state(&bump))
+            .input_assembly_state(state.generate_input_assembly_state(&bump))
             .viewport_state(&viewport_state)
-            .rasterization_state(state.generate_rasterization_state(bump, &mut dynamic_state))
+            .rasterization_state(state.generate_rasterization_state(&bump))
             .multisample_state(&multisample_state)
-            .depth_stencil_state(state.generate_depth_stencil_state(bump, &mut dynamic_state))
-            .color_blend_state(state.generate_color_blend_state(bump, &mut dynamic_state));
+            .depth_stencil_state(state.generate_depth_stencil_state(&bump))
+            .color_blend_state(state.generate_color_blend_state(&bump));
+
+        let mut dynamic_state = Vec::with_capacity(32);
+        dynamic_state.push(vk::DynamicState::VIEWPORT);
+        dynamic_state.push(vk::DynamicState::SCISSOR);
+        state.collect_dynamic_state(&mut dynamic_state);
 
         let dynamic_state = vk::PipelineDynamicStateCreateInfo::builder()
             .dynamic_states(&dynamic_state);
 
         info = info.dynamic_state(&dynamic_state)
-            .layout(layout);
-        if let Some((render_pass, subpass)) = &state.render_pass {
-            info = info.render_pass(*render_pass)
-                .subpass(*subpass);
-        }
+            .layout(layout.get_handle());
 
-        *unsafe {
-            self.device.vk().create_graphics_pipelines(vk::PipelineCache::null(), std::slice::from_ref(&info), None)
-        }.expect("Failed to create emulator graphics pipeline instance").first().unwrap()
+        let handle = *unsafe {
+            share.get_device().vk().create_graphics_pipelines(vk::PipelineCache::null(), std::slice::from_ref(&info), None)
+        }.expect("Failed to create emulator graphics pipeline").first().unwrap();
+
+        Self {
+            share,
+            id: GraphicsPipelineId::new(),
+            handle,
+            layout
+        }
+    }
+
+    pub fn get_id(&self) -> GraphicsPipelineId {
+        self.id
     }
 }
 
-impl Drop for PipelineInstanceCache {
+impl Drop for GraphicsPipeline {
     fn drop(&mut self) {
-        for (_, handle) in &self.instances {
-            unsafe {
-                self.device.vk().destroy_pipeline(*handle, None);
-            }
+        unsafe {
+            self.share.get_device().vk().destroy_pipeline(self.handle, None);
         }
     }
 }
 
-struct DynamicStateCapabilities {
-    extended_dynamic_state: bool,
-    extended_dynamic_state_2: bool,
+pub trait PipelineStaticState2 {
+    fn generate_vertex_input_state<'a>(&self, alloc: &'a Bump) -> &'a vk::PipelineVertexInputStateCreateInfo;
+
+    fn generate_input_assembly_state<'a>(&self, alloc: &'a Bump) -> &'a vk::PipelineInputAssemblyStateCreateInfo;
+
+    fn generate_rasterization_state<'a>(&self, alloc: &'a Bump) -> &'a vk::PipelineRasterizationStateCreateInfo;
+
+    fn generate_depth_stencil_state<'a>(&self, alloc: &'a Bump) -> &'a vk::PipelineDepthStencilStateCreateInfo;
+
+    fn generate_color_blend_state<'a>(&self, alloc: &'a Bump) -> &'a vk::PipelineColorBlendStateCreateInfo;
+
+    /// Collects all used dynamic state in the provided [`Vec`].
+    ///
+    /// This must only include dynamic state configurable by this trait. In particular this means
+    /// `VK_DYNAMIC_STATE_VIEWPORT` and `VK_DYNAMIC_STATE_SCISSOR` must not be added by this
+    /// function.
+    fn collect_dynamic_state(&self, dynamic_state: &mut Vec<vk::DynamicState>);
 }
 
-struct PipelineDynamicState {
-
+pub trait PipelineDynamicState2 {
+    fn setup_pipeline(&self, device: &DeviceContext, cmd: vk::CommandBuffer, tracker: &mut DynamicStateTracker);
 }
 
-/// Contains all pipeline state needed to create a pipeline instance. Any state which may be dynamic
-/// is wrapped in an Option which if set to [`None`] indicates that the state is dynamic.
-#[derive(Clone, PartialEq, Hash, Debug)]
-struct PipelineStaticState<'a> {
-    /// (location, format, input_rate), index is the binding index
-    input_attributes: &'a [(u32, vk::Format, vk::VertexInputRate)],
-    /// Set to [`None`] if `VK_DYNAMIC_STATE_VERTEX_INPUT_BINDING_STRIDE` is enabled.
-    input_binding_strides: Option<&'a [u32]>,
-    /// Set to [`None`] if `VK_DYNAMIC_STATE_PRIMITIVE_TOPOLOGY` is enabled.
-    primitive_topology: Option<vk::PrimitiveTopology>,
-    /// Set to [`None`] if `VK_DYNAMIC_STATE_PRIMITIVE_RESTART_ENABLE` is enabled.
-    primitive_restart_enable: Option<bool>,
+pub trait PipelineStateProvider {
+    fn get_input_bindings(&self) -> &[PipelineVertexInputBinding];
+
+    fn get_primitive_topology(&self) -> vk::PrimitiveTopology;
+
+    fn get_primitive_restart_enable(&self) -> bool;
+
+    fn get_viewport(&self) -> (Vec2f32, Vec2f32);
+
+    fn get_scissor(&self) -> (Vec2u32, Vec2u32);
+
+    fn get_depth_clamp_enable(&self) -> bool;
+
+    fn get_rasterizer_discard_enable(&self) -> bool;
+
+    fn get_polygon_mode(&self) -> vk::PolygonMode;
+
+    fn get_cull_mode(&self) -> vk::CullModeFlags;
+
+    fn get_front_face(&self) -> vk::FrontFace;
+
+    fn get_line_width(&self) -> f32;
+
+    fn get_depth_test(&self) -> Option<PipelineDepthTest>;
+
+    fn get_stencil_test(&self) -> Option<(PipelineStencilTest, PipelineStencilTest)>;
+
+    fn get_color_blending(&self) -> &[PipelineColorBlending];
+
+    fn get_blend_constants(&self) -> [f32; 4];
+}
+
+#[derive(Copy, Clone, PartialEq, Default, Hash, Debug)]
+pub struct PipelineVertexInputBinding {
+    pub location: u32,
+    pub stride: u32,
+    pub format: vk::Format,
+    pub input_rate: vk::VertexInputRate,
+}
+
+#[derive(Copy, Clone, PartialEq, Default, Hash, Debug)]
+pub struct PipelineDepthTest {
+    pub write_enable: bool,
+    pub compare_op: vk::CompareOp,
+}
+
+#[derive(Copy, Clone, PartialEq, Default, Hash, Debug)]
+pub struct PipelineStencilTest {
+    pub fail_op: vk::StencilOp,
+    pub pass_op: vk::StencilOp,
+    pub depth_fail_op: vk::StencilOp,
+    pub compare_op: vk::CompareOp,
+    pub compare_mask: u32,
+    pub write_mask: u32,
+    pub reference: u32,
+}
+
+#[derive(Copy, Clone, PartialEq, Default, Hash, Debug)]
+pub struct PipelineColorBlending {
+    pub src_color_blend_factor: vk::BlendFactor,
+    pub dst_color_blend_factor: vk::BlendFactor,
+    pub color_blend_op: vk::BlendOp,
+    pub src_alpha_blend_factor: vk::BlendFactor,
+    pub dst_alpha_blend_factor: vk::BlendFactor,
+    pub alpha_blend_op: vk::BlendOp,
+}
+
+pub struct DynamicStateTracker {
+    pub viewport: (Vec2f32, Vec2f32),
+    pub scissor: (Vec2u32, Vec2u32),
+    pub primitive_topology: Option<vk::PrimitiveTopology>,
+    pub primitive_restart_enable: Option<bool>,
+    pub cull_mode: Option<vk::CullModeFlags>,
+    pub front_face: Option<vk::FrontFace>,
+    pub line_width: Option<NotNan<f32>>,
+    pub depth_test_enable: Option<bool>,
+    pub depth_write_enable: Option<bool>,
+    pub depth_compare_op: Option<vk::CompareOp>,
+    pub stencil_test_enable: Option<bool>,
+    pub stencil_op: Option<(DynamicStateStencilOp, DynamicStateStencilOp)>,
+    pub stencil_compare_mask: Option<(u32, u32)>,
+    pub stencil_write_mask: Option<(u32, u32)>,
+    pub stencil_reference: Option<(u32, u32)>,
+    pub blend_constants: Option<[NotNan<f32>; 4]>,
+}
+
+#[derive(Copy, Clone, PartialEq, Default, Hash, Debug)]
+pub struct DynamicStateStencilOp {
+    pub fail_op: vk::StencilOp,
+    pub pass_op: vk::StencilOp,
+    pub depth_fail_op: vk::StencilOp,
+    pub compare_op: vk::CompareOp,
+}
+
+impl DynamicStateStencilOp {
+    fn from_stencil_test(src: &PipelineStencilTest) -> Self {
+        Self {
+            fail_op: src.fail_op,
+            pass_op: src.pass_op,
+            depth_fail_op: src.depth_fail_op,
+            compare_op: src.compare_op,
+        }
+    }
+}
+
+pub trait PipelineDynamicStateConfiguration {
+    const INPUT_BINDING_STRIDE: bool;
+    const PRIMITIVE_TOPOLOGY: bool;
+    const PRIMITIVE_RESTART_ENABLE: bool;
+    const DEPTH_CLAMP_ENABLE: bool;
+    const RASTERIZER_DISCARD_ENABLE: bool;
+    const POLYGON_MODE: bool;
+    const CULL_MODE: bool;
+    const FRONT_FACE: bool;
+    const LINE_WIDTH: bool;
+    const DEPTH_TEST_ENABLE: bool;
+    const DEPTH_WRITE_ENABLE: bool;
+    const DEPTH_COMPARE_OP: bool;
+    const STENCIL_TEST_ENABLE: bool;
+    const STENCIL_OP: bool;
+    const STENCIL_COMPARE_MASK: bool;
+    const STENCIL_WRITE_MASK: bool;
+    const STENCIL_REFERENCE: bool;
+    const BLEND_CONSTANTS: bool;
+    const USED_DYNAMIC_STATE: &'static [vk::DynamicState];
+}
+
+pub struct ConstPipelineDynamicState<'a, C: PipelineDynamicStateConfiguration> {
+    input_binding_stride: Option<&'a [u32]>,
+    primitive_topology: vk::PrimitiveTopology,
+    primitive_restart_enable: bool,
     depth_clamp_enable: bool,
     rasterizer_discard_enable: bool,
     polygon_mode: vk::PolygonMode,
-    /// Set to [`None`] if `VK_DYNAMIC_STATE_CULL_MODE` is enabled.
-    cull_mode: Option<vk::CullModeFlags>,
-    /// Set to [`None`] if `VK_DYNAMIC_STATE_FRONT_FACE` is enabled.
-    front_face: Option<vk::FrontFace>,
-    /// Set to [`None`] if `VK_DYNAMIC_STATE_LINE_WIDTH` is enabled.
-    line_width: Option<NotNan<f32>>,
-    /// Set to [`None`] if `VK_DYNAMIC_STATE_DEPTH_TEST_ENABLE` is enabled.
-    depth_test_enable: Option<bool>,
-    /// Set to [`None`] if `VK_DYNAMIC_STATE_DEPTH_WRITE_ENABLE` is enabled.
-    depth_write_enable: Option<bool>,
-    /// Set to [`None`] if `VK_DYNAMIC_STATE_DEPTH_COMPARE_OP` is enabled.
-    depth_compare_op: Option<vk::CompareOp>,
-    /// Set to [`None`] if `VK_DYNAMIC_STATE_STENCIL_TEST_ENABLE` is enabled.
-    stencil_test_enable: Option<bool>,
-    /// Set to [`None`] if `VK_DYNAMIC_STATE_STENCIL_OP` is enabled.
-    /// The first element is for the front test and the second for the back test.
-    stencil_op: Option<(PipelineDynamicStateStencilOp, PipelineDynamicStateStencilOp)>,
-    /// Set to [`None`] if `VK_DYNAMIC_STATE_STENCIL_COMPARE_MASK` is enabled.
-    /// The first element is for the front test and the second for the back test.
-    stencil_compare_mask: Option<(u32, u32)>,
-    /// Set to [`None`] if `VK_DYNAMIC_STATE_STENCIL_WRITE_MASK` is enabled.
-    /// The first element is for the front test and the second for the back test.
-    stencil_write_mask: Option<(u32, u32)>,
-    /// Set to [`None`] if `VK_DYNAMIC_STATE_STENCIL_REFERENCE` is enabled.
-    /// The first element is for the front test and the second for the back test.
-    stencil_reference: Option<(u32, u32)>,
-    /// The used logic op. [`None`] indicates that logic op is disabled. This cannot be set
-    /// dynamically.
-    logic_op: Option<vk::LogicOp>,
-    blend_attachments: &'a [(Option<PipelineColorBlendState>, vk::ColorComponentFlags)],
-    /// Set to [`None`] if `VK_DYNAMIC_STATE_BLEND_CONSTANTS` is enabled.
-    blend_constants: Option<[NotNan<f32>; 4]>,
-    /// Set to [`None`] if dynamic rendering is used.
-    render_pass: Option<(vk::RenderPass, u32)>,
+    cull_mode: vk::CullModeFlags,
+    front_face: vk::FrontFace,
+    line_width: f32,
+    depth_test: Option<PipelineDepthTest>,
+    stencil_test: Option<(PipelineStencilTest, PipelineStencilTest)>,
+    blend_constants: [f32; 4],
+    _phantom: PhantomData<C>,
 }
 
-impl<'a> PipelineStaticState<'a> {
-    fn generate_vertex_input_state<'b>(&self, alloc: &'b Bump, dynamic_state: &mut Vec<vk::DynamicState>) -> &'b vk::PipelineVertexInputStateCreateInfoBuilder<'b> {
-        if self.input_binding_strides.is_none() {
-            dynamic_state.push(vk::DynamicState::VERTEX_INPUT_BINDING_STRIDE);
+impl<'a, C: PipelineDynamicStateConfiguration> ConstPipelineDynamicState<'a, C> {
+    pub fn from_state_provider<P: PipelineStateProvider>(alloc: &'a Bump, provider: &P) -> Self {
+        let mut state = Self {
+            input_binding_stride: None,
+            primitive_topology: Default::default(),
+            primitive_restart_enable: false,
+            depth_clamp_enable: false,
+            rasterizer_discard_enable: false,
+            polygon_mode: Default::default(),
+            cull_mode: Default::default(),
+            front_face: Default::default(),
+            line_width: 0.0,
+            depth_test: None,
+            stencil_test: None,
+            blend_constants: Default::default(),
+            _phantom: PhantomData,
+        };
+
+        if C::INPUT_BINDING_STRIDE {
+            let iter = provider.get_input_bindings().iter().map(|b| b.stride);
+            state.input_binding_stride = Some(alloc.alloc_slice_fill_iter(iter));
+        }
+        if C::PRIMITIVE_TOPOLOGY {
+            state.primitive_topology = provider.get_primitive_topology();
+        }
+        if C::PRIMITIVE_RESTART_ENABLE {
+            state.primitive_restart_enable = provider.get_primitive_restart_enable();
+        }
+        if C::DEPTH_CLAMP_ENABLE {
+            state.depth_clamp_enable = provider.get_depth_clamp_enable();
+        }
+        if C::RASTERIZER_DISCARD_ENABLE {
+            state.rasterizer_discard_enable = provider.get_rasterizer_discard_enable();
+        }
+        if C::POLYGON_MODE {
+            state.polygon_mode = provider.get_polygon_mode();
+        }
+        if C::CULL_MODE {
+            state.cull_mode = provider.get_cull_mode();
+        }
+        if C::FRONT_FACE {
+            state.front_face = provider.get_front_face();
+        }
+        if C::LINE_WIDTH {
+            state.line_width = provider.get_line_width();
+        }
+        if C::DEPTH_TEST_ENABLE || C::DEPTH_WRITE_ENABLE || C::DEPTH_COMPARE_OP {
+            state.depth_test = provider.get_depth_test();
+        }
+        if C::STENCIL_TEST_ENABLE || C::STENCIL_OP || C::STENCIL_COMPARE_MASK || C::STENCIL_WRITE_MASK || C::STENCIL_REFERENCE {
+            state.stencil_test = provider.get_stencil_test();
+        }
+        if C::BLEND_CONSTANTS {
+            state.blend_constants = provider.get_blend_constants();
         }
 
-        let bindings = self.input_attributes.iter().enumerate().map(|(index, (_, _, rate))| {
-            let mut binding = vk::VertexInputBindingDescription::builder()
-                .binding(index as u32)
-                .input_rate(*rate);
-            if let Some(input_stride) = &self.input_binding_strides {
-                binding = binding.stride(input_stride[index]);
-            }
-            binding.build()
-        });
-        let attributes = self.input_attributes.iter().enumerate().map(|(index, (location, format, _))| {
-            vk::VertexInputAttributeDescription::builder()
-                .location(*location)
-                .binding(index as u32)
-                .format(*format)
-                .offset(0)
-                .build()
-        });
-
-        let state = vk::PipelineVertexInputStateCreateInfo::builder()
-            .vertex_binding_descriptions(alloc.alloc_slice_fill_iter(bindings))
-            .vertex_attribute_descriptions(alloc.alloc_slice_fill_iter(attributes));
-
-        alloc.alloc(state)
+        state
     }
+}
 
-    fn generate_input_assembly_state<'b>(&self, alloc: &'b Bump, dynamic_state: &mut Vec<vk::DynamicState>) -> &'b vk::PipelineInputAssemblyStateCreateInfoBuilder<'b> {
-        let mut state = vk::PipelineInputAssemblyStateCreateInfo::builder();
-        if let Some(topology) = &self.primitive_topology {
-            state = state.topology(*topology);
-        } else {
-            dynamic_state.push(vk::DynamicState::PRIMITIVE_TOPOLOGY);
-        }
-        if let Some(primitive_restart_enable) = &self.primitive_restart_enable {
-            state = state.primitive_restart_enable(*primitive_restart_enable);
-        } else {
-            dynamic_state.push(vk::DynamicState::PRIMITIVE_RESTART_ENABLE);
-        }
-        alloc.alloc(state)
-    }
-
-    fn generate_rasterization_state<'b>(&self, alloc: &'b Bump, dynamic_state: &mut Vec<vk::DynamicState>) -> &'b vk::PipelineRasterizationStateCreateInfoBuilder<'b> {
-        let mut state = vk::PipelineRasterizationStateCreateInfo::builder()
-            .depth_clamp_enable(self.depth_clamp_enable)
-            .rasterizer_discard_enable(self.rasterizer_discard_enable)
-            .polygon_mode(self.polygon_mode);
-        if let Some(cull_mode) = &self.cull_mode {
-            state = state.cull_mode(*cull_mode);
-        } else {
-            dynamic_state.push(vk::DynamicState::CULL_MODE);
-        }
-        if let Some(front_face) = &self.front_face {
-            state = state.front_face(*front_face);
-        } else {
-            dynamic_state.push(vk::DynamicState::FRONT_FACE);
-        }
-        if let Some(line_width) = &self.line_width {
-            state = state.line_width(line_width.into_inner());
-        } else {
-            dynamic_state.push(vk::DynamicState::LINE_WIDTH);
-        }
-        alloc.alloc(state)
-    }
-
-    fn generate_depth_stencil_state<'b>(&self, alloc: &'b Bump, dynamic_state: &mut Vec<vk::DynamicState>) -> &'b vk::PipelineDepthStencilStateCreateInfoBuilder<'b> {
-        let mut state = vk::PipelineDepthStencilStateCreateInfo::builder();
-        if let Some(depth_test_enable) = &self.depth_test_enable {
-            state = state.depth_test_enable(*depth_test_enable);
-        } else {
-            dynamic_state.push(vk::DynamicState::DEPTH_TEST_ENABLE);
-        }
-        if let Some(depth_write_enable) = &self.depth_write_enable {
-            state = state.depth_write_enable(*depth_write_enable);
-        } else {
-            dynamic_state.push(vk::DynamicState::DEPTH_WRITE_ENABLE);
-        }
-        if let Some(depth_compare_op) = &self.depth_compare_op {
-            state = state.depth_compare_op(*depth_compare_op);
-        } else {
-            dynamic_state.push(vk::DynamicState::DEPTH_COMPARE_OP);
-        }
-        if let Some(stencil_test_enable) = &self.stencil_test_enable {
-            state = state.stencil_test_enable(*stencil_test_enable);
-        } else {
-            dynamic_state.push(vk::DynamicState::STENCIL_TEST_ENABLE);
-        }
-        let (mut front, mut back) = (vk::StencilOpState::builder(), vk::StencilOpState::builder());
-        if let Some((stencil_op_front, stencil_op_back)) = &self.stencil_op {
-            front = front.fail_op(stencil_op_front.fail_op)
-                .pass_op(stencil_op_front.pass_op)
-                .depth_fail_op(stencil_op_front.depth_fail_op)
-                .compare_op(stencil_op_front.compare_op);
-            back = back.fail_op(stencil_op_back.fail_op)
-                .pass_op(stencil_op_back.pass_op)
-                .depth_fail_op(stencil_op_back.depth_fail_op)
-                .compare_op(stencil_op_back.compare_op);
-        } else {
-            dynamic_state.push(vk::DynamicState::STENCIL_OP);
-        }
-        if let Some((compare_mask_front, compare_mask_back)) = &self.stencil_compare_mask {
-            front = front.compare_mask(*compare_mask_front);
-            back = back.compare_mask(*compare_mask_back);
-        } else {
-            dynamic_state.push(vk::DynamicState::STENCIL_COMPARE_MASK);
-        }
-        if let Some((write_mask_front, write_mask_back)) = &self.stencil_write_mask {
-            front = front.write_mask(*write_mask_front);
-            back = back.write_mask(*write_mask_back);
-        } else {
-            dynamic_state.push(vk::DynamicState::STENCIL_WRITE_MASK);
-        }
-        if let Some((reference_front, reference_back)) = &self.stencil_reference {
-            front = front.reference(*reference_front);
-            back = back.reference(*reference_back);
-        } else {
-            dynamic_state.push(vk::DynamicState::STENCIL_REFERENCE);
-        }
-        state = state.front(front.build()).back(back.build());
-        alloc.alloc(state)
-    }
-
-    fn generate_color_blend_state<'b>(&self, alloc: &'b Bump, dynamic_state: &mut Vec<vk::DynamicState>) -> &'b vk::PipelineColorBlendStateCreateInfoBuilder<'b> {
-        let mut state = vk::PipelineColorBlendStateCreateInfo::builder();
-        if let Some(logic_op) = &self.logic_op {
-            state = state.logic_op_enable(true)
-                .logic_op(*logic_op);
-        } else {
-            state = state.logic_op_enable(false);
-        }
-        let attachments = alloc.alloc_slice_fill_iter(self.blend_attachments.iter().map(|(blend_state, write_mask)| {
-            let mut blend = vk::PipelineColorBlendAttachmentState::builder();
-            if let Some(blend_state) = blend_state {
-                blend = blend.blend_enable(true)
-                    .src_color_blend_factor(blend_state.src_color_blend_factor)
-                    .dst_color_blend_factor(blend_state.dst_color_blend_factor)
-                    .color_blend_op(blend_state.color_blend_op)
-                    .src_alpha_blend_factor(blend_state.src_alpha_blend_factor)
-                    .dst_alpha_blend_factor(blend_state.dst_alpha_blend_factor)
-                    .alpha_blend_op(blend_state.alpha_blend_op);
+impl<'a, C: PipelineDynamicStateConfiguration> PipelineDynamicState2 for ConstPipelineDynamicState<'a, C> {
+    fn setup_pipeline(&self, device: &DeviceContext, cmd: CommandBuffer, tracker: &mut DynamicStateTracker) {
+        if let Some(vk) = device.extended_dynamic_state_ext() {
+            if C::PRIMITIVE_TOPOLOGY {
+                if tracker.primitive_topology != Some(self.primitive_topology) {
+                    unsafe { vk.cmd_set_primitive_topology(cmd, self.primitive_topology) };
+                    tracker.primitive_topology = Some(self.primitive_topology);
+                }
             } else {
-                blend = blend.blend_enable(false);
+                tracker.primitive_topology = None;
             }
-            blend.color_write_mask(*write_mask).build()
-        }));
-        state = state.attachments(attachments);
-        if let Some(blend_constants) = &self.blend_constants {
-            state = state.blend_constants(unsafe {
-                // Safe because NotNan is repr(transparent)
-                std::mem::transmute(*blend_constants)
-            });
-        } else {
-            dynamic_state.push(vk::DynamicState::BLEND_CONSTANTS);
-        }
-        alloc.alloc(state)
-    }
-}
 
-#[derive(Copy, Clone, PartialEq, Hash, Debug)]
-struct PipelineDynamicStateStencilOp {
-    fail_op: vk::StencilOp,
-    pass_op: vk::StencilOp,
-    depth_fail_op: vk::StencilOp,
-    compare_op: vk::CompareOp,
+            if C::CULL_MODE {
+                if tracker.cull_mode != Some(self.cull_mode) {
+                    unsafe { vk.cmd_set_cull_mode(cmd, self.cull_mode) };
+                    tracker.cull_mode = Some(self.cull_mode);
+                }
+            } else {
+                tracker.cull_mode = None;
+            }
+
+            if C::FRONT_FACE {
+                if tracker.front_face != Some(self.front_face) {
+                    unsafe { vk.cmd_set_front_face(cmd, self.front_face) };
+                    tracker.front_face = Some(self.front_face);
+                }
+            } else {
+                tracker.front_face = None;
+            }
+
+            if C::DEPTH_TEST_ENABLE {
+                if tracker.depth_test_enable != Some(self.depth_test.is_some()) {
+                    unsafe { vk.cmd_set_depth_test_enable(cmd, self.depth_test.is_some()) };
+                    tracker.depth_test_enable = Some(self.depth_test.is_some());
+                }
+            } else {
+                tracker.depth_test_enable = None;
+            }
+
+            if C::DEPTH_COMPARE_OP {
+                let compare_op = self.depth_test.as_ref().map(|d| d.compare_op).unwrap_or(vk::CompareOp::ALWAYS);
+                if tracker.depth_compare_op != Some(compare_op) {
+                    unsafe { vk.cmd_set_depth_compare_op(cmd, compare_op) };
+                    tracker.depth_compare_op = Some(compare_op);
+                }
+            } else {
+                tracker.depth_compare_op = None;
+            }
+
+            if C::DEPTH_WRITE_ENABLE {
+                let depth_write_enable = self.depth_test.as_ref().map(|d| d.write_enable).unwrap_or(false);
+                if tracker.depth_write_enable != Some(depth_write_enable) {
+                    unsafe { vk.cmd_set_depth_write_enable(cmd, depth_write_enable) };
+                    tracker.depth_write_enable = Some(depth_write_enable);
+                }
+            } else {
+                tracker.depth_write_enable = None;
+            }
+
+            if C::STENCIL_TEST_ENABLE {
+                if tracker.stencil_test_enable != Some(self.stencil_test.is_some()) {
+                    unsafe { vk.cmd_set_stencil_test_enable(cmd, self.stencil_test.is_some()) };
+                    tracker.stencil_test_enable = Some(self.stencil_test.is_some());
+                }
+            } else {
+                tracker.stencil_test_enable = None;
+            }
+
+            if C::STENCIL_OP {
+                let stencil_op = self.stencil_test.as_ref().map(|(f, b)|
+                    (DynamicStateStencilOp::from_stencil_test(f), DynamicStateStencilOp::from_stencil_test(b))
+                ).unwrap_or_default();
+                if tracker.stencil_op != Some(stencil_op) {
+                    unsafe {
+                        vk.cmd_set_stencil_op(cmd, vk::StencilFaceFlags::FRONT, stencil_op.0.fail_op, stencil_op.0.pass_op, stencil_op.0.depth_fail_op, stencil_op.0.compare_op);
+                        vk.cmd_set_stencil_op(cmd, vk::StencilFaceFlags::BACK, stencil_op.1.fail_op, stencil_op.1.pass_op, stencil_op.1.depth_fail_op, stencil_op.1.compare_op);
+                    }
+                    tracker.stencil_op = Some(stencil_op);
+                }
+            } else {
+                tracker.stencil_op = None;
+            }
+        }
+        todo!()
+    }
 }
 
 pub(super) struct ShaderStageInfo {
