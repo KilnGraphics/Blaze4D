@@ -178,6 +178,8 @@ pub(super) fn run_worker2(share: Arc<Share2>) {
                     let images: Box<_> = export_set.get_images().iter().map(|i| (&**i, vk::ImageLayout::GENERAL)).collect();
                     submit_recorder(&share, &mut recorder, &object_pool, &mut last_sync, signal_value, &images, &mut artifacts);
                     last_sync = wait_value;
+
+                    share.signal_export(signal_value);
                 }
                 WorkerTask3::Flush(signal_value) => {
                     submit_recorder(&share, &mut recorder, &object_pool, &mut last_sync, signal_value, &[], &mut artifacts);
@@ -187,20 +189,20 @@ pub(super) fn run_worker2(share: Arc<Share2>) {
                     break;
                 }
             }
+        }
 
-            while let Some(artifact) = artifacts.front() {
-                if artifact.is_done() {
-                    artifacts.pop_front();
-                } else {
-                    break;
-                }
+        while let Some(artifact) = artifacts.front() {
+            if artifact.is_done() {
+                artifacts.pop_front();
+            } else {
+                break;
             }
+        }
 
-            let now = Instant::now();
-            if now.duration_since(last_update) >= Duration::from_secs(10) {
-                share.update();
-                last_update = now;
-            }
+        let now = Instant::now();
+        if now.duration_since(last_update) >= Duration::from_secs(10) {
+            share.update();
+            last_update = now;
         }
     }
 
@@ -392,9 +394,11 @@ mod recorder {
         pub(super) fn is_done(&self) -> bool {
             let pool = self.object_pool.borrow();
 
-            unsafe {
+            let value = unsafe {
                 pool.get_device().timeline_semaphore_khr().get_semaphore_counter_value(pool.share.get_semaphore())
-            }.unwrap() >= self.wait_value
+            }.unwrap();
+
+            value >= self.wait_value
         }
     }
 

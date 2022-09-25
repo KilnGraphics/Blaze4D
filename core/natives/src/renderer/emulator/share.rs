@@ -5,6 +5,7 @@ use std::panic::RefUnwindSafe;
 use std::collections::{HashMap, VecDeque};
 use std::fmt::{Debug, Display, Formatter};
 use std::ops::Add;
+use std::os::unix::raw::gid_t;
 use std::ptr::NonNull;
 use std::sync::atomic::{AtomicBool, AtomicU64};
 use std::thread::JoinHandle;
@@ -117,6 +118,31 @@ impl Share2 {
         }
     }
 
+    pub(super) fn wait_for_export(&self, export: u64) {
+        let mut guard = self.channel.lock().unwrap();
+        loop {
+            if guard.export_ready >= export {
+                return;
+            }
+            let (new_guard, result) = self.signal.wait_timeout(guard, Duration::from_secs(1)).unwrap();
+            guard = new_guard;
+
+            if result.timed_out() {
+                log::warn!("Timeout while waiting for result ready");
+                if guard.state == State::Failed {
+                    panic!("Emulator worker has failed");
+                }
+            }
+        }
+    }
+
+    pub(super) fn signal_export(&self, export: u64) {
+        let mut guard = self.channel.lock().unwrap();
+        guard.export_ready = export;
+        drop(guard);
+        self.signal.notify_all();
+    }
+
     pub(super) fn allocate_staging(&self, size: u64, alignment: u64) -> (StagingAllocation2, StagingAllocationId2) {
         self.staging.lock().unwrap().allocate(size, alignment)
     }
@@ -138,7 +164,7 @@ impl Share2 {
         guard.queue.push_back(WorkerTask3::Emulator(task));
 
         drop(guard);
-        self.signal.notify_one();
+        self.signal.notify_all();
         id
     }
 
@@ -156,7 +182,7 @@ impl Share2 {
         guard.queue.push_back(WorkerTask3::Export(emulator_signal_value, export_signal_value, export_set.clone()));
 
         drop(guard);
-        self.signal.notify_one();
+        self.signal.notify_all();
         ExportHandle {
             export_set,
             wait_value: emulator_signal_value,
@@ -176,7 +202,7 @@ impl Share2 {
         guard.queue.push_back(WorkerTask3::Flush(id));
 
         drop(guard);
-        self.signal.notify_one();
+        self.signal.notify_all();
         id
     }
 
@@ -190,7 +216,7 @@ impl Share2 {
         guard.queue.push_back(WorkerTask3::Shutdown(id));
         guard.state = State::Shutdown;
         drop(guard);
-        self.signal.notify_one();
+        self.signal.notify_all();
     }
 
     pub(super) fn pop_task(&self, timeout: Duration) -> Option<WorkerTask3> {
@@ -252,6 +278,7 @@ impl RefUnwindSafe for Share2 {
 struct Channel2 {
     queue: VecDeque<WorkerTask3>,
     next_task_id: u64,
+    export_ready: u64,
     state: State,
 }
 
@@ -260,6 +287,7 @@ impl Channel2 {
         Self {
             queue: VecDeque::new(),
             next_task_id: 1,
+            export_ready: 0,
             state: State::Running
         }
     }

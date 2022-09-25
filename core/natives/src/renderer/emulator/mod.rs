@@ -65,6 +65,7 @@ use crate::util::format::Format;
 
 pub use objects::{Buffer, BufferInfo, BufferId, Image, ImageInfo, ImageSize, ImageId, GraphicsPipeline};
 use crate::renderer::emulator::objects::{DescriptorBinding, PipelineDynamicState2, PipelineLayout, PipelineStaticState2, ShaderStageInfo};
+use crate::renderer::emulator::worker::WorkerTask3::Export;
 
 pub type BufferArc = Arc<Buffer>;
 pub type ImageArc = Arc<Image>;
@@ -100,6 +101,10 @@ impl Emulator2 {
 
     pub fn create_graphics_pipeline<S: PipelineStaticState2>(&self, shader_stages: &[ShaderStageInfo], state: &S, layout: Arc<PipelineLayout>) -> PipelineArc {
         Arc::new(GraphicsPipeline::new(self.share.clone(), state, shader_stages, layout))
+    }
+
+    pub fn create_export_set(&self, images: Box<[Arc<Image>]>) -> Arc<ExportSet> {
+        Arc::new_cyclic(|w| ExportSet::new(w.clone(), self.share.clone(), images))
     }
 
     pub fn cmd_write_buffer(&self, buffer: BufferArc, offset: u64, data: &[u8]) {
@@ -227,10 +232,6 @@ impl Emulator2 {
         };
 
         Ok(self.share.push_task(task))
-    }
-
-    pub fn create_export_set(&self) -> ExportSet {
-        todo!()
     }
 
     pub fn flush(&self) {
@@ -464,17 +465,25 @@ pub struct PipelineShaderInfo<'a> {
 
 pub struct ExportSet {
     weak: Weak<Self>,
-    emulator: Arc<Share2>,
+    share: Arc<Share2>,
     images: Box<[Arc<Image>]>,
 }
 
 impl ExportSet {
+    fn new(weak: Weak<Self>, share: Arc<Share2>, images: Box<[Arc<Image>]>) -> Self {
+        Self {
+            weak,
+            share,
+            images,
+        }
+    }
+
     pub fn get_images(&self) -> &[Arc<Image>] {
         &self.images
     }
 
     pub fn export(&self) -> ExportHandle {
-        self.emulator.export(self.weak.upgrade().unwrap())
+        self.share.export(self.weak.upgrade().unwrap())
     }
 }
 
@@ -486,11 +495,15 @@ pub struct ExportHandle {
 
 impl ExportHandle {
     pub fn get_semaphore_wait(&self) -> (vk::Semaphore, u64) {
-        (self.export_set.emulator.get_semaphore(), self.wait_value)
+        (self.export_set.share.get_semaphore(), self.wait_value)
     }
 
     pub fn get_semaphore_signal(&self) -> (vk::Semaphore, u64) {
-        (self.export_set.emulator.get_semaphore(), self.signal_value)
+        (self.export_set.share.get_semaphore(), self.signal_value)
+    }
+
+    pub fn wait_ready(&self) {
+        self.export_set.share.wait_for_export(self.wait_value);
     }
 }
 
@@ -735,8 +748,9 @@ impl<'a> Debug for MeshData<'a> {
 
 #[cfg(test)]
 mod test {
+    use std::time::Duration;
     use ash::vk;
-    use rand::{RngCore, SeedableRng};
+    use rand::{Rng, RngCore, SeedableRng};
     use crate::prelude::Vec2u32;
     use crate::renderer::emulator::{Emulator2, ImageSize};
 
@@ -856,6 +870,113 @@ mod test {
             emulator.cmd_read_sub_image(image.clone(), &copy, &mut dst).await_ready();
 
             assert_eq!(data, dst);
+        }
+    }
+
+    #[test]
+    fn export_images() {
+        crate::init_test_env();
+        let (_, device) = crate::test::create_test_instance_device(None).unwrap();
+        let emulator = Emulator2::new(device.clone());
+
+        let image = emulator.create_persistent_color_image(vk::Format::R8G8B8A8_SRGB, ImageSize::new_2d(Vec2u32::new(1024, 1024), 1, 1));
+        let mut rand = rand::rngs::StdRng::seed_from_u64(0x55C18F5FA3B21BF6u64);
+
+        let byte_size = 1024 * 1024 * 4usize;
+        let mut data = Vec::new();
+        data.resize(byte_size, 0u8);
+        rand.fill_bytes(&mut data);
+
+        let subresource = vk::ImageSubresourceLayers {
+            aspect_mask: vk::ImageAspectFlags::COLOR,
+            mip_level: 0,
+            base_array_layer: 0,
+            layer_count: 1
+        };
+        let copy = vk::BufferImageCopy {
+            buffer_offset: 0,
+            buffer_row_length: 0,
+            buffer_image_height: 0,
+            image_subresource: subresource,
+            image_offset: vk::Offset3D { x: 0, y: 0, z: 0 },
+            image_extent: vk::Extent3D{ width: 1024, height: 1024, depth: 1 }
+        };
+        emulator.cmd_write_sub_image(image.clone(), &copy, &data);
+
+        let export_set = emulator.create_export_set(Box::new([image.clone()]));
+
+        let info = vk::CommandPoolCreateInfo::builder();
+        let cmd_pool = unsafe {
+            device.vk().create_command_pool(&info, None)
+        }.unwrap();
+
+        let info = vk::CommandBufferAllocateInfo::builder()
+            .command_buffer_count(1)
+            .command_pool(cmd_pool);
+
+        let cmd = *unsafe {
+            device.vk().allocate_command_buffers(&info)
+        }.unwrap().first().unwrap();
+
+        let info = vk::CommandBufferBeginInfo::builder();
+        unsafe {
+            device.vk().begin_command_buffer(cmd, &info)
+        }.unwrap();
+
+        let clear_value = vk::ClearColorValue {
+            float32: [0f32; 4],
+        };
+        let range = image.get_info().get_full_subresource_range();
+        let image_handle = image.get_handle();
+
+        unsafe {
+            device.vk().cmd_clear_color_image(cmd, image_handle, vk::ImageLayout::GENERAL, &clear_value, std::slice::from_ref(&range))
+        };
+
+        unsafe {
+            device.vk().end_command_buffer(cmd)
+        }.unwrap();
+
+        let handle = export_set.export();
+        let (w_semaphore, w_value) = handle.get_semaphore_wait();
+        let wait = vk::SemaphoreSubmitInfo::builder()
+            .semaphore(w_semaphore)
+            .value(w_value);
+        let (s_semaphore, s_value) = handle.get_semaphore_signal();
+        let signal = vk::SemaphoreSubmitInfo::builder()
+            .semaphore(s_semaphore)
+            .value(s_value);
+
+        let cmd_info = vk::CommandBufferSubmitInfo::builder()
+            .command_buffer(cmd);
+
+        let submit_info = vk::SubmitInfo2::builder()
+            .wait_semaphore_infos(std::slice::from_ref(&wait))
+            .command_buffer_infos(std::slice::from_ref(&cmd_info))
+            .signal_semaphore_infos(std::slice::from_ref(&signal));
+
+        handle.wait_ready();
+        unsafe {
+            device.get_main_queue().submit_2(std::slice::from_ref(&submit_info), None)
+        }.unwrap();
+
+        let wait = vk::SemaphoreWaitInfo::builder()
+            .semaphores(std::slice::from_ref(&s_semaphore))
+            .values(std::slice::from_ref(&s_value));
+        unsafe {
+            device.timeline_semaphore_khr().wait_semaphores(&wait, 1000 * 1000 * 1000)
+        }.unwrap();
+
+        unsafe {
+            device.vk().destroy_command_pool(cmd_pool, None);
+        }
+
+        let mut dst = Vec::new();
+        dst.resize(byte_size, 12u8);
+        emulator.cmd_read_sub_image(image.clone(), &copy, &mut dst).await_ready();
+
+        for byte in &dst {
+            assert_eq!(*byte, 0u8);
         }
     }
 }
