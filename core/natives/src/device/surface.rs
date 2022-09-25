@@ -561,10 +561,8 @@ impl AcquireObjects {
     /// This function must only be called once and no other function of this struct except for drop
     /// may be called after this function is called. Failing to do so is undefined behaviour.
     unsafe fn destroy(&mut self, device: &DeviceFunctions) {
-        unsafe {
-            device.vk.destroy_semaphore(self.acquire_semaphore.get_handle(), None);
-            device.vk.destroy_semaphore(self.ready_semaphore.get_handle(), None);
-        }
+        device.vk.destroy_semaphore(self.acquire_semaphore.get_handle(), None);
+        device.vk.destroy_semaphore(self.ready_semaphore.get_handle(), None);
     }
 }
 

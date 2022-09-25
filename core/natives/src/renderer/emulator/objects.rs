@@ -1,12 +1,9 @@
 use std::cell::UnsafeCell;
 use std::cmp::Ordering;
-use std::collections::hash_map::RandomState;
-use std::collections::HashMap;
 use std::ffi::CString;
-use std::hash::{BuildHasher, Hash, Hasher};
+use std::hash::{Hash, Hasher};
 use std::marker::PhantomData;
 use std::sync::Arc;
-use std::sync::atomic::AtomicBool;
 
 use ash::vk;
 use ash::vk::CommandBuffer;
@@ -18,7 +15,6 @@ use super::share::Share2;
 use crate::define_uuid_type;
 
 use crate::prelude::*;
-use crate::renderer::emulator::BBox;
 
 macro_rules! id_type {
     ($name: ident, $id_func: expr) => {

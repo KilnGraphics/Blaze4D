@@ -442,7 +442,7 @@ fn configure_device(device: &mut DeviceConfigurator) -> Result<Option<DeviceConf
     }
 
     let has_maintenance4;
-    if let Some((f, p)) = maintenance4.as_ref() {
+    if let Some((f, _)) = maintenance4.as_ref() {
         if f.maintenance4 == vk::TRUE {
             has_maintenance4 = true;
             device.add_extension(&maintenance_4_name);
@@ -457,7 +457,7 @@ fn configure_device(device: &mut DeviceConfigurator) -> Result<Option<DeviceConf
     }
 
     // Calculate queue family assignments
-    let main_families = device.filter_sort_queues(|family, properties, surface_support| {
+    let main_families = device.filter_sort_queues(|family, _, _| {
         Some(family)
     });
     let main_queue_family;

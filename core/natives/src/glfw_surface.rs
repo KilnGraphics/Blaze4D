@@ -57,7 +57,7 @@ impl SurfaceProvider for GLFWSurfaceProvider {
         let surface_khr = ash::extensions::khr::Surface::new(entry, instance);
 
         let mut surface = vk::SurfaceKHR::null();
-        unsafe { (self.create_surface_fn)(instance.handle(), self.glfw_window, std::ptr::null(), &mut surface) }.result()?;
+        (self.create_surface_fn)(instance.handle(), self.glfw_window, std::ptr::null(), &mut surface).result()?;
         self.surface = Some((surface, surface_khr));
 
         Ok(surface)
@@ -65,7 +65,7 @@ impl SurfaceProvider for GLFWSurfaceProvider {
 
     unsafe fn destroy(&mut self) {
         self.surface.take().map(|s| {
-            unsafe { s.1.destroy_surface(s.0, None) };
+            s.1.destroy_surface(s.0, None);
         });
     }
 
