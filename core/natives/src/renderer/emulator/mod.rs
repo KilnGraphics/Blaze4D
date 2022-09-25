@@ -960,13 +960,6 @@ mod test {
             device.get_main_queue().submit_2(std::slice::from_ref(&submit_info), None)
         }.unwrap();
 
-        let wait = vk::SemaphoreWaitInfo::builder()
-            .semaphores(std::slice::from_ref(&s_semaphore))
-            .values(std::slice::from_ref(&s_value));
-        unsafe {
-            device.timeline_semaphore_khr().wait_semaphores(&wait, 1000 * 1000 * 1000)
-        }.unwrap();
-
         unsafe {
             device.vk().destroy_command_pool(cmd_pool, None);
         }
@@ -978,5 +971,14 @@ mod test {
         for byte in &dst {
             assert_eq!(*byte, 0u8);
         }
+
+        // Were keeping the handle alive and validating that the emulator properly waits for the external submission to finish
+        let wait = vk::SemaphoreWaitInfo::builder()
+            .semaphores(std::slice::from_ref(&s_semaphore))
+            .values(std::slice::from_ref(&s_value));
+        unsafe {
+            device.timeline_semaphore_khr().wait_semaphores(&wait, 1000 * 1000 * 1000)
+        }.unwrap();
+        drop(handle);
     }
 }

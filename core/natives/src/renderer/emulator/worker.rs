@@ -163,6 +163,7 @@ pub(super) fn run_worker2(share: Arc<Share2>) {
 
     let mut recorder = None;
 
+    let mut pending_export = None;
     let mut last_sync = 0u64;
     let mut last_update = Instant::now();
     loop {
@@ -176,16 +177,17 @@ pub(super) fn run_worker2(share: Arc<Share2>) {
                 }
                 WorkerTask3::Export(signal_value, wait_value, export_set) => {
                     let images: Box<_> = export_set.get_images().iter().map(|i| (&**i, vk::ImageLayout::GENERAL)).collect();
-                    submit_recorder(&share, &mut recorder, &object_pool, &mut last_sync, signal_value, &images, &mut artifacts);
-                    last_sync = wait_value;
+                    submit_recorder(&share, &mut recorder, &object_pool, &mut pending_export, &mut last_sync, signal_value, &images, &mut artifacts);
 
+                    last_sync = wait_value;
+                    pending_export = Some(wait_value);
                     share.signal_export(signal_value);
                 }
                 WorkerTask3::Flush(signal_value) => {
-                    submit_recorder(&share, &mut recorder, &object_pool, &mut last_sync, signal_value, &[], &mut artifacts);
+                    submit_recorder(&share, &mut recorder, &object_pool, &mut pending_export, &mut last_sync, signal_value, &[], &mut artifacts);
                 }
                 WorkerTask3::Shutdown(signal_value) => {
-                    submit_recorder(&share, &mut recorder, &object_pool, &mut last_sync, signal_value, &[], &mut artifacts);
+                    submit_recorder(&share, &mut recorder, &object_pool, &mut pending_export, &mut last_sync, signal_value, &[], &mut artifacts);
                     break;
                 }
             }
@@ -222,7 +224,7 @@ pub(super) fn run_worker2(share: Arc<Share2>) {
     }
 }
 
-fn submit_recorder<'a>(share: &Share2, recorder: &mut Option<Recorder<'a>>, object_pool: &'a RefCell<ObjectPool2>, last_sync: &mut u64, signal_value: u64, image_transitions: &[(&Image, vk::ImageLayout)], artifacts: &mut VecDeque<SubmissionArtifact<'a>>) {
+fn submit_recorder<'a>(share: &Share2, recorder: &mut Option<Recorder<'a>>, object_pool: &'a RefCell<ObjectPool2>, pending_export: &mut Option<u64>, last_sync: &mut u64, signal_value: u64, image_transitions: &[(&Image, vk::ImageLayout)], artifacts: &mut VecDeque<SubmissionArtifact<'a>>) {
     if recorder.is_none() {
         // Check if we need a recorder for image barriers
         for (image, dst_layout) in image_transitions {
@@ -235,13 +237,31 @@ fn submit_recorder<'a>(share: &Share2, recorder: &mut Option<Recorder<'a>>, obje
     }
 
     if let Some(recorder) = recorder.take() {
+        if let Some(pending_export) = pending_export.take() {
+            // We cannot submit before the external commands have been submitted so we must wait
+            let semaphore = share.get_semaphore();
+            let info = vk::SemaphoreWaitInfo::builder()
+                .semaphores(std::slice::from_ref(&semaphore))
+                .values(std::slice::from_ref(&pending_export));
+            unsafe {
+                share.get_device().timeline_semaphore_khr().wait_semaphores(&info, u64::MAX)
+            }.unwrap();
+        }
+
         artifacts.push_back(recorder.submit(*last_sync, signal_value, image_transitions));
     } else {
+        let wait_value = if let Some(pending_export) = pending_export.take() {
+            // If a pending export exist its impossible for anything to have been submitted yet
+            pending_export
+        } else {
+            *last_sync
+        };
+
         // There is nothing to submit so we must manually ensure that we signal the required value
         let semaphore = share.get_semaphore();
         let info = vk::SemaphoreWaitInfo::builder()
             .semaphores(std::slice::from_ref(&semaphore))
-            .values(std::slice::from_ref(last_sync));
+            .values(std::slice::from_ref(&wait_value));
         unsafe {
             share.get_device().timeline_semaphore_khr().wait_semaphores(&info, u64::MAX)
         }.unwrap();
