@@ -463,6 +463,7 @@ pub struct PipelineShaderInfo<'a> {
 }
 
 pub struct ExportSet {
+    weak: Weak<Self>,
     emulator: Arc<Share2>,
     images: Box<[Arc<Image>]>,
 }
@@ -473,29 +474,23 @@ impl ExportSet {
     }
 
     pub fn export(&self) -> ExportHandle {
-        todo!()
+        self.emulator.export(self.weak.upgrade().unwrap())
     }
 }
 
 pub struct ExportHandle {
-    emulator: Arc<Share2>,
+    export_set: Arc<ExportSet>,
     wait_value: u64,
     signal_value: u64,
 }
 
 impl ExportHandle {
     pub fn get_semaphore_wait(&self) -> (vk::Semaphore, u64) {
-        (self.emulator.get_semaphore(), self.wait_value)
+        (self.export_set.emulator.get_semaphore(), self.wait_value)
     }
 
     pub fn get_semaphore_signal(&self) -> (vk::Semaphore, u64) {
-        (self.emulator.get_semaphore(), self.signal_value)
-    }
-}
-
-impl Drop for ExportHandle {
-    fn drop(&mut self) {
-        todo!()
+        (self.export_set.emulator.get_semaphore(), self.signal_value)
     }
 }
 

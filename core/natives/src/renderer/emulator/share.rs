@@ -18,6 +18,7 @@ use crate::renderer::emulator::immediate::{ImmediateBuffer, ImmediatePool};
 use crate::renderer::emulator::staging::{StagingAllocationId2, StagingAllocation2, StagingMemory2, StagingMemoryPool};
 
 use crate::prelude::*;
+use crate::renderer::emulator::{ExportHandle, ExportSet};
 
 
 pub(super) struct Share2 {
@@ -139,6 +140,28 @@ impl Share2 {
         drop(guard);
         self.signal.notify_one();
         id
+    }
+
+    pub(super) fn export(&self, export_set: Arc<ExportSet>) -> ExportHandle {
+        let mut guard = self.channel.lock().unwrap();
+        if guard.state != State::Running {
+            panic!("Called export on {:?} share", guard.state);
+        }
+
+        let emulator_signal_value = guard.next_task_id;
+        guard.next_task_id += 1;
+        let export_signal_value = guard.next_task_id;
+        guard.next_task_id += 1;
+
+        guard.queue.push_back(WorkerTask3::Export(emulator_signal_value, export_signal_value, export_set.clone()));
+
+        drop(guard);
+        self.signal.notify_one();
+        ExportHandle {
+            export_set,
+            wait_value: emulator_signal_value,
+            signal_value: export_signal_value,
+        }
     }
 
     pub(super) fn flush(&self) -> u64 {
