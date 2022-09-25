@@ -465,12 +465,11 @@ pub struct PipelineShaderInfo<'a> {
 pub struct ExportSet {
     emulator: Arc<Share2>,
     images: Box<[Arc<Image>]>,
-    image_infos: Box<[ExportImageInfo]>
 }
 
 impl ExportSet {
-    pub fn get_images(&self) -> &[ExportImageInfo] {
-        &self.image_infos
+    pub fn get_images(&self) -> &[Arc<Image>] {
+        &self.images
     }
 
     pub fn export(&self) -> ExportHandle {
@@ -478,34 +477,19 @@ impl ExportSet {
     }
 }
 
-pub struct ExportImageInfo {
-    image: vk::Image,
-    size: ImageSize,
-    format: vk::Format,
-}
-
-impl ExportImageInfo {
-    pub unsafe fn get_image(&self) -> vk::Image {
-        self.image
-    }
-
-    pub fn get_size(&self) -> ImageSize {
-        self.size
-    }
-
-    pub fn get_format(&self) -> vk::Format {
-        self.format
-    }
-}
-
 pub struct ExportHandle {
     emulator: Arc<Share2>,
-    wait_op: SemaphoreOp,
+    wait_value: u64,
+    signal_value: u64,
 }
 
 impl ExportHandle {
-    pub unsafe fn get_wait_op(&self) -> SemaphoreOp {
-        self.wait_op
+    pub fn get_semaphore_wait(&self) -> (vk::Semaphore, u64) {
+        (self.emulator.get_semaphore(), self.wait_value)
+    }
+
+    pub fn get_semaphore_signal(&self) -> (vk::Semaphore, u64) {
+        (self.emulator.get_semaphore(), self.signal_value)
     }
 }
 

@@ -134,9 +134,7 @@ impl Share2 {
         }
 
         let id = guard.next_task_id;
-        guard.next_task_id += 1;
-
-        guard.queue.push_back(WorkerTask3::Emulator(id, task));
+        guard.queue.push_back(WorkerTask3::Emulator(task));
 
         drop(guard);
         self.signal.notify_one();
@@ -149,8 +147,10 @@ impl Share2 {
             panic!("Called flush on {:?} share", guard.state);
         }
 
-        let id = guard.next_task_id - 1;
-        guard.queue.push_back(WorkerTask3::Flush);
+        let id = guard.next_task_id;
+        guard.next_task_id += 1;
+
+        guard.queue.push_back(WorkerTask3::Flush(id));
 
         drop(guard);
         self.signal.notify_one();
@@ -163,7 +163,8 @@ impl Share2 {
             panic!("Called shutdown on {:?} share", guard.state);
         }
 
-        guard.queue.push_back(WorkerTask3::Shutdown);
+        let id = guard.next_task_id;
+        guard.queue.push_back(WorkerTask3::Shutdown(id));
         guard.state = State::Shutdown;
         drop(guard);
         self.signal.notify_one();

@@ -7,6 +7,7 @@ use std::ffi::CString;
 use std::hash::{BuildHasher, Hash, Hasher};
 use std::marker::PhantomData;
 use std::mem::ManuallyDrop;
+use std::ops::Deref;
 use std::pin::Pin;
 use std::process::exit;
 use std::rc::Rc;
@@ -42,15 +43,16 @@ mod task {
     use std::sync::Arc;
 
     use bumpalo::Bump;
-    use crate::renderer::emulator::EmulatorTask;
+    use crate::renderer::emulator::{EmulatorTask, ExportSet};
     use crate::renderer::emulator::share::Share2;
     use crate::renderer::emulator::staging::StagingAllocationId2;
 
     pub(in crate::renderer::emulator)
     enum WorkerTask3 {
-        Emulator(u64, EmulatorTaskContainer),
-        Flush,
-        Shutdown,
+        Emulator(EmulatorTaskContainer),
+        Export(u64, u64, Arc<ExportSet>),
+        Flush(u64),
+        Shutdown(u64),
     }
 
     pub(in crate::renderer::emulator)
@@ -162,30 +164,27 @@ pub(super) fn run_worker2(share: Arc<Share2>) {
     let mut recorder = None;
 
     let mut last_sync = 0u64;
-    let mut next_sync = 0u64;
     let mut last_update = Instant::now();
     loop {
         if let Some(task) = share.pop_task(Duration::from_millis(33)) {
             match task {
-                WorkerTask3::Emulator(id, task) => {
+                WorkerTask3::Emulator(task) => {
                     if recorder.is_none() {
                         recorder = Some(Recorder::new(&object_pool));
                     }
                     recorder.as_mut().unwrap().push_task(task);
-                    next_sync = id;
                 }
-                WorkerTask3::Flush |
-                WorkerTask3::Shutdown => {
-                    if let Some(recorder) = recorder.take() {
-                        artifacts.push_back(recorder.submit(last_sync, next_sync));
-                        last_sync = next_sync;
-                    }
-                    if last_sync != next_sync {
-                        todo!()
-                    }
-                    if let WorkerTask3::Shutdown = task {
-                        break;
-                    }
+                WorkerTask3::Export(signal_value, wait_value, export_set) => {
+                    let images: Box<_> = export_set.get_images().iter().map(|i| (&**i, vk::ImageLayout::GENERAL)).collect();
+                    submit_recorder(&share, &mut recorder, &object_pool, &mut last_sync, signal_value, &images, &mut artifacts);
+                    last_sync = wait_value;
+                }
+                WorkerTask3::Flush(signal_value) => {
+                    submit_recorder(&share, &mut recorder, &object_pool, &mut last_sync, signal_value, &[], &mut artifacts);
+                }
+                WorkerTask3::Shutdown(signal_value) => {
+                    submit_recorder(&share, &mut recorder, &object_pool, &mut last_sync, signal_value, &[], &mut artifacts);
+                    break;
                 }
             }
 
@@ -219,6 +218,41 @@ pub(super) fn run_worker2(share: Arc<Share2>) {
             Err(err) => panic!("vkWaitSemaphores returned {:?}", err),
         }
     }
+}
+
+fn submit_recorder<'a>(share: &Share2, recorder: &mut Option<Recorder<'a>>, object_pool: &'a RefCell<ObjectPool2>, last_sync: &mut u64, signal_value: u64, image_transitions: &[(&Image, vk::ImageLayout)], artifacts: &mut VecDeque<SubmissionArtifact<'a>>) {
+    if recorder.is_none() {
+        // Check if we need a recorder for image barriers
+        for (image, dst_layout) in image_transitions {
+            if unsafe { image.get_current_layout() } != *dst_layout {
+                // We need at least one image barrier so we need a recorder.
+                *recorder = Some(Recorder::new(&object_pool));
+                break;
+            }
+        }
+    }
+
+    if let Some(recorder) = recorder.take() {
+        artifacts.push_back(recorder.submit(*last_sync, signal_value, image_transitions));
+    } else {
+        // There is nothing to submit so we must manually ensure that we signal the required value
+        let semaphore = share.get_semaphore();
+        let info = vk::SemaphoreWaitInfo::builder()
+            .semaphores(std::slice::from_ref(&semaphore))
+            .values(std::slice::from_ref(last_sync));
+        unsafe {
+            share.get_device().timeline_semaphore_khr().wait_semaphores(&info, u64::MAX)
+        }.unwrap();
+
+        let info = vk::SemaphoreSignalInfo::builder()
+            .semaphore(semaphore)
+            .value(signal_value);
+        unsafe {
+            share.get_device().timeline_semaphore_khr().signal_semaphore(&info)
+        }.unwrap();
+    }
+
+    *last_sync = signal_value;
 }
 
 /// Provides a pool of vulkan objects to allow for object reuse.
@@ -388,11 +422,11 @@ mod recorder {
         }
 
         pub(super) fn push_task(&mut self, task: EmulatorTaskContainer) {
-            self.recorder.as_mut().unwrap().push_task(task);
+            self.recorder.as_mut().unwrap().push_task(task)
         }
 
-        pub(super) fn submit(mut self, wait_value: u64, signal_value: u64) -> SubmissionArtifact<'a> {
-            self.recorder.take().unwrap().submit(wait_value, signal_value)
+        pub(super) fn submit(mut self, wait_value: u64, signal_value: u64, image_transitions: &[(&Image, vk::ImageLayout)]) -> SubmissionArtifact<'a> {
+            self.recorder.take().unwrap().submit(wait_value, signal_value, image_transitions)
         }
     }
 
@@ -492,7 +526,7 @@ mod recorder {
             }
         }
 
-        fn submit(&mut self, wait_value: u64, signal_value: u64) -> SubmissionArtifact<'a> {
+        fn submit(&mut self, wait_value: u64, signal_value: u64, image_transitions: &[(&Image, vk::ImageLayout)]) -> SubmissionArtifact<'a> {
             self.reorder_main_recorder();
             self.finish_reorder_recorder();
 
@@ -502,13 +536,40 @@ mod recorder {
             let queue = self.device.get_main_queue();
             let semaphore = self.object_pool.borrow().get_share().get_semaphore();
 
-            let post_state = self.pre_state.take().unwrap();
+            let mut post_state = self.pre_state.take().unwrap();
+            let mut image_barriers = Vec::with_capacity(image_transitions.len());
+
+            for (image, dst_layout) in image_transitions {
+                let new_state = ImageState::ReadUniform(*dst_layout, vk::PipelineStageFlags2::NONE, vk::AccessFlags2::NONE);
+
+                // We will deal with any required barriers here so we can remove the image from the post state
+                if let Some(old_state) = post_state.images.remove(*image) {
+                    old_state.gen_barriers(&new_state, image, &mut image_barriers);
+                } else {
+                    let old_layout = unsafe { image.get_current_layout() };
+                    if old_layout != *dst_layout {
+                        let old_state = ImageState::ReadUniform(old_layout, vk::PipelineStageFlags2::NONE, vk::AccessFlags2::NONE);
+                        old_state.gen_barriers(&new_state, image, &mut image_barriers);
+                    }
+                }
+                unsafe { image.set_current_layout(*dst_layout) };
+            }
+
             for (image, state) in post_state.images {
                 match state {
                     ImageState::ReadUniform(layout, _, _) |
                     ImageState::ReadWriteUniform(layout, _, _) => {
                         unsafe { image.set_current_layout(layout) };
                     }
+                }
+            }
+
+            if image_barriers.len() != 0 {
+                let dependency_info = vk::DependencyInfo::builder()
+                    .image_memory_barriers(&image_barriers);
+
+                unsafe {
+                    self.device.synchronization_2_khr().cmd_pipeline_barrier2(self.cmd.unwrap(), &dependency_info);
                 }
             }
 
